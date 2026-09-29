@@ -32,7 +32,7 @@ interface AppContextType {
   theme: 'light' | 'dark';
   toggleTheme: () => void;
   // Auth methods (National ID + Password)
-  login: (nationalId: string, password?: string) => boolean;
+  login: (nationalId: string, password?: string) => Promise<boolean>;
   logout: () => void;
   switchUser: (userId: string) => void;
   createNewQuiz: (
