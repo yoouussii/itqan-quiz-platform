@@ -57,30 +57,30 @@ export class StorageService {
     }
   }
 
-  public static resetToSeedData() {
-    setLocalItem(STORAGE_KEYS.USERS, initialUsers);
-    setLocalItem(STORAGE_KEYS.SUBJECTS, initialSubjects);
-    setLocalItem(STORAGE_KEYS.CLASSES, initialClasses);
-    setLocalItem(STORAGE_KEYS.QUIZZES, initialQuizzes);
-    setLocalItem(STORAGE_KEYS.QUESTIONS, initialQuestions);
-    setLocalItem(STORAGE_KEYS.ASSIGNMENTS, initialAssignments);
-    setLocalItem(STORAGE_KEYS.SUBMISSIONS, initialSubmissions);
-    setLocalItem(STORAGE_KEYS.CURRENT_USER_ID, initialUsers[0].id); // Default to admin
-  }
+public static resetToSeedData() {
+    setLocalItem(STORAGE_KEYS.USERS, []);
+    setLocalItem(STORAGE_KEYS.SUBJECTS, []);
+    setLocalItem(STORAGE_KEYS.CLASSES, []);
+    setLocalItem(STORAGE_KEYS.QUIZZES, []);
+    setLocalItem(STORAGE_KEYS.QUESTIONS, []);
+    setLocalItem(STORAGE_KEYS.ASSIGNMENTS, []);
+    setLocalItem(STORAGE_KEYS.SUBMISSIONS, []);
+}
 
-  // --- Auth / Current User ---
-  public static getCurrentUserId(): string {
-    return localStorage.getItem(STORAGE_KEYS.CURRENT_USER_ID) || initialUsers[0].id;
-  }
+// --- Auth / Current User ---
+public static getCurrentUserId(): string | null {
+  return localStorage.getItem(STORAGE_KEYS.CURRENT_USER_ID); // تم إزالة الحساب الافتراضي
+}
 
   public static setCurrentUserId(id: string): void {
     localStorage.setItem(STORAGE_KEYS.CURRENT_USER_ID, id);
   }
 
-  public static getCurrentUser(): User | null {
-    const id = this.getCurrentUserId();
-    return this.getUserById(id) || null;
-  }
+public static getCurrentUser(): User | null {
+  const id = this.getCurrentUserId();
+  if (!id) return null;
+  return this.getUserById(id) || null;
+}
 
   public static getUserByNationalId(nationalId: string): User | undefined {
     const cleaned = nationalId.trim();
