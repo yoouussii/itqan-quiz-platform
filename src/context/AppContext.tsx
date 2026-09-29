@@ -62,10 +62,10 @@ interface AppContextType {
     timeSpentSeconds: number
   ) => Submission;
   // User Management
-  addUser: (userData: Omit<User, 'id' | 'created_at'>) => User;
-  updateUserData: (id: string, updates: Partial<User>) => void;
-  resetUserPassword: (id: string, newPass: string) => boolean;
-  deleteUserItem: (id: string) => void;
+  addUser: (userData: Omit<User, 'id' | 'created_at'>) => Promise<User>;
+  updateUserData: (id: string, updates: Partial<User>) => Promise<void>;
+  resetUserPassword: (id: string, newPass: string) => Promise<boolean>;
+  deleteUserItem: (id: string) => Promise<void>;
   // Dynamic Subjects & Classes CRUD
   addSubject: (subject: Omit<Subject, 'id'>) => Subject;
   updateSubjectData: (id: string, updates: Partial<Subject>) => void;
@@ -161,7 +161,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         setQuizzes(StorageService.getQuizzesForStudent(updatedUser.id));
         setKpis(StorageService.getDynamicKPIs());
       }
-      // Strict privacy enforcement on submissions
       setSubmissions(StorageService.getAccessibleSubmissionsWithDetails(updatedUser.id));
     }
   }, []);
@@ -192,7 +191,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         .single();
 
       if (user && !error) {
-        // حفظ المستخدم الآتي من Supabase في التخزين المحلي لضمان عدم الخروج التلقائي
         const existingUsers = StorageService.getUsers();
         const userIndex = existingUsers.findIndex(
           (u) => u.id === user.id || u.national_id === user.national_id
@@ -349,22 +347,55 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return newSubmission;
   };
 
-  // Users Management
-  const addUser = (userData: Omit<User, 'id' | 'created_at'>) => {
+  // Users Management with Supabase Sync
+  const addUser = async (userData: Omit<User, 'id' | 'created_at'>) => {
     const newUser = StorageService.createUser(userData);
+
+    try {
+      const { error } = await supabase.from('users').insert([
+        {
+          id: newUser.id,
+          national_id: newUser.national_id,
+          name: newUser.name,
+          role: newUser.role,
+          password: newUser.password || '123456',
+        },
+      ]);
+
+      if (error) {
+        console.error('Error syncing user to Supabase:', error);
+      }
+    } catch (err) {
+      console.error('Supabase exception:', err);
+    }
+
     refreshData();
     showToast(`تمت إضافة المستخدم (${newUser.name}) بنجاح`, 'success');
     return newUser;
   };
 
-  const updateUserData = (id: string, updates: Partial<User>) => {
+  const updateUserData = async (id: string, updates: Partial<User>) => {
     StorageService.updateUser(id, updates);
+
+    try {
+      await supabase.from('users').update(updates).eq('id', id);
+    } catch (err) {
+      console.error('Error updating user in Supabase:', err);
+    }
+
     refreshData();
     showToast('تم تحديث بيانات المستخدم بنجاح', 'success');
   };
 
-  const resetUserPassword = (id: string, newPass: string) => {
+  const resetUserPassword = async (id: string, newPass: string) => {
     const ok = StorageService.resetPassword(id, newPass);
+
+    try {
+      await supabase.from('users').update({ password: newPass }).eq('id', id);
+    } catch (err) {
+      console.error('Error resetting password in Supabase:', err);
+    }
+
     if (ok) {
       refreshData();
       showToast('تمت إعادة تعيين كلمة المرور بنجاح', 'success');
@@ -372,8 +403,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return ok;
   };
 
-  const deleteUserItem = (id: string) => {
+  const deleteUserItem = async (id: string) => {
     StorageService.deleteUser(id);
+
+    try {
+      await supabase.from('users').delete().eq('id', id);
+    } catch (err) {
+      console.error('Error deleting user from Supabase:', err);
+    }
+
     refreshData();
     showToast('تم حذف المستخدم من النظام', 'info');
   };
