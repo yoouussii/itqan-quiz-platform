@@ -11,7 +11,7 @@ import {
   SubmissionWithDetails,
 } from '../types';
 import { StorageService } from '../services/storage';
-
+import { supabase } from '../lib/supabase';
 interface AppContextType {
   currentUser: User | null;
   users: User[];
@@ -183,16 +183,29 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     showToast(`تم التبديل إلى: ${user?.name} (${getRoleBadge(user?.role)})`, 'info');
   };
 
-  // Auth: Login by National ID + Password
-  const login = (nationalId: string, password?: string) => {
-    const authenticatedUser = StorageService.authenticate(nationalId, password);
-    if (authenticatedUser) {
-      switchUser(authenticatedUser.id);
+  // Auth: Login by National ID + Password from Supabase
+const login = async (nationalId: string, password?: string) => {
+  try {
+    const { data: user, error } = await supabase
+      .from('users')
+      .select('*')
+      .eq('national_id', nationalId)
+      .eq('password', password)
+      .single();
+
+    if (user && !error) {
+      StorageService.setCurrentUserId(user.id);
+      setCurrentUser(user);
+      setCurrentView('dashboard');
       return true;
     }
-    showToast('رقم الهوية / الرقم الأكاديمي أو كلمة المرور غير صحيحة', 'error');
-    return false;
-  };
+  } catch (err) {
+    console.error('Login error:', err);
+  }
+
+  showToast('رقم الهوية / الرقم الأكاديمي أو كلمة المرور غير صحيحة', 'error');
+  return false;
+};
 
   const logout = () => {
     localStorage.removeItem('itqan_current_user_id_v2');
