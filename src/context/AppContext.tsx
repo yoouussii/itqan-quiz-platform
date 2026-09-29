@@ -12,6 +12,7 @@ import {
 } from '../types';
 import { StorageService } from '../services/storage';
 import { supabase } from '../services/supabase';
+
 interface AppContextType {
   currentUser: User | null;
   users: User[];
@@ -147,9 +148,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setUsers(updatedUsers);
     setSubjects(updatedSubjects);
     setClasses(updatedClasses);
-    setCurrentUser(updatedUser);
 
     if (updatedUser) {
+      setCurrentUser(updatedUser);
       if (updatedUser.role === 'admin') {
         setQuizzes(StorageService.getAllQuizzesWithDetails());
         setKpis(StorageService.getDynamicKPIs());
@@ -162,9 +163,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       }
       // Strict privacy enforcement on submissions
       setSubmissions(StorageService.getAccessibleSubmissionsWithDetails(updatedUser.id));
-    } else {
-      setQuizzes([]);
-      setSubmissions([]);
     }
   }, []);
 
@@ -184,28 +182,41 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   // Auth: Login by National ID + Password from Supabase
-const login = async (nationalId: string, password?: string) => {
-  try {
-    const { data: user, error } = await supabase
-      .from('users')
-      .select('*')
-      .eq('national_id', nationalId)
-      .eq('password', password)
-      .single();
+  const login = async (nationalId: string, password?: string) => {
+    try {
+      const { data: user, error } = await supabase
+        .from('users')
+        .select('*')
+        .eq('national_id', nationalId)
+        .eq('password', password)
+        .single();
 
-    if (user && !error) {
-      StorageService.setCurrentUserId(user.id);
-      setCurrentUser(user);
-      setCurrentView('dashboard');
-      return true;
+      if (user && !error) {
+        // حفظ المستخدم الآتي من Supabase في التخزين المحلي لضمان عدم الخروج التلقائي
+        const existingUsers = StorageService.getUsers();
+        const userIndex = existingUsers.findIndex(
+          (u) => u.id === user.id || u.national_id === user.national_id
+        );
+
+        if (userIndex >= 0) {
+          existingUsers[userIndex] = { ...existingUsers[userIndex], ...user };
+        } else {
+          existingUsers.push(user);
+        }
+        localStorage.setItem('itqan_users_v2', JSON.stringify(existingUsers));
+
+        StorageService.setCurrentUserId(user.id);
+        setCurrentUser(user);
+        setCurrentView('dashboard');
+        return true;
+      }
+    } catch (err) {
+      console.error('Login error:', err);
     }
-  } catch (err) {
-    console.error('Login error:', err);
-  }
 
-  showToast('رقم الهوية / الرقم الأكاديمي أو كلمة المرور غير صحيحة', 'error');
-  return false;
-};
+    showToast('رقم الهوية / الرقم الأكاديمي أو كلمة المرور غير صحيحة', 'error');
+    return false;
+  };
 
   const logout = () => {
     localStorage.removeItem('itqan_current_user_id_v2');
@@ -329,7 +340,6 @@ const login = async (nationalId: string, password?: string) => {
       is_retake: isRetake,
     });
 
-    // If this was an authorized retake, revoke the retake permission so they don't retake infinitely
     if (isRetake) {
       StorageService.revokeStudentRetake(quizId, currentUser.id);
     }
