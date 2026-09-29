@@ -11,7 +11,7 @@ import {
   SubmissionWithDetails,
 } from '../types';
 import { StorageService } from '../services/storage';
-import { supabase } from '../lib/supabase';
+import { supabase } from '../services/supabase';
 interface AppContextType {
   currentUser: User | null;
   users: User[];
