@@ -769,7 +769,7 @@ export const UsersManagement: React.FC = () => {
                   type="submit"
                   className="px-5 py-2 text-xs font-bold text-white bg-amber-600 hover:bg-amber-700 rounded-xl shadow-md shadow-amber-600/20 transition-all"
                 >
-                  تحديث كلمة المرور
+تحديث كلمة المرور
                 </button>
               </div>
             </form>
