@@ -189,74 +189,72 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     StorageService.getDynamicKPIs(currentUser?.role === 'teacher' ? currentUser.id : undefined)
   );
 
-  const refreshData = useCallback(async () => {
-    const localUsers = StorageService.getUsers();
+const refreshData = useCallback(async () => {
+  const localUsers = StorageService.getUsers();
 
-    try {
-      const { data: dbUsers, error } = await supabase.from('users').select('*');
-      if (!error && dbUsers && dbUsers.length > 0) {
-        const mergedUsers = dbUsers.map((dbU: any) => {
-          const localU = localUsers.find((l) => l.id === dbU.id);
+  try {
+    const { data: dbUsers, error } = await supabase.from('users').select('*');
+    if (!error && dbUsers && dbUsers.length > 0) {
+      const mergedUsers = dbUsers.map((dbU: any) => {
+        const localU = localUsers.find((l) => l.id === dbU.id);
 
-          const dbSubjects = Array.isArray(dbU.assigned_subject_ids) && dbU.assigned_subject_ids.length > 0
-            ? dbU.assigned_subject_ids
-            : (localU?.assigned_subject_ids || []);
+        // جلب الصلاحيات المحلية كخيار أول في حال كانت قاعدة البيانات فارغة
+        const localPerms = localU?.permissions || localU?.teacher_permissions || {};
+        const dbPerms = dbU.permissions && Object.keys(dbU.permissions).length > 0
+          ? dbU.permissions
+          : (dbU.teacher_permissions && Object.keys(dbU.teacher_permissions).length > 0 ? dbU.teacher_permissions : localPerms);
 
-          const dbClasses = Array.isArray(dbU.assigned_class_ids) && dbU.assigned_class_ids.length > 0
-            ? dbU.assigned_class_ids
-            : (localU?.assigned_class_ids || []);
+        const dbSubjects = Array.isArray(dbU.assigned_subject_ids) && dbU.assigned_subject_ids.length > 0
+          ? dbU.assigned_subject_ids
+          : (localU?.assigned_subject_ids || []);
 
-          const dbPerms = (dbU.permissions && Object.keys(dbU.permissions).length > 0)
-            ? dbU.permissions
-            : (localU?.permissions || localU?.teacher_permissions || {});
+        const dbClasses = Array.isArray(dbU.assigned_class_ids) && dbU.assigned_class_ids.length > 0
+          ? dbU.assigned_class_ids
+          : (localU?.assigned_class_ids || []);
 
-          return sanitizeUser({
-            ...localU,
-            ...dbU,
-            assigned_subject_ids: dbSubjects,
-            assigned_class_ids: dbClasses,
-            permissions: dbPerms,
-            teacher_permissions: dbPerms,
-          });
+        return sanitizeUser({
+          ...localU,
+          ...dbU,
+          assigned_subject_ids: dbSubjects,
+          assigned_class_ids: dbClasses,
+          permissions: dbPerms,
+          teacher_permissions: dbPerms,
         });
+      });
 
-        localStorage.setItem('itqan_users_v2', JSON.stringify(mergedUsers));
-      }
-    } catch (err) {
-      console.error('Supabase sync error:', err);
+      localStorage.setItem('itqan_users_v2', JSON.stringify(mergedUsers));
+    }
+  } catch (err) {
+    console.error('Supabase sync error:', err);
+  }
+
+  const updatedUsers = StorageService.getUsers().map(sanitizeUser);
+  const loadedSubjects = StorageService.getSubjects();
+  const loadedClasses = StorageService.getClasses();
+  const updatedUser = StorageService.getCurrentUser();
+
+  setUsers(updatedUsers);
+  setSubjects(loadedSubjects && loadedSubjects.length > 0 ? loadedSubjects : INITIAL_SUBJECTS);
+  setClasses(loadedClasses && loadedClasses.length > 0 ? loadedClasses : INITIAL_CLASSES);
+
+  if (updatedUser) {
+    const safeUser = sanitizeUser(updatedUser);
+    setCurrentUser(safeUser);
+
+    if (safeUser.role === 'admin') {
+      setQuizzes(StorageService.getAllQuizzesWithDetails());
+      setKpis(StorageService.getDynamicKPIs());
+    } else if (safeUser.role === 'teacher') {
+      setQuizzes(StorageService.getQuizzesForTeacher(safeUser.id));
+      setKpis(StorageService.getDynamicKPIs(safeUser.id));
+    } else if (safeUser.role === 'student') {
+      setQuizzes(StorageService.getQuizzesForStudent(safeUser.id));
+      setKpis(StorageService.getDynamicKPIs());
     }
 
-    const updatedUsers = StorageService.getUsers().map(sanitizeUser);
-    const loadedSubjects = StorageService.getSubjects();
-    const loadedClasses = StorageService.getClasses();
-    const updatedUser = StorageService.getCurrentUser();
-
-    const finalSubjects = loadedSubjects && loadedSubjects.length > 0 ? loadedSubjects : INITIAL_SUBJECTS;
-    const finalClasses = loadedClasses && loadedClasses.length > 0 ? loadedClasses : INITIAL_CLASSES;
-
-    setUsers(updatedUsers);
-    setSubjects(finalSubjects);
-    setClasses(finalClasses);
-
-    if (updatedUser) {
-      const safeUser = sanitizeUser(updatedUser);
-      setCurrentUser(safeUser);
-
-      if (safeUser.role === 'admin') {
-        setQuizzes(StorageService.getAllQuizzesWithDetails());
-        setKpis(StorageService.getDynamicKPIs());
-      } else if (safeUser.role === 'teacher') {
-        setQuizzes(StorageService.getQuizzesForTeacher(safeUser.id));
-        setKpis(StorageService.getDynamicKPIs(safeUser.id));
-      } else if (safeUser.role === 'student') {
-        setQuizzes(StorageService.getQuizzesForStudent(safeUser.id));
-        setKpis(StorageService.getDynamicKPIs());
-      }
-
-      setSubmissions(StorageService.getAccessibleSubmissionsWithDetails(safeUser.id));
-    }
-  }, []);
-
+    setSubmissions(StorageService.getAccessibleSubmissionsWithDetails(safeUser.id));
+  }
+}, []);
   useEffect(() => {
     refreshData();
   }, [currentUser?.id, currentUser?.role, refreshData]);
