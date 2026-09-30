@@ -50,6 +50,7 @@ export interface Quiz {
   description: string;
   subject_id: string;
   teacher_id: string;
+  created_by?: string;
   total_marks: number;
   duration_minutes: number;
   pass_percentage: number;
