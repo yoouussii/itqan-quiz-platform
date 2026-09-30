@@ -17,12 +17,12 @@ import { supabase } from '../services/supabase';
 // 1️⃣ البيانات الافتراضية لمنع تصفير القوائم
 // ==========================================
 const INITIAL_SUBJECTS: Subject[] = [
-  { id: 'sub_1', name: 'الرياضيات', code: 'MATH101', color: '#10b981' },
-  { id: 'sub_2', name: 'العلوم العامة', code: 'SCI101', color: '#6366f1' },
-  { id: 'sub_3', name: 'اللغة العربية', code: 'ARAB101', color: '#0ea5e9' },
-  { id: 'sub_4', name: 'الفيزياء', code: 'PHYS101', color: '#f59e0b' },
-  { id: 'sub_5', name: 'الكيمياء', code: 'CHEM101', color: '#ec4899' },
-  { id: 'sub_6', name: 'اللغة الإنجليزية', code: 'ENG101', color: '#8b5cf6' },
+  { id: 'sub_1', name: 'الرياضيات', code: 'MATH101', color: '#10b981', description: 'مادة الرياضيات', icon: 'Calculator' },
+  { id: 'sub_2', name: 'العلوم العامة', code: 'SCI101', color: '#6366f1', description: 'مادة العلوم العامة', icon: 'BookOpen' },
+  { id: 'sub_3', name: 'اللغة العربية', code: 'ARAB101', color: '#0ea5e9', description: 'مادة اللغة العربية', icon: 'Languages' },
+  { id: 'sub_4', name: 'الفيزياء', code: 'PHYS101', color: '#f59e0b', description: 'مادة الفيزياء', icon: 'Atom' },
+  { id: 'sub_5', name: 'الكيمياء', code: 'CHEM101', color: '#ec4899', description: 'مادة الكيمياء', icon: 'FlaskConical' },
+  { id: 'sub_6', name: 'اللغة الإنجليزية', code: 'ENG101', color: '#8b5cf6', description: 'مادة اللغة الإنجليزية', icon: 'Globe' },
 ];
 
 const INITIAL_CLASSES: SchoolClass[] = [
