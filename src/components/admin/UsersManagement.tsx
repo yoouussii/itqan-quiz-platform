@@ -31,6 +31,7 @@ export const UsersManagement: React.FC = () => {
     updateUserData,
     resetUserPassword,
     deleteUserItem,
+    refreshData,
   } = useApp();
 
   // التحقق من صلاحية إضافة الطلاب
@@ -245,16 +246,27 @@ export const UsersManagement: React.FC = () => {
     const currentName = (editingUser.name || name).trim();
     const currentNationalId = (editingUser.national_id || nationalId).trim();
 
+    // توحيد الحقول المزدوجة بدقة:
+    // الفصول: class_id و assigned_class_ids
+    const unifiedClassId = effectiveRole === 'student' ? studentClassId : (teacherCls[0] || null);
+    const unifiedAssignedClassIds = effectiveRole === 'student'
+      ? (studentClassId ? [studentClassId] : [])
+      : [...teacherCls];
+
+    // المواد: specialty_id و assigned_subject_ids
+    const unifiedSpecialtyId = effectiveRole === 'teacher' ? (teacherSubs[0] || null) : null;
+    const unifiedAssignedSubjectIds = effectiveRole === 'teacher' ? [...teacherSubs] : [];
+
     const updates: Partial<User> & { password?: string } = {
       name: currentName,
       national_id: currentNationalId,
       username: currentNationalId,
       email: editingUser.email || `${currentNationalId}@itqan.edu.sa`,
       role: effectiveRole,
-      specialty_id: effectiveRole === 'teacher' ? (teacherSubs[0] || null) : null,
-      class_id: effectiveRole === 'student' ? studentClassId : (teacherCls[0] || null),
-      assigned_subject_ids: effectiveRole === 'teacher' ? [...teacherSubs] : [],
-      assigned_class_ids: effectiveRole === 'teacher' ? [...teacherCls] : (effectiveRole === 'student' && studentClassId ? [studentClassId] : []),
+      specialty_id: unifiedSpecialtyId,
+      assigned_subject_ids: unifiedAssignedSubjectIds,
+      class_id: unifiedClassId,
+      assigned_class_ids: unifiedAssignedClassIds,
       teacher_permissions: permsObj,
       permissions: permsObj,
     };
@@ -265,6 +277,7 @@ export const UsersManagement: React.FC = () => {
     }
 
     await updateUserData(editingUser.id, updates);
+    await refreshData();
     setEditingUser(null);
     setShowAddModal(false);
   };

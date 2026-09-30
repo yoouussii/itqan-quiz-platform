@@ -70,14 +70,14 @@ interface AppContextType {
   updateUserData: (id: string, updates: Partial<User>) => Promise<void>;
   resetUserPassword: (id: string, newPass: string) => Promise<boolean>;
   deleteUserItem: (id: string) => Promise<void>;
-  addSubject: (subject: Omit<Subject, 'id'>) => Subject;
-  updateSubjectData: (id: string, updates: Partial<Subject>) => void;
-  deleteSubjectItem: (id: string) => void;
-  addClass: (classData: Omit<SchoolClass, 'id'>) => SchoolClass;
-  updateClassData: (id: string, updates: Partial<SchoolClass>) => void;
-  deleteClassItem: (id: string) => void;
+  addSubject: (subject: Omit<Subject, 'id'>) => Promise<Subject> | Subject;
+  updateSubjectData: (id: string, updates: Partial<Subject>) => Promise<void> | void;
+  deleteSubjectItem: (id: string) => Promise<void> | void;
+  addClass: (classData: Omit<SchoolClass, 'id'>) => Promise<SchoolClass> | SchoolClass;
+  updateClassData: (id: string, updates: Partial<SchoolClass>) => Promise<void> | void;
+  deleteClassItem: (id: string) => Promise<void> | void;
   resetSystemData: () => void;
-  refreshData: () => void;
+  refreshData: () => Promise<void> | void;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -294,13 +294,104 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
 
     const updatedUsers = StorageService.getUsers().map(sanitizeUser);
-    const loadedSubjects = StorageService.getSubjects();
-    const loadedClasses = StorageService.getClasses();
+
+    // 2. مزامنة واستدامة المواد (Subjects) مع Supabase
+    let localSubjects = StorageService.getSubjects() || [];
+    const deletedSubjectIds = StorageService.getDeletedSubjectIds();
+    localSubjects = localSubjects.filter((s) => !deletedSubjectIds.includes(s.id));
+
+    if (isSupabaseConfigured()) {
+      try {
+        const { data: dbSubjects, error: subjErr } = await supabase.from('subjects').select('*');
+        if (!subjErr && Array.isArray(dbSubjects)) {
+          const validDbSubjects = dbSubjects.filter((s: any) => s && s.id && !deletedSubjectIds.includes(s.id));
+          const subMap = new Map<string, Subject>();
+          validDbSubjects.forEach((dbS: any) => {
+            subMap.set(dbS.id, {
+              id: dbS.id,
+              name: dbS.name || 'مادة بدون اسم',
+              code: dbS.code || dbS.id,
+              color: dbS.color || '#4f46e5',
+              description: dbS.description || '',
+              icon: dbS.icon || 'BookOpen',
+              created_by: dbS.created_by,
+            });
+          });
+          for (const localS of localSubjects) {
+            if (!subMap.has(localS.id)) {
+              subMap.set(localS.id, localS);
+              supabase.from('subjects').insert({
+                id: localS.id,
+                name: localS.name,
+                code: localS.code,
+                color: localS.color,
+                description: localS.description,
+                icon: localS.icon,
+                created_by: localS.created_by,
+              }).then(({ error }) => {
+                if (error) console.warn('[refreshData] Sync local subject to Supabase warning:', error.message);
+              });
+            } else {
+              subMap.set(localS.id, { ...subMap.get(localS.id)!, ...localS });
+            }
+          }
+          localSubjects = Array.from(subMap.values());
+          localStorage.setItem('itqan_subjects_v2', JSON.stringify(localSubjects));
+        }
+      } catch (err) {
+        console.warn('[refreshData] Subjects Supabase sync skipped:', err);
+      }
+    }
+
+    // 3. مزامنة واستدامة الفصول (Classes) مع Supabase
+    let localClasses = StorageService.getClasses() || [];
+    const deletedClassIds = StorageService.getDeletedClassIds();
+    localClasses = localClasses.filter((c) => !deletedClassIds.includes(c.id));
+
+    if (isSupabaseConfigured()) {
+      try {
+        const { data: dbClasses, error: clsErr } = await supabase.from('classes').select('*');
+        if (!clsErr && Array.isArray(dbClasses)) {
+          const validDbClasses = dbClasses.filter((c: any) => c && c.id && !deletedClassIds.includes(c.id));
+          const clsMap = new Map<string, SchoolClass>();
+          validDbClasses.forEach((dbC: any) => {
+            clsMap.set(dbC.id, {
+              id: dbC.id,
+              name: dbC.name || 'فصل بدون اسم',
+              grade_level: dbC.grade_level || 'المرحلة الدراسية',
+              student_count: dbC.student_count || 0,
+              created_by: dbC.created_by,
+            });
+          });
+          for (const localC of localClasses) {
+            if (!clsMap.has(localC.id)) {
+              clsMap.set(localC.id, localC);
+              supabase.from('classes').insert({
+                id: localC.id,
+                name: localC.name,
+                grade_level: localC.grade_level,
+                student_count: localC.student_count || 0,
+                created_by: localC.created_by,
+              }).then(({ error }) => {
+                if (error) console.warn('[refreshData] Sync local class to Supabase warning:', error.message);
+              });
+            } else {
+              clsMap.set(localC.id, { ...clsMap.get(localC.id)!, ...localC });
+            }
+          }
+          localClasses = Array.from(clsMap.values());
+          localStorage.setItem('itqan_classes_v2', JSON.stringify(localClasses));
+        }
+      } catch (err) {
+        console.warn('[refreshData] Classes Supabase sync skipped:', err);
+      }
+    }
+
     const currentUserId = StorageService.getCurrentUserId();
 
     setUsers(updatedUsers);
-    setSubjects(loadedSubjects || []);
-    setClasses(loadedClasses || []);
+    setSubjects(localSubjects);
+    setClasses(localClasses);
 
     // الحفاظ التام على جلسة المستخدم في localStorage دون تسجيل خروج قسري مطلقاً
     if (currentUserId) {
@@ -850,6 +941,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           console.warn('[updateUserData] Background Supabase sync error (local state preserved):', dbErr);
         }
       }
+
+      // إعادة مزامنة البيانات فوراً لضمان تحديث الجدول في الواجهة لحظياً
+      await refreshData();
     } catch (error) {
       console.error('Error updating user data:', error);
       showToast('حدث خطأ أثناء حفظ التعديلات', 'error');
@@ -912,9 +1006,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     showToast('تم حذف المستخدم من النظام نهائياً', 'info');
   };
 
-  const addSubject = (subj: Omit<Subject, 'id'>) => {
-    const currentSubjects = StorageService.getSubjects();
-    const existingList = currentSubjects || [];
+  const addSubject = async (subj: Omit<Subject, 'id'>) => {
+    const currentSubjects = StorageService.getSubjects() || [];
 
     const created: Subject = {
       ...subj,
@@ -922,69 +1015,153 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       created_by: currentUser?.id,
     };
 
-    const newList = [...existingList, created];
+    const newList = [...currentSubjects, created];
     localStorage.setItem('itqan_subjects_v2', JSON.stringify(newList));
     setSubjects(newList);
+
+    if (isSupabaseConfigured()) {
+      try {
+        const { error } = await supabase.from('subjects').insert({
+          id: created.id,
+          name: created.name,
+          code: created.code,
+          color: created.color,
+          description: created.description,
+          icon: created.icon,
+          created_by: created.created_by,
+        });
+        if (error) {
+          console.warn('[addSubject] Supabase insert warning:', error.message);
+        } else {
+          console.log(`[addSubject] Subject ${created.id} inserted into Supabase successfully`);
+        }
+      } catch (err) {
+        console.warn('[addSubject] Supabase network error:', err);
+      }
+    }
 
     if (currentUser && currentUser.role === 'teacher') {
       const currentAssigned = currentUser.assigned_subject_ids || [];
       const updatedAssigned = Array.from(new Set([...currentAssigned, created.id]));
-      updateUserData(currentUser.id, { assigned_subject_ids: updatedAssigned });
+      await updateUserData(currentUser.id, { assigned_subject_ids: updatedAssigned });
     } else {
-      refreshData();
+      await refreshData();
     }
 
     showToast(`تمت إضافة المادة (${created.name}) بنجاح`, 'success');
     return created;
   };
 
-  const updateSubjectData = (id: string, updates: Partial<Subject>) => {
+  const updateSubjectData = async (id: string, updates: Partial<Subject>) => {
     StorageService.updateSubject(id, updates);
-    refreshData();
+    setSubjects((prev) => prev.map((s) => (s.id === id ? { ...s, ...updates } : s)));
+
+    if (isSupabaseConfigured()) {
+      try {
+        const { error } = await supabase.from('subjects').update(updates).eq('id', id);
+        if (error) console.warn('[updateSubjectData] Supabase update warning:', error.message);
+      } catch (err) {
+        console.warn('[updateSubjectData] Supabase network error:', err);
+      }
+    }
+
+    await refreshData();
     showToast('تم تحديث المادة بنجاح', 'success');
   };
 
-  const deleteSubjectItem = (id: string) => {
+  const deleteSubjectItem = async (id: string) => {
     StorageService.deleteSubject(id);
-    refreshData();
+    setSubjects((prev) => prev.filter((s) => s.id !== id));
+
+    if (isSupabaseConfigured()) {
+      try {
+        const { error } = await supabase.from('subjects').delete().eq('id', id);
+        if (error) console.warn('[deleteSubjectItem] Supabase delete warning:', error.message);
+      } catch (err) {
+        console.warn('[deleteSubjectItem] Supabase network error:', err);
+      }
+    }
+
+    await refreshData();
     showToast('تم حذف المادة بنجاح', 'info');
   };
 
-  const addClass = (cls: Omit<SchoolClass, 'id'>) => {
-    const currentClasses = StorageService.getClasses();
-    const existingList = currentClasses || [];
+  const addClass = async (cls: Omit<SchoolClass, 'id'>) => {
+    const currentClasses = StorageService.getClasses() || [];
 
     const created: SchoolClass = {
       ...cls,
       id: `class_${Date.now()}`,
+      student_count: 0,
       created_by: currentUser?.id,
     };
 
-    const newList = [...existingList, created];
+    const newList = [...currentClasses, created];
     localStorage.setItem('itqan_classes_v2', JSON.stringify(newList));
     setClasses(newList);
+
+    if (isSupabaseConfigured()) {
+      try {
+        const { error } = await supabase.from('classes').insert({
+          id: created.id,
+          name: created.name,
+          grade_level: created.grade_level,
+          student_count: created.student_count || 0,
+          created_by: created.created_by,
+        });
+        if (error) {
+          console.warn('[addClass] Supabase insert warning:', error.message);
+        } else {
+          console.log(`[addClass] Class ${created.id} inserted into Supabase successfully`);
+        }
+      } catch (err) {
+        console.warn('[addClass] Supabase network error:', err);
+      }
+    }
 
     if (currentUser && currentUser.role === 'teacher') {
       const currentAssigned = currentUser.assigned_class_ids || [];
       const updatedAssigned = Array.from(new Set([...currentAssigned, created.id]));
-      updateUserData(currentUser.id, { assigned_class_ids: updatedAssigned });
+      await updateUserData(currentUser.id, { assigned_class_ids: updatedAssigned });
     } else {
-      refreshData();
+      await refreshData();
     }
 
     showToast(`تمت إضافة الشعبة/الصف (${created.name}) بنجاح`, 'success');
     return created;
   };
 
-  const updateClassData = (id: string, updates: Partial<SchoolClass>) => {
+  const updateClassData = async (id: string, updates: Partial<SchoolClass>) => {
     StorageService.updateClass(id, updates);
-    refreshData();
+    setClasses((prev) => prev.map((c) => (c.id === id ? { ...c, ...updates } : c)));
+
+    if (isSupabaseConfigured()) {
+      try {
+        const { error } = await supabase.from('classes').update(updates).eq('id', id);
+        if (error) console.warn('[updateClassData] Supabase update warning:', error.message);
+      } catch (err) {
+        console.warn('[updateClassData] Supabase network error:', err);
+      }
+    }
+
+    await refreshData();
     showToast('تم تحديث الشعبة بنجاح', 'success');
   };
 
-  const deleteClassItem = (id: string) => {
+  const deleteClassItem = async (id: string) => {
     StorageService.deleteClass(id);
-    refreshData();
+    setClasses((prev) => prev.filter((c) => c.id !== id));
+
+    if (isSupabaseConfigured()) {
+      try {
+        const { error } = await supabase.from('classes').delete().eq('id', id);
+        if (error) console.warn('[deleteClassItem] Supabase delete warning:', error.message);
+      } catch (err) {
+        console.warn('[deleteClassItem] Supabase network error:', err);
+      }
+    }
+
+    await refreshData();
     showToast('تم حذف الشعبة بنجاح', 'info');
   };
 

@@ -29,6 +29,7 @@ export const SubjectsClassesManagement: React.FC = () => {
     updateClassData,
     deleteClassItem,
     updateUserData,
+    refreshData,
   } = useApp();
 
   const [activeTab, setActiveTab] = useState<'subjects' | 'classes'>('subjects');
@@ -128,12 +129,12 @@ export const SubjectsClassesManagement: React.FC = () => {
     setSubjDesc(s.description);
   };
 
-  const handleSaveSubject = (e: React.FormEvent) => {
+  const handleSaveSubject = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!subjName.trim()) return;
 
     if (editingSubject) {
-      updateSubjectData(editingSubject.id, {
+      await updateSubjectData(editingSubject.id, {
         name: subjName.trim(),
         code: subjCode.trim().toUpperCase() || 'SUBJ',
         color: subjColor,
@@ -141,7 +142,7 @@ export const SubjectsClassesManagement: React.FC = () => {
       });
       setEditingSubject(null);
     } else {
-      addSubject({
+      await addSubject({
         name: subjName.trim(),
         code: subjCode.trim().toUpperCase() || `SUBJ-${Date.now().toString().slice(-3)}`,
         color: subjColor,
@@ -150,11 +151,13 @@ export const SubjectsClassesManagement: React.FC = () => {
       });
       setShowAddSubject(false);
     }
+    await refreshData();
   };
 
-  const handleDeleteSubject = (s: Subject) => {
+  const handleDeleteSubject = async (s: Subject) => {
     if (window.confirm(`هل أنت متأكد من حذف مادة (${s.name})؟`)) {
-      deleteSubjectItem(s.id);
+      await deleteSubjectItem(s.id);
+      await refreshData();
     }
   };
 
@@ -171,28 +174,30 @@ export const SubjectsClassesManagement: React.FC = () => {
     setGradeLevel(c.grade_level);
   };
 
-  const handleSaveClass = (e: React.FormEvent) => {
+  const handleSaveClass = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!className.trim()) return;
 
     if (editingClass) {
-      updateClassData(editingClass.id, {
+      await updateClassData(editingClass.id, {
         name: className.trim(),
         grade_level: gradeLevel.trim() || 'المرحلة الدراسية',
       });
       setEditingClass(null);
     } else {
-      addClass({
+      await addClass({
         name: className.trim(),
         grade_level: gradeLevel.trim() || 'المرحلة الدراسية',
       });
       setShowAddClass(false);
     }
+    await refreshData();
   };
 
-  const handleDeleteClass = (c: SchoolClass) => {
+  const handleDeleteClass = async (c: SchoolClass) => {
     if (window.confirm(`هل أنت متأكد من حذف الشعبة (${c.name})؟`)) {
-      deleteClassItem(c.id);
+      await deleteClassItem(c.id);
+      await refreshData();
     }
   };
 

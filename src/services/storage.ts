@@ -22,6 +22,8 @@ const STORAGE_KEYS = {
   CURRENT_USER_ID: 'itqan_current_user_id_v2',
   THEME: 'itqan_theme',
   DELETED_USER_IDS: 'itqan_deleted_user_ids',
+  DELETED_SUBJECT_IDS: 'itqan_deleted_subject_ids',
+  DELETED_CLASS_IDS: 'itqan_deleted_class_ids',
 };
 
 function getLocalItem<T>(key: string, defaultValue: T): T {
@@ -334,9 +336,35 @@ public static getCurrentUser(): User | null {
     }
   }
 
+  public static getDeletedSubjectIds(): string[] {
+    return getLocalItem<string[]>(STORAGE_KEYS.DELETED_SUBJECT_IDS, []);
+  }
+
+  public static addDeletedSubjectId(id: string): void {
+    const ids = this.getDeletedSubjectIds();
+    if (!ids.includes(id)) {
+      ids.push(id);
+      setLocalItem(STORAGE_KEYS.DELETED_SUBJECT_IDS, ids);
+    }
+  }
+
+  public static getDeletedClassIds(): string[] {
+    return getLocalItem<string[]>(STORAGE_KEYS.DELETED_CLASS_IDS, []);
+  }
+
+  public static addDeletedClassId(id: string): void {
+    const ids = this.getDeletedClassIds();
+    if (!ids.includes(id)) {
+      ids.push(id);
+      setLocalItem(STORAGE_KEYS.DELETED_CLASS_IDS, ids);
+    }
+  }
+
   // --- Subjects CRUD ---
   public static getSubjects(): Subject[] {
-    return getLocalItem<Subject[]>(STORAGE_KEYS.SUBJECTS, []);
+    const deletedIds = this.getDeletedSubjectIds();
+    const subjects = getLocalItem<Subject[]>(STORAGE_KEYS.SUBJECTS, []);
+    return subjects.filter((s) => !deletedIds.includes(s.id));
   }
 
   public static getSubjectById(id: string): Subject | undefined {
@@ -368,12 +396,15 @@ public static getCurrentUser(): User | null {
     const filtered = subjects.filter((s) => s.id !== id);
     if (filtered.length === subjects.length) return false;
     setLocalItem(STORAGE_KEYS.SUBJECTS, filtered);
+    this.addDeletedSubjectId(id);
     return true;
   }
 
   // --- Classes CRUD ---
   public static getClasses(): SchoolClass[] {
-    return getLocalItem<SchoolClass[]>(STORAGE_KEYS.CLASSES, []);
+    const deletedIds = this.getDeletedClassIds();
+    const classes = getLocalItem<SchoolClass[]>(STORAGE_KEYS.CLASSES, []);
+    return classes.filter((c) => !deletedIds.includes(c.id));
   }
 
   public static getClassById(id: string): SchoolClass | undefined {
@@ -406,6 +437,7 @@ public static getCurrentUser(): User | null {
     const filtered = classes.filter((c) => c.id !== id);
     if (filtered.length === classes.length) return false;
     setLocalItem(STORAGE_KEYS.CLASSES, filtered);
+    this.addDeletedClassId(id);
     return true;
   }
 
