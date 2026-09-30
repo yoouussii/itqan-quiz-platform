@@ -13,6 +13,25 @@ import {
 import { StorageService } from '../services/storage';
 import { supabase } from '../services/supabase';
 
+// ==========================================
+// 1️⃣ البيانات الافتراضية لمنع تصفير القوائم
+// ==========================================
+const INITIAL_SUBJECTS: Subject[] = [
+  { id: 'sub_1', name: 'الرياضيات', code: 'MATH101', color: '#10b981' },
+  { id: 'sub_2', name: 'العلوم العامة', code: 'SCI101', color: '#6366f1' },
+  { id: 'sub_3', name: 'اللغة العربية', code: 'ARAB101', color: '#0ea5e9' },
+  { id: 'sub_4', name: 'الفيزياء', code: 'PHYS101', color: '#f59e0b' },
+  { id: 'sub_5', name: 'الكيمياء', code: 'CHEM101', color: '#ec4899' },
+  { id: 'sub_6', name: 'اللغة الإنجليزية', code: 'ENG101', color: '#8b5cf6' },
+];
+
+const INITIAL_CLASSES: SchoolClass[] = [
+  { id: 'class_1', name: 'الصف الأول الثانوي - شعبة (أ)', grade_level: '10' },
+  { id: 'class_2', name: 'الصف الأول الثانوي - شعبة (ب)', grade_level: '10' },
+  { id: 'class_3', name: 'الصف الثاني الثانوي - شعبة (أ)', grade_level: '11' },
+  { id: 'class_4', name: 'الصف الثالث الثانوي - شعبة (أ)', grade_level: '12' },
+];
+
 interface AppContextType {
   currentUser: User | null;
   users: User[];
@@ -29,10 +48,8 @@ interface AppContextType {
   setActiveSubmissionId: (id: string | null) => void;
   toastMessage: { text: string; type: 'success' | 'error' | 'info' } | null;
   showToast: (text: string, type?: 'success' | 'error' | 'info') => void;
-  // Theme
   theme: 'light' | 'dark';
   toggleTheme: () => void;
-  // Auth methods (National ID + Password)
   login: (nationalId: string, password?: string) => Promise<boolean>;
   logout: () => void;
   switchUser: (userId: string) => void;
@@ -55,25 +72,21 @@ interface AppContextType {
   allowStudentRetake: (quizId: string, studentId: string) => void;
   revokeStudentRetake: (quizId: string, studentId: string) => void;
   reassignQuizToTeacher: (quizId: string, newTeacherId: string) => boolean;
-  // Student Quiz Submission
   submitQuizAttempt: (
     quizId: string,
     answers: Array<{ question_id: string; selected_option: number | null }>,
     timeSpentSeconds: number
   ) => Submission;
-  // User Management
   addUser: (userData: Omit<User, 'id' | 'created_at'>) => Promise<User>;
   updateUserData: (id: string, updates: Partial<User>) => Promise<void>;
   resetUserPassword: (id: string, newPass: string) => Promise<boolean>;
   deleteUserItem: (id: string) => Promise<void>;
-  // Dynamic Subjects & Classes CRUD
   addSubject: (subject: Omit<Subject, 'id'>) => Subject;
   updateSubjectData: (id: string, updates: Partial<Subject>) => void;
   deleteSubjectItem: (id: string) => void;
   addClass: (classData: Omit<SchoolClass, 'id'>) => SchoolClass;
   updateClassData: (id: string, updates: Partial<SchoolClass>) => void;
   deleteClassItem: (id: string) => void;
-  // System Reset
   resetSystemData: () => void;
   refreshData: () => void;
 }
@@ -99,8 +112,18 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const [currentUser, setCurrentUser] = useState<User | null>(() => StorageService.getCurrentUser());
   const [users, setUsers] = useState<User[]>(() => StorageService.getUsers());
-  const [subjects, setSubjects] = useState<Subject[]>(() => StorageService.getSubjects());
-  const [classes, setClasses] = useState<SchoolClass[]>(() => StorageService.getClasses());
+
+  // تهيئة المواد والفصول مع توفير خيار احتياطي عند فارغ القائمة
+  const [subjects, setSubjects] = useState<Subject[]>(() => {
+    const loaded = StorageService.getSubjects();
+    return loaded && loaded.length > 0 ? loaded : INITIAL_SUBJECTS;
+  });
+
+  const [classes, setClasses] = useState<SchoolClass[]>(() => {
+    const loaded = StorageService.getClasses();
+    return loaded && loaded.length > 0 ? loaded : INITIAL_CLASSES;
+  });
+
   const [currentView, setCurrentView] = useState<string>('dashboard');
   const [activeQuizId, setActiveQuizId] = useState<string | null>(null);
   const [editingQuizId, setEditingQuizId] = useState<string | null>(null);
@@ -144,22 +167,21 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     try {
       const { data: dbUsers, error } = await supabase.from('users').select('*');
       if (!error && dbUsers && dbUsers.length > 0) {
-        // حفظهم في التخزين المحلي ليكون متسقاً
         localStorage.setItem('itqan_users_v2', JSON.stringify(dbUsers));
       }
     } catch (err) {
       console.error('Error fetching users from Supabase:', err);
     }
 
-    // 2. تحديث الحالات في الواجهة وقراءة باقي البيانات (المواد، الاختبارات، والمؤشرات)
+    // 2. تحديث الحالات في الواجهة وقراءة باقي البيانات
     const updatedUsers = StorageService.getUsers();
-    const updatedSubjects = StorageService.getSubjects();
-    const updatedClasses = StorageService.getClasses();
+    const loadedSubjects = StorageService.getSubjects();
+    const loadedClasses = StorageService.getClasses();
     const updatedUser = StorageService.getCurrentUser();
 
     setUsers(updatedUsers);
-    setSubjects(updatedSubjects);
-    setClasses(updatedClasses);
+    setSubjects(loadedSubjects && loadedSubjects.length > 0 ? loadedSubjects : INITIAL_SUBJECTS);
+    setClasses(loadedClasses && loadedClasses.length > 0 ? loadedClasses : INITIAL_CLASSES);
 
     if (updatedUser) {
       setCurrentUser(updatedUser);
@@ -192,7 +214,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     showToast(`تم التبديل إلى: ${user?.name} (${getRoleBadge(user?.role)})`, 'info');
   };
 
-  // Auth: Login by National ID + Password from Supabase
+  // Auth: Login by National ID + Password
   const login = async (nationalId: string, password?: string) => {
     try {
       const { data: user, error } = await supabase
@@ -386,17 +408,26 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return newUser;
   };
 
+  // 💥 تعديل بيانات المستخدم وتحديث الجلسة الحالية فوراً
   const updateUserData = async (id: string, updates: Partial<User>) => {
+    // 1. التحديث في StorageService
     StorageService.updateUser(id, updates);
 
+    // 2. التحديث في Supabase
     try {
       await supabase.from('users').update(updates).eq('id', id);
     } catch (err) {
       console.error('Error updating user in Supabase:', err);
     }
 
+    // 3. التحديث الفوري للجلسة الحالية إذا كانت للمستخدم المسجل دخوله
+    if (currentUser && currentUser.id === id) {
+      const updatedUserObj = { ...currentUser, ...updates };
+      setCurrentUser(updatedUserObj);
+    }
+
     refreshData();
-    showToast('تم تحديث بيانات المستخدم بنجاح', 'success');
+    showToast('تم تحديث بيانات وتصاريح المستخدم بنجاح', 'success');
   };
 
   const resetUserPassword = async (id: string, newPass: string) => {
