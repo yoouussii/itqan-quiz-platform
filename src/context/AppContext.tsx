@@ -162,7 +162,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     StorageService.getDynamicKPIs(currentUser?.role === 'teacher' ? currentUser.id : undefined)
   );
 
-const refreshData = useCallback(async () => {
+  const refreshData = useCallback(async () => {
     // قراءة البيانات المحلية الحالية لمنع فقدان البيانات غير الموجودة بـ Supabase
     const localUsers = StorageService.getUsers();
 
@@ -197,30 +197,32 @@ const refreshData = useCallback(async () => {
     setSubjects(loadedSubjects && loadedSubjects.length > 0 ? loadedSubjects : INITIAL_SUBJECTS);
     setClasses(loadedClasses && loadedClasses.length > 0 ? loadedClasses : INITIAL_CLASSES);
 
-   if (updatedUser) {
-  const safeUser: User = {
-    ...updatedUser,
-    assigned_class_ids: updatedUser.assigned_class_ids || [],
-    assigned_subject_ids: updatedUser.assigned_subject_ids || [],
-    teacher_permissions: updatedUser.teacher_permissions || (updatedUser as any).permissions || {},
-    permissions: (updatedUser as any).permissions || updatedUser.teacher_permissions || {},
-  };
+    if (updatedUser) {
+      const safeUser: User = {
+        ...updatedUser,
+        assigned_class_ids: updatedUser.assigned_class_ids || [],
+        assigned_subject_ids: updatedUser.assigned_subject_ids || [],
+        teacher_permissions: updatedUser.teacher_permissions || (updatedUser as any).permissions || {},
+        permissions: (updatedUser as any).permissions || updatedUser.teacher_permissions || {},
+      };
 
-  setCurrentUser(safeUser);
+      setCurrentUser(safeUser);
 
-  if (safeUser.role === 'admin') {
-    setQuizzes(StorageService.getAllQuizzesWithDetails());
-    setKpis(StorageService.getDynamicKPIs());
-  } else if (safeUser.role === 'teacher') {
-    setQuizzes(StorageService.getQuizzesForTeacher(safeUser.id));
-    setKpis(StorageService.getDynamicKPIs(safeUser.id));
-  } else if (safeUser.role === 'student') {
-    setQuizzes(StorageService.getQuizzesForStudent(safeUser.id));
-    setKpis(StorageService.getDynamicKPIs());
-  }
+      if (safeUser.role === 'admin') {
+        setQuizzes(StorageService.getAllQuizzesWithDetails());
+        setKpis(StorageService.getDynamicKPIs());
+      } else if (safeUser.role === 'teacher') {
+        setQuizzes(StorageService.getQuizzesForTeacher(safeUser.id));
+        setKpis(StorageService.getDynamicKPIs(safeUser.id));
+      } else if (safeUser.role === 'student') {
+        setQuizzes(StorageService.getQuizzesForStudent(safeUser.id));
+        setKpis(StorageService.getDynamicKPIs());
+      }
 
-  setSubmissions(StorageService.getAccessibleSubmissionsWithDetails(safeUser.id));
-}
+      setSubmissions(StorageService.getAccessibleSubmissionsWithDetails(safeUser.id));
+    }
+  }, []);
+
   useEffect(() => {
     refreshData();
   }, [currentUser?.id, currentUser?.role, refreshData]);
@@ -404,7 +406,7 @@ const refreshData = useCallback(async () => {
   };
 
   // Users Management with Supabase Sync
-const addUser = async (userData: Omit<User, 'id' | 'created_at'>) => {
+  const addUser = async (userData: Omit<User, 'id' | 'created_at'>) => {
     const newUser = StorageService.createUser(userData);
 
     try {
@@ -429,8 +431,8 @@ const addUser = async (userData: Omit<User, 'id' | 'created_at'>) => {
     return newUser;
   };
 
-  // 💥 تعديل بيانات المستخدم وتحديث الجلسة الحالية فوراً
-const updateUserData = async (id: string, updates: Partial<User>) => {
+  // تعديل بيانات المستخدم وتحديث الجلسة الحالية فوراً
+  const updateUserData = async (id: string, updates: Partial<User>) => {
     // 1. التحديث في الـ Storage المحلي
     StorageService.updateUser(id, updates);
 
