@@ -15,14 +15,15 @@ export interface User {
   role: 'admin' | 'teacher' | 'student';
   password?: string;
   created_at?: string;
+  created_by?: string | null;      // 👈 تم إضافتها لإنهاء خطأ TS2551
+  email?: string | null;           // 👈 تم إضافتها لإنهاء خطأ TS2339
 
-  // 👈 الخصائص الخاصة بالطلاب والمعلمين (المفقودة في الأنواع)
-  class_id?: string;
-  specialty_id?: string;
+  // قبول null أو undefined لإنهاء أخطاء TS2322
+  class_id?: string | null;
+  specialty_id?: string | null;
   assigned_subject_ids?: string[];
   assigned_class_ids?: string[];
 
-  // 👈 صلاحيات المعلمين (تستخدم في UsersManagement, Navbar, TeacherDashboard)
   teacher_permissions?: {
     can_add_students?: boolean;
     can_add_teachers?: boolean;
