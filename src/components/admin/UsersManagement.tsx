@@ -693,28 +693,28 @@ export const UsersManagement: React.FC = () => {
                         }
                         className="accent-indigo-600 w-4 h-4 rounded"
                       />
-                      <span>صلاحية الاطلاع على التقارير الشاملة (can_view_all_reports)</span>
+                      <span>صلاحية عرض كافة التقارير (can_view_all_reports)</span>
                     </label>
                   </div>
                 </>
               )}
 
-              <div className="pt-3 flex items-center justify-end gap-3 border-t border-slate-100 dark:border-slate-800">
+              <div className="flex items-center justify-end gap-3 pt-4 border-t border-slate-100 dark:border-slate-800">
                 <button
                   type="button"
                   onClick={() => {
                     setShowAddModal(false);
                     setEditingUser(null);
                   }}
-                  className="px-4 py-2 text-xs font-bold text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl"
+                  className="px-4 py-2 text-xs font-semibold text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl transition-colors"
                 >
                   إلغاء
                 </button>
                 <button
                   type="submit"
-                  className="px-5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold shadow-md shadow-indigo-600/20"
+                  className="px-5 py-2 text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-700 rounded-xl shadow-md shadow-indigo-600/20 transition-all"
                 >
-                  {editingUser ? 'حفظ التعديلات' : 'إضافة المستخدم'}
+                  {editingUser ? 'حفظ التعديلات' : 'إضافة الحساب'}
                 </button>
               </div>
             </form>
@@ -725,49 +725,61 @@ export const UsersManagement: React.FC = () => {
       {/* Password Reset Modal */}
       {passwordResetUser && (
         <div className="fixed inset-0 z-50 overflow-y-auto bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-white dark:bg-slate-900 rounded-3xl max-w-md w-full p-6 shadow-2xl border border-slate-100 dark:border-slate-800">
+          <div className="bg-white dark:bg-slate-900 rounded-3xl max-w-md w-full p-6 shadow-2xl border border-slate-100 dark:border-slate-800 animate-in fade-in zoom-in-95">
             <div className="flex items-center justify-between pb-3 mb-4 border-b border-slate-100 dark:border-slate-800">
               <h3 className="font-bold text-base text-slate-900 dark:text-white flex items-center gap-2">
                 <KeyRound className="w-5 h-5 text-amber-500" />
                 <span>إعادة تعيين كلمة المرور</span>
               </h3>
               <button
-                onClick={() => setPasswordResetUser(null)}
+                onClick={() => {
+                  setPasswordResetUser(null);
+                  setNewPasswordValue('');
+                }}
                 className="p-1 text-slate-400 hover:text-slate-700 dark:hover:text-slate-200"
               >
                 <X className="w-5 h-5" />
               </button>
             </div>
 
-            <form onSubmit={handlePasswordResetSubmit} className="space-y-4">
-              <p className="text-xs text-slate-600 dark:text-slate-300">
-                أدخل كلمة المرور الجديدة للمستخدم <strong>{passwordResetUser.name}</strong>:
-              </p>
+            <p className="text-xs text-slate-600 dark:text-slate-400 mb-4">
+              إعادة تعيين كلمة المرور للمستخدم:{' '}
+              <span className="font-bold text-slate-900 dark:text-white">
+                {passwordResetUser.name}
+              </span>
+            </p>
 
+            <form onSubmit={handlePasswordResetSubmit} className="space-y-4">
               <div>
+                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
+                  كلمة المرور الجديدة *
+                </label>
                 <input
                   type="password"
                   required
-                  placeholder="كلمة المرور الجديدة..."
+                  placeholder="أدخل كلمة المرور الجديدة"
                   value={newPasswordValue}
                   onChange={(e) => setNewPasswordValue(e.target.value)}
-                  className="w-full px-3 py-2 text-xs rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-amber-500"
+                  className="w-full px-3 py-2 text-xs rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
                 />
               </div>
 
-              <div className="pt-3 flex items-center justify-end gap-3 border-t border-slate-100 dark:border-slate-800">
+              <div className="flex items-center justify-end gap-3 pt-3 border-t border-slate-100 dark:border-slate-800">
                 <button
                   type="button"
-                  onClick={() => setPasswordResetUser(null)}
-                  className="px-4 py-2 text-xs font-bold text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl"
+                  onClick={() => {
+                    setPasswordResetUser(null);
+                    setNewPasswordValue('');
+                  }}
+                  className="px-4 py-2 text-xs font-semibold text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl transition-colors"
                 >
                   إلغاء
                 </button>
                 <button
                   type="submit"
-                  className="px-5 py-2 bg-amber-600 hover:bg-amber-700 text-white rounded-xl text-xs font-bold shadow-md shadow-amber-600/20"
+                  className="px-5 py-2 text-xs font-bold text-white bg-amber-600 hover:bg-amber-700 rounded-xl shadow-md shadow-amber-600/20 transition-all"
                 >
-                  تحديث كلمة المرور
+                  تعيين كلمة المرور
                 </button>
               </div>
             </form>
