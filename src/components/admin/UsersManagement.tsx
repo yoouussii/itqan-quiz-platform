@@ -153,28 +153,24 @@ export const UsersManagement: React.FC = () => {
     setShowAddModal(false);
   };
 
-  const handleUpdate = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!editingUser) return;
+ const handleUpdate = (e: React.FormEvent) => {
+  e.preventDefault();
+  if (!editingUser) return;
 
-    const conflict = users.some(
-      (u) => u.id !== editingUser.id && u.national_id === nationalId.trim()
-    );
-    if (conflict) {
-      alert('رقم الهوية / الرقم الأكاديمي مستخدم لحساب آخر');
-      return;
-    }
+  const updates: Partial<User> = {
+    name,
+    national_id: nationalId.trim(),
+    role,
+    class_id: role === 'student' ? classId : null,
+    assigned_subject_ids: role === 'teacher' ? assignedSubjectIds : [],
+    assigned_class_ids: role === 'teacher' ? assignedClassIds : [],
+    // التأكد من إضافة هذا السطر:
+    teacher_permissions: role === 'teacher' ? { ...teacherPermissions } : undefined,
+  };
 
-    const updates: Partial<User> = {
-      name,
-      national_id: nationalId.trim(),
-      role,
-      class_id: role === 'student' ? classId : null,
-      specialty_id: assignedSubjectIds[0] || null,
-      assigned_subject_ids: role === 'teacher' ? assignedSubjectIds : [],
-      assigned_class_ids: role === 'teacher' ? assignedClassIds : [],
-      teacher_permissions: role === 'teacher' ? { ...teacherPermissions } : undefined,
-    };
+  updateUserData(editingUser.id, updates);
+  setEditingUser(null);
+};
 
     if (password.trim()) {
       updates.password = password.trim();
@@ -236,13 +232,16 @@ export const UsersManagement: React.FC = () => {
       <div className="bg-white dark:bg-slate-900 p-4 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-soft flex flex-col sm:flex-row gap-3 items-center justify-between">
         <div className="relative w-full sm:w-80">
           <Search className="w-4 h-4 text-slate-400 absolute right-3.5 top-1/2 -translate-y-1/2" />
-          <input
-            type="text"
-            placeholder="ابحث بالاسم أو رقم الهوية..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full pr-10 pl-3 py-2 text-xs rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
-          />
+      <input
+  type="checkbox"
+  checked={teacherPermissions.can_add_students || false}
+  onChange={(e) =>
+    setTeacherPermissions({
+      ...teacherPermissions,
+      can_add_students: e.target.checked, // <-- تأكد من checked
+    })
+  }
+/>
         </div>
 
         <div className="flex items-center gap-2 w-full sm:w-auto">
