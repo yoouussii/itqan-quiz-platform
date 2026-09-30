@@ -22,6 +22,7 @@ export interface User {
   specialty_id?: string | null;       // ← حل خطأ specialty_id
   teacher_permissions?: TeacherPermissions; // ← حل خطأ teacher_permissions
 }
+
 export interface Subject {
   id: string;
   name: string;
@@ -68,15 +69,27 @@ export interface MatchingPair {
   right: string;
 }
 
+// هيكل السؤال الفرعي المندرج تحت سؤال القطعة
+export interface SubQuestion {
+  id: string;
+  question_text: string;
+  type: 'mcq' | 'true_false' | 'essay' | 'fill_blank';
+  options?: string[];
+  correct_option_index?: number;
+  correctAnswer?: string;
+  marks: number;
+  explanation?: string;
+}
+
 export interface Question {
   id: string;
   quiz_id?: string;
   type?: QuestionType;
 
   // الخصائص الأساسية
-  question_text: string;
+  question_text: string; // عند استخدام type === 'passage' يُمثل هذا نص القطعة الرئيسي
   options?: string[];
-  marks: number;
+  marks: number; // للقطعة: يمثل مجموع درجات الأسئلة الفرعية
 
   // الإجابات
   correct_option_index?: number;
@@ -87,7 +100,11 @@ export interface Question {
   explanation?: string;
   blankAnswer?: string;
   pairs?: MatchingPair[];
+
+  // الأسئلة الفرعية (خاصة بأسئلة القطعة)
+  sub_questions?: SubQuestion[];
 }
+
 export type TargetType = 'all' | 'class' | 'specific_students' | 'assigned_teacher';
 
 export interface QuizAssignment {
@@ -100,11 +117,23 @@ export interface QuizAssignment {
   created_at: string;
 }
 
+// هيكل إجابة السؤال الفرعي داخل القطعة
+export interface SubAnswerItem {
+  sub_question_id: string;
+  selected_option?: number | null;
+  text_answer?: string;
+  is_correct?: boolean;
+  marks_awarded?: number;
+}
+
+// هيكل إجابة السؤال الرئيسي
 export interface AnswerItem {
   question_id: string;
-  selected_option: number | null;
+  selected_option?: number | null;
+  text_answer?: string; // للإجابات النصية/المقالية
   is_correct: boolean;
   marks_awarded: number;
+  sub_answers?: SubAnswerItem[]; // يحوي إجابات الأسئلة الفرعية للقطعة
 }
 
 export type SubmissionStatus = 'completed' | 'in_progress';
