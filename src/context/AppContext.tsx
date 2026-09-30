@@ -109,9 +109,13 @@ const sanitizeUser = (user: User): User => {
     assignedCls = [user.class_id];
   }
 
+  const natId = user.national_id || user.username || '';
+  const usrName = user.username || user.national_id || '';
+
   return {
     ...user,
-    username: user.username || user.national_id,
+    national_id: natId,
+    username: usrName,
     specialty_id: user.specialty_id || assignedSubs[0] || null,
     class_id: user.class_id || assignedCls[0] || null,
     assigned_subject_ids: assignedSubs,
@@ -209,26 +213,21 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         const { data: dbUsers, error } = await supabase.from('users').select('*');
         if (!error && Array.isArray(dbUsers)) {
           // دمج ذكي وآمن (Safe Merge):
-          // نبدأ بكافة المستخدمين المحليين ونحدّثهم إذا وُجدت نسخة في Supabase
-          // ولا نحذف أي مستخدم محلي مطلقاً حتى وإن لم يأتِ في نتائج استعلام Supabase
           mergedUsers = localUsers.map((localU) => {
             const dbU = dbUsers.find(
               (d: any) =>
                 (d.id && d.id === localU.id) ||
                 (d.national_id && d.national_id.trim() === localU.national_id?.trim())
             );
-            if (!dbU) return localU; // الحفاظ على الحساب المحلي دون حذفه
+            if (!dbU) return localU;
 
             const localUpdated = localU.updated_at ? new Date(localU.updated_at).getTime() : 0;
             const dbUpdated = dbU.updated_at ? new Date(dbU.updated_at).getTime() : 0;
 
-            // إذا كان التعديل المحلي أحدث أو مساوياً (تم حفظه محلياً)، أو إذا لم يكن لدى السيرفر تاريخ تعديل صالح:
-            // الأولوية الكاملة والنهائية للنسخة المحلية لمنع أي تراجع أو مسح للبيانات
             if (localUpdated >= dbUpdated || !dbU.updated_at) {
               return sanitizeUser({
                 ...dbU,
                 ...localU,
-                // تثبيت الحقول المزدوجة وضمان عدم تفريغها
                 class_id: localU.class_id || localU.assigned_class_ids?.[0] || null,
                 assigned_class_ids: localU.assigned_class_ids && localU.assigned_class_ids.length > 0
                   ? localU.assigned_class_ids
@@ -240,8 +239,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
               });
             }
 
-            // في حال كانت النسخة على السيرفر أحدث زمناً:
-            // نأخذ بيانات السيرفر دون مسح أي فصول أو مواد أو صلاحيات إذا كانت فارغة أو null في السيرفر
             const dbHasPerms = dbU.teacher_permissions && typeof dbU.teacher_permissions === 'object' && Object.keys(dbU.teacher_permissions).length > 0;
             const dbHasSubs = Array.isArray(dbU.assigned_subject_ids) && dbU.assigned_subject_ids.length > 0;
             const dbHasCls = Array.isArray(dbU.assigned_class_ids) && dbU.assigned_class_ids.length > 0;
@@ -272,7 +269,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             });
           });
 
-          // إضافة أي حسابات جديدة موجودة في Supabase وغير مسجلة محلياً
           const deletedIds = StorageService.getDeletedUserIds();
           for (const dbU of dbUsers) {
             if (deletedIds.includes(dbU.id)) continue;
@@ -295,7 +291,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     const updatedUsers = StorageService.getUsers().map(sanitizeUser);
 
-    // 2. مزامنة واستدامة المواد (Subjects) مع Supabase
+    // 2. مزامنة واستدامة المواد مع Supabase
     let localSubjects = StorageService.getSubjects() || [];
     const deletedSubjectIds = StorageService.getDeletedSubjectIds();
     localSubjects = localSubjects.filter((s) => !deletedSubjectIds.includes(s.id));
@@ -343,7 +339,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       }
     }
 
-    // 3. مزامنة واستدامة الفصول (Classes) مع Supabase
+    // 3. مزامنة واستدامة الفصول مع Supabase
     let localClasses = StorageService.getClasses() || [];
     const deletedClassIds = StorageService.getDeletedClassIds();
     localClasses = localClasses.filter((c) => !deletedClassIds.includes(c.id));
@@ -393,7 +389,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setSubjects(localSubjects);
     setClasses(localClasses);
 
-    // الحفاظ التام على جلسة المستخدم في localStorage دون تسجيل خروج قسري مطلقاً
     if (currentUserId) {
       const updatedUser =
         updatedUsers.find((u) => u.id === currentUserId) ||
@@ -443,7 +438,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const login = async (nationalId: string, password?: string): Promise<boolean> => {
     const trimmedId = nationalId.trim();
 
-    // 1. التحقق من التخزين المحلي الموثوق أولاً (Fast & Reliable Session Persistence)
     const localUser = StorageService.authenticate(trimmedId, password);
     if (localUser) {
       const safeU = sanitizeUser(localUser);
@@ -452,33 +446,29 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       setCurrentView('dashboard');
       showToast(`مرحباً بك يا ${safeU.name}`, 'success');
 
-      // مزامنة أحدث البيانات من السيرفر بهدوء في الخلفية
       if (isSupabaseConfigured()) {
         (async () => {
           try {
             const { data: remoteUser } = await supabase
               .from('users')
               .select('*')
-              .eq('national_id', trimmedId)
+              .or(`national_id.eq.${trimmedId},username.eq.${trimmedId}`)
               .maybeSingle();
             if (remoteUser) {
               StorageService.updateUser(safeU.id, remoteUser);
             }
-          } catch {
-            // تجاهل أي خطأ مؤقت في الاتصال
-          }
+          } catch {}
         })();
       }
       return true;
     }
 
-    // 2. إذا لم يكن مسجلاً محلياً، التحقق من Supabase (حسابات مضافة على السيرفر مباشرة)
     if (isSupabaseConfigured()) {
       try {
         const { data: user, error } = await supabase
           .from('users')
           .select('*')
-          .eq('national_id', trimmedId)
+          .or(`national_id.eq.${trimmedId},username.eq.${trimmedId}`)
           .eq('password', password)
           .maybeSingle();
 
@@ -538,16 +528,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     questions: Array<Omit<Question, 'quiz_id' | 'id'> & { id?: string }>,
     assignments: Array<Omit<QuizAssignment, 'quiz_id' | 'created_at' | 'id'> & { id?: string }>
   ) => {
-    // 1. تحديث التخزين المحلي فوراً
     const updated = StorageService.updateFullQuiz(quizId, quizUpdates, questions, assignments);
 
-    // 2. تحديث قائمة الاختبارات في React State فوراً بالبيانات الجديدة
     const updatedWithDetails = StorageService.getQuizWithDetails(quizId);
     if (updatedWithDetails) {
       setQuizzes((prev) => prev.map((q) => (q.id === quizId ? updatedWithDetails : q)));
     }
 
-    // 3. إرسال التحديث لـ Supabase في الخلفية إن كانت مهيأة
     if (isSupabaseConfigured()) {
       try {
         await supabase
@@ -570,7 +557,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       }
     }
 
-    // يُمْنَع استدعاء refreshData() مباشرة بعد الحفظ حتى لا تُسحب النسخة القديمة من السيرفر وتلغي تعديلات المعلم
     showToast('تم حفظ وتحديث بيانات الاختبار بنجاح', 'success');
     return updated;
   };
@@ -711,17 +697,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       updated_at: now,
     };
 
-    // ✅ 1. حفظ محلي فوري في localStorage
     const newUser = StorageService.createUser(safeUserData);
 
-    // ✅ 2. تحديث React state فوراً (optimistic UI) لتجنب الاختفاء
     const sanitized = sanitizeUser(newUser);
     setUsers((prev) => {
       const exists = prev.some((u) => u.id === sanitized.id || u.national_id === sanitized.national_id);
       return exists ? prev : [...prev, sanitized];
     });
 
-    // ✅ 3. المزامنة مع Supabase بتنقية الكائن وحذف أي حقل غير موجود تلقائياً
     if (isSupabaseConfigured()) {
       let payload = cleanUserPayloadForSupabase({
         id: newUser.id,
@@ -753,11 +736,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
           if (!error) {
             isInserted = true;
-            console.log(`[addUser] Successfully saved user to Supabase (attempt ${attempts}):`, newUser.name);
             break;
           }
 
-          // إذا كان المستخدم مسجلاً بالفعل، تحديثه
           if (error.code === '23505') {
             const updateRes = await supabase.from('users').update(payload).eq('id', newUser.id);
             if (!updateRes.error) {
@@ -767,17 +748,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             error = updateRes.error;
           }
 
-          // التقاط الخطأ وفحص ما إذا كان ناتجاً عن عمود مفقود مثل username أو غيره
           const missingColumn = extractMissingColumn(error.message || '');
           if (missingColumn && missingColumn in payload && !['id', 'name', 'role'].includes(missingColumn)) {
-            console.warn(`[addUser] Column '${missingColumn}' not found in Supabase. Removing from payload and retrying...`);
             delete payload[missingColumn];
-            continue; // إعادة المحاولة بدون الحقل المسبب للخطأ
+            continue;
           }
 
-          // إذا كان خطأ أعمدة عام في schema cache (PGRST204)
           if (error.message?.includes('column') || error.code === 'PGRST204') {
-            console.warn(`[addUser] Schema column error, isolating core fields only:`, error.message);
             const corePayload: Record<string, any> = {
               id: newUser.id,
               name: newUser.name,
@@ -790,387 +767,192 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             continue;
           }
 
-          console.warn('[addUser] Supabase insert warning:', error.message);
           break;
         } catch (networkErr: any) {
-          console.warn('[addUser] Network warning syncing to Supabase:', networkErr?.message);
           break;
         }
       }
     }
 
-    // ✅ 4. تأكيد الإضافة وتحديث الواجهة مباشرة من البيانات المحلية الموثوقة
-    showToast(`تمت إضافة المستخدم (${newUser.name}) بنجاح`, 'success');
-    return sanitized;
+    showToast(`تم إضافة المستخدم بنجاح: ${newUser.name}`, 'success');
+    return newUser;
   };
 
-  // دالة تحديث بيانات المستخدم المصلحة بالكامل مع الحفاظ التام على الصلاحيات والمواد
   const updateUserData = async (id: string, updates: Partial<User>): Promise<void> => {
-    try {
-      const now = new Date().toISOString();
+    const now = new Date().toISOString();
+    const targetNationalId = updates.national_id || updates.username || id;
 
-      // توحيد الصلاحيات والمصفوفات
-      const hasPerms = 'teacher_permissions' in updates || 'permissions' in updates;
-      const perms = hasPerms
-        ? (updates.teacher_permissions || updates.permissions || undefined)
-        : undefined;
-
-      const hasAssignedSubs = Array.isArray(updates.assigned_subject_ids);
-      const assignedSubs = hasAssignedSubs
-        ? [...updates.assigned_subject_ids!]
-        : ('specialty_id' in updates
-            ? (updates.specialty_id ? [updates.specialty_id] : [])
-            : undefined);
-
-      const hasAssignedCls = Array.isArray(updates.assigned_class_ids);
-      const assignedCls = hasAssignedCls
-        ? [...updates.assigned_class_ids!]
-        : ('class_id' in updates
-            ? (updates.class_id ? [updates.class_id] : [])
-            : undefined);
-
-      // 1. تحديث التخزين المحلي فوراً (Optimistic LocalStorage Update)
-      const updatedUser = StorageService.updateUser(id, { ...updates, updated_at: now });
-      if (!updatedUser) {
-        showToast('لم يتم العثور على المستخدم المطلوب تعديله', 'error');
-        return;
-      }
-
-      // 2. تحديث الحالة في React فوراً (Optimistic UI Update)
-      const sanitizedUser = sanitizeUser(updatedUser);
-      setUsers((prevUsers) =>
-        prevUsers.map((u) => (u.id === id ? sanitizedUser : u))
-      );
-
-      if (currentUser?.id === id || (currentUser?.national_id && currentUser.national_id === sanitizedUser.national_id)) {
-        setCurrentUser(sanitizedUser);
-        StorageService.setCurrentUserId(sanitizedUser.id);
-
-        if (sanitizedUser.role === 'admin') {
-          setQuizzes(StorageService.getAllQuizzesWithDetails());
-          setKpis(StorageService.getDynamicKPIs());
-        } else if (sanitizedUser.role === 'teacher') {
-          const canViewAll =
-            sanitizedUser.teacher_permissions?.can_view_all_reports ||
-            (sanitizedUser as any).permissions?.can_view_all_reports;
-          if (canViewAll) {
-            setQuizzes(StorageService.getAllQuizzesWithDetails());
-            setKpis(StorageService.getDynamicKPIs());
-          } else {
-            setQuizzes(StorageService.getQuizzesForTeacher(sanitizedUser.id));
-            setKpis(StorageService.getDynamicKPIs(sanitizedUser.id));
-          }
-        } else if (sanitizedUser.role === 'student') {
-          setQuizzes(StorageService.getQuizzesForStudent(sanitizedUser.id));
-          setKpis(StorageService.getDynamicKPIs());
-        }
-      }
-
-      showToast('تم حفظ التعديلات بنجاح', 'success');
-
-      // 3. مزامنة التحديث مع Supabase في الخلفية
-      if (isSupabaseConfigured()) {
-        try {
-          const cleanPayload: Record<string, any> = {
-            name: sanitizedUser.name,
-            email: sanitizedUser.email,
-            username: sanitizedUser.username,
-            national_id: sanitizedUser.national_id,
-            role: sanitizedUser.role,
-            specialty_id: sanitizedUser.specialty_id,
-            class_id: sanitizedUser.class_id,
-            assigned_subject_ids: sanitizedUser.assigned_subject_ids,
-            assigned_class_ids: sanitizedUser.assigned_class_ids,
-            permissions: sanitizedUser.permissions,
-            teacher_permissions: sanitizedUser.teacher_permissions,
-            updated_at: now,
-          };
-          if (updates.password && updates.password.trim()) {
-            cleanPayload.password = updates.password.trim();
-          }
-          // إزالة المفاتيح غير المعرفة (undefined)
-          Object.keys(cleanPayload).forEach((k) => cleanPayload[k] === undefined && delete cleanPayload[k]);
-
-          let attempts = 0;
-          const maxAttempts = 8;
-          let isSynced = false;
-
-          while (attempts < maxAttempts && !isSynced) {
-            attempts++;
-            try {
-              const { error } = await supabase
-                .from('users')
-                .update(cleanPayload)
-                .eq('id', id);
-
-              if (!error) {
-                isSynced = true;
-                console.log(`[updateUserData] Supabase update succeeded on attempt ${attempts} for user ${id}`);
-                break;
-              }
-
-              // فحص العمود المفقود وحذفه وإعادة المحاولة
-              const missingCol = extractMissingColumn(error.message || '');
-              if (missingCol && missingCol in cleanPayload) {
-                console.warn(`[updateUserData] Column '${missingCol}' missing in Supabase, stripping and retrying...`);
-                delete cleanPayload[missingCol];
-                continue;
-              }
-
-              if (error.message?.includes('column') || error.code === 'PGRST204') {
-                console.warn('[updateUserData] Column mismatch error, trying core fields:', error.message);
-                const corePayload: Record<string, any> = {};
-                ['name', 'email', 'password', 'role'].forEach((k) => {
-                  if ((cleanPayload as any)[k] !== undefined) corePayload[k] = (cleanPayload as any)[k];
-                });
-                const retryCore = await supabase.from('users').update(corePayload).eq('id', id);
-                if (!retryCore.error) {
-                  isSynced = true;
-                }
-                break;
-              }
-
-              console.warn('[updateUserData] Supabase update warning:', error.message);
-              break;
-            } catch (netErr: any) {
-              console.warn('[updateUserData] Network error syncing update:', netErr?.message);
-              break;
-            }
-          }
-        } catch (dbErr) {
-          console.warn('[updateUserData] Background Supabase sync error (local state preserved):', dbErr);
-        }
-      }
-
-      // إعادة مزامنة البيانات فوراً لضمان تحديث الجدول في الواجهة لحظياً
-      await refreshData();
-    } catch (error) {
-      console.error('Error updating user data:', error);
-      showToast('حدث خطأ أثناء حفظ التعديلات', 'error');
-    }
-  };
-
-  // دالة إعادة تعيين كلمة المرور
-  const resetUserPassword = async (id: string, newPass: string): Promise<boolean> => {
-    try {
-      const now = new Date().toISOString();
-      StorageService.updateUser(id, { password: newPass, updated_at: now });
-
-      setUsers((prevUsers) =>
-        prevUsers.map((u) => (u.id === id ? { ...u, password: newPass, updated_at: now } : u))
-      );
-
-      if (currentUser?.id === id) {
-        setCurrentUser((prev) => (prev ? { ...prev, password: newPass, updated_at: now } : null));
-      }
-
-      if (isSupabaseConfigured()) {
-        try {
-          await supabase.from('users').update({ password: newPass, updated_at: now }).eq('id', id);
-        } catch (dbErr) {
-          console.warn('Error updating password in Supabase:', dbErr);
-        }
-      }
-
-      refreshData();
-      showToast('تمت إعادة تعيين كلمة المرور بنجاح', 'success');
-      return true;
-    } catch (error) {
-      console.error('Error resetting password:', error);
-      showToast('حدث خطأ أثناء إعادة تعيين كلمة المرور', 'error');
-      return false;
-    }
-  };
-
-  const deleteUserItem = async (id: string) => {
-    // 1. حذف من التخزين المحلي وتسجيل المعرف في قائمة المحذوفين
-    StorageService.deleteUser(id);
-
-    // 2. تحديث React State فوراً لإزالة المستخدم من الواجهة
-    setUsers((prev) => prev.filter((u) => u.id !== id));
-
-    // 3. حذف من Supabase
-    if (isSupabaseConfigured()) {
-      try {
-        const { error } = await supabase.from('users').delete().eq('id', id);
-        if (error) {
-          console.warn('[deleteUserItem] Supabase delete warning:', error.message);
-        } else {
-          console.log(`[deleteUserItem] User ${id} deleted from Supabase successfully`);
-        }
-      } catch (err) {
-        console.warn('[deleteUserItem] Network error deleting from Supabase:', err);
-      }
-    }
-
-    showToast('تم حذف المستخدم من النظام نهائياً', 'info');
-  };
-
-  const addSubject = async (subj: Omit<Subject, 'id'>) => {
-    const currentSubjects = StorageService.getSubjects() || [];
-
-    const created: Subject = {
-      ...subj,
-      id: `sub_${Date.now()}`,
-      created_by: currentUser?.id,
+    const cleanUpdates = {
+      ...updates,
+      national_id: targetNationalId,
+      username: updates.username || targetNationalId,
+      updated_at: now,
     };
 
-    const newList = [...currentSubjects, created];
-    localStorage.setItem('itqan_subjects_v2', JSON.stringify(newList));
-    setSubjects(newList);
+    if (Array.isArray(cleanUpdates.assigned_subject_ids)) {
+      cleanUpdates.specialty_id = cleanUpdates.assigned_subject_ids[0] || null;
+    }
+    if (Array.isArray(cleanUpdates.assigned_class_ids)) {
+      cleanUpdates.class_id = cleanUpdates.assigned_class_ids[0] || null;
+    }
 
+    // 1. التحديث المحلي السريع فوراً
+    StorageService.updateUser(id, cleanUpdates);
+
+    setUsers((prev) =>
+      prev.map((u) => {
+        if (u.id === id || (u.national_id && u.national_id === targetNationalId)) {
+          return sanitizeUser({ ...u, ...cleanUpdates });
+        }
+        return u;
+      })
+    );
+
+    if (currentUser && (currentUser.id === id || currentUser.national_id === targetNationalId)) {
+      setCurrentUser((prev) => (prev ? sanitizeUser({ ...prev, ...cleanUpdates }) : null));
+    }
+
+    // 2. المزامنة مع Supabase بمرونة (البحث بـ id أو national_id أو username)
     if (isSupabaseConfigured()) {
       try {
-        const { error } = await supabase.from('subjects').insert({
-          id: created.id,
-          name: created.name,
-          code: created.code,
-          color: created.color,
-          description: created.description,
-          icon: created.icon,
-          created_by: created.created_by,
-        });
-        if (error) {
-          console.warn('[addSubject] Supabase insert warning:', error.message);
-        } else {
-          console.log(`[addSubject] Subject ${created.id} inserted into Supabase successfully`);
+        let payload = cleanUserPayloadForSupabase(cleanUpdates);
+
+        let attempts = 0;
+        let success = false;
+        while (attempts < 5 && !success) {
+          attempts++;
+          const targetKey = targetNationalId || id;
+          const { error } = await supabase
+            .from('users')
+            .update(payload)
+            .or(`id.eq.${id},national_id.eq.${targetKey},username.eq.${targetKey}`);
+
+          if (!error) {
+            success = true;
+            break;
+          }
+
+          const missingColumn = extractMissingColumn(error.message || '');
+          if (missingColumn && missingColumn in payload) {
+            delete payload[missingColumn];
+            continue;
+          }
+          break;
         }
       } catch (err) {
-        console.warn('[addSubject] Supabase network error:', err);
+        console.warn('[updateUserData] Supabase sync warning:', err);
       }
     }
 
-    if (currentUser && currentUser.role === 'teacher') {
-      const currentAssigned = currentUser.assigned_subject_ids || [];
-      const updatedAssigned = Array.from(new Set([...currentAssigned, created.id]));
-      await updateUserData(currentUser.id, { assigned_subject_ids: updatedAssigned });
-    } else {
-      await refreshData();
-    }
+    showToast('تم تحديث بيانات المستخدم بنجاح', 'success');
+  };
 
-    showToast(`تمت إضافة المادة (${created.name}) بنجاح`, 'success');
+  const resetUserPassword = async (id: string, newPass: string): Promise<boolean> => {
+    await updateUserData(id, { password: newPass });
+    showToast('تم إعادة تعيين كلمة المرور بنجاح', 'success');
+    return true;
+  };
+
+  const deleteUserItem = async (id: string): Promise<void> => {
+    StorageService.deleteUser(id);
+    setUsers((prev) => prev.filter((u) => u.id !== id));
+    if (isSupabaseConfigured()) {
+      try {
+        await supabase.from('users').delete().eq('id', id);
+      } catch (err) {
+        console.warn('[deleteUserItem] Supabase delete warning:', err);
+      }
+    }
+    showToast('تم حذف المستخدم بنجاح', 'info');
+  };
+
+  const addSubject = async (subject: Omit<Subject, 'id'>): Promise<Subject> => {
+    const created = StorageService.createSubject(subject);
+    setSubjects((prev) => [...prev, created]);
+    if (isSupabaseConfigured()) {
+      try {
+        await supabase.from('subjects').insert([created]);
+      } catch (err) {
+        console.warn('[addSubject] Supabase insert warning:', err);
+      }
+    }
+    showToast(`تم إضافة المادة: ${created.name}`, 'success');
     return created;
   };
 
-  const updateSubjectData = async (id: string, updates: Partial<Subject>) => {
-    StorageService.updateSubject(id, updates);
-    setSubjects((prev) => prev.map((s) => (s.id === id ? { ...s, ...updates } : s)));
-
+  const updateSubjectData = async (id: string, updates: Partial<Subject>): Promise<void> => {
+    const updated = StorageService.updateSubject(id, updates);
+    if (updated) {
+      setSubjects((prev) => prev.map((s) => (s.id === id ? updated : s)));
+    }
     if (isSupabaseConfigured()) {
       try {
-        const { error } = await supabase.from('subjects').update(updates).eq('id', id);
-        if (error) console.warn('[updateSubjectData] Supabase update warning:', error.message);
+        await supabase.from('subjects').update(updates).eq('id', id);
       } catch (err) {
-        console.warn('[updateSubjectData] Supabase network error:', err);
+        console.warn('[updateSubjectData] Supabase update warning:', err);
       }
     }
-
-    await refreshData();
-    showToast('تم تحديث المادة بنجاح', 'success');
+    showToast('تم تحديث بيانات المادة', 'success');
   };
 
-  const deleteSubjectItem = async (id: string) => {
+  const deleteSubjectItem = async (id: string): Promise<void> => {
     StorageService.deleteSubject(id);
     setSubjects((prev) => prev.filter((s) => s.id !== id));
-
     if (isSupabaseConfigured()) {
       try {
-        const { error } = await supabase.from('subjects').delete().eq('id', id);
-        if (error) console.warn('[deleteSubjectItem] Supabase delete warning:', error.message);
+        await supabase.from('subjects').delete().eq('id', id);
       } catch (err) {
-        console.warn('[deleteSubjectItem] Supabase network error:', err);
+        console.warn('[deleteSubjectItem] Supabase delete warning:', err);
       }
     }
-
-    await refreshData();
     showToast('تم حذف المادة بنجاح', 'info');
   };
 
-  const addClass = async (cls: Omit<SchoolClass, 'id'>) => {
-    const currentClasses = StorageService.getClasses() || [];
-
-    const created: SchoolClass = {
-      ...cls,
-      id: `class_${Date.now()}`,
-      student_count: 0,
-      created_by: currentUser?.id,
-    };
-
-    const newList = [...currentClasses, created];
-    localStorage.setItem('itqan_classes_v2', JSON.stringify(newList));
-    setClasses(newList);
-
+  const addClass = async (classData: Omit<SchoolClass, 'id'>): Promise<SchoolClass> => {
+    const created = StorageService.createClass(classData);
+    setClasses((prev) => [...prev, created]);
     if (isSupabaseConfigured()) {
       try {
-        const { error } = await supabase.from('classes').insert({
-          id: created.id,
-          name: created.name,
-          grade_level: created.grade_level,
-          student_count: created.student_count || 0,
-          created_by: created.created_by,
-        });
-        if (error) {
-          console.warn('[addClass] Supabase insert warning:', error.message);
-        } else {
-          console.log(`[addClass] Class ${created.id} inserted into Supabase successfully`);
-        }
+        await supabase.from('classes').insert([created]);
       } catch (err) {
-        console.warn('[addClass] Supabase network error:', err);
+        console.warn('[addClass] Supabase insert warning:', err);
       }
     }
-
-    if (currentUser && currentUser.role === 'teacher') {
-      const currentAssigned = currentUser.assigned_class_ids || [];
-      const updatedAssigned = Array.from(new Set([...currentAssigned, created.id]));
-      await updateUserData(currentUser.id, { assigned_class_ids: updatedAssigned });
-    } else {
-      await refreshData();
-    }
-
-    showToast(`تمت إضافة الشعبة/الصف (${created.name}) بنجاح`, 'success');
+    showToast(`تم إضافة الصف: ${created.name}`, 'success');
     return created;
   };
 
-  const updateClassData = async (id: string, updates: Partial<SchoolClass>) => {
-    StorageService.updateClass(id, updates);
-    setClasses((prev) => prev.map((c) => (c.id === id ? { ...c, ...updates } : c)));
-
+  const updateClassData = async (id: string, updates: Partial<SchoolClass>): Promise<void> => {
+    const updated = StorageService.updateClass(id, updates);
+    if (updated) {
+      setClasses((prev) => prev.map((c) => (c.id === id ? updated : c)));
+    }
     if (isSupabaseConfigured()) {
       try {
-        const { error } = await supabase.from('classes').update(updates).eq('id', id);
-        if (error) console.warn('[updateClassData] Supabase update warning:', error.message);
+        await supabase.from('classes').update(updates).eq('id', id);
       } catch (err) {
-        console.warn('[updateClassData] Supabase network error:', err);
+        console.warn('[updateClassData] Supabase update warning:', err);
       }
     }
-
-    await refreshData();
-    showToast('تم تحديث الشعبة بنجاح', 'success');
+    showToast('تم تحديث بيانات الصف', 'success');
   };
 
-  const deleteClassItem = async (id: string) => {
+  const deleteClassItem = async (id: string): Promise<void> => {
     StorageService.deleteClass(id);
     setClasses((prev) => prev.filter((c) => c.id !== id));
-
     if (isSupabaseConfigured()) {
       try {
-        const { error } = await supabase.from('classes').delete().eq('id', id);
-        if (error) console.warn('[deleteClassItem] Supabase delete warning:', error.message);
+        await supabase.from('classes').delete().eq('id', id);
       } catch (err) {
-        console.warn('[deleteClassItem] Supabase network error:', err);
+        console.warn('[deleteClassItem] Supabase delete warning:', err);
       }
     }
-
-    await refreshData();
-    showToast('تم حذف الشعبة بنجاح', 'info');
+    showToast('تم حذف الصف بنجاح', 'info');
   };
 
   const resetSystemData = () => {
-    StorageService.resetToSeedData();
-    localStorage.removeItem('itqan_subjects_v2');
-    localStorage.removeItem('itqan_classes_v2');
-    refreshData();
-    showToast('تمت إعادة ضبط بيانات النظام بنجاح', 'success');
+    StorageService.clearAllData();
+    window.location.reload();
   };
 
   return (
@@ -1222,6 +1004,19 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       }}
     >
       {children}
+      {toastMessage && (
+        <div
+          className={`fixed bottom-5 left-5 z-50 px-5 py-3 rounded-lg shadow-xl text-white text-sm font-medium transition-all duration-300 animate-bounce ${
+            toastMessage.type === 'success'
+              ? 'bg-emerald-600'
+              : toastMessage.type === 'error'
+              ? 'bg-rose-600'
+              : 'bg-indigo-600'
+          }`}
+        >
+          {toastMessage.text}
+        </div>
+      )}
     </AppContext.Provider>
   );
 };
