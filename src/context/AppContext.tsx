@@ -17,9 +17,6 @@ import {
 } from '../services/storage';
 import { supabase, isSupabaseConfigured } from '../services/supabase';
 
-// ==========================================
-// Supabase + StorageService Integration
-
 interface AppContextType {
   currentUser: User | null;
   users: User[];
@@ -81,7 +78,6 @@ interface AppContextType {
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
 
-// دالة مساعدة لدمج كائن المستخدم والتأكد من توافق وتكامل الصلاحيات والمواد والفصول واسم المستخدم
 const sanitizeUser = (user: User): User => {
   const rawPerms = user.teacher_permissions || (user as any).permissions || {};
   const perms = {
@@ -92,7 +88,6 @@ const sanitizeUser = (user: User): User => {
     can_add_teachers: !!rawPerms.can_add_teachers,
   };
 
-  // اعتماد المصفوفة طالما أنها معرفة (حتى لو كانت فارغة) وعدم استرجاع القيمة القديمة إلا إذا كانت undefined
   let assignedSubs: string[];
   if (Array.isArray(user.assigned_subject_ids)) {
     assignedSubs = user.assigned_subject_ids;
@@ -154,9 +149,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   );
 
   const [subjects, setSubjects] = useState<Subject[]>(() => StorageService.getSubjects());
-
   const [classes, setClasses] = useState<SchoolClass[]>(() => StorageService.getClasses());
-
   const [currentView, setCurrentView] = useState<string>('dashboard');
   const [activeQuizId, setActiveQuizId] = useState<string | null>(null);
   const [editingQuizId, setEditingQuizId] = useState<string | null>(null);
@@ -220,12 +213,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             const localUpdated = localU.updated_at ? new Date(localU.updated_at).getTime() : 0;
             const dbUpdated = dbU.updated_at ? new Date(dbU.updated_at).getTime() : 0;
 
-            // حماية التعديل المحلي: إذا كان المحلي أحدث أو مساوي، احتفظ بالتعديل المحلي أولوية
             if (localUpdated >= dbUpdated || !dbU.updated_at) {
               return sanitizeUser({
                 ...dbU,
                 ...localU,
-                // حماية المصفوفات من الضياع إذا كان Supabase أرجع null
                 assigned_subject_ids: localU.assigned_subject_ids ?? dbU.assigned_subject_ids ?? [],
                 assigned_class_ids: localU.assigned_class_ids ?? dbU.assigned_class_ids ?? [],
                 teacher_permissions: localU.teacher_permissions ?? dbU.teacher_permissions ?? {},
@@ -724,7 +715,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     if (updates.national_id) cleanUpdates.national_id = updates.national_id;
     if (updates.username) cleanUpdates.username = updates.username;
 
-    // 1. التحديث المحلي السريع
     const updatedUserObj = StorageService.updateUser(id, cleanUpdates);
 
     if (updatedUserObj) {
@@ -744,7 +734,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       }
     }
 
-    // 2. المزامنة مع Supabase مع طباعة تفصيلية للأخطاء
     if (isSupabaseConfigured()) {
       try {
         let payload = cleanUserPayloadForSupabase(cleanUpdates);
@@ -754,7 +743,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           .from('users')
           .update(payload)
           .or(`id.eq.${id},national_id.eq.${targetKey},username.eq.${targetKey}`)
-          .select(); // إرجاع الصفوف المحدثة للتأكد
+          .select();
 
         if (error) {
           console.error('[Supabase Update Error]:', error.message, error.details, error.hint);
@@ -768,22 +757,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         console.error('[updateUserData Exception]:', err);
       }
     } else {
-      console.warn('[Supabase Warning]: الاتصال بـ Supabase غير مفعل أو الناقصة بيانات .env');
-    }
-
-    showToast('تم حفظ وتحديث بيانات المستخدم بنجاح', 'success');
-  };
-
-          const missingColumn = extractMissingColumn(error.message || '');
-          if (missingColumn && missingColumn in payload) {
-            delete payload[missingColumn];
-            continue;
-          }
-          break;
-        }
-      } catch (err) {
-        console.warn('[updateUserData] Supabase background sync warning:', err);
-      }
+      console.warn('[Supabase Warning]: الاتصال بـ Supabase غير مفعل أو ناقص بيانات .env');
     }
 
     showToast('تم حفظ وتحديث بيانات المستخدم بنجاح', 'success');
