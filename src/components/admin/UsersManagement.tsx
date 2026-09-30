@@ -47,6 +47,7 @@ export const UsersManagement: React.FC = () => {
   const [role, setRole] = useState<Role>('student');
   const [classId, setClassId] = useState(classes[0]?.id || '');
   const [assignedSubjectIds, setAssignedSubjectIds] = useState<string[]>([]);
+  const [assignedClassIds, setAssignedClassIds] = useState<string[]>([]);
   const [teacherPermissions, setTeacherPermissions] = useState<TeacherPermissions>({
     can_add_custom_subjects: false,
     can_manage_classes: false,
@@ -72,6 +73,7 @@ export const UsersManagement: React.FC = () => {
     setRole('student');
     setClassId(classes[0]?.id || '');
     setAssignedSubjectIds([]);
+    setAssignedClassIds([]);
     setTeacherPermissions({
       can_add_custom_subjects: false,
       can_manage_classes: false,
@@ -90,6 +92,7 @@ export const UsersManagement: React.FC = () => {
     setRole(u.role);
     setClassId(u.class_id || classes[0]?.id || '');
     setAssignedSubjectIds(u.assigned_subject_ids || (u.specialty_id ? [u.specialty_id] : []));
+    setAssignedClassIds(u.assigned_class_ids || []);
     setTeacherPermissions(
       u.teacher_permissions || {
         can_add_custom_subjects: false,
@@ -109,6 +112,14 @@ export const UsersManagement: React.FC = () => {
     }
   };
 
+  const toggleClassAssignment = (cId: string) => {
+    if (assignedClassIds.includes(cId)) {
+      setAssignedClassIds(assignedClassIds.filter((id) => id !== cId));
+    } else {
+      setAssignedClassIds([...assignedClassIds, cId]);
+    }
+  };
+
   const handleCreate = (e: React.FormEvent) => {
     e.preventDefault();
 
@@ -125,6 +136,7 @@ export const UsersManagement: React.FC = () => {
       role,
       specialty_id: assignedSubjectIds[0] || null,
       assigned_subject_ids: role === 'teacher' ? assignedSubjectIds : [],
+      assigned_class_ids: role === 'teacher' ? assignedClassIds : [],
       class_id: role === 'student' ? classId : null,
       teacher_permissions: role === 'teacher' ? teacherPermissions : undefined,
     });
@@ -150,6 +162,7 @@ export const UsersManagement: React.FC = () => {
       class_id: role === 'student' ? classId : null,
       specialty_id: assignedSubjectIds[0] || null,
       assigned_subject_ids: role === 'teacher' ? assignedSubjectIds : [],
+      assigned_class_ids: role === 'teacher' ? assignedClassIds : [],
       teacher_permissions: role === 'teacher' ? teacherPermissions : undefined,
     };
 
@@ -233,7 +246,7 @@ export const UsersManagement: React.FC = () => {
                 <th className="py-3 px-4">المستخدم</th>
                 <th className="py-3 px-4">رقم الهوية (Login ID)</th>
                 <th className="py-3 px-4">الدور الوظيفي</th>
-                <th className="py-3 px-4">الصف / المواد المسندة</th>
+                <th className="py-3 px-4">المواد والفصول المسندة</th>
                 <th className="py-3 px-4">صلاحيات المعلم الإضافية</th>
                 <th className="py-3 px-4 text-center">الإجراءات</th>
               </tr>
@@ -243,6 +256,10 @@ export const UsersManagement: React.FC = () => {
                 const userClass = classes.find((c) => c.id === u.class_id);
                 const assignedSubs = (u.assigned_subject_ids || [])
                   .map((id) => subjects.find((s) => s.id === id)?.name)
+                  .filter(Boolean);
+
+                const assignedCls = (u.assigned_class_ids || [])
+                  .map((id) => classes.find((c) => c.id === id)?.name)
                   .filter(Boolean);
 
                 return (
@@ -287,19 +304,37 @@ export const UsersManagement: React.FC = () => {
 
                     <td className="py-3.5 px-4 font-medium text-slate-700 dark:text-slate-300">
                       {u.role === 'teacher' && (
-                        <div className="flex flex-wrap gap-1">
-                          {assignedSubs.length > 0 ? (
-                            assignedSubs.map((sName, idx) => (
-                              <span
-                                key={idx}
-                                className="bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 px-2 py-0.5 rounded-md text-[10px] font-semibold"
-                              >
-                                {sName}
-                              </span>
-                            ))
-                          ) : (
-                            <span className="text-slate-400">غير محدد</span>
-                          )}
+                        <div className="space-y-1.5">
+                          <div className="flex flex-wrap items-center gap-1">
+                            <span className="text-[10px] font-bold text-slate-400 ml-1">المواد:</span>
+                            {assignedSubs.length > 0 ? (
+                              assignedSubs.map((sName, idx) => (
+                                <span
+                                  key={idx}
+                                  className="bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 px-2 py-0.5 rounded-md text-[10px] font-semibold"
+                                >
+                                  {sName}
+                                </span>
+                              ))
+                            ) : (
+                              <span className="text-slate-400 text-[10px]">لا توجد</span>
+                            )}
+                          </div>
+                          <div className="flex flex-wrap items-center gap-1">
+                            <span className="text-[10px] font-bold text-slate-400 ml-1">الفصول:</span>
+                            {assignedCls.length > 0 ? (
+                              assignedCls.map((cName, idx) => (
+                                <span
+                                  key={idx}
+                                  className="bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300 px-2 py-0.5 rounded-md text-[10px] font-semibold border border-indigo-100 dark:border-indigo-900"
+                                >
+                                  {cName}
+                                </span>
+                              ))
+                            ) : (
+                              <span className="text-slate-400 text-[10px]">الكل/غير مخصص</span>
+                            )}
+                          </div>
                         </div>
                       )}
                       {u.role === 'student' && (userClass?.name || 'غير مسكن في شعبة')}
@@ -475,11 +510,12 @@ export const UsersManagement: React.FC = () => {
 
               {role === 'teacher' && (
                 <>
+                  {/* المواد المسندة */}
                   <div>
                     <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5">
                       المواد المسندة للمعلم (اختر مادة أو أكثر):
                     </label>
-                    <div className="grid grid-cols-2 gap-2 max-h-36 overflow-y-auto p-1 border rounded-xl border-slate-200 dark:border-slate-700">
+                    <div className="grid grid-cols-2 gap-2 max-h-32 overflow-y-auto p-1 border rounded-xl border-slate-200 dark:border-slate-700">
                       {subjects.map((s) => {
                         const isSelected = assignedSubjectIds.includes(s.id);
                         return (
@@ -505,6 +541,38 @@ export const UsersManagement: React.FC = () => {
                     </div>
                   </div>
 
+                  {/* الفصول والشعب المسندة */}
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5">
+                      الفصول والشعب المسندة للمعلم (اختر فصل أو أكثر):
+                    </label>
+                    <div className="grid grid-cols-2 gap-2 max-h-32 overflow-y-auto p-1 border rounded-xl border-slate-200 dark:border-slate-700">
+                      {classes.map((c) => {
+                        const isSelected = assignedClassIds.includes(c.id);
+                        return (
+                          <div
+                            key={c.id}
+                            onClick={() => toggleClassAssignment(c.id)}
+                            className={`p-2 rounded-xl border text-xs cursor-pointer flex items-center justify-between transition-colors ${
+                              isSelected
+                                ? 'border-indigo-600 bg-indigo-50 dark:bg-indigo-950 font-bold text-indigo-900 dark:text-indigo-200'
+                                : 'border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300'
+                            }`}
+                          >
+                            <span>{c.name}</span>
+                            <input
+                              type="checkbox"
+                              checked={isSelected}
+                              readOnly
+                              className="accent-indigo-600"
+                            />
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  {/* الصلاحيات الإضافية */}
                   <div className="p-3.5 bg-slate-50 dark:bg-slate-800/60 rounded-2xl border border-slate-200 dark:border-slate-700 space-y-2.5">
                     <div className="flex items-center gap-1.5 text-xs font-bold text-slate-800 dark:text-white mb-1">
                       <Sliders className="w-4 h-4 text-indigo-600" />
