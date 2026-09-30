@@ -284,7 +284,7 @@ export const QuizTaker: React.FC<QuizTakerProps> = ({ quizId, onFinish, onCancel
 
           {/* Options */}
           <div className="space-y-3 mb-8">
-            {currentQ.options.map((optionText, optIdx) => {
+            {currentQ.options?.map(...) {
               const isSelected = userAnswers[currentQ.id] === optIdx;
               const optionLetters = ['أ', 'ب', 'ج', 'د'];
 
