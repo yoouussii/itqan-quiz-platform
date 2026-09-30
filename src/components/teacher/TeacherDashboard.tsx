@@ -9,20 +9,13 @@ import {
   Trash2,
   Layers,
   Calendar,
-  Clock,
   ToggleLeft,
-  ToggleRight,
-  Filter,
   BarChart3,
   CheckCircle2,
-  AlertTriangle,
   RotateCcw,
   Pencil,
   FileSpreadsheet,
-  ChevronDown,
   Sparkles,
-  ShieldAlert,
-  GraduationCap,
 } from 'lucide-react';
 import {
   BarChart,
@@ -38,7 +31,7 @@ import { useApp } from '../../context/AppContext';
 import { KPICard } from '../common/KPICard';
 import { SubmissionsTable } from '../analytics/SubmissionsTable';
 import { ReassignQuizModal } from '../common/ReassignQuizModal';
-import { QuizWithDetails, SubmissionWithDetails } from '../../types';
+import { QuizWithDetails } from '../../types';
 import { Avatar } from '../common/Avatar';
 import { formatArabicQuizDate } from '../../utils/dateUtils';
 
@@ -703,75 +696,70 @@ export const TeacherDashboard: React.FC = () => {
                 <th className="py-3 px-4">الطالب</th>
                 <th className="py-3 px-4">الفصل الدراسي</th>
                 <th className="py-3 px-4">الاختبار</th>
-                <th className="py-3 px-4">النتيجة</th>
-                <th className="py-3 px-4">المستوى المصنف</th>
-                <th className="py-3 px-4">الخطة التعليمية المقترحة</th>
-                <th className="py-3 px-4 text-center">إتاحة الإعادة للطالب</th>
+                <th className="py-3 px-4">النسبة المئوية</th>
+                <th className="py-3 px-4">التصنيف الأكاديمي</th>
+                <th className="py-3 px-4">الخطة الموصى بها</th>
+                <th className="py-3 px-4 text-center">صلاحية الإعادة</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+            <tbody className="divide-y divide-slate-100 dark:divide-slate-800 text-slate-700 dark:text-slate-300">
               {remedialReport.list.length === 0 ? (
                 <tr>
                   <td colSpan={7} className="py-8 text-center text-slate-400">
-                    لا يوجد طلاب مسجلون في هذا التصنيف حالياً
+                    لا توجد بيانات طلاب مطابقة للتصفية الحالية.
                   </td>
                 </tr>
               ) : (
                 remedialReport.list.map((item) => (
-                  <tr key={item.id} className="hover:bg-slate-50/60 dark:hover:bg-slate-800/40 transition-colors">
-                    <td className="py-3.5 px-4">
-                      <div className="flex items-center gap-2">
-                        <Avatar name={item.student?.name || ''} role={item.student?.role} size="xs" />
-                        <div>
-                          <div className="font-bold text-slate-900 dark:text-white">{item.student?.name}</div>
-                          <div className="text-[10px] text-slate-400 font-mono">{item.student?.national_id}</div>
-                        </div>
-                      </div>
-                    </td>
-                    <td className="py-3.5 px-4 font-medium text-slate-700 dark:text-slate-300">
-                      {item.student_class?.name || '—'}
-                    </td>
-                    <td className="py-3.5 px-4 font-medium text-slate-900 dark:text-white line-clamp-1">
-                      {item.quiz?.title}
-                    </td>
-                    <td className="py-3.5 px-4">
-                      <span className="font-bold text-slate-900 dark:text-white">
-                        {item.score}/{item.total_possible_score}
+                  <tr key={item.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/40 transition-colors">
+                    <td className="py-3 px-4 font-bold text-slate-900 dark:text-white">
+                      {item.student?.name || 'طالب غير معرف'}
+                      <span className="block text-[10px] text-slate-400 font-normal">
+                        هوية: {item.student?.national_id || '-'}
                       </span>
-                      <span className="text-[11px] text-slate-400 font-mono mr-1">({item.percentage}%)</span>
                     </td>
-                    <td className="py-3.5 px-4">
-                      <span className={`inline-block px-2.5 py-0.5 rounded-full text-[10px] font-bold border ${item.tierColor}`}>
+                    <td className="py-3 px-4">{item.student_class?.name || 'عام'}</td>
+                    <td className="py-3 px-4 font-semibold">{item.quiz?.title || '-'}</td>
+                    <td className="py-3 px-4 font-black font-cairo text-sm">
+                      <span
+                        className={
+                          item.percentage >= 85
+                            ? 'text-emerald-600'
+                            : item.percentage >= 65
+                            ? 'text-blue-600'
+                            : 'text-rose-600'
+                        }
+                      >
+                        {item.percentage}%
+                      </span>
+                    </td>
+                    <td className="py-3 px-4">
+                      <span className={`inline-block px-2.5 py-1 rounded-lg text-[11px] font-bold border ${item.tierColor}`}>
                         {item.tierLabel}
                       </span>
                     </td>
-                    <td className="py-3.5 px-4 text-slate-600 dark:text-slate-300 max-w-xs text-[11px] leading-relaxed">
+                    <td className="py-3 px-4 max-w-xs text-slate-600 dark:text-slate-400 text-[11px] leading-relaxed">
                       {item.tierAction}
                     </td>
-                    <td className="py-3.5 px-4 text-center">
-                      {item.isRetakeAllowed ? (
-                        <div className="flex items-center justify-center gap-1.5">
-                          <span className="text-[11px] font-bold text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950 px-2.5 py-1 rounded-xl border border-emerald-200 dark:border-emerald-800">
-                            مسموح له بالإعادة ✓
-                          </span>
-                          <button
-                            onClick={() => revokeStudentRetake(item.quiz_id, item.student_id)}
-                            className="text-[10px] text-slate-400 hover:text-rose-600 underline"
-                            title="إلغاء إتاحة الإعادة"
-                          >
-                            إلغاء
-                          </button>
-                        </div>
-                      ) : (
-                        <button
-                          onClick={() => allowStudentRetake(item.quiz_id, item.student_id)}
-                          className="inline-flex items-center gap-1 px-3 py-1.5 rounded-xl text-xs font-bold bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-950 dark:hover:bg-indigo-900 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800 transition-all shadow-xs hover:scale-105"
-                          title="منح الطالب صلاحية أداء الاختبار مرة أخرى"
-                        >
-                          <RotateCcw className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400" />
-                          <span>السماح بالإعادة</span>
-                        </button>
-                      )}
+                    <td className="py-3 px-4 text-center">
+                      <button
+                        onClick={() => {
+                          if (item.isRetakeAllowed) {
+                            revokeStudentRetake(item.quiz_id, item.student_id);
+                          } else {
+                            allowStudentRetake(item.quiz_id, item.student_id);
+                          }
+                        }}
+                        className={`inline-flex items-center gap-1 px-3 py-1.5 rounded-xl font-bold transition-all ${
+                          item.isRetakeAllowed
+                            ? 'bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300 border border-amber-300 hover:bg-amber-200'
+                            : 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300 border border-slate-200 dark:border-slate-700 hover:bg-emerald-50 hover:text-emerald-700'
+                        }`}
+                        title={item.isRetakeAllowed ? 'سحب إجازة الإعادة' : 'منح إمكانية إعادة الاختبار'}
+                      >
+                        <RotateCcw className="w-3.5 h-3.5" />
+                        <span>{item.isRetakeAllowed ? 'مصرح بالإعادة (إلغاء)' : 'السماح بالإعادة'}</span>
+                      </button>
                     </td>
                   </tr>
                 ))
@@ -781,14 +769,20 @@ export const TeacherDashboard: React.FC = () => {
         </div>
       </div>
 
-      {/* Teacher Submissions & Analytics Table */}
-      <SubmissionsTable
-        submissions={teacherSubmissions}
-        title="سجل نتائج وتقييمات طلابك الكامل"
-        subtitle="متابعة فورية لدرجات الطلاب الذين أتموا اختباراتك المصممة"
-      />
+      {/* SECTION: Recent Submissions Table */}
+      <div className="bg-white dark:bg-slate-900 rounded-3xl p-6 sm:p-8 border border-slate-200/80 dark:border-slate-800 shadow-soft space-y-4">
+        <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800">
+          <h2 className="text-xl font-bold text-slate-900 dark:text-white font-cairo">
+            سجل جميع تسليمات الطلاب
+          </h2>
+          <span className="text-xs text-slate-500 font-medium">
+            إجمالي التسليمات: {teacherSubmissions.length}
+          </span>
+        </div>
+        <SubmissionsTable submissions={teacherSubmissions} />
+      </div>
 
-      {/* Reassign Modal */}
+      {/* Reassign Quiz Modal */}
       {selectedQuizForReassign && (
         <ReassignQuizModal
           quiz={selectedQuizForReassign}
