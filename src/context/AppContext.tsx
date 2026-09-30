@@ -139,7 +139,19 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     StorageService.getDynamicKPIs(currentUser?.role === 'teacher' ? currentUser.id : undefined)
   );
 
-  const refreshData = useCallback(() => {
+  const refreshData = useCallback(async () => {
+    // 1. جلب قائمة المستخدمين المحدثة مباشرة من Supabase
+    try {
+      const { data: dbUsers, error } = await supabase.from('users').select('*');
+      if (!error && dbUsers && dbUsers.length > 0) {
+        // حفظهم في التخزين المحلي ليكون متسقاً
+        localStorage.setItem('itqan_users_v2', JSON.stringify(dbUsers));
+      }
+    } catch (err) {
+      console.error('Error fetching users from Supabase:', err);
+    }
+
+    // 2. تحديث الحالات في الواجهة وقراءة باقي البيانات (المواد، الاختبارات، والمؤشرات)
     const updatedUsers = StorageService.getUsers();
     const updatedSubjects = StorageService.getSubjects();
     const updatedClasses = StorageService.getClasses();
