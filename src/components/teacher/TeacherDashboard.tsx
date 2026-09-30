@@ -94,13 +94,19 @@ export const TeacherDashboard: React.FC = () => {
   }, [quizzes, currentUser, assignedSubjectIds]);
 
   const teacherQuizIds = new Set(teacherQuizzes.map((q) => q.id));
-  const teacherSubmissions = useMemo(
-    () => submissions.filter((s) => teacherQuizIds.has(s.quiz_id)),
-    [submissions, teacherQuizIds]
-  );
 
   // 3. التحقق من كافة الصلاحيات الممنوحة للمعلم
   const permissions = currentUser?.teacher_permissions || (currentUser as any)?.permissions || {};
+  const canViewAllReports = Boolean(
+    currentUser?.role === 'admin' ||
+    permissions.can_view_all_reports ||
+    currentUser?.teacher_permissions?.can_view_all_reports
+  );
+
+  const teacherSubmissions = useMemo(
+    () => canViewAllReports ? submissions : submissions.filter((s) => teacherQuizIds.has(s.quiz_id)),
+    [submissions, teacherQuizIds, canViewAllReports]
+  );
 
   // Per-Quiz Filtered Analytics
   const activeQuizAnalytics = useMemo(() => {

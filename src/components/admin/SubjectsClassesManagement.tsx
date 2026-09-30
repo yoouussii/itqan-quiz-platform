@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import {
   Layers,
   BookOpen,
@@ -10,21 +10,25 @@ import {
   Check,
   Tag,
   Palette,
+  UserCheck,
+  Users,
 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
-import { Subject, SchoolClass } from '../../types';
+import { Subject, SchoolClass, User } from '../../types';
 
 export const SubjectsClassesManagement: React.FC = () => {
   const {
     currentUser,
     subjects,
     classes,
+    users,
     addSubject,
     updateSubjectData,
     deleteSubjectItem,
     addClass,
     updateClassData,
     deleteClassItem,
+    updateUserData,
   } = useApp();
 
   const [activeTab, setActiveTab] = useState<'subjects' | 'classes'>('subjects');
@@ -42,6 +46,59 @@ export const SubjectsClassesManagement: React.FC = () => {
   const [editingClass, setEditingClass] = useState<SchoolClass | null>(null);
   const [className, setClassName] = useState('');
   const [gradeLevel, setGradeLevel] = useState('');
+
+  // --- Assignment Modals ---
+  // Subject → Assign Teachers
+  const [assignSubjectTeachersModal, setAssignSubjectTeachersModal] = useState<Subject | null>(null);
+  // Class → Assign Students / Teachers
+  const [assignClassUsersModal, setAssignClassUsersModal] = useState<SchoolClass | null>(null);
+
+  const teachers = useMemo(() => users.filter((u) => u.role === 'teacher'), [users]);
+  const students = useMemo(() => users.filter((u) => u.role === 'student'), [users]);
+
+  const getSubjectTeachers = (subjectId: string) =>
+    teachers.filter(
+      (t) =>
+        t.assigned_subject_ids?.includes(subjectId) ||
+        t.specialty_id === subjectId
+    );
+
+  const getClassStudents = (classId: string) =>
+    students.filter((s) => s.class_id === classId || s.assigned_class_ids?.includes(classId));
+
+  const getClassTeachers = (classId: string) =>
+    teachers.filter((t) => t.assigned_class_ids?.includes(classId));
+
+  const handleToggleSubjectTeacher = async (subjectId: string, teacher: User) => {
+    const current = teacher.assigned_subject_ids || (teacher.specialty_id ? [teacher.specialty_id] : []);
+    const updated = current.includes(subjectId)
+      ? current.filter((id) => id !== subjectId)
+      : [...current, subjectId];
+    await updateUserData(teacher.id, {
+      assigned_subject_ids: updated,
+      specialty_id: updated[0] || null,
+    });
+  };
+
+  const handleToggleClassStudent = async (classId: string, student: User) => {
+    // Students belong to one class — toggle directly
+    const newClassId = student.class_id === classId ? null : classId;
+    await updateUserData(student.id, {
+      class_id: newClassId || undefined,
+      assigned_class_ids: newClassId ? [newClassId] : [],
+    });
+  };
+
+  const handleToggleClassTeacher = async (classId: string, teacher: User) => {
+    const current = teacher.assigned_class_ids || (teacher.class_id ? [teacher.class_id] : []);
+    const updated = current.includes(classId)
+      ? current.filter((id) => id !== classId)
+      : [...current, classId];
+    await updateUserData(teacher.id, {
+      assigned_class_ids: updated,
+      class_id: updated[0] || null,
+    });
+  };
 
   // Check permissions
   const canManageSubjects =
@@ -227,21 +284,30 @@ export const SubjectsClassesManagement: React.FC = () => {
                 </div>
 
                 {canManageSubjects && (
-                  <div className="pt-3 border-t border-slate-100 dark:border-slate-800 flex items-center justify-end gap-2">
+                  <div className="pt-3 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between gap-2">
                     <button
-                      onClick={() => handleOpenEditSubject(subj)}
-                      className="p-1.5 text-indigo-600 hover:bg-indigo-50 dark:hover:bg-indigo-950 rounded-lg text-xs font-bold flex items-center gap-1"
+                      onClick={() => setAssignSubjectTeachersModal(subj)}
+                      className="p-1.5 text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-950 rounded-lg text-xs font-bold flex items-center gap-1"
                     >
-                      <Edit2 className="w-3.5 h-3.5" />
-                      <span>تعديل</span>
+                      <UserCheck className="w-3.5 h-3.5" />
+                      <span>إسناد معلمين ({getSubjectTeachers(subj.id).length})</span>
                     </button>
-                    <button
-                      onClick={() => handleDeleteSubject(subj)}
-                      className="p-1.5 text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950 rounded-lg text-xs font-bold flex items-center gap-1"
-                    >
-                      <Trash2 className="w-3.5 h-3.5" />
-                      <span>حذف</span>
-                    </button>
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => handleOpenEditSubject(subj)}
+                        className="p-1.5 text-indigo-600 hover:bg-indigo-50 dark:hover:bg-indigo-950 rounded-lg text-xs font-bold flex items-center gap-1"
+                      >
+                        <Edit2 className="w-3.5 h-3.5" />
+                        <span>تعديل</span>
+                      </button>
+                      <button
+                        onClick={() => handleDeleteSubject(subj)}
+                        className="p-1.5 text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950 rounded-lg text-xs font-bold flex items-center gap-1"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                        <span>حذف</span>
+                      </button>
+                    </div>
                   </div>
                 )}
               </div>
@@ -291,21 +357,35 @@ export const SubjectsClassesManagement: React.FC = () => {
                 </div>
 
                 {canManageClasses && (
-                  <div className="pt-3 border-t border-slate-100 dark:border-slate-800 flex items-center justify-end gap-2">
-                    <button
-                      onClick={() => handleOpenEditClass(cls)}
-                      className="p-1.5 text-indigo-600 hover:bg-indigo-50 dark:hover:bg-indigo-950 rounded-lg text-xs font-bold flex items-center gap-1"
-                    >
-                      <Edit2 className="w-3.5 h-3.5" />
-                      <span>تعديل</span>
-                    </button>
-                    <button
-                      onClick={() => handleDeleteClass(cls)}
-                      className="p-1.5 text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950 rounded-lg text-xs font-bold flex items-center gap-1"
-                    >
-                      <Trash2 className="w-3.5 h-3.5" />
-                      <span>حذف</span>
-                    </button>
+                  <div className="pt-3 border-t border-slate-100 dark:border-slate-800 space-y-2">
+                    <div className="flex items-center gap-1.5 text-[10px] text-slate-500 dark:text-slate-400">
+                      <span className="font-bold text-emerald-600 dark:text-emerald-400">{getClassStudents(cls.id).length}</span> طالب
+                      <span className="mx-1">·</span>
+                      <span className="font-bold text-indigo-600 dark:text-indigo-400">{getClassTeachers(cls.id).length}</span> معلم
+                    </div>
+                    <div className="flex items-center justify-between gap-2">
+                      <button
+                        onClick={() => setAssignClassUsersModal(cls)}
+                        className="p-1.5 text-indigo-600 hover:bg-indigo-50 dark:hover:bg-indigo-950 rounded-lg text-xs font-bold flex items-center gap-1"
+                      >
+                        <Users className="w-3.5 h-3.5" />
+                        <span>إسناد الطلاب والمعلمين</span>
+                      </button>
+                      <div className="flex items-center gap-1">
+                        <button
+                          onClick={() => handleOpenEditClass(cls)}
+                          className="p-1.5 text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg text-xs font-bold flex items-center gap-1"
+                        >
+                          <Edit2 className="w-3.5 h-3.5" />
+                        </button>
+                        <button
+                          onClick={() => handleDeleteClass(cls)}
+                          className="p-1.5 text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950 rounded-lg text-xs font-bold flex items-center gap-1"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    </div>
                   </div>
                 )}
               </div>
@@ -482,6 +562,184 @@ export const SubjectsClassesManagement: React.FC = () => {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* ====== Modal: Assign Teachers to Subject ====== */}
+      {assignSubjectTeachersModal && (
+        <div className="fixed inset-0 z-50 overflow-y-auto bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-white dark:bg-slate-900 rounded-3xl max-w-md w-full p-6 shadow-2xl border border-slate-100 dark:border-slate-800 max-h-[85vh] overflow-y-auto">
+            <div className="flex items-center justify-between pb-3 mb-4 border-b border-slate-100 dark:border-slate-800">
+              <div>
+                <h3 className="font-bold text-base text-slate-900 dark:text-white">
+                  إسناد معلمين لمادة: {assignSubjectTeachersModal.name}
+                </h3>
+                <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
+                  اضغط على المعلم لإسناده أو إلغاء إسناده لهذه المادة فوراً
+                </p>
+              </div>
+              <button
+                onClick={() => setAssignSubjectTeachersModal(null)}
+                className="p-1 text-slate-400 hover:text-slate-700 dark:hover:text-slate-200"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="space-y-2">
+              {teachers.length === 0 && (
+                <p className="text-xs text-slate-400 text-center py-4">لا يوجد معلمون مضافون في النظام</p>
+              )}
+              {teachers.map((teacher) => {
+                const isAssigned =
+                  teacher.assigned_subject_ids?.includes(assignSubjectTeachersModal.id) ||
+                  teacher.specialty_id === assignSubjectTeachersModal.id;
+                return (
+                  <div
+                    key={teacher.id}
+                    onClick={() => handleToggleSubjectTeacher(assignSubjectTeachersModal.id, teacher)}
+                    className={`flex items-center justify-between p-3 rounded-xl border cursor-pointer transition-all select-none ${
+                      isAssigned
+                        ? 'border-emerald-500 bg-emerald-50 dark:bg-emerald-950/60'
+                        : 'border-slate-200 dark:border-slate-700 hover:border-slate-300 dark:hover:border-slate-600 bg-white dark:bg-slate-800'
+                    }`}
+                  >
+                    <div>
+                      <div className="text-xs font-bold text-slate-900 dark:text-white">{teacher.name}</div>
+                      <div className="text-[10px] text-slate-400">{teacher.national_id}</div>
+                    </div>
+                    <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center transition-colors ${
+                      isAssigned ? 'border-emerald-500 bg-emerald-500' : 'border-slate-300 dark:border-slate-600'
+                    }`}>
+                      {isAssigned && <Check className="w-3 h-3 text-white" />}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            <div className="mt-4 pt-3 border-t border-slate-100 dark:border-slate-800 flex justify-end">
+              <button
+                onClick={() => setAssignSubjectTeachersModal(null)}
+                className="px-5 py-2 text-xs font-bold bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl"
+              >
+                تم الحفظ والإغلاق
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ====== Modal: Assign Students & Teachers to Class ====== */}
+      {assignClassUsersModal && (
+        <div className="fixed inset-0 z-50 overflow-y-auto bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-white dark:bg-slate-900 rounded-3xl max-w-lg w-full p-6 shadow-2xl border border-slate-100 dark:border-slate-800 max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between pb-3 mb-4 border-b border-slate-100 dark:border-slate-800">
+              <div>
+                <h3 className="font-bold text-base text-slate-900 dark:text-white">
+                  إسناد الطلاب والمعلمين للشعبة: {assignClassUsersModal.name}
+                </h3>
+                <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
+                  اضغط على الاسم لإسناده أو إلغاء إسناده لهذا الفصل
+                </p>
+              </div>
+              <button
+                onClick={() => setAssignClassUsersModal(null)}
+                className="p-1 text-slate-400 hover:text-slate-700 dark:hover:text-slate-200"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Students Section */}
+            <div className="mb-5">
+              <div className="flex items-center gap-2 mb-2">
+                <span className="text-xs font-bold text-slate-700 dark:text-slate-300">الطلاب</span>
+                <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-bold">
+                  ({getClassStudents(assignClassUsersModal.id).length} مسند)
+                </span>
+              </div>
+              <div className="space-y-1.5 max-h-48 overflow-y-auto">
+                {students.length === 0 && (
+                  <p className="text-xs text-slate-400 text-center py-2">لا يوجد طلاب مضافون</p>
+                )}
+                {students.map((student) => {
+                  const isAssigned =
+                    student.class_id === assignClassUsersModal.id ||
+                    student.assigned_class_ids?.includes(assignClassUsersModal.id);
+                  return (
+                    <div
+                      key={student.id}
+                      onClick={() => handleToggleClassStudent(assignClassUsersModal.id, student)}
+                      className={`flex items-center justify-between p-2.5 rounded-xl border cursor-pointer transition-all select-none ${
+                        isAssigned
+                          ? 'border-emerald-500 bg-emerald-50 dark:bg-emerald-950/60'
+                          : 'border-slate-200 dark:border-slate-700 hover:border-slate-300 bg-white dark:bg-slate-800'
+                      }`}
+                    >
+                      <div>
+                        <div className="text-xs font-bold text-slate-900 dark:text-white">{student.name}</div>
+                        <div className="text-[10px] text-slate-400">{student.national_id}</div>
+                      </div>
+                      <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center ${
+                        isAssigned ? 'border-emerald-500 bg-emerald-500' : 'border-slate-300 dark:border-slate-600'
+                      }`}>
+                        {isAssigned && <Check className="w-2.5 h-2.5 text-white" />}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Teachers Section */}
+            <div>
+              <div className="flex items-center gap-2 mb-2">
+                <span className="text-xs font-bold text-slate-700 dark:text-slate-300">المعلمون</span>
+                <span className="text-[10px] text-indigo-600 dark:text-indigo-400 font-bold">
+                  ({getClassTeachers(assignClassUsersModal.id).length} مسند)
+                </span>
+              </div>
+              <div className="space-y-1.5 max-h-48 overflow-y-auto">
+                {teachers.length === 0 && (
+                  <p className="text-xs text-slate-400 text-center py-2">لا يوجد معلمون مضافون</p>
+                )}
+                {teachers.map((teacher) => {
+                  const isAssigned = teacher.assigned_class_ids?.includes(assignClassUsersModal.id);
+                  return (
+                    <div
+                      key={teacher.id}
+                      onClick={() => handleToggleClassTeacher(assignClassUsersModal.id, teacher)}
+                      className={`flex items-center justify-between p-2.5 rounded-xl border cursor-pointer transition-all select-none ${
+                        isAssigned
+                          ? 'border-indigo-500 bg-indigo-50 dark:bg-indigo-950/60'
+                          : 'border-slate-200 dark:border-slate-700 hover:border-slate-300 bg-white dark:bg-slate-800'
+                      }`}
+                    >
+                      <div>
+                        <div className="text-xs font-bold text-slate-900 dark:text-white">{teacher.name}</div>
+                        <div className="text-[10px] text-slate-400">{teacher.national_id}</div>
+                      </div>
+                      <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center ${
+                        isAssigned ? 'border-indigo-500 bg-indigo-500' : 'border-slate-300 dark:border-slate-600'
+                      }`}>
+                        {isAssigned && <Check className="w-2.5 h-2.5 text-white" />}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            <div className="mt-5 pt-3 border-t border-slate-100 dark:border-slate-800 flex justify-end">
+              <button
+                onClick={() => setAssignClassUsersModal(null)}
+                className="px-5 py-2 text-xs font-bold bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl"
+              >
+                تم الحفظ والإغلاق
+              </button>
+            </div>
           </div>
         </div>
       )}

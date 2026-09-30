@@ -93,14 +93,16 @@ const AppContent: React.FC = () => {
         {/* View 3: Create / Edit Quiz */}
         {currentView === 'create_quiz' && <QuizEditor />}
 
-        {/* View 4: Admin Users Management */}
-        {currentView === 'users' && <UsersManagement />}
+        {/* View 4: Admin / Teacher Users Management */}
+        {(currentView === 'users' || currentView === 'users_management' || currentView === 'students_management') && (
+          <UsersManagement />
+        )}
 
         {/* View 5: Custom Subjects & Classes Management */}
         {currentView === 'subjects_classes' && <SubjectsClassesManagement />}
 
-        {/* View 6: General Analytics View */}
-        {currentView === 'analytics' && (
+        {/* View 6: General Analytics / School-Wide Reports View */}
+        {(currentView === 'analytics' || currentView === 'reports') && (
           <div className="max-w-7xl mx-auto py-8 px-4 sm:px-6 lg:px-8 space-y-8">
             <div className="pb-3 border-b border-slate-200 dark:border-slate-800">
               <h1 className="text-2xl font-black text-slate-900 dark:text-white font-cairo">

@@ -200,6 +200,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       return StorageService.getAllQuizzesWithDetails();
     }
     if (currentUser.role === 'teacher') {
+      const canViewAll = currentUser.teacher_permissions?.can_view_all_reports || (currentUser as any).permissions?.can_view_all_reports;
+      if (canViewAll) {
+        return StorageService.getAllQuizzesWithDetails();
+      }
       return StorageService.getQuizzesForTeacher(currentUser.id);
     }
     if (currentUser.role === 'student') {
@@ -212,9 +216,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [submissions, setSubmissions] = useState<SubmissionWithDetails[]>(() =>
     currentUser ? StorageService.getAccessibleSubmissionsWithDetails(currentUser.id) : []
   );
-  const [kpis, setKpis] = useState(() =>
-    StorageService.getDynamicKPIs(currentUser?.role === 'teacher' ? currentUser.id : undefined)
-  );
+  const [kpis, setKpis] = useState(() => {
+    const isTeacher = currentUser?.role === 'teacher';
+    const canViewAll = currentUser?.teacher_permissions?.can_view_all_reports || (currentUser as any)?.permissions?.can_view_all_reports;
+    return StorageService.getDynamicKPIs(isTeacher && !canViewAll ? currentUser.id : undefined);
+  });
 
   const refreshData = useCallback(async () => {
     const localUsers = StorageService.getUsers().map(sanitizeUser);
@@ -222,8 +228,35 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     if (isSupabaseConfigured()) {
       try {
         const { data: dbUsers, error } = await supabase.from('users').select('*');
-        if (!error && Array.isArray(dbUsers) && dbUsers.length > 0) {
-          const mergedUsers = localUsers.map((localU) => {
+        if (!error && Array.isArray(dbUsers)) {
+          const dbUserIds = new Set(dbUsers.map((d: any) => d.id));
+          const dbNationalIds = new Set(dbUsers.map((d: any) => d.national_id?.trim()));
+
+          // 1. تسوية وتزامن الحذف من Supabase (Reconciliation):
+          // أي مستخدم موجود في التخزين المحلي ولم يعد موجوداً في Supabase يُحذف فوراً
+          const activeLocalUsers = localUsers.filter((localU) => {
+            const existsInDb = dbUserIds.has(localU.id) || (localU.national_id && dbNationalIds.has(localU.national_id.trim()));
+            if (existsInDb) return true;
+
+            // حماية المستخدم المنشأ محلياً حديثاً خلال آخر 15 ثانية ريثما يكتمل التزامن
+            const isRecent = localU.created_at && (Date.now() - new Date(localU.created_at).getTime() < 15000);
+            if (isRecent) return true;
+
+            console.log(`تزامن الحذف: المستخدم (${localU.name} - ${localU.id}) تم حذفه من Supabase، جاري حذفه محلياً.`);
+            return false;
+          });
+
+          // التحقق مما إذا كان المستخدم الحالي النشط قد حُذف من قاعدة البيانات
+          const currentUserId = StorageService.getCurrentUserId();
+          if (currentUserId && !dbUserIds.has(currentUserId) && !dbNationalIds.has(currentUser?.national_id?.trim() || '')) {
+            console.warn('تم حذف حساب المستخدم الحالي من Supabase. تسجيل الخروج التلقائي.');
+            localStorage.removeItem('itqan_current_user_id_v2');
+            setCurrentUser(null);
+            setCurrentView('login');
+          }
+
+          // 2. دمج التعديلات بطريقة آمنة
+          const mergedUsers = activeLocalUsers.map((localU) => {
             const dbU = dbUsers.find((d: any) => d.id === localU.id || d.national_id === localU.national_id);
             if (!dbU) return localU;
 
@@ -310,8 +343,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           setQuizzes(StorageService.getAllQuizzesWithDetails());
           setKpis(StorageService.getDynamicKPIs());
         } else if (safeUser.role === 'teacher') {
-          setQuizzes(StorageService.getQuizzesForTeacher(safeUser.id));
-          setKpis(StorageService.getDynamicKPIs(safeUser.id));
+          const canViewAll = safeUser.teacher_permissions?.can_view_all_reports || (safeUser as any).permissions?.can_view_all_reports;
+          if (canViewAll) {
+            setQuizzes(StorageService.getAllQuizzesWithDetails());
+            setKpis(StorageService.getDynamicKPIs());
+          } else {
+            setQuizzes(StorageService.getQuizzesForTeacher(safeUser.id));
+            setKpis(StorageService.getDynamicKPIs(safeUser.id));
+          }
         } else if (safeUser.role === 'student') {
           setQuizzes(StorageService.getQuizzesForStudent(safeUser.id));
           setKpis(StorageService.getDynamicKPIs());
@@ -543,24 +582,51 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     if (isSupabaseConfigured()) {
       try {
-        await supabase.from('users').insert([
-          {
+        const dbRecord: any = {
+          id: newUser.id,
+          national_id: newUser.national_id,
+          name: newUser.name,
+          role: newUser.role,
+          password: newUser.password || 'itqan123',
+          specialty_id: newUser.specialty_id || null,
+          class_id: newUser.class_id || null,
+          assigned_subject_ids: newUser.assigned_subject_ids || [],
+          assigned_class_ids: newUser.assigned_class_ids || [],
+          permissions: newUser.permissions || {},
+          teacher_permissions: newUser.teacher_permissions || {},
+          updated_at: now,
+          created_at: newUser.created_at || now,
+        };
+
+        // محاولة upsert كاملة أولاً (تجنب التكرار عبر national_id)
+        const { error: upsertError } = await supabase
+          .from('users')
+          .upsert([dbRecord], { onConflict: 'national_id' });
+
+        if (upsertError) {
+          console.warn('Supabase full upsert failed, retrying with minimal schema:', upsertError.message);
+          // محاولة ثانية بمخطط بيانات أدنى (الحقول الأساسية فقط)
+          const minimalRecord: any = {
             id: newUser.id,
             national_id: newUser.national_id,
             name: newUser.name,
             role: newUser.role,
-            password: newUser.password || '123456',
-            specialty_id: newUser.specialty_id,
-            class_id: newUser.class_id,
-            assigned_subject_ids: newUser.assigned_subject_ids || [],
-            assigned_class_ids: newUser.assigned_class_ids || [],
-            permissions: newUser.permissions || {},
-            teacher_permissions: newUser.teacher_permissions || {},
-            updated_at: now,
-          },
-        ]);
+            password: newUser.password || 'itqan123',
+            specialty_id: newUser.specialty_id || null,
+            class_id: newUser.class_id || null,
+          };
+          const { error: minimalError } = await supabase
+            .from('users')
+            .upsert([minimalRecord], { onConflict: 'national_id' });
+
+          if (minimalError) {
+            console.warn('Supabase minimal upsert also failed:', minimalError.message);
+            showToast('تم الحفظ محلياً، المزامنة مع السيرفر ستكتمل لاحقاً', 'info');
+          }
+        }
       } catch (err) {
-        console.warn('Error syncing user to Supabase:', err);
+        console.warn('Network error syncing new user to Supabase:', err);
+        showToast('تم الحفظ محلياً، تعذّر الوصول إلى السيرفر', 'info');
       }
     }
 

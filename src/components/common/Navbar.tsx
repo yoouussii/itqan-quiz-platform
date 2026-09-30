@@ -81,11 +81,20 @@ export const Navbar: React.FC = () => {
         { id: 'create_quiz', label: 'إنشاء اختبار', icon: PlusCircle },
         { id: 'analytics', label: 'نتائج طلابي', icon: BarChart2 },
       ];
+      const perms = currentUser.teacher_permissions || (currentUser as any)?.permissions || {};
+      if (perms.can_view_all_reports) {
+        items.push({ id: 'reports', label: 'التقارير الشاملة', icon: BarChart2 });
+      }
       if (
         currentUser.teacher_permissions?.can_add_custom_subjects ||
-        currentUser.teacher_permissions?.can_manage_classes
+        currentUser.teacher_permissions?.can_manage_classes ||
+        perms.can_add_custom_subjects ||
+        perms.can_manage_classes
       ) {
         items.push({ id: 'subjects_classes', label: 'المواد والشعب', icon: Layers });
+      }
+      if (perms.can_add_students || perms.can_add_teachers) {
+        items.push({ id: 'users_management', label: 'إدارة المستخدمين', icon: Users });
       }
       return items;
     }
