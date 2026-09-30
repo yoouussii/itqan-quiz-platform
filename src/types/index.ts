@@ -15,10 +15,23 @@ export interface User {
   role: 'admin' | 'teacher' | 'student';
   password?: string;
   created_at?: string;
-  
-  // 👈 أضف هذه الأسطر الخاصة بالإسنادات والصلاحيات
+
+  // 👈 الخصائص الخاصة بالطلاب والمعلمين (المفقودة في الأنواع)
+  class_id?: string;
+  specialty_id?: string;
   assigned_subject_ids?: string[];
   assigned_class_ids?: string[];
+
+  // 👈 صلاحيات المعلمين (تستخدم في UsersManagement, Navbar, TeacherDashboard)
+  teacher_permissions?: {
+    can_add_students?: boolean;
+    can_add_teachers?: boolean;
+    can_add_custom_subjects?: boolean;
+    can_manage_classes?: boolean;
+    can_view_all_reports?: boolean;
+    [key: string]: boolean | undefined;
+  };
+
   permissions?: {
     can_add_students?: boolean;
     can_add_teachers?: boolean;
@@ -28,7 +41,6 @@ export interface User {
     [key: string]: boolean | undefined;
   };
 }
-
 export interface Subject {
   id: string;
   name: string;
