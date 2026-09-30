@@ -162,7 +162,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     StorageService.getDynamicKPIs(currentUser?.role === 'teacher' ? currentUser.id : undefined)
   );
 
-const refreshData = useCallback(async () => {
+  const refreshData = useCallback(async () => {
     // قراءة البيانات المحلية الحالية لمنع فقدان البيانات غير الموجودة بـ Supabase
     const localUsers = StorageService.getUsers();
 
@@ -173,10 +173,9 @@ const refreshData = useCallback(async () => {
         const mergedUsers = dbUsers.map((dbU: any) => {
           const localU = localUsers.find((l) => l.id === dbU.id);
 
-          // إستخراج المواد والفصول بشكل آمن بدون مسح القديم
           const dbSubjects = Array.isArray(dbU.assigned_subject_ids) ? dbU.assigned_subject_ids : [];
           const localSubjects = localU?.assigned_subject_ids || [];
-          
+
           const dbClasses = Array.isArray(dbU.assigned_class_ids) ? dbU.assigned_class_ids : [];
           const localClasses = localU?.assigned_class_ids || [];
 
@@ -185,8 +184,8 @@ const refreshData = useCallback(async () => {
             ...dbU,
             assigned_subject_ids: dbSubjects.length > 0 ? dbSubjects : localSubjects,
             assigned_class_ids: dbClasses.length > 0 ? dbClasses : localClasses,
-            permissions: (dbU.permissions && Object.keys(dbU.permissions).length > 0) 
-              ? dbU.permissions 
+            permissions: (dbU.permissions && Object.keys(dbU.permissions).length > 0)
+              ? dbU.permissions
               : (localU?.permissions || {}),
           };
         });
@@ -440,30 +439,17 @@ const refreshData = useCallback(async () => {
     showToast(`تمت إضافة المستخدم (${newUser.name}) بنجاح`, 'success');
     return newUser;
   };
-  
-// عند إضافة مادة جديدة للمعلم الحالي:
-const newSubjectList = Array.from(new Set([
-  ...(currentUser.assigned_subject_ids || []),
-  newCreatedSubject.id
-]));
 
-await updateUserData(currentUser.id, {
-  assigned_subject_ids: newSubjectList
-});
-  
   // تعديل بيانات المستخدم وتحديث الجلسة الحالية فوراً
   const updateUserData = async (id: string, updates: Partial<User>) => {
-    // 1. التحديث في الـ Storage المحلي
     StorageService.updateUser(id, updates);
 
-    // 2. التحديث في Supabase
     try {
       await supabase.from('users').update(updates).eq('id', id);
     } catch (err) {
       console.error('Error updating user in Supabase:', err);
     }
 
-    // 3. التحديث الفوري للجلسة إذا كان المستخدم هو الحالي
     if (currentUser && currentUser.id === id) {
       setCurrentUser((prev) => (prev ? { ...prev, ...updates } : null));
     }
@@ -501,13 +487,21 @@ await updateUserData(currentUser.id, {
     showToast('تم حذف المستخدم من النظام', 'info');
   };
 
-  // Dynamic Subjects CRUD
+  // Dynamic Subjects CRUD (مع دمج المادة للمعلم تلقائياً)
   const addSubject = (subj: Omit<Subject, 'id'>) => {
     const created = StorageService.createSubject({
       ...subj,
       created_by: currentUser?.id,
     });
-    refreshData();
+
+    if (currentUser && currentUser.role === 'teacher') {
+      const currentSubjects = currentUser.assigned_subject_ids || [];
+      const updatedSubjects = Array.from(new Set([...currentSubjects, created.id]));
+      updateUserData(currentUser.id, { assigned_subject_ids: updatedSubjects });
+    } else {
+      refreshData();
+    }
+
     showToast(`تمت إضافة المادة (${created.name}) بنجاح`, 'success');
     return created;
   };
@@ -524,13 +518,21 @@ await updateUserData(currentUser.id, {
     showToast('تم حذف المادة بنجاح', 'info');
   };
 
-  // Dynamic Classes CRUD
+  // Dynamic Classes CRUD (مع دمج الفصل للمعلم تلقائياً)
   const addClass = (cls: Omit<SchoolClass, 'id'>) => {
     const created = StorageService.createClass({
       ...cls,
       created_by: currentUser?.id,
     });
-    refreshData();
+
+    if (currentUser && currentUser.role === 'teacher') {
+      const currentClasses = currentUser.assigned_class_ids || [];
+      const updatedClasses = Array.from(new Set([...currentClasses, created.id]));
+      updateUserData(currentUser.id, { assigned_class_ids: updatedClasses });
+    } else {
+      refreshData();
+    }
+
     showToast(`تمت إضافة الشعبة/الصف (${created.name}) بنجاح`, 'success');
     return created;
   };
