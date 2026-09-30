@@ -162,18 +162,32 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     StorageService.getDynamicKPIs(currentUser?.role === 'teacher' ? currentUser.id : undefined)
   );
 
-  const refreshData = useCallback(async () => {
-    // 1. جلب قائمة المستخدمين المحدثة مباشرة من Supabase
+const refreshData = useCallback(async () => {
+    // قراءة البيانات المحلية الحالية لمنع فقدان البيانات غير الموجودة بـ Supabase
+    const localUsers = StorageService.getUsers();
+
     try {
       const { data: dbUsers, error } = await supabase.from('users').select('*');
       if (!error && dbUsers && dbUsers.length > 0) {
-        localStorage.setItem('itqan_users_v2', JSON.stringify(dbUsers));
+        // دمج بيانات Supabase مع البيانات المحلية لحفظ المواد والفصول والصلاحيات
+        const mergedUsers = dbUsers.map((dbU: any) => {
+          const localU = localUsers.find((l) => l.id === dbU.id);
+          return {
+            ...localU,
+            ...dbU,
+            assigned_subject_ids: dbU.assigned_subject_ids || localU?.assigned_subject_ids || [],
+            assigned_class_ids: dbU.assigned_class_ids || localU?.assigned_class_ids || [],
+            permissions: dbU.permissions || localU?.permissions || {},
+          };
+        });
+
+        localStorage.setItem('itqan_users_v2', JSON.stringify(mergedUsers));
       }
     } catch (err) {
       console.error('Error fetching users from Supabase:', err);
     }
 
-    // 2. تحديث الحالات في الواجهة وقراءة باقي البيانات
+    // تحديث باقي الحالات
     const updatedUsers = StorageService.getUsers();
     const loadedSubjects = StorageService.getSubjects();
     const loadedClasses = StorageService.getClasses();
@@ -382,25 +396,24 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   // Users Management with Supabase Sync
-  const addUser = async (userData: Omit<User, 'id' | 'created_at'>) => {
+const addUser = async (userData: Omit<User, 'id' | 'created_at'>) => {
     const newUser = StorageService.createUser(userData);
 
     try {
-      const { error } = await supabase.from('users').insert([
+      await supabase.from('users').insert([
         {
           id: newUser.id,
           national_id: newUser.national_id,
           name: newUser.name,
           role: newUser.role,
           password: newUser.password || '123456',
+          assigned_subject_ids: newUser.assigned_subject_ids || [],
+          assigned_class_ids: newUser.assigned_class_ids || [],
+          permissions: newUser.permissions || {},
         },
       ]);
-
-      if (error) {
-        console.error('Error syncing user to Supabase:', error);
-      }
     } catch (err) {
-      console.error('Supabase exception:', err);
+      console.error('Error syncing user to Supabase:', err);
     }
 
     refreshData();
@@ -409,8 +422,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   // 💥 تعديل بيانات المستخدم وتحديث الجلسة الحالية فوراً
-  const updateUserData = async (id: string, updates: Partial<User>) => {
-    // 1. التحديث في StorageService
+const updateUserData = async (id: string, updates: Partial<User>) => {
+    // 1. التحديث في الـ Storage المحلي
     StorageService.updateUser(id, updates);
 
     // 2. التحديث في Supabase
@@ -420,10 +433,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       console.error('Error updating user in Supabase:', err);
     }
 
-    // 3. التحديث الفوري للجلسة الحالية إذا كانت للمستخدم المسجل دخوله
+    // 3. التحديث الفوري للجلسة إذا كان المستخدم هو الحالي
     if (currentUser && currentUser.id === id) {
-      const updatedUserObj = { ...currentUser, ...updates };
-      setCurrentUser(updatedUserObj);
+      setCurrentUser((prev) => (prev ? { ...prev, ...updates } : null));
     }
 
     refreshData();
