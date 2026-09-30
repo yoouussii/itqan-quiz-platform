@@ -950,11 +950,19 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     showToast('تم حذف الصف بنجاح', 'info');
   };
 
-  const resetSystemData = () => {
-    StorageService.clearAllData();
-    window.location.reload();
-  };
-
+ // ✅ الكود المعدل والآمن
+const resetSystemData = () => {
+  // مسح جميع المفاتيح الخاصة بالتطبيق من التخزين المحلي
+  Object.keys(localStorage).forEach((key) => {
+    if (key.startsWith('itqan_')) {
+      localStorage.removeItem(key);
+    }
+  });
+  localStorage.removeItem('itqan_current_user_id_v2');
+  
+  // إعادة تحميل الصفحة لتهيئة النظام
+  window.location.reload();
+};
   return (
     <AppContext.Provider
       value={{
