@@ -73,17 +73,20 @@ export interface Question {
   id: string;
   quiz_id?: string;
   type?: QuestionType;
+  
+  // الخصائص الأساسية (إلزامية لمنع أخطاء التجميع مع الواجهات الحالية)
+  question_text: string;
+  options: string[];          // مصفوفة الخيارات (تكون فارغة [] لأسئلة أكمل والتوصيل)
+  marks: number;               // درجة السؤال
+  
+  // خصائص اختيارية للأنواع الجديدة والشرح
   text?: string;
-  question_text?: string;        // متوافق مع الكود الحالي
-  points?: number;
-  marks?: number;                // متوافق مع درجة السؤال
-  explanation?: string;          // الشرح والتفسير
-  options?: string[];
+  explanation?: string;
   correctAnswer?: string;
-  correct_option_index?: number; // رقم الخيار الصحيح
-  blankAnswer?: string;          // لأسئلة أكمل الفراغ
-  matchingPairs?: MatchingPair[];// لأسئلة التوصيل
-  subQuestions?: Question[];     // لأسئلة القطعة والقراءة
+  correct_option_index?: number;
+  blankAnswer?: string;       // لأسئلة أكمل الفراغ
+  matchingPairs?: MatchingPair[]; // لأسئلة التوصيل
+  subQuestions?: Question[];  // لأسئلة القطعة والقراءة
 }
 export type TargetType = 'all' | 'class' | 'specific_students' | 'assigned_teacher';
 
