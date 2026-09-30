@@ -4,6 +4,8 @@ export interface TeacherPermissions {
   can_add_custom_subjects: boolean;
   can_manage_classes: boolean;
   can_view_all_reports: boolean;
+  can_add_students?: boolean;  // صلاحية إضافة الطلاب
+  can_add_teachers?: boolean;  // صلاحية إضافة معلمين
 }
 
 export interface User {
@@ -60,16 +62,32 @@ export interface Quiz {
   allowed_retake_student_ids?: string[];
 }
 
-export interface Question {
-  id: string;
-  quiz_id: string;
-  question_text: string;
-  options: string[];
-  correct_option_index: number;
-  marks: number;
-  explanation: string;
+export type QuestionType = 'mcq' | 'fill_blank' | 'matching' | 'passage';
+
+export interface MatchingPair {
+  left: string;
+  right: string;
 }
 
+export interface Question {
+  id: string;
+  type?: QuestionType; // نوع السؤال (افتراضي mcq)
+  text: string;
+  points: number;
+  
+  // لأسئلة الاختيار من متعدد
+  options?: string[];
+  correctAnswer?: string;
+  
+  // لأسئلة أكمل الفراغ
+  blankAnswer?: string;
+  
+  // لأسئلة التوصيل
+  matchingPairs?: MatchingPair[];
+  
+  // لأسئلة القطعة والقراءة
+  subQuestions?: Question[];
+}
 export type TargetType = 'all' | 'class' | 'specific_students' | 'assigned_teacher';
 
 export interface QuizAssignment {
