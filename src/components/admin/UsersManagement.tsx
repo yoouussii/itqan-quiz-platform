@@ -15,6 +15,7 @@ import {
   Layers,
   Sparkles,
   Sliders,
+  UserCircle2,
 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 import { Role, User, TeacherPermissions } from '../../types';
@@ -32,7 +33,7 @@ export const UsersManagement: React.FC = () => {
     deleteUserItem,
   } = useApp();
 
-  // 1. إضافة متغير الشرط (canAddStudent) للتحقق من صلاحية إضافة الطلاب
+  // التحقق من صلاحية إضافة الطلاب
   const canAddStudent =
     currentUser?.role === 'admin' ||
     (currentUser?.role === 'teacher' && currentUser?.teacher_permissions?.can_add_students);
@@ -100,13 +101,15 @@ export const UsersManagement: React.FC = () => {
     setAssignedSubjectIds(u.assigned_subject_ids || (u.specialty_id ? [u.specialty_id] : []));
     setAssignedClassIds(u.assigned_class_ids || []);
     setTeacherPermissions(
-      u.teacher_permissions || {
-        can_add_custom_subjects: false,
-        can_manage_classes: false,
-        can_view_all_reports: false,
-        can_add_students: false,
-        can_add_teachers: false,
-      }
+      u.teacher_permissions
+        ? { ...u.teacher_permissions }
+        : {
+            can_add_custom_subjects: false,
+            can_manage_classes: false,
+            can_view_all_reports: false,
+            can_add_students: false,
+            can_add_teachers: false,
+          }
     );
   };
 
@@ -144,7 +147,8 @@ export const UsersManagement: React.FC = () => {
       assigned_subject_ids: role === 'teacher' ? assignedSubjectIds : [],
       assigned_class_ids: role === 'teacher' ? assignedClassIds : [],
       class_id: role === 'student' ? classId : null,
-      teacher_permissions: role === 'teacher' ? teacherPermissions : undefined,
+      teacher_permissions: role === 'teacher' ? { ...teacherPermissions } : undefined,
+      created_by: currentUser?.id, // تسجيل المعلم/الأدمن الحالي كـ مُضيف
     });
     setShowAddModal(false);
   };
@@ -169,7 +173,7 @@ export const UsersManagement: React.FC = () => {
       specialty_id: assignedSubjectIds[0] || null,
       assigned_subject_ids: role === 'teacher' ? assignedSubjectIds : [],
       assigned_class_ids: role === 'teacher' ? assignedClassIds : [],
-      teacher_permissions: role === 'teacher' ? teacherPermissions : undefined,
+      teacher_permissions: role === 'teacher' ? { ...teacherPermissions } : undefined,
     };
 
     if (password.trim()) {
@@ -208,7 +212,6 @@ export const UsersManagement: React.FC = () => {
         </div>
 
         <div className="flex items-center gap-3">
-          {/* 2. زر إضافة طالب جديد يعتمد ظهورُه على الشرط canAddStudent */}
           {canAddStudent && (
             <button
               onClick={() => handleOpenAddModal('student')}
@@ -220,7 +223,7 @@ export const UsersManagement: React.FC = () => {
           )}
 
           <button
-            onClick={() => handleOpenAddModal('student')}
+            onClick={() => handleOpenAddModal('teacher')}
             className="inline-flex items-center gap-2 px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-2xl text-xs font-bold shadow-md shadow-indigo-600/20 transition-all hover:scale-105"
           >
             <UserPlus className="w-4 h-4" />
@@ -265,6 +268,7 @@ export const UsersManagement: React.FC = () => {
                 <th className="py-3 px-4">المستخدم</th>
                 <th className="py-3 px-4">رقم الهوية (Login ID)</th>
                 <th className="py-3 px-4">الدور الوظيفي</th>
+                <th className="py-3 px-4">تمت الإضافة بواسطة</th>
                 <th className="py-3 px-4">المواد والفصول المسندة</th>
                 <th className="py-3 px-4">صلاحيات المعلم الإضافية</th>
                 <th className="py-3 px-4 text-center">الإجراءات</th>
@@ -280,6 +284,8 @@ export const UsersManagement: React.FC = () => {
                 const assignedCls = (u.assigned_class_ids || [])
                   .map((id) => classes.find((c) => c.id === id)?.name)
                   .filter(Boolean);
+
+                const creator = users.find((creatorUser) => creatorUser.id === u.created_by);
 
                 return (
                   <tr
@@ -318,6 +324,23 @@ export const UsersManagement: React.FC = () => {
                           <GraduationCap className="w-3.5 h-3.5" />
                           <span>طالب</span>
                         </span>
+                      )}
+                    </td>
+
+                    {/* عمود تمت الإضافة بواسطة */}
+                    <td className="py-3.5 px-4 font-medium text-slate-700 dark:text-slate-300">
+                      {creator ? (
+                        <div className="flex items-center gap-1.5">
+                          <UserCircle2 className="w-3.5 h-3.5 text-indigo-500" />
+                          <span className="font-bold text-slate-800 dark:text-slate-200">
+                            {creator.name}
+                          </span>
+                          <span className="text-[10px] text-slate-400">
+                            ({creator.role === 'admin' ? 'أدمن' : 'معلم'})
+                          </span>
+                        </div>
+                      ) : (
+                        <span className="text-slate-400">— النظام</span>
                       )}
                     </td>
 
@@ -702,14 +725,12 @@ export const UsersManagement: React.FC = () => {
       {/* Password Reset Modal */}
       {passwordResetUser && (
         <div className="fixed inset-0 z-50 overflow-y-auto bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-white dark:bg-slate-900 rounded-3xl max-w-sm w-full p-6 shadow-2xl border border-slate-100 dark:border-slate-800 animate-in fade-in zoom-in-95">
+          <div className="bg-white dark:bg-slate-900 rounded-3xl max-w-md w-full p-6 shadow-2xl border border-slate-100 dark:border-slate-800">
             <div className="flex items-center justify-between pb-3 mb-4 border-b border-slate-100 dark:border-slate-800">
-              <div className="flex items-center gap-2">
+              <h3 className="font-bold text-base text-slate-900 dark:text-white flex items-center gap-2">
                 <KeyRound className="w-5 h-5 text-amber-500" />
-                <h3 className="font-bold text-sm text-slate-900 dark:text-white">
-                  إعادة تعيين كلمة المرور
-                </h3>
-              </div>
+                <span>إعادة تعيين كلمة المرور</span>
+              </h3>
               <button
                 onClick={() => setPasswordResetUser(null)}
                 className="p-1 text-slate-400 hover:text-slate-700 dark:hover:text-slate-200"
@@ -719,28 +740,22 @@ export const UsersManagement: React.FC = () => {
             </div>
 
             <form onSubmit={handlePasswordResetSubmit} className="space-y-4">
-              <p className="text-xs text-slate-600 dark:text-slate-400">
-                تعيين كلمة مرور جديدة للمستخدم:{' '}
-                <span className="font-bold text-slate-900 dark:text-white">
-                  {passwordResetUser.name}
-                </span>
+              <p className="text-xs text-slate-600 dark:text-slate-300">
+                أدخل كلمة المرور الجديدة للمستخدم <strong>{passwordResetUser.name}</strong>:
               </p>
 
               <div>
-                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
-                  كلمة المرور الجديدة *
-                </label>
                 <input
-                  type="text"
+                  type="password"
                   required
-                  placeholder="أدخل كلمة المرور الجديدة"
+                  placeholder="كلمة المرور الجديدة..."
                   value={newPasswordValue}
                   onChange={(e) => setNewPasswordValue(e.target.value)}
                   className="w-full px-3 py-2 text-xs rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-amber-500"
                 />
               </div>
 
-              <div className="pt-2 flex items-center justify-end gap-2">
+              <div className="pt-3 flex items-center justify-end gap-3 border-t border-slate-100 dark:border-slate-800">
                 <button
                   type="button"
                   onClick={() => setPasswordResetUser(null)}
@@ -750,9 +765,9 @@ export const UsersManagement: React.FC = () => {
                 </button>
                 <button
                   type="submit"
-                  className="px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white rounded-xl text-xs font-bold shadow-md shadow-amber-600/20"
+                  className="px-5 py-2 bg-amber-600 hover:bg-amber-700 text-white rounded-xl text-xs font-bold shadow-md shadow-amber-600/20"
                 >
-                  تأكيد التغيير
+                  تحديث كلمة المرور
                 </button>
               </div>
             </form>
