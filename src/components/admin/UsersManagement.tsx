@@ -105,53 +105,86 @@ export const UsersManagement: React.FC = () => {
   };
 
   const handleOpenEditModal = (u: User) => {
-    setEditingUser(u);
-    setName(u.name);
-    setNationalId(u.national_id);
-    setPassword('');
-    setRole(u.role);
-    setClassId(u.class_id || classes[0]?.id || '');
-    
-    // استرجاع المواد المسندة أو المادة الرئيسية
-    const subIds = (u.assigned_subject_ids && u.assigned_subject_ids.length > 0)
+    const studentClassId = u.class_id || u.assigned_class_ids?.[0] || classes[0]?.id || '';
+    const subIds = (Array.isArray(u.assigned_subject_ids) && u.assigned_subject_ids.length > 0)
       ? [...u.assigned_subject_ids]
       : (u.specialty_id ? [u.specialty_id] : []);
-    setAssignedSubjectIds(subIds);
-
-    // استرجاع الفصول المسندة
-    const clsIds = (u.assigned_class_ids && u.assigned_class_ids.length > 0)
+    const clsIds = (Array.isArray(u.assigned_class_ids) && u.assigned_class_ids.length > 0)
       ? [...u.assigned_class_ids]
-      : (u.class_id ? [u.class_id] : []);
-    setAssignedClassIds(clsIds);
-
-    // استرجاع الصلاحيات بدقة مع فحص teacher_permissions و permissions معاً
+      : (studentClassId ? [studentClassId] : []);
     const p = u.teacher_permissions || (u as any).permissions || {};
-    setTeacherPermissions({
+    const perms: TeacherPermissions = {
       can_add_custom_subjects: !!p.can_add_custom_subjects,
       can_manage_classes: !!p.can_manage_classes,
       can_view_all_reports: !!p.can_view_all_reports,
       can_add_students: !!p.can_add_students,
       can_add_teachers: !!p.can_add_teachers,
+    };
+
+    setEditingUser({
+      ...u,
+      password: '',
+      class_id: studentClassId,
+      assigned_class_ids: clsIds,
+      assigned_subject_ids: subIds,
+      specialty_id: subIds[0] || null,
+      teacher_permissions: perms,
+      permissions: perms,
     });
+
+    setName(u.name);
+    setNationalId(u.national_id);
+    setPassword('');
+    setRole(u.role);
+    setClassId(studentClassId);
+    setAssignedSubjectIds(subIds);
+    setAssignedClassIds(clsIds);
+    setTeacherPermissions(perms);
   };
 
   const toggleSubjectAssignment = (subjId: string) => {
-    setAssignedSubjectIds((prev) =>
-      prev.includes(subjId) ? prev.filter((id) => id !== subjId) : [...prev, subjId]
-    );
+    setAssignedSubjectIds((prev) => {
+      const next = prev.includes(subjId) ? prev.filter((id) => id !== subjId) : [...prev, subjId];
+      if (editingUser) {
+        setEditingUser((prevUser) => prevUser ? ({
+          ...prevUser,
+          assigned_subject_ids: next,
+          specialty_id: next[0] || null,
+        }) : null);
+      }
+      return next;
+    });
   };
 
   const toggleClassAssignment = (cId: string) => {
-    setAssignedClassIds((prev) =>
-      prev.includes(cId) ? prev.filter((id) => id !== cId) : [...prev, cId]
-    );
+    setAssignedClassIds((prev) => {
+      const next = prev.includes(cId) ? prev.filter((id) => id !== cId) : [...prev, cId];
+      if (editingUser) {
+        setEditingUser((prevUser) => prevUser ? ({
+          ...prevUser,
+          assigned_class_ids: next,
+          class_id: next[0] || null,
+        }) : null);
+      }
+      return next;
+    });
   };
 
   const togglePermissionKey = (key: keyof TeacherPermissions) => {
-    setTeacherPermissions((prev) => ({
-      ...prev,
-      [key]: !prev[key],
-    }));
+    setTeacherPermissions((prev) => {
+      const next = {
+        ...prev,
+        [key]: !prev[key],
+      };
+      if (editingUser) {
+        setEditingUser((prevUser) => prevUser ? ({
+          ...prevUser,
+          teacher_permissions: next,
+          permissions: next,
+        }) : null);
+      }
+      return next;
+    });
   };
 
   const handleCreate = async (e: React.FormEvent) => {
@@ -195,35 +228,45 @@ export const UsersManagement: React.FC = () => {
     e.preventDefault();
     if (!editingUser) return;
 
-    const effectiveRole: Role = isTeacher ? 'student' : role;
+    const effectiveRole: Role = isTeacher ? 'student' : (editingUser.role || role);
+    const currentPerms = editingUser.teacher_permissions || teacherPermissions;
     const permsObj: TeacherPermissions | undefined = effectiveRole === 'teacher' ? {
-      can_add_custom_subjects: !!teacherPermissions.can_add_custom_subjects,
-      can_manage_classes: !!teacherPermissions.can_manage_classes,
-      can_view_all_reports: !!teacherPermissions.can_view_all_reports,
-      can_add_students: !!teacherPermissions.can_add_students,
-      can_add_teachers: !!teacherPermissions.can_add_teachers,
+      can_add_custom_subjects: !!currentPerms.can_add_custom_subjects,
+      can_manage_classes: !!currentPerms.can_manage_classes,
+      can_view_all_reports: !!currentPerms.can_view_all_reports,
+      can_add_students: !!currentPerms.can_add_students,
+      can_add_teachers: !!currentPerms.can_add_teachers,
     } : undefined;
 
+    const studentClassId = editingUser.class_id || editingUser.assigned_class_ids?.[0] || classId || classes[0]?.id || null;
+    const teacherSubs = editingUser.assigned_subject_ids || assignedSubjectIds || [];
+    const teacherCls = editingUser.assigned_class_ids || assignedClassIds || [];
+
+    const currentName = (editingUser.name || name).trim();
+    const currentNationalId = (editingUser.national_id || nationalId).trim();
+
     const updates: Partial<User> & { password?: string } = {
-      name: name.trim(),
-      national_id: nationalId.trim(),
-      username: nationalId.trim(),
-      email: editingUser.email || `${nationalId.trim()}@itqan.edu.sa`,
+      name: currentName,
+      national_id: currentNationalId,
+      username: currentNationalId,
+      email: editingUser.email || `${currentNationalId}@itqan.edu.sa`,
       role: effectiveRole,
-      specialty_id: effectiveRole === 'teacher' ? (assignedSubjectIds[0] || null) : null,
-      class_id: effectiveRole === 'student' ? classId : (assignedClassIds[0] || null),
-      assigned_subject_ids: effectiveRole === 'teacher' ? [...assignedSubjectIds] : [],
-      assigned_class_ids: effectiveRole === 'teacher' ? [...assignedClassIds] : (effectiveRole === 'student' ? [classId] : []),
+      specialty_id: effectiveRole === 'teacher' ? (teacherSubs[0] || null) : null,
+      class_id: effectiveRole === 'student' ? studentClassId : (teacherCls[0] || null),
+      assigned_subject_ids: effectiveRole === 'teacher' ? [...teacherSubs] : [],
+      assigned_class_ids: effectiveRole === 'teacher' ? [...teacherCls] : (effectiveRole === 'student' && studentClassId ? [studentClassId] : []),
       teacher_permissions: permsObj,
       permissions: permsObj,
     };
 
-    if (password.trim()) {
-      updates.password = password.trim();
+    const currentPass = editingUser.password || password;
+    if (currentPass && currentPass.trim()) {
+      updates.password = currentPass.trim();
     }
 
     await updateUserData(editingUser.id, updates);
     setEditingUser(null);
+    setShowAddModal(false);
   };
 
   const handlePasswordResetSubmit = (e: React.FormEvent) => {
@@ -457,7 +500,8 @@ export const UsersManagement: React.FC = () => {
             </thead>
             <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
               {filteredUsers.map((u) => {
-                const userClass = classes.find((c) => c.id === u.class_id);
+                const studentClassId = u.class_id || u.assigned_class_ids?.[0];
+                const userClass = classes.find((c) => c.id === studentClassId);
                 const teacherSubIds = (u.assigned_subject_ids && u.assigned_subject_ids.length > 0)
                   ? u.assigned_subject_ids
                   : (u.specialty_id ? [u.specialty_id] : []);
@@ -673,8 +717,13 @@ export const UsersManagement: React.FC = () => {
                   type="text"
                   required
                   placeholder="مثال: يوسف العبدالله"
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
+                  value={editingUser ? editingUser.name : name}
+                  onChange={(e) => {
+                    setName(e.target.value);
+                    if (editingUser) {
+                      setEditingUser((prev) => prev ? ({ ...prev, name: e.target.value }) : null);
+                    }
+                  }}
                   className="w-full px-3 py-2 text-xs rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
                 />
               </div>
@@ -687,8 +736,13 @@ export const UsersManagement: React.FC = () => {
                   type="text"
                   required
                   placeholder="مثال: 1010203040"
-                  value={nationalId}
-                  onChange={(e) => setNationalId(e.target.value)}
+                  value={editingUser ? editingUser.national_id : nationalId}
+                  onChange={(e) => {
+                    setNationalId(e.target.value);
+                    if (editingUser) {
+                      setEditingUser((prev) => prev ? ({ ...prev, national_id: e.target.value }) : null);
+                    }
+                  }}
                   className="w-full px-3 py-2 text-xs rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500 font-mono tracking-wider"
                 />
               </div>
@@ -701,8 +755,13 @@ export const UsersManagement: React.FC = () => {
                   type="password"
                   required={!editingUser}
                   placeholder="••••••••"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
+                  value={editingUser ? (editingUser.password || '') : password}
+                  onChange={(e) => {
+                    setPassword(e.target.value);
+                    if (editingUser) {
+                      setEditingUser((prev) => prev ? ({ ...prev, password: e.target.value }) : null);
+                    }
+                  }}
                   className="w-full px-3 py-2 text-xs rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
                 />
               </div>
@@ -713,8 +772,14 @@ export const UsersManagement: React.FC = () => {
                     الدور في النظام (Role) *
                   </label>
                   <select
-                    value={role}
-                    onChange={(e) => setRole(e.target.value as Role)}
+                    value={editingUser ? editingUser.role : role}
+                    onChange={(e) => {
+                      const newR = e.target.value as Role;
+                      setRole(newR);
+                      if (editingUser) {
+                        setEditingUser((prev) => prev ? ({ ...prev, role: newR }) : null);
+                      }
+                    }}
                     className="w-full px-3 py-2 text-xs rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white font-bold"
                   >
                     <option value="student">طالب (Student)</option>
@@ -724,14 +789,25 @@ export const UsersManagement: React.FC = () => {
                 </div>
               )}
 
-              {role === 'student' && (
+              {((editingUser ? editingUser.role : role) === 'student') && (
                 <div>
                   <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
                     الصف الدراسي والشعبة
                   </label>
                   <select
-                    value={classId}
-                    onChange={(e) => setClassId(e.target.value)}
+                    value={editingUser ? (editingUser.class_id || editingUser.assigned_class_ids?.[0] || classId) : classId}
+                    onChange={(e) => {
+                      const newCid = e.target.value;
+                      setClassId(newCid);
+                      setAssignedClassIds([newCid]);
+                      if (editingUser) {
+                        setEditingUser((prev) => prev ? ({
+                          ...prev,
+                          class_id: newCid,
+                          assigned_class_ids: [newCid],
+                        }) : null);
+                      }
+                    }}
                     className="w-full px-3 py-2 text-xs rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white"
                   >
                     {classes.map((c) => (
@@ -743,7 +819,7 @@ export const UsersManagement: React.FC = () => {
                 </div>
               )}
 
-              {role === 'teacher' && !isTeacher && (
+              {((editingUser ? editingUser.role : role) === 'teacher') && !isTeacher && (
                 <>
                   {/* المواد المسندة */}
                   <div>
@@ -752,7 +828,9 @@ export const UsersManagement: React.FC = () => {
                     </label>
                     <div className="grid grid-cols-2 gap-2 max-h-36 overflow-y-auto p-1.5 border rounded-xl border-slate-200 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-800/30">
                       {subjects.map((s) => {
-                        const isSelected = assignedSubjectIds.includes(s.id);
+                        const isSelected = editingUser
+                          ? (editingUser.assigned_subject_ids || []).includes(s.id)
+                          : assignedSubjectIds.includes(s.id);
                         return (
                           <div
                             key={s.id}
@@ -783,7 +861,9 @@ export const UsersManagement: React.FC = () => {
                     </label>
                     <div className="grid grid-cols-2 gap-2 max-h-36 overflow-y-auto p-1.5 border rounded-xl border-slate-200 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-800/30">
                       {classes.map((c) => {
-                        const isSelected = assignedClassIds.includes(c.id);
+                        const isSelected = editingUser
+                          ? (editingUser.assigned_class_ids || []).includes(c.id)
+                          : assignedClassIds.includes(c.id);
                         return (
                           <div
                             key={c.id}
@@ -820,23 +900,26 @@ export const UsersManagement: React.FC = () => {
                       { key: 'can_add_custom_subjects' as const, label: 'صلاحية إضافة مواد دراسية (can_add_custom_subjects)' },
                       { key: 'can_manage_classes' as const, label: 'صلاحية إدارة الفصول والشعب (can_manage_classes)' },
                       { key: 'can_view_all_reports' as const, label: 'صلاحية عرض جميع التقارير (can_view_all_reports)' },
-                    ].map((perm) => (
-                      <div
-                        key={perm.key}
-                        onClick={() => togglePermissionKey(perm.key)}
-                        className="flex items-center justify-between p-2 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-700/50 cursor-pointer transition-colors select-none"
-                      >
-                        <span className="text-xs text-slate-700 dark:text-slate-300 font-medium">
-                          {perm.label}
-                        </span>
-                        <input
-                          type="checkbox"
-                          checked={!!teacherPermissions[perm.key]}
-                          onChange={() => {}} // Controlled by container click
-                          className="accent-indigo-600 w-4 h-4 rounded cursor-pointer pointer-events-none"
-                        />
-                      </div>
-                    ))}
+                    ].map((perm) => {
+                      const curPerms = editingUser?.teacher_permissions || teacherPermissions;
+                      return (
+                        <div
+                          key={perm.key}
+                          onClick={() => togglePermissionKey(perm.key)}
+                          className="flex items-center justify-between p-2 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-700/50 cursor-pointer transition-colors select-none"
+                        >
+                          <span className="text-xs text-slate-700 dark:text-slate-300 font-medium">
+                            {perm.label}
+                          </span>
+                          <input
+                            type="checkbox"
+                            checked={!!curPerms[perm.key]}
+                            onChange={() => {}} // Controlled by container click
+                            className="accent-indigo-600 w-4 h-4 rounded cursor-pointer pointer-events-none"
+                          />
+                        </div>
+                      );
+                    })}
                   </div>
                 </>
               )}

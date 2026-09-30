@@ -690,113 +690,114 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             ? (updates.class_id ? [updates.class_id] : [])
             : undefined);
 
-      const safeUpdates: Partial<User> = {
-        ...updates,
-        ...(updates.username !== undefined ? { username: updates.username } : {}),
-        ...(hasPerms ? { teacher_permissions: perms, permissions: perms } : {}),
-        ...(assignedSubs !== undefined ? { assigned_subject_ids: assignedSubs, specialty_id: 'specialty_id' in updates ? updates.specialty_id : (assignedSubs[0] || null) } : {}),
-        ...(assignedCls !== undefined ? { assigned_class_ids: assignedCls, class_id: 'class_id' in updates ? updates.class_id : (assignedCls[0] || null) } : {}),
-        updated_at: now,
-      };
-
-      // 1. تحديث Supabase أولاً بتنقية الكائن (Clean Payload) وتوحيد الحقول
-      if (isSupabaseConfigured()) {
-        const cleanPayload: Record<string, any> = {
-          name: safeUpdates.name,
-          email: safeUpdates.email,
-          username: safeUpdates.username,
-          national_id: safeUpdates.national_id,
-          role: safeUpdates.role,
-          specialty_id: safeUpdates.specialty_id,
-          class_id: safeUpdates.class_id,
-          assigned_subject_ids: safeUpdates.assigned_subject_ids,
-          assigned_class_ids: safeUpdates.assigned_class_ids,
-          permissions: perms,
-          teacher_permissions: perms,
-          updated_at: now,
-        };
-        if (safeUpdates.password) {
-          cleanPayload.password = safeUpdates.password;
-        }
-        // إزالة المفاتيح غير المعرفة (undefined)
-        Object.keys(cleanPayload).forEach((k) => cleanPayload[k] === undefined && delete cleanPayload[k]);
-
-        let attempts = 0;
-        const maxAttempts = 8;
-        let isSynced = false;
-
-        while (attempts < maxAttempts && !isSynced) {
-          attempts++;
-          try {
-            const { error } = await supabase
-              .from('users')
-              .update(cleanPayload)
-              .eq('id', id);
-
-            if (!error) {
-              isSynced = true;
-              console.log(`[updateUserData] Supabase update succeeded on attempt ${attempts} for user ${id}`);
-              break;
-            }
-
-            // فحص العمود المفقود وحذفه وإعادة المحاولة
-            const missingCol = extractMissingColumn(error.message || '');
-            if (missingCol && missingCol in cleanPayload) {
-              console.warn(`[updateUserData] Column '${missingCol}' missing in Supabase, stripping and retrying...`);
-              delete cleanPayload[missingCol];
-              continue;
-            }
-
-            if (error.message?.includes('column') || error.code === 'PGRST204') {
-              console.warn('[updateUserData] Column mismatch error, trying core fields:', error.message);
-              const corePayload: Record<string, any> = {};
-              ['name', 'email', 'password', 'role'].forEach((k) => {
-                if ((safeUpdates as any)[k] !== undefined) corePayload[k] = (safeUpdates as any)[k];
-              });
-              const retryCore = await supabase.from('users').update(corePayload).eq('id', id);
-              if (!retryCore.error) {
-                isSynced = true;
-              }
-              break;
-            }
-
-            console.warn('[updateUserData] Supabase update warning:', error.message);
-            break;
-          } catch (netErr: any) {
-            console.warn('[updateUserData] Network error syncing update:', netErr?.message);
-            break;
-          }
-        }
+      // 1. تحديث التخزين المحلي فوراً (Optimistic LocalStorage Update)
+      const updatedUser = StorageService.updateUser(id, { ...updates, updated_at: now });
+      if (!updatedUser) {
+        showToast('لم يتم العثور على المستخدم المطلوب تعديله', 'error');
+        return;
       }
 
-      // 2. تحديث التخزين المحلي (LocalStorage) دائماً لضمان عدم ضياع التعديلات
-      StorageService.updateUser(id, safeUpdates);
-
-      // 3. تحديث الـ State في React فوراً
+      // 2. تحديث الحالة في React فوراً (Optimistic UI Update)
+      const sanitizedUser = sanitizeUser(updatedUser);
       setUsers((prevUsers) =>
-        prevUsers.map((u) => (u.id === id ? sanitizeUser({ ...u, ...safeUpdates }) : u))
+        prevUsers.map((u) => (u.id === id ? sanitizedUser : u))
       );
 
       if (currentUser?.id === id) {
-        const updatedSelf = sanitizeUser({ ...currentUser, ...safeUpdates });
-        setCurrentUser(updatedSelf);
+        setCurrentUser(sanitizedUser);
 
-        if (updatedSelf.role === 'admin') {
+        if (sanitizedUser.role === 'admin') {
           setQuizzes(StorageService.getAllQuizzesWithDetails());
           setKpis(StorageService.getDynamicKPIs());
-        } else if (updatedSelf.role === 'teacher') {
-          const canViewAll = updatedSelf.teacher_permissions?.can_view_all_reports || (updatedSelf as any).permissions?.can_view_all_reports;
+        } else if (sanitizedUser.role === 'teacher') {
+          const canViewAll =
+            sanitizedUser.teacher_permissions?.can_view_all_reports ||
+            (sanitizedUser as any).permissions?.can_view_all_reports;
           if (canViewAll) {
             setQuizzes(StorageService.getAllQuizzesWithDetails());
             setKpis(StorageService.getDynamicKPIs());
           } else {
-            setQuizzes(StorageService.getQuizzesForTeacher(updatedSelf.id));
-            setKpis(StorageService.getDynamicKPIs(updatedSelf.id));
+            setQuizzes(StorageService.getQuizzesForTeacher(sanitizedUser.id));
+            setKpis(StorageService.getDynamicKPIs(sanitizedUser.id));
           }
         }
       }
 
-      showToast('تم حفظ تعديلات المستخدم والصلاحيات والمواد بنجاح', 'success');
+      showToast('تم حفظ التعديلات بنجاح', 'success');
+
+      // 3. مزامنة التحديث مع Supabase في الخلفية
+      if (isSupabaseConfigured()) {
+        try {
+          const cleanPayload: Record<string, any> = {
+            name: sanitizedUser.name,
+            email: sanitizedUser.email,
+            username: sanitizedUser.username,
+            national_id: sanitizedUser.national_id,
+            role: sanitizedUser.role,
+            specialty_id: sanitizedUser.specialty_id,
+            class_id: sanitizedUser.class_id,
+            assigned_subject_ids: sanitizedUser.assigned_subject_ids,
+            assigned_class_ids: sanitizedUser.assigned_class_ids,
+            permissions: sanitizedUser.permissions,
+            teacher_permissions: sanitizedUser.teacher_permissions,
+            updated_at: now,
+          };
+          if (updates.password && updates.password.trim()) {
+            cleanPayload.password = updates.password.trim();
+          }
+          // إزالة المفاتيح غير المعرفة (undefined)
+          Object.keys(cleanPayload).forEach((k) => cleanPayload[k] === undefined && delete cleanPayload[k]);
+
+          let attempts = 0;
+          const maxAttempts = 8;
+          let isSynced = false;
+
+          while (attempts < maxAttempts && !isSynced) {
+            attempts++;
+            try {
+              const { error } = await supabase
+                .from('users')
+                .update(cleanPayload)
+                .eq('id', id);
+
+              if (!error) {
+                isSynced = true;
+                console.log(`[updateUserData] Supabase update succeeded on attempt ${attempts} for user ${id}`);
+                break;
+              }
+
+              // فحص العمود المفقود وحذفه وإعادة المحاولة
+              const missingCol = extractMissingColumn(error.message || '');
+              if (missingCol && missingCol in cleanPayload) {
+                console.warn(`[updateUserData] Column '${missingCol}' missing in Supabase, stripping and retrying...`);
+                delete cleanPayload[missingCol];
+                continue;
+              }
+
+              if (error.message?.includes('column') || error.code === 'PGRST204') {
+                console.warn('[updateUserData] Column mismatch error, trying core fields:', error.message);
+                const corePayload: Record<string, any> = {};
+                ['name', 'email', 'password', 'role'].forEach((k) => {
+                  if ((cleanPayload as any)[k] !== undefined) corePayload[k] = (cleanPayload as any)[k];
+                });
+                const retryCore = await supabase.from('users').update(corePayload).eq('id', id);
+                if (!retryCore.error) {
+                  isSynced = true;
+                }
+                break;
+              }
+
+              console.warn('[updateUserData] Supabase update warning:', error.message);
+              break;
+            } catch (netErr: any) {
+              console.warn('[updateUserData] Network error syncing update:', netErr?.message);
+              break;
+            }
+          }
+        } catch (dbErr) {
+          console.warn('[updateUserData] Background Supabase sync error (local state preserved):', dbErr);
+        }
+      }
     } catch (error) {
       console.error('Error updating user data:', error);
       showToast('حدث خطأ أثناء حفظ التعديلات', 'error');

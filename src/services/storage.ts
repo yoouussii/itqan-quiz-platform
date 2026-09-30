@@ -179,37 +179,58 @@ public static getCurrentUser(): User | null {
     const idx = users.findIndex((u) => u.id === id);
     if (idx === -1) return null;
 
+    const current = users[idx];
+    const targetRole = updates.role || current.role;
+
+    // توحيد الصلاحيات
     const hasPerms = 'teacher_permissions' in updates || 'permissions' in updates;
     const perms = hasPerms
       ? (updates.teacher_permissions || updates.permissions || undefined)
-      : (users[idx].teacher_permissions || users[idx].permissions);
+      : (current.teacher_permissions || current.permissions);
 
-    const hasAssignedSubs = Array.isArray(updates.assigned_subject_ids);
-    const assignedSubs = hasAssignedSubs
-      ? updates.assigned_subject_ids!
-      : ('specialty_id' in updates
-          ? (updates.specialty_id ? [updates.specialty_id] : [])
-          : users[idx].assigned_subject_ids || []);
+    // توحيد المواد
+    let assignedSubs: string[] = [];
+    let specialtyId: string | null = null;
+    if (targetRole === 'teacher') {
+      assignedSubs = Array.isArray(updates.assigned_subject_ids)
+        ? updates.assigned_subject_ids
+        : ('specialty_id' in updates
+            ? (updates.specialty_id ? [updates.specialty_id] : [])
+            : current.assigned_subject_ids || (current.specialty_id ? [current.specialty_id] : []));
+      specialtyId = 'specialty_id' in updates ? (updates.specialty_id || null) : (assignedSubs[0] || null);
+    }
 
-    const hasAssignedCls = Array.isArray(updates.assigned_class_ids);
-    const assignedCls = hasAssignedCls
-      ? updates.assigned_class_ids!
-      : ('class_id' in updates
-          ? (updates.class_id ? [updates.class_id] : [])
-          : users[idx].assigned_class_ids || []);
+    // توحيد الفصول والشعب
+    let assignedCls: string[] = [];
+    let classId: string | null = null;
+    if (targetRole === 'student') {
+      classId = 'class_id' in updates
+        ? (updates.class_id || null)
+        : (Array.isArray(updates.assigned_class_ids) && updates.assigned_class_ids.length > 0
+            ? updates.assigned_class_ids[0]
+            : (current.class_id || current.assigned_class_ids?.[0] || null));
+      assignedCls = classId ? [classId] : [];
+    } else if (targetRole === 'teacher') {
+      assignedCls = Array.isArray(updates.assigned_class_ids)
+        ? updates.assigned_class_ids
+        : ('class_id' in updates
+            ? (updates.class_id ? [updates.class_id] : [])
+            : current.assigned_class_ids || (current.class_id ? [current.class_id] : []));
+      classId = 'class_id' in updates ? (updates.class_id || null) : (assignedCls[0] || null);
+    }
 
     const now = new Date().toISOString();
 
     users[idx] = {
-      ...users[idx],
+      ...current,
       ...updates,
       ...(updates.username !== undefined ? { username: updates.username } : {}),
-      teacher_permissions: perms,
-      permissions: perms,
+      teacher_permissions: targetRole === 'teacher' ? perms : undefined,
+      permissions: targetRole === 'teacher' ? perms : undefined,
       assigned_subject_ids: assignedSubs,
+      specialty_id: specialtyId,
       assigned_class_ids: assignedCls,
-      specialty_id: 'specialty_id' in updates ? updates.specialty_id : (assignedSubs[0] || null),
-      class_id: 'class_id' in updates ? updates.class_id : (assignedCls[0] || null),
+      class_id: classId,
       updated_at: now,
     };
     setLocalItem(STORAGE_KEYS.USERS, users);
