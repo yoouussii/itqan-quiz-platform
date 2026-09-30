@@ -251,47 +251,26 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             const localUpdated = localU.updated_at ? new Date(localU.updated_at).getTime() : 0;
             const dbUpdated = dbU.updated_at ? new Date(dbU.updated_at).getTime() : 0;
 
-            // إذا كان التعديل المحلي أحدث، نحافظ على التعديل المحلي
-            if (localUpdated > dbUpdated && localUpdated > 0) {
+            // إذا كان التعديل المحلي أحدث أو مساوياً (تم حفظه محلياً للتو)، الأولوية الكاملة والنهائية للنسخة المحلية
+            if (localUpdated >= dbUpdated && localUpdated > 0) {
               return sanitizeUser({ ...dbU, ...localU });
             }
 
-            // دمج الصلاحيات بأمان دون إلغاء أي صلاحيات ممنوحة
-            const localPerms = localU.teacher_permissions || localU.permissions || {};
-            const dbPerms = dbU.teacher_permissions || dbU.permissions || {};
-            const mergedPerms = {
-              can_add_custom_subjects: dbPerms.can_add_custom_subjects ?? localPerms.can_add_custom_subjects ?? false,
-              can_manage_classes: dbPerms.can_manage_classes ?? localPerms.can_manage_classes ?? false,
-              can_view_all_reports: dbPerms.can_view_all_reports ?? localPerms.can_view_all_reports ?? false,
-              can_add_students: dbPerms.can_add_students ?? localPerms.can_add_students ?? false,
-              can_add_teachers: dbPerms.can_add_teachers ?? localPerms.can_add_teachers ?? false,
-            };
-
-            // دمج المواد المسندة
-            let mergedSubs = (Array.isArray(dbU.assigned_subject_ids) && dbU.assigned_subject_ids.length > 0)
-              ? dbU.assigned_subject_ids
-              : (localU.assigned_subject_ids || []);
-            if (mergedSubs.length === 0 && (dbU.specialty_id || localU.specialty_id)) {
-              mergedSubs = [dbU.specialty_id || localU.specialty_id];
-            }
-
-            // دمج الفصول المسندة
-            let mergedCls = (Array.isArray(dbU.assigned_class_ids) && dbU.assigned_class_ids.length > 0)
-              ? dbU.assigned_class_ids
-              : (localU.assigned_class_ids || []);
-            if (mergedCls.length === 0 && (dbU.class_id || localU.class_id)) {
-              mergedCls = [dbU.class_id || localU.class_id];
-            }
+            // في حال كانت النسخة على السيرفر أحدث زمناً:
+            // نأخذ بيانات السيرفر، مع الحفاظ الكامل على الصلاحيات والمواد والفصول المحلية إذا لم تكن موجودة بالسيرفر
+            const dbHasPerms = dbU.teacher_permissions && typeof dbU.teacher_permissions === 'object' && Object.keys(dbU.teacher_permissions).length > 0;
+            const dbHasSubs = Array.isArray(dbU.assigned_subject_ids);
+            const dbHasCls = Array.isArray(dbU.assigned_class_ids);
 
             return sanitizeUser({
               ...localU,
               ...dbU,
-              specialty_id: dbU.specialty_id || localU.specialty_id || mergedSubs[0] || null,
-              class_id: dbU.class_id || localU.class_id || mergedCls[0] || null,
-              assigned_subject_ids: mergedSubs,
-              assigned_class_ids: mergedCls,
-              permissions: mergedPerms,
-              teacher_permissions: mergedPerms,
+              specialty_id: dbU.specialty_id !== undefined ? dbU.specialty_id : localU.specialty_id,
+              class_id: dbU.class_id !== undefined ? dbU.class_id : localU.class_id,
+              assigned_subject_ids: dbHasSubs ? dbU.assigned_subject_ids : (localU.assigned_subject_ids || []),
+              assigned_class_ids: dbHasCls ? dbU.assigned_class_ids : (localU.assigned_class_ids || []),
+              teacher_permissions: dbHasPerms ? dbU.teacher_permissions : localU.teacher_permissions,
+              permissions: dbHasPerms ? (dbU.permissions || dbU.teacher_permissions) : localU.permissions,
             });
           });
 
@@ -687,40 +666,40 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   // دالة تحديث بيانات المستخدم المصلحة بالكامل مع الحفاظ التام على الصلاحيات والمواد
   const updateUserData = async (id: string, updates: Partial<User>): Promise<void> => {
     try {
-      const perms = updates.teacher_permissions || updates.permissions;
-      const assignedSubs = Array.isArray(updates.assigned_subject_ids)
-        ? updates.assigned_subject_ids
-        : (updates.specialty_id ? [updates.specialty_id] : undefined);
-      const assignedCls = Array.isArray(updates.assigned_class_ids)
-        ? updates.assigned_class_ids
-        : (updates.class_id ? [updates.class_id] : undefined);
-
       const now = new Date().toISOString();
+
+      // توحيد الصلاحيات والمصفوفات
+      const hasPerms = 'teacher_permissions' in updates || 'permissions' in updates;
+      const perms = hasPerms
+        ? (updates.teacher_permissions || updates.permissions || undefined)
+        : undefined;
+
+      const hasAssignedSubs = Array.isArray(updates.assigned_subject_ids);
+      const assignedSubs = hasAssignedSubs
+        ? [...updates.assigned_subject_ids!]
+        : ('specialty_id' in updates
+            ? (updates.specialty_id ? [updates.specialty_id] : [])
+            : undefined);
+
+      const hasAssignedCls = Array.isArray(updates.assigned_class_ids);
+      const assignedCls = hasAssignedCls
+        ? [...updates.assigned_class_ids!]
+        : ('class_id' in updates
+            ? (updates.class_id ? [updates.class_id] : [])
+            : undefined);
+
       const safeUpdates: Partial<User> = {
         ...updates,
         ...(updates.username !== undefined ? { username: updates.username } : {}),
-        ...(perms ? { teacher_permissions: perms, permissions: perms } : {}),
-        ...(assignedSubs !== undefined ? { assigned_subject_ids: assignedSubs, specialty_id: assignedSubs[0] || null } : {}),
-        ...(assignedCls !== undefined ? { assigned_class_ids: assignedCls, class_id: assignedCls[0] || null } : {}),
+        ...(hasPerms ? { teacher_permissions: perms, permissions: perms } : {}),
+        ...(assignedSubs !== undefined ? { assigned_subject_ids: assignedSubs, specialty_id: 'specialty_id' in updates ? updates.specialty_id : (assignedSubs[0] || null) } : {}),
+        ...(assignedCls !== undefined ? { assigned_class_ids: assignedCls, class_id: 'class_id' in updates ? updates.class_id : (assignedCls[0] || null) } : {}),
         updated_at: now,
       };
 
-      // 1. تحديث التخزين المحلي فوراً
-      StorageService.updateUser(id, safeUpdates);
-
-      // 2. تحديث الحالة في React فوراً دون انتظار أي ردود شبكية
-      setUsers((prevUsers) =>
-        prevUsers.map((u) => (u.id === id ? sanitizeUser({ ...u, ...safeUpdates }) : u))
-      );
-
-      if (currentUser?.id === id) {
-        const updatedSelf = sanitizeUser({ ...currentUser, ...safeUpdates });
-        setCurrentUser(updatedSelf);
-      }
-
-      // 3. مزامنة التحديث مع Supabase بتنقية الكائن وإزالة أي عمود مفقود تلقائياً
+      // 1. تحديث Supabase أولاً بتنقية الكائن (Clean Payload) وتوحيد الحقول
       if (isSupabaseConfigured()) {
-        let payload: Record<string, any> = {
+        const cleanPayload: Record<string, any> = {
           name: safeUpdates.name,
           email: safeUpdates.email,
           username: safeUpdates.username,
@@ -730,56 +709,91 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           class_id: safeUpdates.class_id,
           assigned_subject_ids: safeUpdates.assigned_subject_ids,
           assigned_class_ids: safeUpdates.assigned_class_ids,
-          permissions: safeUpdates.permissions,
-          teacher_permissions: safeUpdates.teacher_permissions,
+          permissions: perms,
+          teacher_permissions: perms,
           updated_at: now,
         };
         if (safeUpdates.password) {
-          payload.password = safeUpdates.password;
+          cleanPayload.password = safeUpdates.password;
         }
-        Object.keys(payload).forEach((k) => payload[k] === undefined && delete payload[k]);
+        // إزالة المفاتيح غير المعرفة (undefined)
+        Object.keys(cleanPayload).forEach((k) => cleanPayload[k] === undefined && delete cleanPayload[k]);
 
         let attempts = 0;
-        const maxAttempts = 10;
-        let isUpdated = false;
+        const maxAttempts = 8;
+        let isSynced = false;
 
-        while (attempts < maxAttempts && !isUpdated) {
+        while (attempts < maxAttempts && !isSynced) {
           attempts++;
           try {
-            const { error } = await supabase.from('users').update(payload).eq('id', id);
+            const { error } = await supabase
+              .from('users')
+              .update(cleanPayload)
+              .eq('id', id);
+
             if (!error) {
-              isUpdated = true;
+              isSynced = true;
+              console.log(`[updateUserData] Supabase update succeeded on attempt ${attempts} for user ${id}`);
               break;
             }
 
-            const missingColumn = extractMissingColumn(error.message || '');
-            if (missingColumn && missingColumn in payload) {
-              console.warn(`[updateUserData] Column '${missingColumn}' not found in Supabase. Removing and retrying...`);
-              delete payload[missingColumn];
+            // فحص العمود المفقود وحذفه وإعادة المحاولة
+            const missingCol = extractMissingColumn(error.message || '');
+            if (missingCol && missingCol in cleanPayload) {
+              console.warn(`[updateUserData] Column '${missingCol}' missing in Supabase, stripping and retrying...`);
+              delete cleanPayload[missingCol];
               continue;
             }
 
             if (error.message?.includes('column') || error.code === 'PGRST204') {
-              console.warn('[updateUserData] Column mismatch, isolating core fields only:', error.message);
+              console.warn('[updateUserData] Column mismatch error, trying core fields:', error.message);
               const corePayload: Record<string, any> = {};
               ['name', 'email', 'password', 'role'].forEach((k) => {
                 if ((safeUpdates as any)[k] !== undefined) corePayload[k] = (safeUpdates as any)[k];
               });
-              payload = corePayload;
-              continue;
+              const retryCore = await supabase.from('users').update(corePayload).eq('id', id);
+              if (!retryCore.error) {
+                isSynced = true;
+              }
+              break;
             }
 
             console.warn('[updateUserData] Supabase update warning:', error.message);
             break;
           } catch (netErr: any) {
-            console.warn('[updateUserData] Network warning updating Supabase:', netErr?.message);
+            console.warn('[updateUserData] Network error syncing update:', netErr?.message);
             break;
           }
         }
       }
 
-      // 4. إعادة تنشيط الحالة العامة للتطبيق
-      refreshData();
+      // 2. تحديث التخزين المحلي (LocalStorage) دائماً لضمان عدم ضياع التعديلات
+      StorageService.updateUser(id, safeUpdates);
+
+      // 3. تحديث الـ State في React فوراً
+      setUsers((prevUsers) =>
+        prevUsers.map((u) => (u.id === id ? sanitizeUser({ ...u, ...safeUpdates }) : u))
+      );
+
+      if (currentUser?.id === id) {
+        const updatedSelf = sanitizeUser({ ...currentUser, ...safeUpdates });
+        setCurrentUser(updatedSelf);
+
+        if (updatedSelf.role === 'admin') {
+          setQuizzes(StorageService.getAllQuizzesWithDetails());
+          setKpis(StorageService.getDynamicKPIs());
+        } else if (updatedSelf.role === 'teacher') {
+          const canViewAll = updatedSelf.teacher_permissions?.can_view_all_reports || (updatedSelf as any).permissions?.can_view_all_reports;
+          if (canViewAll) {
+            setQuizzes(StorageService.getAllQuizzesWithDetails());
+            setKpis(StorageService.getDynamicKPIs());
+          } else {
+            setQuizzes(StorageService.getQuizzesForTeacher(updatedSelf.id));
+            setKpis(StorageService.getDynamicKPIs(updatedSelf.id));
+          }
+        }
+      }
+
       showToast('تم حفظ تعديلات المستخدم والصلاحيات والمواد بنجاح', 'success');
     } catch (error) {
       console.error('Error updating user data:', error);

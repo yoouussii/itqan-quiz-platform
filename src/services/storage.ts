@@ -174,22 +174,38 @@ public static getCurrentUser(): User | null {
     const idx = users.findIndex((u) => u.id === id);
     if (idx === -1) return null;
 
-    const perms = updates.teacher_permissions || updates.permissions;
-    const assignedSubs = Array.isArray(updates.assigned_subject_ids)
-      ? updates.assigned_subject_ids
-      : (updates.specialty_id ? [updates.specialty_id] : users[idx].assigned_subject_ids);
-    const assignedCls = Array.isArray(updates.assigned_class_ids)
-      ? updates.assigned_class_ids
-      : (updates.class_id ? [updates.class_id] : users[idx].assigned_class_ids);
+    const hasPerms = 'teacher_permissions' in updates || 'permissions' in updates;
+    const perms = hasPerms
+      ? (updates.teacher_permissions || updates.permissions || undefined)
+      : (users[idx].teacher_permissions || users[idx].permissions);
+
+    const hasAssignedSubs = Array.isArray(updates.assigned_subject_ids);
+    const assignedSubs = hasAssignedSubs
+      ? updates.assigned_subject_ids!
+      : ('specialty_id' in updates
+          ? (updates.specialty_id ? [updates.specialty_id] : [])
+          : users[idx].assigned_subject_ids || []);
+
+    const hasAssignedCls = Array.isArray(updates.assigned_class_ids);
+    const assignedCls = hasAssignedCls
+      ? updates.assigned_class_ids!
+      : ('class_id' in updates
+          ? (updates.class_id ? [updates.class_id] : [])
+          : users[idx].assigned_class_ids || []);
+
+    const now = new Date().toISOString();
 
     users[idx] = {
       ...users[idx],
       ...updates,
       ...(updates.username !== undefined ? { username: updates.username } : {}),
-      ...(perms ? { teacher_permissions: perms, permissions: perms } : {}),
-      ...(assignedSubs ? { assigned_subject_ids: assignedSubs, specialty_id: assignedSubs[0] || null } : {}),
-      ...(assignedCls ? { assigned_class_ids: assignedCls, class_id: assignedCls[0] || null } : {}),
-      updated_at: new Date().toISOString(),
+      teacher_permissions: perms,
+      permissions: perms,
+      assigned_subject_ids: assignedSubs,
+      assigned_class_ids: assignedCls,
+      specialty_id: 'specialty_id' in updates ? updates.specialty_id : (assignedSubs[0] || null),
+      class_id: 'class_id' in updates ? updates.class_id : (assignedCls[0] || null),
+      updated_at: now,
     };
     setLocalItem(STORAGE_KEYS.USERS, users);
     return users[idx];
