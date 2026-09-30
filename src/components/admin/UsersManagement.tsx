@@ -22,6 +22,7 @@ import { Avatar } from '../common/Avatar';
 
 export const UsersManagement: React.FC = () => {
   const {
+    currentUser,
     users,
     classes,
     subjects,
@@ -30,6 +31,11 @@ export const UsersManagement: React.FC = () => {
     resetUserPassword,
     deleteUserItem,
   } = useApp();
+
+  // 1. إضافة متغير الشرط (canAddStudent) للتحقق من صلاحية إضافة الطلاب
+  const canAddStudent =
+    currentUser?.role === 'admin' ||
+    (currentUser?.role === 'teacher' && currentUser?.teacher_permissions?.can_add_students);
 
   const [searchTerm, setSearchTerm] = useState('');
   const [roleFilter, setRoleFilter] = useState<string>('all');
@@ -66,11 +72,11 @@ export const UsersManagement: React.FC = () => {
     return matchesSearch && matchesRole;
   });
 
-  const handleOpenAddModal = () => {
+  const handleOpenAddModal = (defaultRole: Role = 'student') => {
     setName('');
     setNationalId('');
     setPassword('itqan123');
-    setRole('student');
+    setRole(defaultRole);
     setClassId(classes[0]?.id || '');
     setAssignedSubjectIds([]);
     setAssignedClassIds([]);
@@ -201,13 +207,26 @@ export const UsersManagement: React.FC = () => {
           </p>
         </div>
 
-        <button
-          onClick={handleOpenAddModal}
-          className="inline-flex items-center gap-2 px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-2xl text-xs font-bold shadow-md shadow-indigo-600/20 transition-all hover:scale-105"
-        >
-          <UserPlus className="w-4 h-4" />
-          <span>إضافة مستخدم جديد</span>
-        </button>
+        <div className="flex items-center gap-3">
+          {/* 2. زر إضافة طالب جديد يعتمد ظهورُه على الشرط canAddStudent */}
+          {canAddStudent && (
+            <button
+              onClick={() => handleOpenAddModal('student')}
+              className="inline-flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold shadow-md shadow-indigo-600/20 transition-all hover:scale-105"
+            >
+              <UserPlus className="w-4 h-4" />
+              <span>إضافة طالب جديد</span>
+            </button>
+          )}
+
+          <button
+            onClick={() => handleOpenAddModal('student')}
+            className="inline-flex items-center gap-2 px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-2xl text-xs font-bold shadow-md shadow-indigo-600/20 transition-all hover:scale-105"
+          >
+            <UserPlus className="w-4 h-4" />
+            <span>إضافة مستخدم جديد</span>
+          </button>
+        </div>
       </div>
 
       {/* Filter Toolbar */}
@@ -692,10 +711,7 @@ export const UsersManagement: React.FC = () => {
                 </h3>
               </div>
               <button
-                onClick={() => {
-                  setPasswordResetUser(null);
-                  setNewPasswordValue('');
-                }}
+                onClick={() => setPasswordResetUser(null)}
                 className="p-1 text-slate-400 hover:text-slate-700 dark:hover:text-slate-200"
               >
                 <X className="w-5 h-5" />
@@ -703,18 +719,19 @@ export const UsersManagement: React.FC = () => {
             </div>
 
             <form onSubmit={handlePasswordResetSubmit} className="space-y-4">
+              <p className="text-xs text-slate-600 dark:text-slate-400">
+                تعيين كلمة مرور جديدة للمستخدم:{' '}
+                <span className="font-bold text-slate-900 dark:text-white">
+                  {passwordResetUser.name}
+                </span>
+              </p>
+
               <div>
-                <p className="text-xs text-slate-500 dark:text-slate-400 mb-3">
-                  تعديل كلمة المرور للمستخدم:{' '}
-                  <span className="font-bold text-slate-800 dark:text-slate-200">
-                    {passwordResetUser.name}
-                  </span>
-                </p>
                 <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
                   كلمة المرور الجديدة *
                 </label>
                 <input
-                  type="password"
+                  type="text"
                   required
                   placeholder="أدخل كلمة المرور الجديدة"
                   value={newPasswordValue}
@@ -723,20 +740,17 @@ export const UsersManagement: React.FC = () => {
                 />
               </div>
 
-              <div className="pt-3 flex items-center justify-end gap-3 border-t border-slate-100 dark:border-slate-800">
+              <div className="pt-2 flex items-center justify-end gap-2">
                 <button
                   type="button"
-                  onClick={() => {
-                    setPasswordResetUser(null);
-                    setNewPasswordValue('');
-                  }}
+                  onClick={() => setPasswordResetUser(null)}
                   className="px-4 py-2 text-xs font-bold text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl"
                 >
                   إلغاء
                 </button>
                 <button
                   type="submit"
-                  className="px-5 py-2 bg-amber-600 hover:bg-amber-700 text-white rounded-xl text-xs font-bold shadow-md shadow-amber-600/20"
+                  className="px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white rounded-xl text-xs font-bold shadow-md shadow-amber-600/20"
                 >
                   تأكيد التغيير
                 </button>
