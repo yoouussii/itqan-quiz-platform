@@ -692,43 +692,51 @@ export const UsersManagement: React.FC = () => {
                 </h3>
               </div>
               <button
-                onClick={() => setPasswordResetUser(null)}
+                onClick={() => {
+                  setPasswordResetUser(null);
+                  setNewPasswordValue('');
+                }}
                 className="p-1 text-slate-400 hover:text-slate-700 dark:hover:text-slate-200"
               >
-                <X className="w-4 h-4" />
+                <X className="w-5 h-5" />
               </button>
             </div>
 
-            <p className="text-xs text-slate-600 dark:text-slate-400 mb-4">
-              تعيين كلمة مرور جديدة للمستخدم: <strong>{passwordResetUser.name}</strong>
-            </p>
-
             <form onSubmit={handlePasswordResetSubmit} className="space-y-4">
               <div>
+                <p className="text-xs text-slate-500 dark:text-slate-400 mb-3">
+                  تعديل كلمة المرور للمستخدم:{' '}
+                  <span className="font-bold text-slate-800 dark:text-slate-200">
+                    {passwordResetUser.name}
+                  </span>
+                </p>
                 <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
                   كلمة المرور الجديدة *
                 </label>
                 <input
                   type="password"
                   required
-                  placeholder="أدخل كلمة مرور جديدة"
+                  placeholder="أدخل كلمة المرور الجديدة"
                   value={newPasswordValue}
                   onChange={(e) => setNewPasswordValue(e.target.value)}
-                  className="w-full px-3 py-2 text-xs rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  className="w-full px-3 py-2 text-xs rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-amber-500"
                 />
               </div>
 
-              <div className="flex items-center justify-end gap-2 pt-2">
+              <div className="pt-3 flex items-center justify-end gap-3 border-t border-slate-100 dark:border-slate-800">
                 <button
                   type="button"
-                  onClick={() => setPasswordResetUser(null)}
-                  className="px-3 py-2 text-xs text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl"
+                  onClick={() => {
+                    setPasswordResetUser(null);
+                    setNewPasswordValue('');
+                  }}
+                  className="px-4 py-2 text-xs font-bold text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl"
                 >
                   إلغاء
                 </button>
                 <button
                   type="submit"
-                  className="px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs rounded-xl shadow-sm"
+                  className="px-5 py-2 bg-amber-600 hover:bg-amber-700 text-white rounded-xl text-xs font-bold shadow-md shadow-amber-600/20"
                 >
                   تأكيد التغيير
                 </button>
