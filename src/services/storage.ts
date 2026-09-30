@@ -117,7 +117,12 @@ public static getCurrentUser(): User | null {
 
   // --- Users CRUD ---
   public static getUsers(): User[] {
-    return getLocalItem<User[]>(STORAGE_KEYS.USERS, initialUsers);
+    const users = getLocalItem<User[]>(STORAGE_KEYS.USERS, initialUsers);
+    if (!users || users.length === 0) {
+      setLocalItem(STORAGE_KEYS.USERS, initialUsers);
+      return initialUsers;
+    }
+    return users;
   }
 
   public static getUserById(id: string): User | undefined {
@@ -134,10 +139,26 @@ public static getCurrentUser(): User | null {
 
   public static createUser(userData: Omit<User, 'id' | 'created_at'>): User {
     const users = this.getUsers();
+    const existingIndex = users.findIndex(
+      (u) => u.national_id && u.national_id.trim() === userData.national_id?.trim()
+    );
+    const now = new Date().toISOString();
+
+    if (existingIndex >= 0) {
+      users[existingIndex] = {
+        ...users[existingIndex],
+        ...userData,
+        updated_at: now,
+      };
+      setLocalItem(STORAGE_KEYS.USERS, users);
+      return users[existingIndex];
+    }
+
     const newUser: User = {
       ...userData,
       id: `usr-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
-      created_at: new Date().toISOString(),
+      created_at: now,
+      updated_at: now,
     };
     users.push(newUser);
     setLocalItem(STORAGE_KEYS.USERS, users);
