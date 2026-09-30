@@ -144,10 +144,13 @@ public static getCurrentUser(): User | null {
     );
     const now = new Date().toISOString();
 
+    const username = userData.username || userData.national_id;
+
     if (existingIndex >= 0) {
       users[existingIndex] = {
         ...users[existingIndex],
         ...userData,
+        username: username || users[existingIndex].username || users[existingIndex].national_id,
         updated_at: now,
       };
       setLocalItem(STORAGE_KEYS.USERS, users);
@@ -157,6 +160,7 @@ public static getCurrentUser(): User | null {
     const newUser: User = {
       ...userData,
       id: `usr-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+      username,
       created_at: now,
       updated_at: now,
     };
@@ -181,6 +185,7 @@ public static getCurrentUser(): User | null {
     users[idx] = {
       ...users[idx],
       ...updates,
+      ...(updates.username !== undefined ? { username: updates.username } : {}),
       ...(perms ? { teacher_permissions: perms, permissions: perms } : {}),
       ...(assignedSubs ? { assigned_subject_ids: assignedSubs, specialty_id: assignedSubs[0] || null } : {}),
       ...(assignedCls ? { assigned_class_ids: assignedCls, class_id: assignedCls[0] || null } : {}),
@@ -841,4 +846,61 @@ public static getCurrentUser(): User | null {
       subjectPerformance,
     };
   }
+}
+
+/**
+ * الحقول الأساسية المؤكدة في جدول المستخدمين (Core Guaranteed Fields)
+ */
+export const CORE_USER_FIELDS = ['id', 'name', 'email', 'password', 'role'] as const;
+
+/**
+ * استخراج اسم العمود المفقود من رسائل خطأ Supabase
+ * مثل: Could not find the 'username' column of 'users' in the schema cache
+ * أو: column "username" of relation "users" does not exist
+ */
+export function extractMissingColumn(errorMessage: string): string | null {
+  if (!errorMessage || typeof errorMessage !== 'string') return null;
+
+  const match1 = errorMessage.match(/Could not find the '([^']+)' column/i);
+  if (match1 && match1[1]) return match1[1];
+
+  const match2 = errorMessage.match(/column "([^"]+)" of relation/i);
+  if (match2 && match2[1]) return match2[1];
+
+  const match3 = errorMessage.match(/column '([^']+)' of relation/i);
+  if (match3 && match3[1]) return match3[1];
+
+  const match4 = errorMessage.match(/column "([^"]+)" does not exist/i);
+  if (match4 && match4[1]) return match4[1];
+
+  return null;
+}
+
+/**
+ * تنقية وتجهيز كائن المستخدم قبل إرساله لقاعدة بيانات Supabase (Clean Payload)
+ */
+export function cleanUserPayloadForSupabase(user: Partial<User>): Record<string, any> {
+  const now = new Date().toISOString();
+  const payload: Record<string, any> = {
+    id: user.id,
+    name: user.name,
+    email: user.email || (user.national_id ? `${user.national_id}@itqan.edu.sa` : undefined),
+    password: user.password || 'itqan123',
+    role: user.role,
+    username: user.username || user.national_id,
+    national_id: user.national_id,
+    specialty_id: user.specialty_id || null,
+    class_id: user.class_id || null,
+    assigned_subject_ids: user.assigned_subject_ids || [],
+    assigned_class_ids: user.assigned_class_ids || [],
+    permissions: user.permissions || {},
+    teacher_permissions: user.teacher_permissions || {},
+    created_by: user.created_by || null,
+    created_at: user.created_at || now,
+    updated_at: user.updated_at || now,
+  };
+
+  // إزالة أي قيم غير معرفة (undefined)
+  Object.keys(payload).forEach((k) => payload[k] === undefined && delete payload[k]);
+  return payload;
 }

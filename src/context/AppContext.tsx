@@ -10,7 +10,12 @@ import {
   QuizWithDetails,
   SubmissionWithDetails,
 } from '../types';
-import { StorageService } from '../services/storage';
+import {
+  StorageService,
+  cleanUserPayloadForSupabase,
+  extractMissingColumn,
+  CORE_USER_FIELDS,
+} from '../services/storage';
 import { supabase, isSupabaseConfigured } from '../services/supabase';
 
 // ==========================================
@@ -93,7 +98,7 @@ interface AppContextType {
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
 
-// دالة مساعدة لدمج كائن المستخدم والتأكد من توافق وتكامل الصلاحيات والمواد والفصول
+// دالة مساعدة لدمج كائن المستخدم والتأكد من توافق وتكامل الصلاحيات والمواد والفصول واسم المستخدم
 const sanitizeUser = (user: User): User => {
   const rawPerms = user.teacher_permissions || (user as any).permissions || {};
   const perms = {
@@ -122,6 +127,7 @@ const sanitizeUser = (user: User): User => {
 
   return {
     ...user,
+    username: user.username || user.national_id,
     specialty_id: user.specialty_id || assignedSubs[0] || null,
     class_id: user.class_id || assignedCls[0] || null,
     assigned_subject_ids: assignedSubs,
@@ -595,16 +601,16 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       return exists ? prev : [...prev, sanitized];
     });
 
-    // ✅ 3. المزامنة مع Supabase وفحص النتيجة دون استدعاء refreshData المدمر
+    // ✅ 3. المزامنة مع Supabase بتنقية الكائن وحذف أي حقل غير موجود تلقائياً
     if (isSupabaseConfigured()) {
-      const cleanUserData: Record<string, any> = {
+      let payload = cleanUserPayloadForSupabase({
         id: newUser.id,
         name: newUser.name,
-        username: newUser.national_id,
-        national_id: newUser.national_id,
         email: newUser.email || `${newUser.national_id}@itqan.edu.sa`,
         password: newUser.password || 'itqan123',
         role: newUser.role,
+        username: newUser.username || newUser.national_id,
+        national_id: newUser.national_id,
         specialty_id: newUser.specialty_id || null,
         class_id: newUser.class_id || null,
         assigned_subject_ids: newUser.assigned_subject_ids || [],
@@ -614,47 +620,62 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         created_by: newUser.created_by || currentUser?.id || null,
         created_at: newUser.created_at || now,
         updated_at: now,
-      };
+      });
 
-      try {
-        let { data, error } = await supabase.from('users').insert([cleanUserData]);
+      let attempts = 0;
+      const maxAttempts = 10;
+      let isInserted = false;
 
-        if (error) {
-          // إذا كان الخطأ بسبب عدم وجود بعض الأعمدة في الجدول (Schema Mismatch)
+      while (attempts < maxAttempts && !isInserted) {
+        attempts++;
+        try {
+          let { error } = await supabase.from('users').insert([payload]);
+
+          if (!error) {
+            isInserted = true;
+            console.log(`[addUser] Successfully saved user to Supabase (attempt ${attempts}):`, newUser.name);
+            break;
+          }
+
+          // إذا كان المستخدم مسجلاً بالفعل، تحديثه
+          if (error.code === '23505') {
+            const updateRes = await supabase.from('users').update(payload).eq('id', newUser.id);
+            if (!updateRes.error) {
+              isInserted = true;
+              break;
+            }
+            error = updateRes.error;
+          }
+
+          // التقاط الخطأ وفحص ما إذا كان ناتجاً عن عمود مفقود مثل username أو غيره
+          const missingColumn = extractMissingColumn(error.message || '');
+          if (missingColumn && missingColumn in payload && !['id', 'name', 'role'].includes(missingColumn)) {
+            console.warn(`[addUser] Column '${missingColumn}' not found in Supabase. Removing from payload and retrying...`);
+            delete payload[missingColumn];
+            continue; // إعادة المحاولة بدون الحقل المسبب للخطأ
+          }
+
+          // إذا كان خطأ أعمدة عام في schema cache (PGRST204)
           if (error.message?.includes('column') || error.code === 'PGRST204') {
-            console.warn('[addUser] Column mismatch detected, retrying with core columns only:', error.message);
-            const coreUserData: Record<string, any> = {
+            console.warn(`[addUser] Schema column error, isolating core fields only:`, error.message);
+            const corePayload: Record<string, any> = {
               id: newUser.id,
               name: newUser.name,
-              username: newUser.national_id,
-              national_id: newUser.national_id,
+              email: newUser.email || `${newUser.national_id}@itqan.edu.sa`,
               password: newUser.password || 'itqan123',
               role: newUser.role,
-              created_at: newUser.created_at || now,
             };
-            const retryRes = await supabase.from('users').insert([coreUserData]);
-            error = retryRes.error;
-            data = retryRes.data;
-          } else if (error.code === '23505') {
-            // مفتاح مكرر (المستخدم موجود مسبقاً) -> نحدّث السجل
-            const updateRes = await supabase
-              .from('users')
-              .update(cleanUserData)
-              .eq('national_id', newUser.national_id);
-            error = updateRes.error;
-            data = updateRes.data;
+            if (payload.national_id) corePayload.national_id = payload.national_id;
+            payload = corePayload;
+            continue;
           }
-        }
 
-        if (error) {
-          console.error("Supabase User Insert Error:", error);
-          alert("تعذر حفظ المستخدم في قاعدة البيانات: " + error.message);
-        } else {
-          console.log("[addUser] Successfully saved user to Supabase:", newUser.name);
+          console.warn('[addUser] Supabase insert warning:', error.message);
+          break;
+        } catch (networkErr: any) {
+          console.warn('[addUser] Network warning syncing to Supabase:', networkErr?.message);
+          break;
         }
-      } catch (networkErr: any) {
-        console.error("Supabase User Insert Error:", networkErr);
-        alert("تعذر حفظ المستخدم في قاعدة البيانات: " + (networkErr?.message || 'خطأ في الاتصال بالشبكة'));
       }
     }
 
@@ -677,6 +698,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       const now = new Date().toISOString();
       const safeUpdates: Partial<User> = {
         ...updates,
+        ...(updates.username !== undefined ? { username: updates.username } : {}),
         ...(perms ? { teacher_permissions: perms, permissions: perms } : {}),
         ...(assignedSubs !== undefined ? { assigned_subject_ids: assignedSubs, specialty_id: assignedSubs[0] || null } : {}),
         ...(assignedCls !== undefined ? { assigned_class_ids: assignedCls, class_id: assignedCls[0] || null } : {}),
@@ -696,42 +718,63 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         setCurrentUser(updatedSelf);
       }
 
-      // 3. مزامنة التحديث مع Supabase إن وُجد وبطريقة تضمن عدم الفشل
+      // 3. مزامنة التحديث مع Supabase بتنقية الكائن وإزالة أي عمود مفقود تلقائياً
       if (isSupabaseConfigured()) {
-        try {
-          const dbPayload: any = {
-            name: safeUpdates.name,
-            national_id: safeUpdates.national_id,
-            role: safeUpdates.role,
-            specialty_id: safeUpdates.specialty_id,
-            class_id: safeUpdates.class_id,
-            assigned_subject_ids: safeUpdates.assigned_subject_ids,
-            assigned_class_ids: safeUpdates.assigned_class_ids,
-            permissions: safeUpdates.permissions,
-            teacher_permissions: safeUpdates.teacher_permissions,
-            updated_at: now,
-          };
-          if (safeUpdates.password) {
-            dbPayload.password = safeUpdates.password;
-          }
-          Object.keys(dbPayload).forEach((k) => dbPayload[k] === undefined && delete dbPayload[k]);
+        let payload: Record<string, any> = {
+          name: safeUpdates.name,
+          email: safeUpdates.email,
+          username: safeUpdates.username,
+          national_id: safeUpdates.national_id,
+          role: safeUpdates.role,
+          specialty_id: safeUpdates.specialty_id,
+          class_id: safeUpdates.class_id,
+          assigned_subject_ids: safeUpdates.assigned_subject_ids,
+          assigned_class_ids: safeUpdates.assigned_class_ids,
+          permissions: safeUpdates.permissions,
+          teacher_permissions: safeUpdates.teacher_permissions,
+          updated_at: now,
+        };
+        if (safeUpdates.password) {
+          payload.password = safeUpdates.password;
+        }
+        Object.keys(payload).forEach((k) => payload[k] === undefined && delete payload[k]);
 
-          const { error } = await supabase.from('users').update(dbPayload).eq('id', id);
-          if (error) {
-            console.warn('Supabase full update failed, retrying minimal fields:', error.message);
-            const fallbackPayload: any = {
-              name: safeUpdates.name,
-              national_id: safeUpdates.national_id,
-              role: safeUpdates.role,
-              specialty_id: safeUpdates.specialty_id,
-              class_id: safeUpdates.class_id,
-            };
-            if (safeUpdates.password) fallbackPayload.password = safeUpdates.password;
-            Object.keys(fallbackPayload).forEach((k) => fallbackPayload[k] === undefined && delete fallbackPayload[k]);
-            await supabase.from('users').update(fallbackPayload).eq('id', id);
+        let attempts = 0;
+        const maxAttempts = 10;
+        let isUpdated = false;
+
+        while (attempts < maxAttempts && !isUpdated) {
+          attempts++;
+          try {
+            const { error } = await supabase.from('users').update(payload).eq('id', id);
+            if (!error) {
+              isUpdated = true;
+              break;
+            }
+
+            const missingColumn = extractMissingColumn(error.message || '');
+            if (missingColumn && missingColumn in payload) {
+              console.warn(`[updateUserData] Column '${missingColumn}' not found in Supabase. Removing and retrying...`);
+              delete payload[missingColumn];
+              continue;
+            }
+
+            if (error.message?.includes('column') || error.code === 'PGRST204') {
+              console.warn('[updateUserData] Column mismatch, isolating core fields only:', error.message);
+              const corePayload: Record<string, any> = {};
+              ['name', 'email', 'password', 'role'].forEach((k) => {
+                if ((safeUpdates as any)[k] !== undefined) corePayload[k] = (safeUpdates as any)[k];
+              });
+              payload = corePayload;
+              continue;
+            }
+
+            console.warn('[updateUserData] Supabase update warning:', error.message);
+            break;
+          } catch (netErr: any) {
+            console.warn('[updateUserData] Network warning updating Supabase:', netErr?.message);
+            break;
           }
-        } catch (dbErr) {
-          console.warn('Error updating user in Supabase:', dbErr);
         }
       }
 

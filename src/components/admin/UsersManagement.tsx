@@ -166,6 +166,8 @@ export const UsersManagement: React.FC = () => {
     await addUser({
       name: name.trim(),
       national_id: nationalId.trim(),
+      username: nationalId.trim(),
+      email: `${nationalId.trim()}@itqan.edu.sa`,
       password,
       role: effectiveRole,
       specialty_id: effectiveRole === 'teacher' ? (assignedSubjectIds[0] || null) : null,
@@ -195,6 +197,8 @@ export const UsersManagement: React.FC = () => {
     const updates: Partial<User> & { password?: string } = {
       name: name.trim(),
       national_id: nationalId.trim(),
+      username: nationalId.trim(),
+      email: editingUser.email || `${nationalId.trim()}@itqan.edu.sa`,
       role: effectiveRole,
       specialty_id: effectiveRole === 'teacher' ? (assignedSubjectIds[0] || null) : null,
       class_id: effectiveRole === 'student' ? classId : (assignedClassIds[0] || null),

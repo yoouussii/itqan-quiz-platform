@@ -19,6 +19,7 @@ export interface User {
   updated_at?: string;
   created_by?: string | null;      // 👈 تم إضافتها لإنهاء خطأ TS2551
   email?: string | null;           // 👈 تم إضافتها لإنهاء خطأ TS2339
+  username?: string | null;        // 👈 لدعم حقل اسم المستخدم
 
   // قبول null أو undefined لإنهاء أخطاء TS2322
   class_id?: string | null;
