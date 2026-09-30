@@ -74,16 +74,16 @@ export interface Question {
   quiz_id?: string;
   type?: QuestionType;
   
-  // الخصائص الأساسية (إلزامية لمنع أخطاء التجميع مع الواجهات الحالية)
+  // الخصائص الأساسية (إلزامية للواجهات القديمة)
   question_text: string;
-  options: string[];          // مصفوفة الخيارات (تكون فارغة [] لأسئلة أكمل والتوصيل)
+  options: string[];          // مصفوفة الخيارات
   marks: number;               // درجة السؤال
   
-  // خصائص اختيارية للأنواع الجديدة والشرح
+  // الخصائص الاختيارية (تقبل undefined لتوافق جميع أنواع الأسئلة)
+  correct_option_index?: number; // خيار اختياري يحل مشكلة undefined
   text?: string;
   explanation?: string;
   correctAnswer?: string;
-  correct_option_index?: number;
   blankAnswer?: string;       // لأسئلة أكمل الفراغ
   matchingPairs?: MatchingPair[]; // لأسئلة التوصيل
   subQuestions?: Question[];  // لأسئلة القطعة والقراءة
