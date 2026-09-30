@@ -29,6 +29,7 @@ const STORAGE_KEYS = {
   SUBMISSIONS: 'itqan_submissions_v2',
   CURRENT_USER_ID: 'itqan_current_user_id_v2',
   THEME: 'itqan_theme',
+  DELETED_USER_IDS: 'itqan_deleted_user_ids',
 };
 
 function getLocalItem<T>(key: string, defaultValue: T): T {
@@ -54,7 +55,9 @@ export class StorageService {
   public static init() {
     const rawUsers = localStorage.getItem(STORAGE_KEYS.USERS);
     if (!rawUsers || JSON.parse(rawUsers).length === 0) {
-      setLocalItem(STORAGE_KEYS.USERS, initialUsers);
+      const deletedIds = this.getDeletedUserIds();
+      const filteredInitial = initialUsers.filter((u) => !deletedIds.includes(u.id));
+      setLocalItem(STORAGE_KEYS.USERS, filteredInitial);
     }
   }
 
@@ -117,12 +120,14 @@ public static getCurrentUser(): User | null {
 
   // --- Users CRUD ---
   public static getUsers(): User[] {
-    const users = getLocalItem<User[]>(STORAGE_KEYS.USERS, initialUsers);
+    const deletedIds = this.getDeletedUserIds();
+    let users = getLocalItem<User[]>(STORAGE_KEYS.USERS, initialUsers);
     if (!users || users.length === 0) {
-      setLocalItem(STORAGE_KEYS.USERS, initialUsers);
-      return initialUsers;
+      const filteredInitial = initialUsers.filter((u) => !deletedIds.includes(u.id));
+      setLocalItem(STORAGE_KEYS.USERS, filteredInitial);
+      return filteredInitial;
     }
-    return users;
+    return users.filter((u) => !deletedIds.includes(u.id));
   }
 
   public static getUserById(id: string): User | undefined {
@@ -220,7 +225,20 @@ public static getCurrentUser(): User | null {
     const filtered = users.filter((u) => u.id !== id);
     if (filtered.length === users.length) return false;
     setLocalItem(STORAGE_KEYS.USERS, filtered);
+    this.addDeletedUserId(id);
     return true;
+  }
+
+  public static getDeletedUserIds(): string[] {
+    return getLocalItem<string[]>(STORAGE_KEYS.DELETED_USER_IDS, []);
+  }
+
+  public static addDeletedUserId(id: string): void {
+    const ids = this.getDeletedUserIds();
+    if (!ids.includes(id)) {
+      ids.push(id);
+      setLocalItem(STORAGE_KEYS.DELETED_USER_IDS, ids);
+    }
   }
 
   // --- Subjects CRUD ---

@@ -275,7 +275,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           });
 
           // إضافة أي حسابات جديدة موجودة في Supabase وغير مسجلة محلياً
+          const deletedIds = StorageService.getDeletedUserIds();
           for (const dbU of dbUsers) {
+            if (deletedIds.includes(dbU.id)) continue;
             const alreadyExists = mergedUsers.some(
               (m) =>
                 (dbU.id && m.id === dbU.id) ||
@@ -834,18 +836,27 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const deleteUserItem = async (id: string) => {
+    // 1. حذف من التخزين المحلي وتسجيل المعرف في قائمة المحذوفين
     StorageService.deleteUser(id);
 
+    // 2. تحديث React State فوراً لإزالة المستخدم من الواجهة
+    setUsers((prev) => prev.filter((u) => u.id !== id));
+
+    // 3. حذف من Supabase
     if (isSupabaseConfigured()) {
       try {
-        await supabase.from('users').delete().eq('id', id);
+        const { error } = await supabase.from('users').delete().eq('id', id);
+        if (error) {
+          console.warn('[deleteUserItem] Supabase delete warning:', error.message);
+        } else {
+          console.log(`[deleteUserItem] User ${id} deleted from Supabase successfully`);
+        }
       } catch (err) {
-        console.warn('Error deleting user from Supabase:', err);
+        console.warn('[deleteUserItem] Network error deleting from Supabase:', err);
       }
     }
 
-    refreshData();
-    showToast('تم حذف المستخدم من النظام', 'info');
+    showToast('تم حذف المستخدم من النظام نهائياً', 'info');
   };
 
   const addSubject = (subj: Omit<Subject, 'id'>) => {

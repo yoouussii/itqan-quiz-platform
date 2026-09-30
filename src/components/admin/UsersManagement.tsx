@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
+import * as XLSX from 'xlsx';
 import {
   Users,
   UserPlus,
@@ -12,6 +13,9 @@ import {
   KeyRound,
   Sliders,
   UserCircle2,
+  Upload,
+  Download,
+  FileSpreadsheet,
 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 import { Role, User, TeacherPermissions } from '../../types';
@@ -58,6 +62,12 @@ export const UsersManagement: React.FC = () => {
     can_add_students: false,
     can_add_teachers: false,
   });
+
+  const [showImportModal, setShowImportModal] = useState(false);
+  const [importPreview, setImportPreview] = useState<Array<{ name: string; national_id: string; password: string; class_name: string }>>([]);
+  const [importError, setImportError] = useState('');
+  const [isImporting, setIsImporting] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const isTeacher = currentUser?.role === 'teacher';
 
@@ -230,6 +240,113 @@ export const UsersManagement: React.FC = () => {
     }
   };
 
+  // === Excel Import Functions ===
+  const downloadExcelTemplate = () => {
+    const templateData = [
+      { 'الاسم': 'أحمد محمد', 'رقم الهوية': '1234567890', 'كلمة السر': '123456', 'الصف / الشعبة': 'الصف الأول أ' },
+      { 'الاسم': 'سارة علي', 'رقم الهوية': '0987654321', 'كلمة السر': '123456', 'الصف / الشعبة': 'الصف الثاني ب' },
+    ];
+    const ws = XLSX.utils.json_to_sheet(templateData);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'طلاب');
+    ws['!cols'] = [{ wch: 20 }, { wch: 15 }, { wch: 12 }, { wch: 20 }];
+    XLSX.writeFile(wb, 'نموذج_استيراد_طلاب.xlsx');
+  };
+
+  const handleExcelFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setImportError('');
+    setImportPreview([]);
+
+    const reader = new FileReader();
+    reader.onload = (evt) => {
+      try {
+        const data = evt.target?.result;
+        const workbook = XLSX.read(data, { type: 'binary' });
+        const sheetName = workbook.SheetNames[0];
+        const worksheet = workbook.Sheets[sheetName];
+        const jsonData = XLSX.utils.sheet_to_json<Record<string, any>>(worksheet);
+
+        if (!jsonData || jsonData.length === 0) {
+          setImportError('الملف فارغ أو لا يحتوي على بيانات صالحة');
+          return;
+        }
+
+        const parsed = jsonData.map((row: any) => ({
+          name: String(row['الاسم'] || row['name'] || row['Name'] || '').trim(),
+          national_id: String(row['رقم الهوية'] || row['اسم المستخدم'] || row['national_id'] || row['username'] || row['ID'] || '').trim(),
+          password: String(row['كلمة السر'] || row['password'] || row['Password'] || '123456').trim(),
+          class_name: String(row['الصف / الشعبة'] || row['الصف'] || row['class'] || row['Class'] || '').trim(),
+        })).filter((s) => s.name && s.national_id);
+
+        if (parsed.length === 0) {
+          setImportError('لم يتم العثور على بيانات صالحة. تأكد من وجود أعمدة: الاسم، رقم الهوية');
+          return;
+        }
+
+        setImportPreview(parsed);
+        setShowImportModal(true);
+      } catch (err) {
+        console.error('Excel parse error:', err);
+        setImportError('حدث خطأ أثناء قراءة الملف. تأكد من أنه ملف Excel صالح (.xlsx)');
+      }
+    };
+    reader.readAsBinaryString(file);
+    if (fileInputRef.current) fileInputRef.current.value = '';
+  };
+
+  const handleBulkImport = async () => {
+    if (importPreview.length === 0) return;
+    setIsImporting(true);
+
+    try {
+      let importedCount = 0;
+      let skippedCount = 0;
+
+      for (const student of importPreview) {
+        const exists = users.some((u) => u.national_id === student.national_id);
+        if (exists) {
+          skippedCount++;
+          continue;
+        }
+
+        const matchedClass = classes.find(
+          (c) => c.name === student.class_name || c.name.includes(student.class_name) || student.class_name.includes(c.name)
+        );
+        const classId = matchedClass?.id || classes[0]?.id || '';
+
+        await addUser({
+          name: student.name,
+          national_id: student.national_id,
+          username: student.national_id,
+          email: `${student.national_id}@itqan.edu.sa`,
+          password: student.password || '123456',
+          role: 'student' as const,
+          specialty_id: null,
+          assigned_subject_ids: [],
+          assigned_class_ids: classId ? [classId] : [],
+          class_id: classId || null,
+          created_by: currentUser?.id,
+        });
+        importedCount++;
+      }
+
+      setShowImportModal(false);
+      setImportPreview([]);
+
+      const msg = skippedCount > 0
+        ? `تم استيراد ${importedCount} طالب بنجاح، وتم تخطي ${skippedCount} (مسجلين مسبقاً)`
+        : `تم استيراد ${importedCount} طالب بنجاح`;
+      alert(msg);
+    } catch (err) {
+      console.error('Bulk import error:', err);
+      alert('حدث خطأ أثناء الاستيراد. تحقق من البيانات وأعد المحاولة.');
+    } finally {
+      setIsImporting(false);
+    }
+  };
+
   return (
     <div className="max-w-7xl mx-auto py-8 px-4 sm:px-6 lg:px-8 space-y-6" dir="rtl">
       {/* Header */}
@@ -243,7 +360,7 @@ export const UsersManagement: React.FC = () => {
           </p>
         </div>
 
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2 flex-wrap">
           {canAddStudent && (
             <button
               onClick={() => handleOpenAddModal('student')}
@@ -252,6 +369,34 @@ export const UsersManagement: React.FC = () => {
               <UserPlus className="w-4 h-4" />
               <span>إضافة طالب جديد</span>
             </button>
+          )}
+
+          {canAddStudent && (
+            <>
+              <button
+                onClick={downloadExcelTemplate}
+                className="inline-flex items-center gap-2 px-3 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold shadow-md transition-all hover:scale-105"
+                title="تحميل نموذج Excel"
+              >
+                <Download className="w-4 h-4" />
+                <span>تحميل نموذج Excel</span>
+              </button>
+              <button
+                onClick={() => fileInputRef.current?.click()}
+                className="inline-flex items-center gap-2 px-3 py-2 bg-amber-600 hover:bg-amber-700 text-white rounded-xl text-xs font-bold shadow-md transition-all hover:scale-105"
+                title="استيراد طلاب من ملف Excel"
+              >
+                <Upload className="w-4 h-4" />
+                <span>استيراد من Excel</span>
+              </button>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept=".xlsx,.xls,.csv"
+                className="hidden"
+                onChange={handleExcelFileUpload}
+              />
+            </>
           )}
 
           {!isTeacher && (
@@ -781,6 +926,114 @@ export const UsersManagement: React.FC = () => {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Import Error Display */}
+      {importError && (
+        <div className="fixed bottom-6 left-6 right-6 sm:left-auto sm:right-6 sm:w-96 z-50 bg-rose-600 text-white p-4 rounded-2xl shadow-2xl flex items-center justify-between gap-3 animate-in slide-in-from-bottom">
+          <span className="text-xs font-bold">{importError}</span>
+          <button onClick={() => setImportError('')} className="p-1 hover:bg-rose-700 rounded-lg">
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+      )}
+
+      {/* Excel Import Preview Modal */}
+      {showImportModal && (
+        <div className="fixed inset-0 z-50 overflow-y-auto bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-white dark:bg-slate-900 rounded-3xl max-w-3xl w-full p-6 shadow-2xl border border-slate-100 dark:border-slate-800 animate-in fade-in zoom-in-95 max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between pb-3 mb-4 border-b border-slate-100 dark:border-slate-800">
+              <h3 className="font-bold text-base text-slate-900 dark:text-white flex items-center gap-2">
+                <FileSpreadsheet className="w-5 h-5 text-emerald-600" />
+                معاينة بيانات الطلاب المستوردة ({importPreview.length} طالب)
+              </h3>
+              <button
+                onClick={() => { setShowImportModal(false); setImportPreview([]); }}
+                className="p-1 text-slate-400 hover:text-slate-700 dark:hover:text-slate-200"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {importPreview.length > 0 && (
+              <div className="overflow-x-auto mb-4">
+                <table className="w-full text-right text-xs">
+                  <thead>
+                    <tr className="bg-slate-50 dark:bg-slate-800/60 text-slate-500 dark:text-slate-400 font-bold border-b border-slate-100 dark:border-slate-800">
+                      <th className="py-2 px-3">#</th>
+                      <th className="py-2 px-3">الاسم</th>
+                      <th className="py-2 px-3">رقم الهوية</th>
+                      <th className="py-2 px-3">كلمة السر</th>
+                      <th className="py-2 px-3">الصف / الشعبة</th>
+                      <th className="py-2 px-3">الحالة</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                    {importPreview.map((s, i) => {
+                      const alreadyExists = users.some((u) => u.national_id === s.national_id);
+                      const matchedClass = classes.find(
+                        (c) => c.name === s.class_name || c.name.includes(s.class_name) || s.class_name.includes(c.name)
+                      );
+                      return (
+                        <tr key={i} className={alreadyExists ? 'bg-amber-50 dark:bg-amber-950/30' : ''}>
+                          <td className="py-2 px-3 text-slate-400">{i + 1}</td>
+                          <td className="py-2 px-3 text-slate-900 dark:text-white font-semibold">{s.name}</td>
+                          <td className="py-2 px-3 font-mono text-indigo-600 dark:text-indigo-400">{s.national_id}</td>
+                          <td className="py-2 px-3 text-slate-500">{'•'.repeat(s.password.length)}</td>
+                          <td className="py-2 px-3">
+                            {matchedClass ? (
+                              <span className="text-emerald-600 dark:text-emerald-400">{matchedClass.name}</span>
+                            ) : (
+                              <span className="text-slate-400">{s.class_name || 'غير محدد'}</span>
+                            )}
+                          </td>
+                          <td className="py-2 px-3">
+                            {alreadyExists ? (
+                              <span className="text-amber-600 text-[10px] font-bold">مسجل مسبقاً</span>
+                            ) : (
+                              <span className="text-emerald-600 text-[10px] font-bold">جاهز</span>
+                            )}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
+
+            <div className="flex items-center justify-between pt-3 border-t border-slate-100 dark:border-slate-800">
+              <p className="text-[10px] text-slate-400">
+                {importPreview.filter((s) => !users.some((u) => u.national_id === s.national_id)).length} طالب جديد سيتم إضافته
+              </p>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => { setShowImportModal(false); setImportPreview([]); }}
+                  className="px-4 py-2 text-xs rounded-xl border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 font-bold"
+                >
+                  إلغاء
+                </button>
+                <button
+                  onClick={handleBulkImport}
+                  disabled={isImporting || importPreview.filter((s) => !users.some((u) => u.national_id === s.national_id)).length === 0}
+                  className="px-6 py-2 text-xs rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold shadow-md disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                >
+                  {isImporting ? (
+                    <>
+                      <span className="animate-spin">⏳</span>
+                      جاري الاستيراد...
+                    </>
+                  ) : (
+                    <>
+                      <Upload className="w-4 h-4" />
+                      استيراد الطلاب الآن
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       )}
