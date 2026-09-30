@@ -95,12 +95,13 @@ const AppContext = createContext<AppContextType | undefined>(undefined);
 
 // دالة مساعدة لدمج كائن المستخدم والتأكد من القيم الأمنية
 const sanitizeUser = (user: User): User => {
+  const perms = user.teacher_permissions || (user as any).permissions || {};
   return {
     ...user,
     assigned_class_ids: Array.isArray(user.assigned_class_ids) ? user.assigned_class_ids : [],
     assigned_subject_ids: Array.isArray(user.assigned_subject_ids) ? user.assigned_subject_ids : [],
-    teacher_permissions: user.teacher_permissions || (user as any).permissions || {},
-    permissions: (user as any).permissions || user.teacher_permissions || {},
+    teacher_permissions: perms,
+    permissions: perms,
   };
 };
 
@@ -189,72 +190,72 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     StorageService.getDynamicKPIs(currentUser?.role === 'teacher' ? currentUser.id : undefined)
   );
 
-const refreshData = useCallback(async () => {
-  const localUsers = StorageService.getUsers();
+  const refreshData = useCallback(async () => {
+    const localUsers = StorageService.getUsers();
 
-  try {
-    const { data: dbUsers, error } = await supabase.from('users').select('*');
-    if (!error && dbUsers && dbUsers.length > 0) {
-      const mergedUsers = dbUsers.map((dbU: any) => {
-        const localU = localUsers.find((l) => l.id === dbU.id);
+    try {
+      const { data: dbUsers, error } = await supabase.from('users').select('*');
+      if (!error && dbUsers && dbUsers.length > 0) {
+        const mergedUsers = dbUsers.map((dbU: any) => {
+          const localU = localUsers.find((l) => l.id === dbU.id);
 
-        // جلب الصلاحيات المحلية كخيار أول في حال كانت قاعدة البيانات فارغة
-        const localPerms = localU?.permissions || localU?.teacher_permissions || {};
-        const dbPerms = dbU.permissions && Object.keys(dbU.permissions).length > 0
-          ? dbU.permissions
-          : (dbU.teacher_permissions && Object.keys(dbU.teacher_permissions).length > 0 ? dbU.teacher_permissions : localPerms);
+          const localPerms = localU?.permissions || localU?.teacher_permissions || {};
+          const dbPerms = dbU.permissions && Object.keys(dbU.permissions).length > 0
+            ? dbU.permissions
+            : (dbU.teacher_permissions && Object.keys(dbU.teacher_permissions).length > 0 ? dbU.teacher_permissions : localPerms);
 
-        const dbSubjects = Array.isArray(dbU.assigned_subject_ids) && dbU.assigned_subject_ids.length > 0
-          ? dbU.assigned_subject_ids
-          : (localU?.assigned_subject_ids || []);
+          const dbSubjects = Array.isArray(dbU.assigned_subject_ids) && dbU.assigned_subject_ids.length > 0
+            ? dbU.assigned_subject_ids
+            : (localU?.assigned_subject_ids || []);
 
-        const dbClasses = Array.isArray(dbU.assigned_class_ids) && dbU.assigned_class_ids.length > 0
-          ? dbU.assigned_class_ids
-          : (localU?.assigned_class_ids || []);
+          const dbClasses = Array.isArray(dbU.assigned_class_ids) && dbU.assigned_class_ids.length > 0
+            ? dbU.assigned_class_ids
+            : (localU?.assigned_class_ids || []);
 
-        return sanitizeUser({
-          ...localU,
-          ...dbU,
-          assigned_subject_ids: dbSubjects,
-          assigned_class_ids: dbClasses,
-          permissions: dbPerms,
-          teacher_permissions: dbPerms,
+          return sanitizeUser({
+            ...localU,
+            ...dbU,
+            assigned_subject_ids: dbSubjects,
+            assigned_class_ids: dbClasses,
+            permissions: dbPerms,
+            teacher_permissions: dbPerms,
+          });
         });
-      });
 
-      localStorage.setItem('itqan_users_v2', JSON.stringify(mergedUsers));
-    }
-  } catch (err) {
-    console.error('Supabase sync error:', err);
-  }
-
-  const updatedUsers = StorageService.getUsers().map(sanitizeUser);
-  const loadedSubjects = StorageService.getSubjects();
-  const loadedClasses = StorageService.getClasses();
-  const updatedUser = StorageService.getCurrentUser();
-
-  setUsers(updatedUsers);
-  setSubjects(loadedSubjects && loadedSubjects.length > 0 ? loadedSubjects : INITIAL_SUBJECTS);
-  setClasses(loadedClasses && loadedClasses.length > 0 ? loadedClasses : INITIAL_CLASSES);
-
-  if (updatedUser) {
-    const safeUser = sanitizeUser(updatedUser);
-    setCurrentUser(safeUser);
-
-    if (safeUser.role === 'admin') {
-      setQuizzes(StorageService.getAllQuizzesWithDetails());
-      setKpis(StorageService.getDynamicKPIs());
-    } else if (safeUser.role === 'teacher') {
-      setQuizzes(StorageService.getQuizzesForTeacher(safeUser.id));
-      setKpis(StorageService.getDynamicKPIs(safeUser.id));
-    } else if (safeUser.role === 'student') {
-      setQuizzes(StorageService.getQuizzesForStudent(safeUser.id));
-      setKpis(StorageService.getDynamicKPIs());
+        localStorage.setItem('itqan_users_v2', JSON.stringify(mergedUsers));
+      }
+    } catch (err) {
+      console.error('Supabase sync error:', err);
     }
 
-    setSubmissions(StorageService.getAccessibleSubmissionsWithDetails(safeUser.id));
-  }
-}, []);
+    const updatedUsers = StorageService.getUsers().map(sanitizeUser);
+    const loadedSubjects = StorageService.getSubjects();
+    const loadedClasses = StorageService.getClasses();
+    const updatedUser = StorageService.getCurrentUser();
+
+    setUsers(updatedUsers);
+    setSubjects(loadedSubjects && loadedSubjects.length > 0 ? loadedSubjects : INITIAL_SUBJECTS);
+    setClasses(loadedClasses && loadedClasses.length > 0 ? loadedClasses : INITIAL_CLASSES);
+
+    if (updatedUser) {
+      const safeUser = sanitizeUser(updatedUser);
+      setCurrentUser(safeUser);
+
+      if (safeUser.role === 'admin') {
+        setQuizzes(StorageService.getAllQuizzesWithDetails());
+        setKpis(StorageService.getDynamicKPIs());
+      } else if (safeUser.role === 'teacher') {
+        setQuizzes(StorageService.getQuizzesForTeacher(safeUser.id));
+        setKpis(StorageService.getDynamicKPIs(safeUser.id));
+      } else if (safeUser.role === 'student') {
+        setQuizzes(StorageService.getQuizzesForStudent(safeUser.id));
+        setKpis(StorageService.getDynamicKPIs());
+      }
+
+      setSubmissions(StorageService.getAccessibleSubmissionsWithDetails(safeUser.id));
+    }
+  }, []);
+
   useEffect(() => {
     refreshData();
   }, [currentUser?.id, currentUser?.role, refreshData]);
@@ -447,7 +448,8 @@ const refreshData = useCallback(async () => {
           password: newUser.password || '123456',
           assigned_subject_ids: newUser.assigned_subject_ids || [],
           assigned_class_ids: newUser.assigned_class_ids || [],
-          permissions: newUser.permissions || {},
+          permissions: newUser.permissions || newUser.teacher_permissions || {},
+          teacher_permissions: newUser.teacher_permissions || newUser.permissions || {},
         },
       ]);
     } catch (err) {
@@ -459,26 +461,64 @@ const refreshData = useCallback(async () => {
     return newUser;
   };
 
- const updateUserData = async (id: string, updates: Partial<User>): Promise<void> => {
-  try {
-    // إذا كان هناك طلب قاعدة بيانات (مثال: Supabase)
-    // await supabase.from('users').update(updates).eq('id', id);
+  // دالة تحديث بيانات المستخدم المصلحة بالكامل
+  const updateUserData = async (id: string, updates: Partial<User>): Promise<void> => {
+    try {
+      const perms = updates.teacher_permissions || updates.permissions;
+      const safeUpdates: Partial<User> = {
+        ...updates,
+        ...(perms ? { teacher_permissions: perms, permissions: perms } : {}),
+      };
 
-    setUsers((prevUsers) => {
-      const updatedUsers = prevUsers.map((u) =>
-        u.id === id ? { ...u, ...updates } : u
+      // 1. تحديث التخزين المحلي فوراً بمفتاح v2
+      const existingUsers = StorageService.getUsers();
+      const updatedUsers = existingUsers.map((u) =>
+        u.id === id ? sanitizeUser({ ...u, ...safeUpdates }) : u
       );
-      localStorage.setItem('itqan_users', JSON.stringify(updatedUsers));
-      return updatedUsers;
-    });
+      localStorage.setItem('itqan_users_v2', JSON.stringify(updatedUsers));
 
-    if (currentUser?.id === id) {
-      setCurrentUser((prev) => (prev ? { ...prev, ...updates } : null));
+      // 2. مزامنة التحديث مع Supabase
+      try {
+        const dbPayload: any = { ...safeUpdates };
+        delete dbPayload.id;
+        await supabase.from('users').update(dbPayload).eq('id', id);
+      } catch (dbErr) {
+        console.error('Error updating user in Supabase:', dbErr);
+      }
+
+      // 3. إعادة تنشيط الحالة العامة للتطبيق
+      refreshData();
+      showToast('تم حفظ تعديلات المستخدم والصلاحيات بنجاح', 'success');
+    } catch (error) {
+      console.error('Error updating user data:', error);
+      showToast('حدث خطأ أثناء حفظ التعديلات', 'error');
     }
-  } catch (error) {
-    console.error('Error updating user data:', error);
-  }
-};
+  };
+
+  // دالة إعادة تعيين كلمة المرور المضافة
+  const resetUserPassword = async (id: string, newPass: string): Promise<boolean> => {
+    try {
+      const existingUsers = StorageService.getUsers();
+      const updatedUsers = existingUsers.map((u) =>
+        u.id === id ? { ...u, password: newPass } : u
+      );
+      localStorage.setItem('itqan_users_v2', JSON.stringify(updatedUsers));
+
+      try {
+        await supabase.from('users').update({ password: newPass }).eq('id', id);
+      } catch (dbErr) {
+        console.error('Error updating password in Supabase:', dbErr);
+      }
+
+      refreshData();
+      showToast('تمت إعادة تعيين كلمة المرور بنجاح', 'success');
+      return true;
+    } catch (error) {
+      console.error('Error resetting password:', error);
+      showToast('حدث خطأ أثناء إعادة تعيين كلمة المرور', 'error');
+      return false;
+    }
+  };
 
   const deleteUserItem = async (id: string) => {
     StorageService.deleteUser(id);
@@ -493,7 +533,6 @@ const refreshData = useCallback(async () => {
     showToast('تم حذف المستخدم من النظام', 'info');
   };
 
-  // إضافة مادة مع الاحتفاظ بكافة المواد القديمة والاقتراض من INITIAL_SUBJECTS إذا لزم الأمر
   const addSubject = (subj: Omit<Subject, 'id'>) => {
     const currentSubjects = StorageService.getSubjects();
     const existingList = currentSubjects && currentSubjects.length > 0 ? currentSubjects : INITIAL_SUBJECTS;
@@ -532,7 +571,6 @@ const refreshData = useCallback(async () => {
     showToast('تم حذف المادة بنجاح', 'info');
   };
 
-  // إضافة فصل مع الاحتفاظ بكافة الفصول القديمة
   const addClass = (cls: Omit<SchoolClass, 'id'>) => {
     const currentClasses = StorageService.getClasses();
     const existingList = currentClasses && currentClasses.length > 0 ? currentClasses : INITIAL_CLASSES;
