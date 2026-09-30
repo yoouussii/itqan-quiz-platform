@@ -459,41 +459,37 @@ const refreshData = useCallback(async () => {
     return newUser;
   };
 
- const updateUserData = async (id: string, updates: Partial<User>) => {
-  // 1. تحديث الحالة في الذاكرة فوراً (React State) حتى تنعكس الصلاحيات في الواجهة
-  setUsers((prevUsers) =>
-    prevUsers.map((user) =>
-      user.id === id ? { ...user, ...updates } : user
-    )
-  );
+ const updateUserData = (id: string, updates: Partial<User>) => {
+  setUsers((prevUsers) => {
+    const updatedUsers = prevUsers.map((u) => {
+      if (u.id === id) {
+        return {
+          ...u,
+          ...updates,
+          // ضمان استمرار حفظ الصلاحيات والمواد كـ Deep Copy
+          assigned_subject_ids: updates.assigned_subject_ids ?? u.assigned_subject_ids ?? [],
+          assigned_class_ids: updates.assigned_class_ids ?? u.assigned_class_ids ?? [],
+          teacher_permissions: updates.teacher_permissions ?? u.teacher_permissions,
+        };
+      }
+      return u;
+    });
 
-  // 2. تحديث التخزين المحلي
-  StorageService.updateUser(id, updates);
-
-  // 3. تحديث Supabase مع طباعة الخطأ في حال وجوده
-  try {
-    const { error } = await supabase
-      .from('users')
-      .update(updates)
-      .eq('id', id);
-
-    if (error) {
-      console.error('خطأ أثناء التحديث في Supabase:', error);
+    // 1. إجبار الحفظ في LocalStorage لضمان عدم ضياع التعديلات
+    try {
+      localStorage.setItem('itqan_users', JSON.stringify(updatedUsers));
+    } catch (e) {
+      console.error('Error saving users to localStorage:', e);
     }
-  } catch (err) {
-    console.error('Error updating user in Supabase:', err);
-  }
 
-  // 4. تحديث حساب المستخدم الحالي إن كان هو نفسه
-  if (currentUser && currentUser.id === id) {
-    setCurrentUser((prev) => (prev ? sanitizeUser({ ...prev, ...updates }) : null));
-  }
+    return updatedUsers;
+  });
 
-  // 5. إعادة جلب البيانات
-  await refreshData();
-  showToast('تم تحديث بيانات وتصاريح المستخدم بنجاح', 'success');
+  // 2. تحديث جلسة المستخدم الحالي فوراً إذا كان التعديل عليه
+  if (currentUser?.id === id) {
+    setCurrentUser((prev) => (prev ? { ...prev, ...updates } : null));
+  }
 };
-
   const resetUserPassword = async (id: string, newPass: string) => {
     const ok = StorageService.resetPassword(id, newPass);
 
