@@ -704,19 +704,21 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const updateUserData = async (id: string, updates: Partial<User>): Promise<void> => {
-    const now = new Date().toISOString();
-    const targetNationalId = updates.national_id || updates.username;
+  const now = new Date().toISOString();
+  const targetNationalId = updates.national_id || updates.username;
 
-    const cleanUpdates: Partial<User> = {
-      ...updates,
-      updated_at: now,
-    };
+  // 1. فصل كلمة المرور لتجنب إعادة كتابتها أو تشفيرها بالخطأ عند التعديل العادي
+  const { password, ...safeUpdates } = updates;
 
-    if (updates.national_id) cleanUpdates.national_id = updates.national_id;
-    if (updates.username) cleanUpdates.username = updates.username;
+  const cleanUpdates: Partial<User> = {
+    ...safeUpdates,
+    updated_at: now,
+  };
 
-    const updatedUserObj = StorageService.updateUser(id, cleanUpdates);
+  if (updates.national_id) cleanUpdates.national_id = updates.national_id;
+  if (updates.username) cleanUpdates.username = updates.username;
 
+  const updatedUserObj = StorageService.updateUser(id, cleanUpdates);
     if (updatedUserObj) {
       const sanitized = sanitizeUser(updatedUserObj);
 
