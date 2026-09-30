@@ -52,8 +52,9 @@ function setLocalItem<T>(key: string, value: T): void {
 
 export class StorageService {
   public static init() {
-    if (!localStorage.getItem(STORAGE_KEYS.USERS)) {
-      this.resetToSeedData();
+    const rawUsers = localStorage.getItem(STORAGE_KEYS.USERS);
+    if (!rawUsers || JSON.parse(rawUsers).length === 0) {
+      setLocalItem(STORAGE_KEYS.USERS, initialUsers);
     }
   }
 
@@ -147,7 +148,23 @@ public static getCurrentUser(): User | null {
     const users = this.getUsers();
     const idx = users.findIndex((u) => u.id === id);
     if (idx === -1) return null;
-    users[idx] = { ...users[idx], ...updates };
+
+    const perms = updates.teacher_permissions || updates.permissions;
+    const assignedSubs = Array.isArray(updates.assigned_subject_ids)
+      ? updates.assigned_subject_ids
+      : (updates.specialty_id ? [updates.specialty_id] : users[idx].assigned_subject_ids);
+    const assignedCls = Array.isArray(updates.assigned_class_ids)
+      ? updates.assigned_class_ids
+      : (updates.class_id ? [updates.class_id] : users[idx].assigned_class_ids);
+
+    users[idx] = {
+      ...users[idx],
+      ...updates,
+      ...(perms ? { teacher_permissions: perms, permissions: perms } : {}),
+      ...(assignedSubs ? { assigned_subject_ids: assignedSubs, specialty_id: assignedSubs[0] || null } : {}),
+      ...(assignedCls ? { assigned_class_ids: assignedCls, class_id: assignedCls[0] || null } : {}),
+      updated_at: new Date().toISOString(),
+    };
     setLocalItem(STORAGE_KEYS.USERS, users);
     return users[idx];
   }
@@ -606,7 +623,12 @@ public static getCurrentUser(): User | null {
 
   // --- TEACHER QUIZZES ---
   public static getQuizzesForTeacher(teacherId: string, includeDeleted = false): QuizWithDetails[] {
-    const quizzes = this.getQuizzes().filter((q) => q.teacher_id === teacherId && (includeDeleted ? true : !q.is_deleted));
+    const teacher = this.getUserById(teacherId);
+    const assignedSubs = teacher?.assigned_subject_ids || (teacher?.specialty_id ? [teacher.specialty_id] : []);
+    const quizzes = this.getQuizzes().filter((q) =>
+      (q.teacher_id === teacherId || q.created_by === teacherId || (assignedSubs.length > 0 && assignedSubs.includes(q.subject_id))) &&
+      (includeDeleted ? true : !q.is_deleted)
+    );
     return quizzes.map((q) => this.getQuizWithDetails(q.id)!);
   }
 
@@ -632,9 +654,14 @@ public static getCurrentUser(): User | null {
     if (requestingUser.role === 'student') {
       submissions = submissions.filter((s) => s.student_id === requestingUserId);
     } else if (requestingUser.role === 'teacher') {
-      const canViewAll = requestingUser.teacher_permissions?.can_view_all_reports;
+      const canViewAll = requestingUser.teacher_permissions?.can_view_all_reports || (requestingUser as any).permissions?.can_view_all_reports;
       if (!canViewAll) {
-        const teacherQuizzes = this.getQuizzes().filter((q) => q.teacher_id === requestingUserId);
+        const assignedSubs = requestingUser.assigned_subject_ids || (requestingUser.specialty_id ? [requestingUser.specialty_id] : []);
+        const teacherQuizzes = this.getQuizzes().filter((q) =>
+          q.teacher_id === requestingUserId ||
+          q.created_by === requestingUserId ||
+          (assignedSubs.length > 0 && assignedSubs.includes(q.subject_id))
+        );
         const teacherQuizIds = new Set(teacherQuizzes.map((q) => q.id));
         submissions = submissions.filter((s) => teacherQuizIds.has(s.quiz_id));
       }

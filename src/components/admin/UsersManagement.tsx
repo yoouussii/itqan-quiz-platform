@@ -96,21 +96,25 @@ export const UsersManagement: React.FC = () => {
     setClassId(u.class_id || classes[0]?.id || '');
     
     // استرجاع المواد المسندة أو المادة الرئيسية
-    const subIds = u.assigned_subject_ids && u.assigned_subject_ids.length > 0
+    const subIds = (u.assigned_subject_ids && u.assigned_subject_ids.length > 0)
       ? [...u.assigned_subject_ids]
       : (u.specialty_id ? [u.specialty_id] : []);
     setAssignedSubjectIds(subIds);
 
     // استرجاع الفصول المسندة
-    setAssignedClassIds(u.assigned_class_ids ? [...u.assigned_class_ids] : []);
+    const clsIds = (u.assigned_class_ids && u.assigned_class_ids.length > 0)
+      ? [...u.assigned_class_ids]
+      : (u.class_id ? [u.class_id] : []);
+    setAssignedClassIds(clsIds);
 
-    // استرجاع الصلاحيات مع القيم الافتراضية للقيم المفقودة
+    // استرجاع الصلاحيات بدقة مع فحص teacher_permissions و permissions معاً
+    const p = u.teacher_permissions || (u as any).permissions || {};
     setTeacherPermissions({
-      can_add_custom_subjects: !!u.teacher_permissions?.can_add_custom_subjects,
-      can_manage_classes: !!u.teacher_permissions?.can_manage_classes,
-      can_view_all_reports: !!u.teacher_permissions?.can_view_all_reports,
-      can_add_students: !!u.teacher_permissions?.can_add_students,
-      can_add_teachers: !!u.teacher_permissions?.can_add_teachers,
+      can_add_custom_subjects: !!p.can_add_custom_subjects,
+      can_manage_classes: !!p.can_manage_classes,
+      can_view_all_reports: !!p.can_view_all_reports,
+      can_add_students: !!p.can_add_students,
+      can_add_teachers: !!p.can_add_teachers,
     });
   };
 
@@ -133,7 +137,7 @@ export const UsersManagement: React.FC = () => {
     }));
   };
 
-  const handleCreate = (e: React.FormEvent) => {
+  const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
 
     const exists = users.some((u) => u.national_id === nationalId.trim());
@@ -142,47 +146,59 @@ export const UsersManagement: React.FC = () => {
       return;
     }
 
-    addUser({
-      name,
+    const permsObj: TeacherPermissions | undefined = role === 'teacher' ? {
+      can_add_custom_subjects: !!teacherPermissions.can_add_custom_subjects,
+      can_manage_classes: !!teacherPermissions.can_manage_classes,
+      can_view_all_reports: !!teacherPermissions.can_view_all_reports,
+      can_add_students: !!teacherPermissions.can_add_students,
+      can_add_teachers: !!teacherPermissions.can_add_teachers,
+    } : undefined;
+
+    await addUser({
+      name: name.trim(),
       national_id: nationalId.trim(),
       password,
       role,
       specialty_id: role === 'teacher' ? (assignedSubjectIds[0] || null) : null,
       assigned_subject_ids: role === 'teacher' ? [...assignedSubjectIds] : [],
-      assigned_class_ids: role === 'teacher' ? [...assignedClassIds] : [],
-      class_id: role === 'student' ? classId : null,
-      teacher_permissions: role === 'teacher' ? { ...teacherPermissions } : undefined,
+      assigned_class_ids: role === 'teacher' ? [...assignedClassIds] : (role === 'student' ? [classId] : []),
+      class_id: role === 'student' ? classId : (assignedClassIds[0] || null),
+      teacher_permissions: permsObj,
+      permissions: permsObj,
       created_by: currentUser?.id,
     });
     setShowAddModal(false);
   };
 
-  const handleUpdate = (e: React.FormEvent) => {
+  const handleUpdate = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!editingUser) return;
 
+    const permsObj: TeacherPermissions | undefined = role === 'teacher' ? {
+      can_add_custom_subjects: !!teacherPermissions.can_add_custom_subjects,
+      can_manage_classes: !!teacherPermissions.can_manage_classes,
+      can_view_all_reports: !!teacherPermissions.can_view_all_reports,
+      can_add_students: !!teacherPermissions.can_add_students,
+      can_add_teachers: !!teacherPermissions.can_add_teachers,
+    } : undefined;
+
     const updates: Partial<User> & { password?: string } = {
-      name,
+      name: name.trim(),
       national_id: nationalId.trim(),
       role,
-      specialty_id: role === 'teacher' ? (assignedSubjectIds[0] || null) : null, // مصلح: إضافة تحديث المادة الرئيسية
-      class_id: role === 'student' ? classId : null,
+      specialty_id: role === 'teacher' ? (assignedSubjectIds[0] || null) : null,
+      class_id: role === 'student' ? classId : (assignedClassIds[0] || null),
       assigned_subject_ids: role === 'teacher' ? [...assignedSubjectIds] : [],
-      assigned_class_ids: role === 'teacher' ? [...assignedClassIds] : [],
-      teacher_permissions: role === 'teacher' ? {
-        can_add_custom_subjects: !!teacherPermissions.can_add_custom_subjects,
-        can_manage_classes: !!teacherPermissions.can_manage_classes,
-        can_view_all_reports: !!teacherPermissions.can_view_all_reports,
-        can_add_students: !!teacherPermissions.can_add_students,
-        can_add_teachers: !!teacherPermissions.can_add_teachers,
-      } : undefined,
+      assigned_class_ids: role === 'teacher' ? [...assignedClassIds] : (role === 'student' ? [classId] : []),
+      teacher_permissions: permsObj,
+      permissions: permsObj,
     };
 
     if (password.trim()) {
       updates.password = password.trim();
     }
 
-    updateUserData(editingUser.id, updates);
+    await updateUserData(editingUser.id, updates);
     setEditingUser(null);
   };
 
@@ -279,11 +295,17 @@ export const UsersManagement: React.FC = () => {
             <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
               {filteredUsers.map((u) => {
                 const userClass = classes.find((c) => c.id === u.class_id);
-                const assignedSubs = (u.assigned_subject_ids || [])
+                const teacherSubIds = (u.assigned_subject_ids && u.assigned_subject_ids.length > 0)
+                  ? u.assigned_subject_ids
+                  : (u.specialty_id ? [u.specialty_id] : []);
+                const assignedSubs = teacherSubIds
                   .map((id) => subjects.find((s) => s.id === id)?.name)
                   .filter(Boolean);
 
-                const assignedCls = (u.assigned_class_ids || [])
+                const teacherClsIds = (u.assigned_class_ids && u.assigned_class_ids.length > 0)
+                  ? u.assigned_class_ids
+                  : (u.class_id ? [u.class_id] : []);
+                const assignedCls = teacherClsIds
                   .map((id) => classes.find((c) => c.id === id)?.name)
                   .filter(Boolean);
 
@@ -385,35 +407,40 @@ export const UsersManagement: React.FC = () => {
                     </td>
 
                     <td className="py-3.5 px-4 text-xs">
-                      {u.role === 'teacher' && u.teacher_permissions ? (
-                        <div className="flex flex-wrap gap-1 text-[10px]">
-                          {u.teacher_permissions.can_add_students && (
-                            <span className="bg-emerald-50 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300 px-1.5 py-0.5 rounded">
-                              إضافة طلاب ✓
-                            </span>
-                          )}
-                          {u.teacher_permissions.can_add_teachers && (
-                            <span className="bg-indigo-50 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-300 px-1.5 py-0.5 rounded">
-                              إضافة معلمين ✓
-                            </span>
-                          )}
-                          {u.teacher_permissions.can_add_custom_subjects && (
-                            <span className="bg-teal-50 dark:bg-teal-950 text-teal-700 dark:text-teal-300 px-1.5 py-0.5 rounded">
-                              إضافة مواد ✓
-                            </span>
-                          )}
-                          {u.teacher_permissions.can_manage_classes && (
-                            <span className="bg-blue-50 dark:bg-blue-950 text-blue-700 dark:text-blue-300 px-1.5 py-0.5 rounded">
-                              إدارة شعب ✓
-                            </span>
-                          )}
-                          {u.teacher_permissions.can_view_all_reports && (
-                            <span className="bg-purple-50 dark:bg-purple-950 text-purple-700 dark:text-purple-300 px-1.5 py-0.5 rounded">
-                              تقارير عامة ✓
-                            </span>
-                          )}
-                        </div>
-                      ) : (
+                      {u.role === 'teacher' ? (() => {
+                        const perms = u.teacher_permissions || (u as any).permissions || {};
+                        const hasAny = Object.values(perms).some(Boolean);
+                        if (!hasAny) return <span className="text-slate-400">صلاحيات أساسية</span>;
+                        return (
+                          <div className="flex flex-wrap gap-1 text-[10px]">
+                            {perms.can_add_students && (
+                              <span className="bg-emerald-50 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300 px-1.5 py-0.5 rounded">
+                                إضافة طلاب ✓
+                              </span>
+                            )}
+                            {perms.can_add_teachers && (
+                              <span className="bg-indigo-50 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-300 px-1.5 py-0.5 rounded">
+                                إضافة معلمين ✓
+                              </span>
+                            )}
+                            {perms.can_add_custom_subjects && (
+                              <span className="bg-teal-50 dark:bg-teal-950 text-teal-700 dark:text-teal-300 px-1.5 py-0.5 rounded">
+                                إضافة مواد ✓
+                              </span>
+                            )}
+                            {perms.can_manage_classes && (
+                              <span className="bg-blue-50 dark:bg-blue-950 text-blue-700 dark:text-blue-300 px-1.5 py-0.5 rounded">
+                                إدارة شعب ✓
+                              </span>
+                            )}
+                            {perms.can_view_all_reports && (
+                              <span className="bg-purple-50 dark:bg-purple-950 text-purple-700 dark:text-purple-300 px-1.5 py-0.5 rounded">
+                                تقارير عامة ✓
+                              </span>
+                            )}
+                          </div>
+                        );
+                      })() : (
                         <span className="text-slate-400">—</span>
                       )}
                     </td>

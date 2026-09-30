@@ -56,17 +56,31 @@ export const QuizEditor: React.FC = () => {
   const isEditing = Boolean(editingQuizId);
   const students = users.filter((u) => u.role === 'student');
 
+  const teacherClassIds = currentUser?.assigned_class_ids && currentUser.assigned_class_ids.length > 0
+    ? currentUser.assigned_class_ids
+    : (currentUser?.class_id ? [currentUser.class_id] : []);
+
   // فلترة الفصول لتُعرض فقط الفصول المخصصة للمعلم (أو كل الفصول إذا كان أدمن)
   const availableClasses =
     currentUser?.role === 'admin'
       ? classes
-      : classes.filter((c) => currentUser?.assigned_class_ids?.includes(c.id));
+      : (teacherClassIds.length > 0 ? classes.filter((c) => teacherClassIds.includes(c.id)) : classes);
+
+  // فلترة المواد لتُعرض فقط المواد المخصصة للمعلم (أو كل المواد إذا كان أدمن)
+  const teacherSubIds = currentUser?.assigned_subject_ids && currentUser.assigned_subject_ids.length > 0
+    ? currentUser.assigned_subject_ids
+    : (currentUser?.specialty_id ? [currentUser.specialty_id] : []);
+
+  const availableSubjects =
+    currentUser?.role === 'admin'
+      ? subjects
+      : (teacherSubIds.length > 0 ? subjects.filter((s) => teacherSubIds.includes(s.id)) : subjects);
 
   // Form State
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [subjectId, setSubjectId] = useState(
-    currentUser?.specialty_id || subjects[0]?.id || ''
+    teacherSubIds[0] || subjects[0]?.id || ''
   );
   const [durationMinutes, setDurationMinutes] = useState(25);
   const [passPercentage, setPassPercentage] = useState(60);
@@ -525,7 +539,7 @@ export const QuizEditor: React.FC = () => {
                 onChange={(e) => setSubjectId(e.target.value)}
                 className="w-full px-4 py-2.5 text-xs rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
               >
-                {subjects.map((s) => (
+                {availableSubjects.map((s) => (
                   <option key={s.id} value={s.id}>
                     {s.name} ({s.code})
                   </option>

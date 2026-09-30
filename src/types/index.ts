@@ -6,6 +6,7 @@ export interface TeacherPermissions {
   can_view_all_reports?: boolean;
   can_add_students?: boolean;
   can_add_teachers?: boolean;
+  [key: string]: boolean | undefined;
 }
 
 export interface User {
@@ -15,6 +16,7 @@ export interface User {
   role: 'admin' | 'teacher' | 'student';
   password?: string;
   created_at?: string;
+  updated_at?: string;
   created_by?: string | null;      // 👈 تم إضافتها لإنهاء خطأ TS2551
   email?: string | null;           // 👈 تم إضافتها لإنهاء خطأ TS2339
 
@@ -24,23 +26,8 @@ export interface User {
   assigned_subject_ids?: string[];
   assigned_class_ids?: string[];
 
-  teacher_permissions?: {
-    can_add_students?: boolean;
-    can_add_teachers?: boolean;
-    can_add_custom_subjects?: boolean;
-    can_manage_classes?: boolean;
-    can_view_all_reports?: boolean;
-    [key: string]: boolean | undefined;
-  };
-
-  permissions?: {
-    can_add_students?: boolean;
-    can_add_teachers?: boolean;
-    can_add_custom_subjects?: boolean;
-    can_manage_classes?: boolean;
-    can_view_all_reports?: boolean;
-    [key: string]: boolean | undefined;
-  };
+  teacher_permissions?: TeacherPermissions;
+  permissions?: TeacherPermissions;
 }
 export interface Subject {
   id: string;

@@ -60,16 +60,33 @@ export const TeacherDashboard: React.FC = () => {
   const [remedialTierFilter, setRemedialTierFilter] = useState<'all' | 'high' | 'medium' | 'low'>('all');
 
   // 1. تحديد مواد وفصول المعلم (يدعم المواد المتعددة والتخصص)
-  const assignedSubjectIds = currentUser?.assigned_subject_ids || (currentUser?.specialty_id ? [currentUser.specialty_id] : []);
-  const teacherSubjects = subjects.filter((s) => assignedSubjectIds.includes(s.id));
+  const assignedSubjectIds = useMemo(() => {
+    if (currentUser?.assigned_subject_ids && currentUser.assigned_subject_ids.length > 0) {
+      return currentUser.assigned_subject_ids;
+    }
+    return currentUser?.specialty_id ? [currentUser.specialty_id] : [];
+  }, [currentUser?.assigned_subject_ids, currentUser?.specialty_id]);
+
+  const teacherSubjects = useMemo(() => {
+    return subjects.filter((s) => assignedSubjectIds.includes(s.id));
+  }, [subjects, assignedSubjectIds]);
   
-  const assignedClassIds = currentUser?.assigned_class_ids || [];
-  const teacherClasses = classes.filter((c) => assignedClassIds.includes(c.id));
+  const assignedClassIds = useMemo(() => {
+    if (currentUser?.assigned_class_ids && currentUser.assigned_class_ids.length > 0) {
+      return currentUser.assigned_class_ids;
+    }
+    return currentUser?.class_id ? [currentUser.class_id] : [];
+  }, [currentUser?.assigned_class_ids, currentUser?.class_id]);
+
+  const teacherClasses = useMemo(() => {
+    return classes.filter((c) => assignedClassIds.includes(c.id));
+  }, [classes, assignedClassIds]);
 
   // 2. إرجاع جميع اختبارات المعلم (التي أنشأها أو المخصصة لمواده/فصوله)
   const teacherQuizzes = useMemo(() => {
     return quizzes.filter(
       (q) =>
+        q.teacher_id === currentUser?.id ||
         q.created_by === currentUser?.id ||
         q.created_by === currentUser?.national_id ||
         assignedSubjectIds.includes(q.subject_id)
@@ -83,7 +100,7 @@ export const TeacherDashboard: React.FC = () => {
   );
 
   // 3. التحقق من كافة الصلاحيات الممنوحة للمعلم
-  const permissions = currentUser?.teacher_permissions || {};
+  const permissions = currentUser?.teacher_permissions || (currentUser as any)?.permissions || {};
 
   // Per-Quiz Filtered Analytics
   const activeQuizAnalytics = useMemo(() => {

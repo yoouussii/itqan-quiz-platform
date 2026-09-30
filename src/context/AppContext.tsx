@@ -11,7 +11,7 @@ import {
   SubmissionWithDetails,
 } from '../types';
 import { StorageService } from '../services/storage';
-import { supabase } from '../services/supabase';
+import { supabase, isSupabaseConfigured } from '../services/supabase';
 
 // ==========================================
 // البيانات الافتراضية للنظام
@@ -93,13 +93,39 @@ interface AppContextType {
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
 
-// دالة مساعدة لدمج كائن المستخدم والتأكد من القيم الأمنية
+// دالة مساعدة لدمج كائن المستخدم والتأكد من توافق وتكامل الصلاحيات والمواد والفصول
 const sanitizeUser = (user: User): User => {
-  const perms = user.teacher_permissions || (user as any).permissions || {};
+  const rawPerms = user.teacher_permissions || (user as any).permissions || {};
+  const perms = {
+    can_add_custom_subjects: !!rawPerms.can_add_custom_subjects,
+    can_manage_classes: !!rawPerms.can_manage_classes,
+    can_view_all_reports: !!rawPerms.can_view_all_reports,
+    can_add_students: !!rawPerms.can_add_students,
+    can_add_teachers: !!rawPerms.can_add_teachers,
+  };
+
+  // مواءمة المواد المسندة مع التخصص الأساسي
+  let assignedSubs: string[] = [];
+  if (Array.isArray(user.assigned_subject_ids) && user.assigned_subject_ids.length > 0) {
+    assignedSubs = [...user.assigned_subject_ids];
+  } else if (user.specialty_id) {
+    assignedSubs = [user.specialty_id];
+  }
+
+  // مواءمة الفصول والشعب المسندة مع الشعبة الأساسية
+  let assignedCls: string[] = [];
+  if (Array.isArray(user.assigned_class_ids) && user.assigned_class_ids.length > 0) {
+    assignedCls = [...user.assigned_class_ids];
+  } else if (user.class_id) {
+    assignedCls = [user.class_id];
+  }
+
   return {
     ...user,
-    assigned_class_ids: Array.isArray(user.assigned_class_ids) ? user.assigned_class_ids : [],
-    assigned_subject_ids: Array.isArray(user.assigned_subject_ids) ? user.assigned_subject_ids : [],
+    specialty_id: user.specialty_id || assignedSubs[0] || null,
+    class_id: user.class_id || assignedCls[0] || null,
+    assigned_subject_ids: assignedSubs,
+    assigned_class_ids: assignedCls,
     teacher_permissions: perms,
     permissions: perms,
   };
@@ -191,68 +217,108 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   );
 
   const refreshData = useCallback(async () => {
-    const localUsers = StorageService.getUsers();
+    const localUsers = StorageService.getUsers().map(sanitizeUser);
 
-    try {
-      const { data: dbUsers, error } = await supabase.from('users').select('*');
-      if (!error && dbUsers && dbUsers.length > 0) {
-        const mergedUsers = dbUsers.map((dbU: any) => {
-          const localU = localUsers.find((l) => l.id === dbU.id);
+    if (isSupabaseConfigured()) {
+      try {
+        const { data: dbUsers, error } = await supabase.from('users').select('*');
+        if (!error && Array.isArray(dbUsers) && dbUsers.length > 0) {
+          const mergedUsers = localUsers.map((localU) => {
+            const dbU = dbUsers.find((d: any) => d.id === localU.id || d.national_id === localU.national_id);
+            if (!dbU) return localU;
 
-          const localPerms = localU?.permissions || localU?.teacher_permissions || {};
-          const dbPerms = dbU.permissions && Object.keys(dbU.permissions).length > 0
-            ? dbU.permissions
-            : (dbU.teacher_permissions && Object.keys(dbU.teacher_permissions).length > 0 ? dbU.teacher_permissions : localPerms);
+            const localUpdated = localU.updated_at ? new Date(localU.updated_at).getTime() : 0;
+            const dbUpdated = dbU.updated_at ? new Date(dbU.updated_at).getTime() : 0;
 
-          const dbSubjects = Array.isArray(dbU.assigned_subject_ids) && dbU.assigned_subject_ids.length > 0
-            ? dbU.assigned_subject_ids
-            : (localU?.assigned_subject_ids || []);
+            // إذا كان التعديل المحلي أحدث زمنياً، نحافظ على التعديل المحلي
+            if (localUpdated > dbUpdated && localUpdated > 0) {
+              return sanitizeUser({
+                ...dbU,
+                ...localU,
+              });
+            }
 
-          const dbClasses = Array.isArray(dbU.assigned_class_ids) && dbU.assigned_class_ids.length > 0
-            ? dbU.assigned_class_ids
-            : (localU?.assigned_class_ids || []);
+            // دمج الصلاحيات بأمان: عدم السماح لمصفوفة أو كائن فارغ من السيرفر بإلغاء صلاحيات ممنوحة
+            const localPerms = localU.teacher_permissions || localU.permissions || {};
+            const dbPerms = dbU.teacher_permissions || dbU.permissions || {};
+            const mergedPerms = {
+              can_add_custom_subjects: dbPerms.can_add_custom_subjects ?? localPerms.can_add_custom_subjects ?? false,
+              can_manage_classes: dbPerms.can_manage_classes ?? localPerms.can_manage_classes ?? false,
+              can_view_all_reports: dbPerms.can_view_all_reports ?? localPerms.can_view_all_reports ?? false,
+              can_add_students: dbPerms.can_add_students ?? localPerms.can_add_students ?? false,
+              can_add_teachers: dbPerms.can_add_teachers ?? localPerms.can_add_teachers ?? false,
+            };
 
-          return sanitizeUser({
-            ...localU,
-            ...dbU,
-            assigned_subject_ids: dbSubjects,
-            assigned_class_ids: dbClasses,
-            permissions: dbPerms,
-            teacher_permissions: dbPerms,
+            // دمج المواد المسندة
+            let mergedSubs = (Array.isArray(dbU.assigned_subject_ids) && dbU.assigned_subject_ids.length > 0)
+              ? dbU.assigned_subject_ids
+              : (localU.assigned_subject_ids || []);
+            if (mergedSubs.length === 0 && (dbU.specialty_id || localU.specialty_id)) {
+              mergedSubs = [dbU.specialty_id || localU.specialty_id];
+            }
+
+            // دمج الفصول والشعب المسندة
+            let mergedCls = (Array.isArray(dbU.assigned_class_ids) && dbU.assigned_class_ids.length > 0)
+              ? dbU.assigned_class_ids
+              : (localU.assigned_class_ids || []);
+            if (mergedCls.length === 0 && (dbU.class_id || localU.class_id)) {
+              mergedCls = [dbU.class_id || localU.class_id];
+            }
+
+            return sanitizeUser({
+              ...localU,
+              ...dbU,
+              specialty_id: dbU.specialty_id || localU.specialty_id || mergedSubs[0] || null,
+              class_id: dbU.class_id || localU.class_id || mergedCls[0] || null,
+              assigned_subject_ids: mergedSubs,
+              assigned_class_ids: mergedCls,
+              permissions: mergedPerms,
+              teacher_permissions: mergedPerms,
+            });
           });
-        });
 
-        localStorage.setItem('itqan_users_v2', JSON.stringify(mergedUsers));
+          // إضافة أي مستخدمين جدد من السيرفر
+          for (const dbU of dbUsers) {
+            if (!mergedUsers.some((m) => m.id === dbU.id || m.national_id === dbU.national_id)) {
+              mergedUsers.push(sanitizeUser(dbU));
+            }
+          }
+
+          localStorage.setItem('itqan_users_v2', JSON.stringify(mergedUsers));
+        }
+      } catch (err) {
+        console.warn('Supabase sync skipped/failed:', err);
       }
-    } catch (err) {
-      console.error('Supabase sync error:', err);
     }
 
     const updatedUsers = StorageService.getUsers().map(sanitizeUser);
     const loadedSubjects = StorageService.getSubjects();
     const loadedClasses = StorageService.getClasses();
-    const updatedUser = StorageService.getCurrentUser();
+    const currentUserId = StorageService.getCurrentUserId();
 
     setUsers(updatedUsers);
     setSubjects(loadedSubjects && loadedSubjects.length > 0 ? loadedSubjects : INITIAL_SUBJECTS);
     setClasses(loadedClasses && loadedClasses.length > 0 ? loadedClasses : INITIAL_CLASSES);
 
-    if (updatedUser) {
-      const safeUser = sanitizeUser(updatedUser);
-      setCurrentUser(safeUser);
+    if (currentUserId) {
+      const updatedUser = updatedUsers.find((u) => u.id === currentUserId);
+      if (updatedUser) {
+        const safeUser = sanitizeUser(updatedUser);
+        setCurrentUser(safeUser);
 
-      if (safeUser.role === 'admin') {
-        setQuizzes(StorageService.getAllQuizzesWithDetails());
-        setKpis(StorageService.getDynamicKPIs());
-      } else if (safeUser.role === 'teacher') {
-        setQuizzes(StorageService.getQuizzesForTeacher(safeUser.id));
-        setKpis(StorageService.getDynamicKPIs(safeUser.id));
-      } else if (safeUser.role === 'student') {
-        setQuizzes(StorageService.getQuizzesForStudent(safeUser.id));
-        setKpis(StorageService.getDynamicKPIs());
+        if (safeUser.role === 'admin') {
+          setQuizzes(StorageService.getAllQuizzesWithDetails());
+          setKpis(StorageService.getDynamicKPIs());
+        } else if (safeUser.role === 'teacher') {
+          setQuizzes(StorageService.getQuizzesForTeacher(safeUser.id));
+          setKpis(StorageService.getDynamicKPIs(safeUser.id));
+        } else if (safeUser.role === 'student') {
+          setQuizzes(StorageService.getQuizzesForStudent(safeUser.id));
+          setKpis(StorageService.getDynamicKPIs());
+        }
+
+        setSubmissions(StorageService.getAccessibleSubmissionsWithDetails(safeUser.id));
       }
-
-      setSubmissions(StorageService.getAccessibleSubmissionsWithDetails(safeUser.id));
     }
   }, []);
 
@@ -270,36 +336,53 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     showToast(`تم التبديل إلى: ${user?.name}`, 'info');
   };
 
-  const login = async (nationalId: string, password?: string) => {
-    try {
-      const { data: user, error } = await supabase
-        .from('users')
-        .select('*')
-        .eq('national_id', nationalId)
-        .eq('password', password)
-        .single();
+  const login = async (nationalId: string, password?: string): Promise<boolean> => {
+    const trimmedId = nationalId.trim();
 
-      if (user && !error) {
-        const existingUsers = StorageService.getUsers();
-        const userIndex = existingUsers.findIndex(
-          (u) => u.id === user.id || u.national_id === user.national_id
-        );
+    // 1. التحقق من Supabase إذا كان معداً
+    if (isSupabaseConfigured()) {
+      try {
+        const { data: user, error } = await supabase
+          .from('users')
+          .select('*')
+          .eq('national_id', trimmedId)
+          .eq('password', password)
+          .maybeSingle();
 
-        const safeU = sanitizeUser(user);
-        if (userIndex >= 0) {
-          existingUsers[userIndex] = { ...existingUsers[userIndex], ...safeU };
-        } else {
-          existingUsers.push(safeU);
+        if (user && !error) {
+          const existingUsers = StorageService.getUsers();
+          const userIndex = existingUsers.findIndex(
+            (u) => u.id === user.id || u.national_id === user.national_id
+          );
+
+          const safeU = sanitizeUser(user);
+          if (userIndex >= 0) {
+            existingUsers[userIndex] = { ...existingUsers[userIndex], ...safeU };
+          } else {
+            existingUsers.push(safeU);
+          }
+          localStorage.setItem('itqan_users_v2', JSON.stringify(existingUsers));
+
+          StorageService.setCurrentUserId(user.id);
+          setCurrentUser(safeU);
+          setCurrentView('dashboard');
+          showToast(`مرحباً بك يا ${safeU.name}`, 'success');
+          return true;
         }
-        localStorage.setItem('itqan_users_v2', JSON.stringify(existingUsers));
-
-        StorageService.setCurrentUserId(user.id);
-        setCurrentUser(safeU);
-        setCurrentView('dashboard');
-        return true;
+      } catch (err) {
+        console.warn('Supabase login check failed, falling back to local:', err);
       }
-    } catch (err) {
-      console.error('Login error:', err);
+    }
+
+    // 2. التحقق من التخزين المحلي الآمن
+    const localUser = StorageService.authenticate(trimmedId, password);
+    if (localUser) {
+      const safeU = sanitizeUser(localUser);
+      StorageService.setCurrentUserId(safeU.id);
+      setCurrentUser(safeU);
+      setCurrentView('dashboard');
+      showToast(`مرحباً بك يا ${safeU.name}`, 'success');
+      return true;
     }
 
     showToast('رقم الهوية / الرقم الأكاديمي أو كلمة المرور غير صحيحة', 'error');
@@ -436,24 +519,49 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const addUser = async (userData: Omit<User, 'id' | 'created_at'>) => {
-    const newUser = StorageService.createUser(userData);
+    const perms = userData.teacher_permissions || userData.permissions;
+    const assignedSubs = Array.isArray(userData.assigned_subject_ids)
+      ? userData.assigned_subject_ids
+      : (userData.specialty_id ? [userData.specialty_id] : []);
+    const assignedCls = Array.isArray(userData.assigned_class_ids)
+      ? userData.assigned_class_ids
+      : (userData.class_id ? [userData.class_id] : []);
 
-    try {
-      await supabase.from('users').insert([
-        {
-          id: newUser.id,
-          national_id: newUser.national_id,
-          name: newUser.name,
-          role: newUser.role,
-          password: newUser.password || '123456',
-          assigned_subject_ids: newUser.assigned_subject_ids || [],
-          assigned_class_ids: newUser.assigned_class_ids || [],
-          permissions: newUser.permissions || newUser.teacher_permissions || {},
-          teacher_permissions: newUser.teacher_permissions || newUser.permissions || {},
-        },
-      ]);
-    } catch (err) {
-      console.error('Error syncing user to Supabase:', err);
+    const now = new Date().toISOString();
+    const safeUserData = {
+      ...userData,
+      specialty_id: userData.specialty_id || assignedSubs[0] || null,
+      class_id: userData.class_id || assignedCls[0] || null,
+      assigned_subject_ids: assignedSubs,
+      assigned_class_ids: assignedCls,
+      teacher_permissions: perms,
+      permissions: perms,
+      updated_at: now,
+    };
+
+    const newUser = StorageService.createUser(safeUserData);
+
+    if (isSupabaseConfigured()) {
+      try {
+        await supabase.from('users').insert([
+          {
+            id: newUser.id,
+            national_id: newUser.national_id,
+            name: newUser.name,
+            role: newUser.role,
+            password: newUser.password || '123456',
+            specialty_id: newUser.specialty_id,
+            class_id: newUser.class_id,
+            assigned_subject_ids: newUser.assigned_subject_ids || [],
+            assigned_class_ids: newUser.assigned_class_ids || [],
+            permissions: newUser.permissions || {},
+            teacher_permissions: newUser.teacher_permissions || {},
+            updated_at: now,
+          },
+        ]);
+      } catch (err) {
+        console.warn('Error syncing user to Supabase:', err);
+      }
     }
 
     refreshData();
@@ -461,53 +569,107 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return newUser;
   };
 
-  // دالة تحديث بيانات المستخدم المصلحة بالكامل
+  // دالة تحديث بيانات المستخدم المصلحة بالكامل مع الحفاظ التام على الصلاحيات والمواد
   const updateUserData = async (id: string, updates: Partial<User>): Promise<void> => {
     try {
       const perms = updates.teacher_permissions || updates.permissions;
+      const assignedSubs = Array.isArray(updates.assigned_subject_ids)
+        ? updates.assigned_subject_ids
+        : (updates.specialty_id ? [updates.specialty_id] : undefined);
+      const assignedCls = Array.isArray(updates.assigned_class_ids)
+        ? updates.assigned_class_ids
+        : (updates.class_id ? [updates.class_id] : undefined);
+
+      const now = new Date().toISOString();
       const safeUpdates: Partial<User> = {
         ...updates,
         ...(perms ? { teacher_permissions: perms, permissions: perms } : {}),
+        ...(assignedSubs !== undefined ? { assigned_subject_ids: assignedSubs, specialty_id: assignedSubs[0] || null } : {}),
+        ...(assignedCls !== undefined ? { assigned_class_ids: assignedCls, class_id: assignedCls[0] || null } : {}),
+        updated_at: now,
       };
 
-      // 1. تحديث التخزين المحلي فوراً بمفتاح v2
-      const existingUsers = StorageService.getUsers();
-      const updatedUsers = existingUsers.map((u) =>
-        u.id === id ? sanitizeUser({ ...u, ...safeUpdates }) : u
-      );
-      localStorage.setItem('itqan_users_v2', JSON.stringify(updatedUsers));
+      // 1. تحديث التخزين المحلي فوراً
+      StorageService.updateUser(id, safeUpdates);
 
-      // 2. مزامنة التحديث مع Supabase
-      try {
-        const dbPayload: any = { ...safeUpdates };
-        delete dbPayload.id;
-        await supabase.from('users').update(dbPayload).eq('id', id);
-      } catch (dbErr) {
-        console.error('Error updating user in Supabase:', dbErr);
+      // 2. تحديث الحالة في React فوراً دون انتظار أي ردود شبكية
+      setUsers((prevUsers) =>
+        prevUsers.map((u) => (u.id === id ? sanitizeUser({ ...u, ...safeUpdates }) : u))
+      );
+
+      if (currentUser?.id === id) {
+        const updatedSelf = sanitizeUser({ ...currentUser, ...safeUpdates });
+        setCurrentUser(updatedSelf);
       }
 
-      // 3. إعادة تنشيط الحالة العامة للتطبيق
+      // 3. مزامنة التحديث مع Supabase إن وُجد وبطريقة تضمن عدم الفشل
+      if (isSupabaseConfigured()) {
+        try {
+          const dbPayload: any = {
+            name: safeUpdates.name,
+            national_id: safeUpdates.national_id,
+            role: safeUpdates.role,
+            specialty_id: safeUpdates.specialty_id,
+            class_id: safeUpdates.class_id,
+            assigned_subject_ids: safeUpdates.assigned_subject_ids,
+            assigned_class_ids: safeUpdates.assigned_class_ids,
+            permissions: safeUpdates.permissions,
+            teacher_permissions: safeUpdates.teacher_permissions,
+            updated_at: now,
+          };
+          if (safeUpdates.password) {
+            dbPayload.password = safeUpdates.password;
+          }
+          Object.keys(dbPayload).forEach((k) => dbPayload[k] === undefined && delete dbPayload[k]);
+
+          const { error } = await supabase.from('users').update(dbPayload).eq('id', id);
+          if (error) {
+            console.warn('Supabase full update failed, retrying minimal fields:', error.message);
+            const fallbackPayload: any = {
+              name: safeUpdates.name,
+              national_id: safeUpdates.national_id,
+              role: safeUpdates.role,
+              specialty_id: safeUpdates.specialty_id,
+              class_id: safeUpdates.class_id,
+            };
+            if (safeUpdates.password) fallbackPayload.password = safeUpdates.password;
+            Object.keys(fallbackPayload).forEach((k) => fallbackPayload[k] === undefined && delete fallbackPayload[k]);
+            await supabase.from('users').update(fallbackPayload).eq('id', id);
+          }
+        } catch (dbErr) {
+          console.warn('Error updating user in Supabase:', dbErr);
+        }
+      }
+
+      // 4. إعادة تنشيط الحالة العامة للتطبيق
       refreshData();
-      showToast('تم حفظ تعديلات المستخدم والصلاحيات بنجاح', 'success');
+      showToast('تم حفظ تعديلات المستخدم والصلاحيات والمواد بنجاح', 'success');
     } catch (error) {
       console.error('Error updating user data:', error);
       showToast('حدث خطأ أثناء حفظ التعديلات', 'error');
     }
   };
 
-  // دالة إعادة تعيين كلمة المرور المضافة
+  // دالة إعادة تعيين كلمة المرور
   const resetUserPassword = async (id: string, newPass: string): Promise<boolean> => {
     try {
-      const existingUsers = StorageService.getUsers();
-      const updatedUsers = existingUsers.map((u) =>
-        u.id === id ? { ...u, password: newPass } : u
-      );
-      localStorage.setItem('itqan_users_v2', JSON.stringify(updatedUsers));
+      const now = new Date().toISOString();
+      StorageService.updateUser(id, { password: newPass, updated_at: now });
 
-      try {
-        await supabase.from('users').update({ password: newPass }).eq('id', id);
-      } catch (dbErr) {
-        console.error('Error updating password in Supabase:', dbErr);
+      setUsers((prevUsers) =>
+        prevUsers.map((u) => (u.id === id ? { ...u, password: newPass, updated_at: now } : u))
+      );
+
+      if (currentUser?.id === id) {
+        setCurrentUser((prev) => (prev ? { ...prev, password: newPass, updated_at: now } : null));
+      }
+
+      if (isSupabaseConfigured()) {
+        try {
+          await supabase.from('users').update({ password: newPass, updated_at: now }).eq('id', id);
+        } catch (dbErr) {
+          console.warn('Error updating password in Supabase:', dbErr);
+        }
       }
 
       refreshData();
@@ -523,10 +685,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const deleteUserItem = async (id: string) => {
     StorageService.deleteUser(id);
 
-    try {
-      await supabase.from('users').delete().eq('id', id);
-    } catch (err) {
-      console.error('Error deleting user from Supabase:', err);
+    if (isSupabaseConfigured()) {
+      try {
+        await supabase.from('users').delete().eq('id', id);
+      } catch (err) {
+        console.warn('Error deleting user from Supabase:', err);
+      }
     }
 
     refreshData();

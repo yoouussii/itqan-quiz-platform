@@ -46,11 +46,13 @@ export const SubjectsClassesManagement: React.FC = () => {
   // Check permissions
   const canManageSubjects =
     currentUser?.role === 'admin' ||
-    !!currentUser?.teacher_permissions?.can_add_custom_subjects;
+    !!currentUser?.teacher_permissions?.can_add_custom_subjects ||
+    !!(currentUser as any)?.permissions?.can_add_custom_subjects;
 
   const canManageClasses =
     currentUser?.role === 'admin' ||
-    !!currentUser?.teacher_permissions?.can_manage_classes;
+    !!currentUser?.teacher_permissions?.can_manage_classes ||
+    !!(currentUser as any)?.permissions?.can_manage_classes;
 
   // Handlers for Subjects
   const handleOpenAddSubject = () => {
