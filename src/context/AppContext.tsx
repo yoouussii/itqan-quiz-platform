@@ -197,22 +197,30 @@ const refreshData = useCallback(async () => {
     setSubjects(loadedSubjects && loadedSubjects.length > 0 ? loadedSubjects : INITIAL_SUBJECTS);
     setClasses(loadedClasses && loadedClasses.length > 0 ? loadedClasses : INITIAL_CLASSES);
 
-    if (updatedUser) {
-      setCurrentUser(updatedUser);
-      if (updatedUser.role === 'admin') {
-        setQuizzes(StorageService.getAllQuizzesWithDetails());
-        setKpis(StorageService.getDynamicKPIs());
-      } else if (updatedUser.role === 'teacher') {
-        setQuizzes(StorageService.getQuizzesForTeacher(updatedUser.id));
-        setKpis(StorageService.getDynamicKPIs(updatedUser.id));
-      } else if (updatedUser.role === 'student') {
-        setQuizzes(StorageService.getQuizzesForStudent(updatedUser.id));
-        setKpis(StorageService.getDynamicKPIs());
-      }
-      setSubmissions(StorageService.getAccessibleSubmissionsWithDetails(updatedUser.id));
-    }
-  }, []);
+   if (updatedUser) {
+  const safeUser: User = {
+    ...updatedUser,
+    assigned_class_ids: updatedUser.assigned_class_ids || [],
+    assigned_subject_ids: updatedUser.assigned_subject_ids || [],
+    teacher_permissions: updatedUser.teacher_permissions || (updatedUser as any).permissions || {},
+    permissions: (updatedUser as any).permissions || updatedUser.teacher_permissions || {},
+  };
 
+  setCurrentUser(safeUser);
+
+  if (safeUser.role === 'admin') {
+    setQuizzes(StorageService.getAllQuizzesWithDetails());
+    setKpis(StorageService.getDynamicKPIs());
+  } else if (safeUser.role === 'teacher') {
+    setQuizzes(StorageService.getQuizzesForTeacher(safeUser.id));
+    setKpis(StorageService.getDynamicKPIs(safeUser.id));
+  } else if (safeUser.role === 'student') {
+    setQuizzes(StorageService.getQuizzesForStudent(safeUser.id));
+    setKpis(StorageService.getDynamicKPIs());
+  }
+
+  setSubmissions(StorageService.getAccessibleSubmissionsWithDetails(safeUser.id));
+}
   useEffect(() => {
     refreshData();
   }, [currentUser?.id, currentUser?.role, refreshData]);
