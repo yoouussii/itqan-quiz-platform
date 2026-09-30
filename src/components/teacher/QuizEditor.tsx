@@ -15,6 +15,8 @@ import {
 import { TargetType, Question, QuizAssignment } from '../../types';
 import { useApp } from '../../context/AppContext';
 
+export type QuestionType = 'mcq' | 'true_false' | 'essay';
+
 export const QuizEditor: React.FC = () => {
   const {
     currentUser,
@@ -31,6 +33,12 @@ export const QuizEditor: React.FC = () => {
 
   const isEditing = Boolean(editingQuizId);
   const students = users.filter((u) => u.role === 'student');
+
+  // فلترة الفصول لتُعرض فقط الفصول المخصصة للمعلم (أو كل الفصول إذا كان أدمن)
+  const availableClasses =
+    currentUser?.role === 'admin'
+      ? classes
+      : classes.filter((c) => currentUser?.assigned_class_ids?.includes(c.id));
 
   // Form State
   const [title, setTitle] = useState('');
@@ -50,13 +58,14 @@ export const QuizEditor: React.FC = () => {
 
   // Target assignment
   const [targetType, setTargetType] = useState<TargetType>('class');
-  const [targetClassId, setTargetClassId] = useState(classes[0]?.id || '');
+  const [targetClassId, setTargetClassId] = useState(availableClasses[0]?.id || '');
   const [selectedStudentIds, setSelectedStudentIds] = useState<string[]>([]);
 
   // Questions
   const [questions, setQuestions] = useState<
     Array<{
       id?: string;
+      type: QuestionType;
       question_text: string;
       options: string[];
       correct_option_index: number;
@@ -65,6 +74,7 @@ export const QuizEditor: React.FC = () => {
     }>
   >([
     {
+      type: 'mcq',
       question_text: 'ما هي الخاصية المميزة للمعادلات الخطية في الرسم البياني؟',
       options: [
         'تُمثل بخط مستقيم دائماً',
@@ -77,6 +87,7 @@ export const QuizEditor: React.FC = () => {
       explanation: 'المعادلات من الدرجة الأولى (الخطية) تظهر على المستوى الإحداثي كخط مستقيم ذي ميل ثابت.',
     },
     {
+      type: 'mcq',
       question_text: '',
       options: ['', '', '', ''],
       correct_option_index: 0,
@@ -104,6 +115,7 @@ export const QuizEditor: React.FC = () => {
           setQuestions(
             quizToEdit.questions.map((q) => ({
               id: q.id,
+              type: (q as any).type || 'mcq',
               question_text: q.question_text,
               options: [...q.options],
               correct_option_index: q.correct_option_index ?? 0,
@@ -131,6 +143,7 @@ export const QuizEditor: React.FC = () => {
     setQuestions([
       ...questions,
       {
+        type: 'mcq',
         question_text: '',
         options: ['', '', '', ''],
         correct_option_index: 0,
@@ -143,6 +156,26 @@ export const QuizEditor: React.FC = () => {
   const handleRemoveQuestion = (idx: number) => {
     if (questions.length <= 1) return;
     setQuestions(questions.filter((_, i) => i !== idx));
+  };
+
+  const handleQuestionTypeChange = (idx: number, type: QuestionType) => {
+    const updated = [...questions];
+    updated[idx].type = type;
+
+    if (type === 'true_false') {
+      updated[idx].options = ['صح', 'خطأ'];
+      updated[idx].correct_option_index = 0;
+    } else if (type === 'mcq') {
+      if (updated[idx].options.length !== 4) {
+        updated[idx].options = ['', '', '', ''];
+      }
+      updated[idx].correct_option_index = 0;
+    } else if (type === 'essay') {
+      updated[idx].options = [];
+      updated[idx].correct_option_index = -1;
+    }
+
+    setQuestions(updated);
   };
 
   const handleQuestionTextChange = (idx: number, text: string) => {
@@ -206,7 +239,7 @@ export const QuizEditor: React.FC = () => {
       target_name = 'كافة طلاب المدرسة (شامل)';
     } else if (targetType === 'class') {
       target_id = targetClassId;
-      const targetClass = classes.find((c) => c.id === targetClassId);
+      const targetClass = availableClasses.find((c) => c.id === targetClassId);
       target_name = targetClass?.name || 'صف دراسي محدد';
     } else if (targetType === 'specific_students') {
       if (selectedStudentIds.length === 0) {
@@ -389,7 +422,6 @@ export const QuizEditor: React.FC = () => {
                     حدد الفترة الزمنية التي يُسمح خلالها للطلاب بدخول الاختبار وإمكانية الإيقاف اليدوي
                   </p>
                 </div>
-                {/* Instant Manual Toggle Switch */}
                 <label className="flex items-center gap-2 cursor-pointer select-none">
                   <span className="text-xs font-bold text-slate-700 dark:text-slate-300">
                     {isActive ? 'الاختبار مفعل ومتاح' : 'الاختبار موقوف ومغلق'}
@@ -546,9 +578,10 @@ export const QuizEditor: React.FC = () => {
               <select
                 value={targetClassId}
                 onChange={(e) => setTargetClassId(e.target.value)}
-                className="w-full sm:w-80 px-4 py-2.5 text-xs rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white"
+                className="w-full sm:w-80 p-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white text-xs font-bold focus:outline-none focus:ring-2 focus:ring-indigo-500"
               >
-                {classes.map((cls) => (
+                <option value="">...اختر الصف والشعبة المستهدفة</option>
+                {availableClasses.map((cls) => (
                   <option key={cls.id} value={cls.id}>
                     {cls.name} ({cls.grade_level})
                   </option>
@@ -653,7 +686,9 @@ export const QuizEditor: React.FC = () => {
                     <span className="w-6 h-6 rounded-lg bg-indigo-600 text-white text-xs font-bold flex items-center justify-center">
                       {qIdx + 1}
                     </span>
-                    <span className="text-xs font-bold text-slate-700 dark:text-slate-300">السؤال رقم {qIdx + 1}</span>
+                    <span className="text-xs font-bold text-slate-700 dark:text-slate-300">
+                      السؤال رقم {qIdx + 1}
+                    </span>
                   </div>
 
                   <div className="flex items-center gap-3">
@@ -681,6 +716,24 @@ export const QuizEditor: React.FC = () => {
                   </div>
                 </div>
 
+                {/* Question Type Selection */}
+                <div className="flex items-center gap-4 mb-3">
+                  <label className="text-xs font-bold text-slate-700 dark:text-slate-300">
+                    نوع السؤال:
+                  </label>
+                  <select
+                    value={q.type || 'mcq'}
+                    onChange={(e) =>
+                      handleQuestionTypeChange(qIdx, e.target.value as QuestionType)
+                    }
+                    className="p-2 text-xs rounded-lg border border-slate-200 dark:border-slate-700 font-bold bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  >
+                    <option value="mcq">اختيار من متعدد</option>
+                    <option value="true_false">صح / خطأ</option>
+                    <option value="essay">سؤال مقالي / نصي</option>
+                  </select>
+                </div>
+
                 {/* Question Text */}
                 <div className="mb-4">
                   <label className="block text-xs font-semibold text-slate-600 dark:text-slate-300 mb-1">
@@ -696,102 +749,104 @@ export const QuizEditor: React.FC = () => {
                   />
                 </div>
 
-                {/* 4 Options */}
-                <div className="mb-4">
-                  <div className="flex items-center justify-between mb-2">
-                    <span className="text-xs font-semibold text-slate-600 dark:text-slate-300">
-                      خيارات الإجابة (حدد الدائرة بجانب الإجابة الصحيحة):
-                    </span>
-                    <span className="text-[11px] text-emerald-700 dark:text-emerald-300 font-bold bg-emerald-50 dark:bg-emerald-950 px-2 py-0.5 rounded">
-                      الإجابة النموذجية المحددة: الخيار (
-                      {['أ', 'ب', 'ج', 'د'][q.correct_option_index]})
-                    </span>
+                {/* Question Options UI according to Question Type */}
+                {q.type === 'essay' ? (
+                  <div className="p-3 mb-4 rounded-xl bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800/50 text-amber-800 dark:text-amber-200 text-xs">
+                    هذا السؤال مقالي؛ يقوم الطالب بكتابة الإجابة نصياً وسيتم تصحيحه يدوياً من قبل المعلم.
                   </div>
+                ) : (
+                  <div className="mb-4">
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-xs font-semibold text-slate-600 dark:text-slate-300">
+                        خيارات الإجابة (حدد الدائرة بجانب الإجابة الصحيحة):
+                      </span>
+                      {q.correct_option_index >= 0 && (
+                        <span className="text-[11px] text-emerald-700 dark:text-emerald-300 font-bold bg-emerald-50 dark:bg-emerald-950 px-2 py-0.5 rounded">
+                          الإجابة النموذجية المحددة:{' '}
+                          {q.type === 'true_false'
+                            ? q.options[q.correct_option_index]
+                            : `الخيار (${['أ', 'ب', 'ج', 'د'][q.correct_option_index]})`}
+                        </span>
+                      )}
+                    </div>
 
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    {q.options.map((opt, optIdx) => {
-                      const isCorrect = q.correct_option_index === optIdx;
-                      return (
-                        <div
-                          key={optIdx}
-                          className={`flex items-center gap-2.5 p-2 rounded-xl border transition-all ${
-                            isCorrect
-                              ? 'border-emerald-500 bg-emerald-50/50 dark:bg-emerald-950/50 ring-1 ring-emerald-500'
-                              : 'border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800'
-                          }`}
-                        >
-                          <input
-                            type="radio"
-                            name={`correct-opt-${qIdx}`}
-                            checked={isCorrect}
-                            onChange={() => handleCorrectOptionChange(qIdx, optIdx)}
-                            className="accent-emerald-600 w-4 h-4 mr-1 cursor-pointer"
-                            title="تعيين كإجابة صحيحة"
-                          />
-                          <span className="w-5 h-5 rounded-md bg-slate-100 dark:bg-slate-700 text-[11px] font-bold flex items-center justify-center text-slate-600 dark:text-slate-300 shrink-0">
-                            {['أ', 'ب', 'ج', 'د'][optIdx]}
-                          </span>
-                          <input
-                            type="text"
-                            required
-                            placeholder={`الخيار ${['أ', 'ب', 'ج', 'د'][optIdx]}`}
-                            value={opt}
-                            onChange={(e) => handleOptionChange(qIdx, optIdx, e.target.value)}
-                            className="w-full px-2 py-1 text-xs bg-transparent focus:outline-none text-slate-900 dark:text-white"
-                          />
-                        </div>
-                      );
-                    })}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      {q.options.map((opt, optIdx) => {
+                        const isCorrect = q.correct_option_index === optIdx;
+                        return (
+                          <div
+                            key={optIdx}
+                            className={`flex items-center gap-2.5 p-2 rounded-xl border transition-all ${
+                              isCorrect
+                                ? 'border-emerald-500 bg-emerald-50/50 dark:bg-emerald-950/50 ring-1 ring-emerald-500'
+                                : 'border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800'
+                            }`}
+                          >
+                            <input
+                              type="radio"
+                              name={`correct-opt-${qIdx}`}
+                              checked={isCorrect}
+                              onChange={() => handleCorrectOptionChange(qIdx, optIdx)}
+                              className="accent-emerald-600 w-4 h-4 mr-1 cursor-pointer"
+                              title="تعيين كإجابة صحيحة"
+                            />
+                            {q.type === 'mcq' && (
+                              <span className="w-5 h-5 rounded-md bg-slate-100 dark:bg-slate-700 text-[11px] font-bold flex items-center justify-center text-slate-600 dark:text-slate-300 shrink-0">
+                                {['أ', 'ب', 'ج', 'د'][optIdx]}
+                              </span>
+                            )}
+                            <input
+                              type="text"
+                              required
+                              disabled={q.type === 'true_false'}
+                              placeholder={`الخيار ${optIdx + 1}`}
+                              value={opt}
+                              onChange={(e) => handleOptionChange(qIdx, optIdx, e.target.value)}
+                              className="w-full px-3 py-1.5 text-xs rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-indigo-500 disabled:opacity-80"
+                            />
+                          </div>
+                        );
+                      })}
+                    </div>
                   </div>
-                </div>
+                )}
 
                 {/* Explanation */}
                 <div>
                   <label className="block text-xs font-semibold text-slate-600 dark:text-slate-300 mb-1">
-                    التفسير والتعليل التعليمي (يظهر للطالب عند مراجعة النتيجة):
+                    التفسير والتوضيح التعليمي (يظهر للطالب بعد التقييم)
                   </label>
                   <input
                     type="text"
-                    placeholder="شرح سبب صحة الإجابة أو القاعدة العلمية المرتبطة بها..."
+                    placeholder="اكتب توضيحاً لسبب صحة الإجابة..."
                     value={q.explanation}
                     onChange={(e) => handleExplanationChange(qIdx, e.target.value)}
-                    className="w-full px-4 py-2 text-xs rounded-xl border border-slate-200 dark:border-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200"
+                    className="w-full px-4 py-2 text-xs rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
                   />
                 </div>
               </div>
             ))}
           </div>
-
-          <div className="mt-6 flex justify-center">
-            <button
-              type="button"
-              onClick={handleAddQuestion}
-              className="inline-flex items-center gap-2 px-5 py-2.5 border-2 border-dashed border-indigo-200 dark:border-indigo-800 hover:border-indigo-400 text-indigo-700 dark:text-indigo-400 rounded-2xl text-xs font-bold transition-colors w-full sm:w-auto justify-center"
-            >
-              <Plus className="w-4 h-4" />
-              <span>إضافة سؤال آخر للاختبار</span>
-            </button>
-          </div>
         </div>
 
-        {/* Action Buttons */}
-        <div className="flex items-center justify-end gap-3 pt-4 border-t border-slate-200 dark:border-slate-800">
+        {/* Submit Actions */}
+        <div className="flex items-center justify-end gap-3 pt-4">
           <button
             type="button"
             onClick={() => {
               setEditingQuizId(null);
               setCurrentView('quizzes');
             }}
-            className="px-6 py-3 text-xs font-bold text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-2xl transition-colors"
+            className="px-5 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 font-bold text-xs text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
           >
-            إلغاء وتراجع
+            إلغاء
           </button>
           <button
             type="submit"
-            className="inline-flex items-center gap-2 px-8 py-3 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs rounded-2xl transition-all shadow-lg shadow-indigo-600/30 hover:scale-[1.02]"
+            className="inline-flex items-center gap-2 px-6 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs transition-colors shadow-lg shadow-indigo-500/20"
           >
             <Save className="w-4 h-4" />
-            <span>{isEditing ? 'حفظ التعديلات وتحديث الاختبار' : 'نشر واعتماد الاختبار الآن'}</span>
+            <span>{isEditing ? 'حفظ التعديلات' : 'إنشاء ونشر الاختبار'}</span>
           </button>
         </div>
       </form>
