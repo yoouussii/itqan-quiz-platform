@@ -71,22 +71,19 @@ export interface MatchingPair {
 
 export interface Question {
   id: string;
-  type?: QuestionType; // نوع السؤال (افتراضي mcq)
-  text: string;
-  points: number;
-  
-  // لأسئلة الاختيار من متعدد
+  quiz_id?: string;
+  type?: QuestionType;
+  text?: string;
+  question_text?: string;        // متوافق مع الكود الحالي
+  points?: number;
+  marks?: number;                // متوافق مع درجة السؤال
+  explanation?: string;          // الشرح والتفسير
   options?: string[];
   correctAnswer?: string;
-  
-  // لأسئلة أكمل الفراغ
-  blankAnswer?: string;
-  
-  // لأسئلة التوصيل
-  matchingPairs?: MatchingPair[];
-  
-  // لأسئلة القطعة والقراءة
-  subQuestions?: Question[];
+  correct_option_index?: number; // رقم الخيار الصحيح
+  blankAnswer?: string;          // لأسئلة أكمل الفراغ
+  matchingPairs?: MatchingPair[];// لأسئلة التوصيل
+  subQuestions?: Question[];     // لأسئلة القطعة والقراءة
 }
 export type TargetType = 'all' | 'class' | 'specific_students' | 'assigned_teacher';
 
