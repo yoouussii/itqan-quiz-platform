@@ -9,15 +9,7 @@ import {
   QuizWithDetails,
   SubmissionWithDetails,
 } from '../types';
-import {
-  initialUsers,
-  initialSubjects,
-  initialClasses,
-  initialQuizzes,
-  initialQuestions,
-  initialAssignments,
-  initialSubmissions,
-} from '../data/seedData';
+
 
 const STORAGE_KEYS = {
   USERS: 'itqan_users_v2',
@@ -53,11 +45,77 @@ function setLocalItem<T>(key: string, value: T): void {
 
 export class StorageService {
   public static init() {
-    const rawUsers = localStorage.getItem(STORAGE_KEYS.USERS);
-    if (!rawUsers || JSON.parse(rawUsers).length === 0) {
-      const deletedIds = this.getDeletedUserIds();
-      const filteredInitial = initialUsers.filter((u) => !deletedIds.includes(u.id));
-      setLocalItem(STORAGE_KEYS.USERS, filteredInitial);
+    // تنظيف قسري لمرة واحدة للبيانات الافتراضية القديمة من جهاز المستخدم (Force Local Purge)
+    const PURGE_FLAG_KEY = 'itqan_seed_data_purged_v4';
+    if (!localStorage.getItem(PURGE_FLAG_KEY)) {
+      try {
+        // تنظيف المستخدمين الافتراضيين
+        const rawUsers = localStorage.getItem(STORAGE_KEYS.USERS);
+        if (rawUsers) {
+          const parsed = JSON.parse(rawUsers) as User[];
+          const seedUserIds = [
+            'usr-admin-1',
+            'usr-teacher-1',
+            'usr-teacher-2',
+            'usr-teacher-3',
+            'usr-student-1',
+            'usr-student-2',
+            'usr-student-3',
+          ];
+          const seedNationalIds = [
+            '1010203040',
+            '1020304051',
+            '1020304052',
+            '1020304053',
+            '1030405001',
+            '1030405002',
+            '1030405003',
+          ];
+          const cleanedUsers = parsed.filter(
+            (u) =>
+              u.id &&
+              !seedUserIds.includes(u.id) &&
+              !seedNationalIds.includes(u.national_id?.trim()) &&
+              !u.id.startsWith('usr-admin-') &&
+              !u.id.startsWith('usr-teacher-') &&
+              !u.id.startsWith('usr-student-')
+          );
+          setLocalItem(STORAGE_KEYS.USERS, cleanedUsers);
+
+          // إذا كان المستخدم الحالي هو أحد الحسابات التجريبية، نظف الجلسة
+          const currentId = localStorage.getItem(STORAGE_KEYS.CURRENT_USER_ID);
+          if (currentId && (seedUserIds.includes(currentId) || currentId.startsWith('usr-'))) {
+            localStorage.removeItem(STORAGE_KEYS.CURRENT_USER_ID);
+          }
+        }
+
+        // تنظيف المواد الافتراضية
+        const rawSubjects = localStorage.getItem(STORAGE_KEYS.SUBJECTS);
+        if (rawSubjects) {
+          const parsedSubs = JSON.parse(rawSubjects) as Subject[];
+          const seedSubCodes = ['MATH101', 'SCI101', 'ARAB101', 'PHYS101', 'CHEM101', 'ENG101'];
+          const cleanedSubs = parsedSubs.filter(
+            (s) =>
+              !seedSubCodes.includes(s.code || '') &&
+              !['sub_1', 'sub_2', 'sub_3', 'sub_4', 'sub_5', 'sub_6'].includes(s.id)
+          );
+          setLocalItem(STORAGE_KEYS.SUBJECTS, cleanedSubs);
+        }
+
+        // تنظيف الفصول الافتراضية
+        const rawClasses = localStorage.getItem(STORAGE_KEYS.CLASSES);
+        if (rawClasses) {
+          const parsedClasses = JSON.parse(rawClasses) as SchoolClass[];
+          const seedClassIds = ['class_1', 'class_2', 'class_3', 'class_4'];
+          const cleanedClasses = parsedClasses.filter((c) => !seedClassIds.includes(c.id));
+          setLocalItem(STORAGE_KEYS.CLASSES, cleanedClasses);
+        }
+
+        localStorage.setItem(PURGE_FLAG_KEY, 'true');
+        console.log('[StorageService.init] Old seed data purged successfully from localStorage.');
+      } catch (e) {
+        console.error('[StorageService.init] Error during local seed data purge:', e);
+      }
     }
   }
 
@@ -121,13 +179,8 @@ public static getCurrentUser(): User | null {
   // --- Users CRUD ---
   public static getUsers(): User[] {
     const deletedIds = this.getDeletedUserIds();
-    let users = getLocalItem<User[]>(STORAGE_KEYS.USERS, initialUsers);
-    if (!users || users.length === 0) {
-      const filteredInitial = initialUsers.filter((u) => !deletedIds.includes(u.id));
-      setLocalItem(STORAGE_KEYS.USERS, filteredInitial);
-      return filteredInitial;
-    }
-    return users.filter((u) => !deletedIds.includes(u.id));
+    const users = getLocalItem<User[]>(STORAGE_KEYS.USERS, []);
+    return (users || []).filter((u) => !deletedIds.includes(u.id));
   }
 
   public static getUserById(id: string): User | undefined {
@@ -264,7 +317,7 @@ public static getCurrentUser(): User | null {
 
   // --- Subjects CRUD ---
   public static getSubjects(): Subject[] {
-    return getLocalItem<Subject[]>(STORAGE_KEYS.SUBJECTS, initialSubjects);
+    return getLocalItem<Subject[]>(STORAGE_KEYS.SUBJECTS, []);
   }
 
   public static getSubjectById(id: string): Subject | undefined {
@@ -301,7 +354,7 @@ public static getCurrentUser(): User | null {
 
   // --- Classes CRUD ---
   public static getClasses(): SchoolClass[] {
-    return getLocalItem<SchoolClass[]>(STORAGE_KEYS.CLASSES, initialClasses);
+    return getLocalItem<SchoolClass[]>(STORAGE_KEYS.CLASSES, []);
   }
 
   public static getClassById(id: string): SchoolClass | undefined {
@@ -339,7 +392,7 @@ public static getCurrentUser(): User | null {
 
   // --- Quizzes ---
   public static getQuizzes(): Quiz[] {
-    const list = getLocalItem<Quiz[]>(STORAGE_KEYS.QUIZZES, initialQuizzes);
+    const list = getLocalItem<Quiz[]>(STORAGE_KEYS.QUIZZES, []);
     return list.map((q) => ({
       ...q,
       is_active: q.is_active ?? true,
@@ -402,7 +455,7 @@ public static getCurrentUser(): User | null {
     setLocalItem(STORAGE_KEYS.QUIZZES, quizzes);
 
     // Save questions
-    const allQuestions = getLocalItem<Question[]>(STORAGE_KEYS.QUESTIONS, initialQuestions);
+    const allQuestions = getLocalItem<Question[]>(STORAGE_KEYS.QUESTIONS, []);
     const newQuestions: Question[] = questions.map((q, idx) => ({
       ...q,
       id: `q-${quizId}-${idx + 1}-${Date.now()}`,
@@ -413,7 +466,7 @@ public static getCurrentUser(): User | null {
     // Save assignments
     const allAssignments = getLocalItem<QuizAssignment[]>(
       STORAGE_KEYS.ASSIGNMENTS,
-      initialAssignments
+      []
     );
     const newAssignments: QuizAssignment[] = assignments.map((a, idx) => ({
       ...a,
@@ -452,7 +505,7 @@ public static getCurrentUser(): User | null {
     setLocalItem(STORAGE_KEYS.QUIZZES, quizzes);
 
     // Save updated questions for this quiz
-    const allQuestions = getLocalItem<Question[]>(STORAGE_KEYS.QUESTIONS, initialQuestions);
+    const allQuestions = getLocalItem<Question[]>(STORAGE_KEYS.QUESTIONS, []);
     const otherQuestions = allQuestions.filter((q) => q.quiz_id !== quizId);
     const updatedQuestions: Question[] = questions.map((q, qIdx) => ({
       ...q,
@@ -462,7 +515,7 @@ public static getCurrentUser(): User | null {
     setLocalItem(STORAGE_KEYS.QUESTIONS, [...otherQuestions, ...updatedQuestions]);
 
     // Save updated assignments for this quiz
-    const allAssignments = getLocalItem<QuizAssignment[]>(STORAGE_KEYS.ASSIGNMENTS, initialAssignments);
+    const allAssignments = getLocalItem<QuizAssignment[]>(STORAGE_KEYS.ASSIGNMENTS, []);
     const otherAssignments = allAssignments.filter((a) => a.quiz_id !== quizId);
     const updatedAssignments: QuizAssignment[] = assignments.map((a, aIdx) => ({
       ...a,
@@ -579,13 +632,13 @@ public static getCurrentUser(): User | null {
 
   // --- Questions ---
   public static getQuestionsByQuizId(quizId: string): Question[] {
-    const questions = getLocalItem<Question[]>(STORAGE_KEYS.QUESTIONS, initialQuestions);
+    const questions = getLocalItem<Question[]>(STORAGE_KEYS.QUESTIONS, []);
     return questions.filter((q) => q.quiz_id === quizId);
   }
 
   // --- Assignments ---
   public static getAssignments(): QuizAssignment[] {
-    return getLocalItem<QuizAssignment[]>(STORAGE_KEYS.ASSIGNMENTS, initialAssignments);
+    return getLocalItem<QuizAssignment[]>(STORAGE_KEYS.ASSIGNMENTS, []);
   }
 
   public static getAssignmentsByQuizId(quizId: string): QuizAssignment[] {
@@ -594,7 +647,7 @@ public static getCurrentUser(): User | null {
 
   // --- Submissions & Privacy Enforcement ---
   public static getSubmissions(): Submission[] {
-    return getLocalItem<Submission[]>(STORAGE_KEYS.SUBMISSIONS, initialSubmissions);
+    return getLocalItem<Submission[]>(STORAGE_KEYS.SUBMISSIONS, []);
   }
 
   public static getSubmissionById(id: string): Submission | undefined {

@@ -19,23 +19,7 @@ import {
 import { supabase, isSupabaseConfigured } from '../services/supabase';
 
 // ==========================================
-// البيانات الافتراضية للنظام
-// ==========================================
-const INITIAL_SUBJECTS: Subject[] = [
-  { id: 'sub_1', name: 'الرياضيات', code: 'MATH101', color: '#10b981', description: 'مادة الرياضيات', icon: 'Calculator' },
-  { id: 'sub_2', name: 'العلوم العامة', code: 'SCI101', color: '#6366f1', description: 'مادة العلوم العامة', icon: 'BookOpen' },
-  { id: 'sub_3', name: 'اللغة العربية', code: 'ARAB101', color: '#0ea5e9', description: 'مادة اللغة العربية', icon: 'Languages' },
-  { id: 'sub_4', name: 'الفيزياء', code: 'PHYS101', color: '#f59e0b', description: 'مادة الفيزياء', icon: 'Atom' },
-  { id: 'sub_5', name: 'الكيمياء', code: 'CHEM101', color: '#ec4899', description: 'مادة الكيمياء', icon: 'FlaskConical' },
-  { id: 'sub_6', name: 'اللغة الإنجليزية', code: 'ENG101', color: '#8b5cf6', description: 'مادة اللغة الإنجليزية', icon: 'Globe' },
-];
-
-const INITIAL_CLASSES: SchoolClass[] = [
-  { id: 'class_1', name: 'الصف الأول الثانوي - شعبة (أ)', grade_level: '10' },
-  { id: 'class_2', name: 'الصف الأول الثانوي - شعبة (ب)', grade_level: '10' },
-  { id: 'class_3', name: 'الصف الثاني الثانوي - شعبة (أ)', grade_level: '11' },
-  { id: 'class_4', name: 'الصف الثالث الثانوي - شعبة (أ)', grade_level: '12' },
-];
+// تم إلغاء البيانات الافتراضية — Supabase هو المصدر الوحيد للبيانات
 
 interface AppContextType {
   currentUser: User | null;
@@ -140,17 +124,6 @@ const sanitizeUser = (user: User): User => {
 export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   useEffect(() => {
     StorageService.init();
-
-    // التأكد من تثبيت المواد والفصول الافتراضية محلياً عند التشغيل
-    const existingSubjects = StorageService.getSubjects();
-    if (!existingSubjects || existingSubjects.length === 0) {
-      localStorage.setItem('itqan_subjects_v2', JSON.stringify(INITIAL_SUBJECTS));
-    }
-
-    const existingClasses = StorageService.getClasses();
-    if (!existingClasses || existingClasses.length === 0) {
-      localStorage.setItem('itqan_classes_v2', JSON.stringify(INITIAL_CLASSES));
-    }
   }, []);
 
   const [theme, setThemeState] = useState<'light' | 'dark'>(() => StorageService.getTheme());
@@ -175,13 +148,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   );
 
   const [subjects, setSubjects] = useState<Subject[]>(() => {
-    const loaded = StorageService.getSubjects();
-    return loaded && loaded.length > 0 ? loaded : INITIAL_SUBJECTS;
+    return StorageService.getSubjects();
   });
 
   const [classes, setClasses] = useState<SchoolClass[]>(() => {
-    const loaded = StorageService.getClasses();
-    return loaded && loaded.length > 0 ? loaded : INITIAL_CLASSES;
+    return StorageService.getClasses();
   });
 
   const [currentView, setCurrentView] = useState<string>('dashboard');
@@ -301,8 +272,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const currentUserId = StorageService.getCurrentUserId();
 
     setUsers(updatedUsers);
-    setSubjects(loadedSubjects && loadedSubjects.length > 0 ? loadedSubjects : INITIAL_SUBJECTS);
-    setClasses(loadedClasses && loadedClasses.length > 0 ? loadedClasses : INITIAL_CLASSES);
+    setSubjects(loadedSubjects || []);
+    setClasses(loadedClasses || []);
 
     // الحفاظ التام على جلسة المستخدم في localStorage دون تسجيل خروج قسري مطلقاً
     if (currentUserId) {
@@ -862,7 +833,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const addSubject = (subj: Omit<Subject, 'id'>) => {
     const currentSubjects = StorageService.getSubjects();
-    const existingList = currentSubjects && currentSubjects.length > 0 ? currentSubjects : INITIAL_SUBJECTS;
+    const existingList = currentSubjects || [];
 
     const created: Subject = {
       ...subj,
@@ -900,7 +871,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const addClass = (cls: Omit<SchoolClass, 'id'>) => {
     const currentClasses = StorageService.getClasses();
-    const existingList = currentClasses && currentClasses.length > 0 ? currentClasses : INITIAL_CLASSES;
+    const existingList = currentClasses || [];
 
     const created: SchoolClass = {
       ...cls,
@@ -938,10 +909,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const resetSystemData = () => {
     StorageService.resetToSeedData();
-    localStorage.setItem('itqan_subjects_v2', JSON.stringify(INITIAL_SUBJECTS));
-    localStorage.setItem('itqan_classes_v2', JSON.stringify(INITIAL_CLASSES));
+    localStorage.removeItem('itqan_subjects_v2');
+    localStorage.removeItem('itqan_classes_v2');
     refreshData();
-    showToast('تمت استعادة البيانات التجريبية لمنصة إتقان بنجاح', 'success');
+    showToast('تمت إعادة ضبط بيانات النظام بنجاح', 'success');
   };
 
   return (
