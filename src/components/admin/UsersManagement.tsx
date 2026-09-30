@@ -164,8 +164,7 @@ export const UsersManagement: React.FC = () => {
     class_id: role === 'student' ? classId : null,
     assigned_subject_ids: role === 'teacher' ? assignedSubjectIds : [],
     assigned_class_ids: role === 'teacher' ? assignedClassIds : [],
-    // التأكد من إضافة هذا السطر:
-    teacher_permissions: role === 'teacher' ? { ...teacherPermissions } : undefined,
+    permissions: role === 'teacher' ? { ...teacherPermissions } : undefined,
   };
 
   updateUserData(editingUser.id, updates);
@@ -235,13 +234,12 @@ export const UsersManagement: React.FC = () => {
       <input
   type="checkbox"
   checked={teacherPermissions.can_add_students || false}
-  onChange={(e) =>
-    setTeacherPermissions({
-      ...teacherPermissions,
-      can_add_students: e.target.checked, // <-- تأكد من checked
-    })
-  }
-/>
+onChange={(e) =>
+  setTeacherPermissions((prev) => ({
+    ...prev,
+    can_add_students: e.target.checked,
+  }))
+}
         </div>
 
         <div className="flex items-center gap-2 w-full sm:w-auto">
