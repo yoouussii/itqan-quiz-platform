@@ -51,6 +51,8 @@ export const UsersManagement: React.FC = () => {
     can_add_custom_subjects: false,
     can_manage_classes: false,
     can_view_all_reports: false,
+    can_add_students: false,
+    can_add_teachers: false,
   });
 
   const filteredUsers = users.filter((u) => {
@@ -74,6 +76,8 @@ export const UsersManagement: React.FC = () => {
       can_add_custom_subjects: false,
       can_manage_classes: false,
       can_view_all_reports: false,
+      can_add_students: false,
+      can_add_teachers: false,
     });
     setShowAddModal(true);
   };
@@ -91,6 +95,8 @@ export const UsersManagement: React.FC = () => {
         can_add_custom_subjects: false,
         can_manage_classes: false,
         can_view_all_reports: false,
+        can_add_students: false,
+        can_add_teachers: false,
       }
     );
   };
@@ -106,7 +112,6 @@ export const UsersManagement: React.FC = () => {
   const handleCreate = (e: React.FormEvent) => {
     e.preventDefault();
 
-    // Check unique National ID
     const exists = users.some((u) => u.national_id === nationalId.trim());
     if (exists) {
       alert('رقم الهوية / الرقم الأكاديمي مسجل مسبقاً لمستخدم آخر');
@@ -130,7 +135,6 @@ export const UsersManagement: React.FC = () => {
     e.preventDefault();
     if (!editingUser) return;
 
-    // Check unique National ID if changed
     const conflict = users.some(
       (u) => u.id !== editingUser.id && u.national_id === nationalId.trim()
     );
@@ -304,27 +308,32 @@ export const UsersManagement: React.FC = () => {
 
                     <td className="py-3.5 px-4 text-xs">
                       {u.role === 'teacher' && u.teacher_permissions ? (
-                        <div className="space-y-1 text-[10px]">
+                        <div className="flex flex-wrap gap-1 text-[10px]">
+                          {u.teacher_permissions.can_add_students && (
+                            <span className="bg-emerald-50 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300 px-1.5 py-0.5 rounded">
+                              إضافة طلاب ✓
+                            </span>
+                          )}
+                          {u.teacher_permissions.can_add_teachers && (
+                            <span className="bg-indigo-50 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-300 px-1.5 py-0.5 rounded">
+                              إضافة معلمين ✓
+                            </span>
+                          )}
                           {u.teacher_permissions.can_add_custom_subjects && (
-                            <span className="inline-block bg-teal-50 dark:bg-teal-950 text-teal-700 dark:text-teal-300 px-1.5 py-0.5 rounded mr-1">
+                            <span className="bg-teal-50 dark:bg-teal-950 text-teal-700 dark:text-teal-300 px-1.5 py-0.5 rounded">
                               إضافة مواد ✓
                             </span>
                           )}
                           {u.teacher_permissions.can_manage_classes && (
-                            <span className="inline-block bg-blue-50 dark:bg-blue-950 text-blue-700 dark:text-blue-300 px-1.5 py-0.5 rounded mr-1">
+                            <span className="bg-blue-50 dark:bg-blue-950 text-blue-700 dark:text-blue-300 px-1.5 py-0.5 rounded">
                               إدارة شعب ✓
                             </span>
                           )}
                           {u.teacher_permissions.can_view_all_reports && (
-                            <span className="inline-block bg-purple-50 dark:bg-purple-950 text-purple-700 dark:text-purple-300 px-1.5 py-0.5 rounded">
+                            <span className="bg-purple-50 dark:bg-purple-950 text-purple-700 dark:text-purple-300 px-1.5 py-0.5 rounded">
                               تقارير عامة ✓
                             </span>
                           )}
-                          {!u.teacher_permissions.can_add_custom_subjects &&
-                            !u.teacher_permissions.can_manage_classes &&
-                            !u.teacher_permissions.can_view_all_reports && (
-                              <span className="text-slate-400">صلاحيات قياسية</span>
-                            )}
                         </div>
                       ) : (
                         <span className="text-slate-400">—</span>
@@ -333,7 +342,6 @@ export const UsersManagement: React.FC = () => {
 
                     <td className="py-3.5 px-4 text-center">
                       <div className="flex items-center justify-center gap-1.5">
-                        {/* Edit Button */}
                         <button
                           onClick={() => handleOpenEditModal(u)}
                           className="p-1.5 text-indigo-600 hover:bg-indigo-50 dark:hover:bg-indigo-950 rounded-lg transition-colors"
@@ -342,7 +350,6 @@ export const UsersManagement: React.FC = () => {
                           <Edit2 className="w-4 h-4" />
                         </button>
 
-                        {/* Reset Password Button */}
                         <button
                           onClick={() => setPasswordResetUser(u)}
                           className="p-1.5 text-amber-600 hover:bg-amber-50 dark:hover:bg-amber-950 rounded-lg transition-colors"
@@ -351,7 +358,6 @@ export const UsersManagement: React.FC = () => {
                           <KeyRound className="w-4 h-4" />
                         </button>
 
-                        {/* Delete Button (except admin) */}
                         {u.role !== 'admin' && (
                           <button
                             onClick={() => handleDelete(u.id, u.name)}
@@ -433,10 +439,9 @@ export const UsersManagement: React.FC = () => {
                 />
               </div>
 
-              {/* Role Selection & Promotion */}
               <div>
                 <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
-                  الدور في النظام (Role Switching) *
+                  الدور في النظام (Role) *
                 </label>
                 <select
                   value={role}
@@ -449,7 +454,6 @@ export const UsersManagement: React.FC = () => {
                 </select>
               </div>
 
-              {/* Dynamic Role Fields */}
               {role === 'student' && (
                 <div>
                   <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
@@ -471,12 +475,11 @@ export const UsersManagement: React.FC = () => {
 
               {role === 'teacher' && (
                 <>
-                  {/* Assigned Subjects (Multi-select) */}
                   <div>
                     <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5">
                       المواد المسندة للمعلم (اختر مادة أو أكثر):
                     </label>
-                    <div className="grid grid-cols-2 gap-2 max-h-36 overflow-y-auto p-1">
+                    <div className="grid grid-cols-2 gap-2 max-h-36 overflow-y-auto p-1 border rounded-xl border-slate-200 dark:border-slate-700">
                       {subjects.map((s) => {
                         const isSelected = assignedSubjectIds.includes(s.id);
                         return (
@@ -493,7 +496,7 @@ export const UsersManagement: React.FC = () => {
                             <input
                               type="checkbox"
                               checked={isSelected}
-                              onChange={() => {}}
+                              readOnly
                               className="accent-indigo-600"
                             />
                           </div>
@@ -502,17 +505,46 @@ export const UsersManagement: React.FC = () => {
                     </div>
                   </div>
 
-                  {/* Granular Teacher Permissions */}
                   <div className="p-3.5 bg-slate-50 dark:bg-slate-800/60 rounded-2xl border border-slate-200 dark:border-slate-700 space-y-2.5">
                     <div className="flex items-center gap-1.5 text-xs font-bold text-slate-800 dark:text-white mb-1">
                       <Sliders className="w-4 h-4 text-indigo-600" />
-                      <span>الصلاحيات الدقيقة للمعلم (Granular Permissions):</span>
+                      <span>الصلاحيات الإضافية للمعلم:</span>
                     </div>
 
                     <label className="flex items-center gap-2 text-xs text-slate-700 dark:text-slate-300 cursor-pointer">
                       <input
                         type="checkbox"
-                        checked={teacherPermissions.can_add_custom_subjects}
+                        checked={teacherPermissions.can_add_students || false}
+                        onChange={(e) =>
+                          setTeacherPermissions({
+                            ...teacherPermissions,
+                            can_add_students: e.target.checked,
+                          })
+                        }
+                        className="accent-indigo-600 w-4 h-4 rounded"
+                      />
+                      <span>صلاحية إضافة طلاب جدد (can_add_students)</span>
+                    </label>
+
+                    <label className="flex items-center gap-2 text-xs text-slate-700 dark:text-slate-300 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={teacherPermissions.can_add_teachers || false}
+                        onChange={(e) =>
+                          setTeacherPermissions({
+                            ...teacherPermissions,
+                            can_add_teachers: e.target.checked,
+                          })
+                        }
+                        className="accent-indigo-600 w-4 h-4 rounded"
+                      />
+                      <span>صلاحية إضافة معلمين (can_add_teachers)</span>
+                    </label>
+
+                    <label className="flex items-center gap-2 text-xs text-slate-700 dark:text-slate-300 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={teacherPermissions.can_add_custom_subjects || false}
                         onChange={(e) =>
                           setTeacherPermissions({
                             ...teacherPermissions,
@@ -521,13 +553,13 @@ export const UsersManagement: React.FC = () => {
                         }
                         className="accent-indigo-600 w-4 h-4 rounded"
                       />
-                      <span>صلاحية إضافة مواد دراسية مخصصة (can_add_custom_subjects)</span>
+                      <span>صلاحية إضافة مواد دراسية (can_add_custom_subjects)</span>
                     </label>
 
                     <label className="flex items-center gap-2 text-xs text-slate-700 dark:text-slate-300 cursor-pointer">
                       <input
                         type="checkbox"
-                        checked={teacherPermissions.can_manage_classes}
+                        checked={teacherPermissions.can_manage_classes || false}
                         onChange={(e) =>
                           setTeacherPermissions({
                             ...teacherPermissions,
@@ -542,7 +574,7 @@ export const UsersManagement: React.FC = () => {
                     <label className="flex items-center gap-2 text-xs text-slate-700 dark:text-slate-300 cursor-pointer">
                       <input
                         type="checkbox"
-                        checked={teacherPermissions.can_view_all_reports}
+                        checked={teacherPermissions.can_view_all_reports || false}
                         onChange={(e) =>
                           setTeacherPermissions({
                             ...teacherPermissions,
@@ -551,7 +583,7 @@ export const UsersManagement: React.FC = () => {
                         }
                         className="accent-indigo-600 w-4 h-4 rounded"
                       />
-                      <span>صلاحية الاطلاع على تقارير المدرسة الشاملة (can_view_all_reports)</span>
+                      <span>صلاحية الاطلاع على التقارير الشاملة (can_view_all_reports)</span>
                     </label>
                   </div>
                 </>
@@ -600,8 +632,7 @@ export const UsersManagement: React.FC = () => {
             </div>
 
             <p className="text-xs text-slate-600 dark:text-slate-400 mb-4">
-              تعيين كلمة مرور جديدة للمستخدم: <strong>{passwordResetUser.name}</strong> (هوية:{' '}
-              {passwordResetUser.national_id})
+              تعيين كلمة مرور جديدة للمستخدم: <strong>{passwordResetUser.name}</strong>
             </p>
 
             <form onSubmit={handlePasswordResetSubmit} className="space-y-4">
