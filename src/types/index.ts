@@ -74,19 +74,21 @@ export interface Question {
   quiz_id?: string;
   type?: QuestionType;
   
-  // الخصائص الأساسية (إلزامية للواجهات القديمة)
+  // الخصائص الأساسية
   question_text: string;
-  options: string[];          // مصفوفة الخيارات
-  marks: number;               // درجة السؤال
+  options: string[];
+  marks: number;
   
-  // الخصائص الاختيارية (تقبل undefined لتوافق جميع أنواع الأسئلة)
-  correct_option_index?: number; // خيار اختياري يحل مشكلة undefined
+  // لاحظ علامة الاستفهام هنا (?) لتقبل undefined بدون مشاكل
+  correct_option_index?: number; 
+  
+  // الخصائص الاختيارية الأخرى
   text?: string;
   explanation?: string;
   correctAnswer?: string;
-  blankAnswer?: string;       // لأسئلة أكمل الفراغ
-  matchingPairs?: MatchingPair[]; // لأسئلة التوصيل
-  subQuestions?: Question[];  // لأسئلة القطعة والقراءة
+  blankAnswer?: string;
+  matchingPairs?: MatchingPair[];
+  subQuestions?: Question[];
 }
 export type TargetType = 'all' | 'class' | 'specific_students' | 'assigned_teacher';
 
