@@ -459,52 +459,26 @@ const refreshData = useCallback(async () => {
     return newUser;
   };
 
- const updateUserData = (id: string, updates: Partial<User>) => {
-  setUsers((prevUsers) => {
-    const updatedUsers = prevUsers.map((u) => {
-      if (u.id === id) {
-        return {
-          ...u,
-          ...updates,
-          // ضمان استمرار حفظ الصلاحيات والمواد كـ Deep Copy
-          assigned_subject_ids: updates.assigned_subject_ids ?? u.assigned_subject_ids ?? [],
-          assigned_class_ids: updates.assigned_class_ids ?? u.assigned_class_ids ?? [],
-          teacher_permissions: updates.teacher_permissions ?? u.teacher_permissions,
-        };
-      }
-      return u;
+ const updateUserData = async (id: string, updates: Partial<User>): Promise<void> => {
+  try {
+    // إذا كان هناك طلب قاعدة بيانات (مثال: Supabase)
+    // await supabase.from('users').update(updates).eq('id', id);
+
+    setUsers((prevUsers) => {
+      const updatedUsers = prevUsers.map((u) =>
+        u.id === id ? { ...u, ...updates } : u
+      );
+      localStorage.setItem('itqan_users', JSON.stringify(updatedUsers));
+      return updatedUsers;
     });
 
-    // 1. إجبار الحفظ في LocalStorage لضمان عدم ضياع التعديلات
-    try {
-      localStorage.setItem('itqan_users', JSON.stringify(updatedUsers));
-    } catch (e) {
-      console.error('Error saving users to localStorage:', e);
+    if (currentUser?.id === id) {
+      setCurrentUser((prev) => (prev ? { ...prev, ...updates } : null));
     }
-
-    return updatedUsers;
-  });
-
-  // 2. تحديث جلسة المستخدم الحالي فوراً إذا كان التعديل عليه
-  if (currentUser?.id === id) {
-    setCurrentUser((prev) => (prev ? { ...prev, ...updates } : null));
+  } catch (error) {
+    console.error('Error updating user data:', error);
   }
 };
-  const resetUserPassword = async (id: string, newPass: string) => {
-    const ok = StorageService.resetPassword(id, newPass);
-
-    try {
-      await supabase.from('users').update({ password: newPass }).eq('id', id);
-    } catch (err) {
-      console.error('Error resetting password in Supabase:', err);
-    }
-
-    if (ok) {
-      refreshData();
-      showToast('تمت إعادة تعيين كلمة المرور بنجاح', 'success');
-    }
-    return ok;
-  };
 
   const deleteUserItem = async (id: string) => {
     StorageService.deleteUser(id);
