@@ -13,13 +13,11 @@ export interface User {
   name: string;
   national_id: string;
   role: Role;
-  class_id?: string | null; // للطلاب
-  specialty_id?: string | null;
-  assigned_subject_ids?: string[]; // المواد المسندة للمعلم
-  assigned_class_ids?: string[];   // ✨ جديد: الفصول/الشعب المسندة للمعلم
-  teacher_permissions?: TeacherPermissions;
+  email?: string;       // ← أضف هذا
+  password?: string;    // ← أضف هذا
+  created_at?: string;  // ← أضف هذا
+  // ... بقية الخصائص الحالية
 }
-
 export interface Subject {
   id: string;
   name: string;
