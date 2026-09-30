@@ -162,7 +162,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     StorageService.getDynamicKPIs(currentUser?.role === 'teacher' ? currentUser.id : undefined)
   );
 
-  const refreshData = useCallback(async () => {
+const refreshData = useCallback(async () => {
     // قراءة البيانات المحلية الحالية لمنع فقدان البيانات غير الموجودة بـ Supabase
     const localUsers = StorageService.getUsers();
 
@@ -172,12 +172,22 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         // دمج بيانات Supabase مع البيانات المحلية لحفظ المواد والفصول والصلاحيات
         const mergedUsers = dbUsers.map((dbU: any) => {
           const localU = localUsers.find((l) => l.id === dbU.id);
+
+          // إستخراج المواد والفصول بشكل آمن بدون مسح القديم
+          const dbSubjects = Array.isArray(dbU.assigned_subject_ids) ? dbU.assigned_subject_ids : [];
+          const localSubjects = localU?.assigned_subject_ids || [];
+          
+          const dbClasses = Array.isArray(dbU.assigned_class_ids) ? dbU.assigned_class_ids : [];
+          const localClasses = localU?.assigned_class_ids || [];
+
           return {
             ...localU,
             ...dbU,
-            assigned_subject_ids: dbU.assigned_subject_ids || localU?.assigned_subject_ids || [],
-            assigned_class_ids: dbU.assigned_class_ids || localU?.assigned_class_ids || [],
-            permissions: dbU.permissions || localU?.permissions || {},
+            assigned_subject_ids: dbSubjects.length > 0 ? dbSubjects : localSubjects,
+            assigned_class_ids: dbClasses.length > 0 ? dbClasses : localClasses,
+            permissions: (dbU.permissions && Object.keys(dbU.permissions).length > 0) 
+              ? dbU.permissions 
+              : (localU?.permissions || {}),
           };
         });
 
@@ -430,7 +440,17 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     showToast(`تمت إضافة المستخدم (${newUser.name}) بنجاح`, 'success');
     return newUser;
   };
+  
+// عند إضافة مادة جديدة للمعلم الحالي:
+const newSubjectList = Array.from(new Set([
+  ...(currentUser.assigned_subject_ids || []),
+  newCreatedSubject.id
+]));
 
+await updateUserData(currentUser.id, {
+  assigned_subject_ids: newSubjectList
+});
+  
   // تعديل بيانات المستخدم وتحديث الجلسة الحالية فوراً
   const updateUserData = async (id: string, updates: Partial<User>) => {
     // 1. التحديث في الـ Storage المحلي
