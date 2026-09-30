@@ -232,46 +232,108 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           const dbUserIds = new Set(dbUsers.map((d: any) => d.id));
           const dbNationalIds = new Set(dbUsers.map((d: any) => d.national_id?.trim()));
 
-          // 1. تسوية وتزامن الحذف من Supabase (Reconciliation):
-          // أي مستخدم موجود في التخزين المحلي ولم يعد موجوداً في Supabase يُحذف فوراً
-          const activeLocalUsers = localUsers.filter((localU) => {
-            const existsInDb = dbUserIds.has(localU.id) || (localU.national_id && dbNationalIds.has(localU.national_id.trim()));
-            if (existsInDb) return true;
+          // ────────────────────────────────────────────────────────────────
+          // 1. تسوية الحذف: مستخدم محلي غير موجود في Supabase
+          //    → إذا كان حديث الإنشاء (< 120 ثانية)، حاول رفعه مجدداً قبل الحذف
+          //    → إذا كان قديماً ولم يُرفع، احذفه محلياً
+          // ────────────────────────────────────────────────────────────────
+          const activeLocalUsers: ReturnType<typeof sanitizeUser>[] = [];
 
-            // حماية المستخدم المنشأ محلياً حديثاً خلال آخر 15 ثانية ريثما يكتمل التزامن
-            const isRecent = localU.created_at && (Date.now() - new Date(localU.created_at).getTime() < 15000);
-            if (isRecent) return true;
+          for (const localU of localUsers) {
+            const existsInDb =
+              dbUserIds.has(localU.id) ||
+              (localU.national_id && dbNationalIds.has(localU.national_id.trim()));
 
-            console.log(`تزامن الحذف: المستخدم (${localU.name} - ${localU.id}) تم حذفه من Supabase، جاري حذفه محلياً.`);
-            return false;
-          });
+            if (existsInDb) {
+              activeLocalUsers.push(localU);
+              continue;
+            }
+
+            const ageMs = localU.created_at
+              ? Date.now() - new Date(localU.created_at).getTime()
+              : Infinity;
+
+            if (ageMs < 120000) {
+              // ─ حديث الإنشاء: حاول رفعه مرة أخرى إلى Supabase
+              console.log(`[refreshData] Re-uploading local-only user to Supabase: ${localU.name}`);
+              try {
+                const now = new Date().toISOString();
+                const retryRecord: Record<string, unknown> = {
+                  id: localU.id,
+                  national_id: localU.national_id,
+                  name: localU.name,
+                  username: localU.national_id,
+                  email: localU.email || `${localU.national_id}@itqan.edu.sa`,
+                  password: localU.password || 'itqan123',
+                  role: localU.role,
+                  specialty_id: localU.specialty_id || null,
+                  class_id: localU.class_id || null,
+                  assigned_subject_ids: localU.assigned_subject_ids || [],
+                  assigned_class_ids: localU.assigned_class_ids || [],
+                  permissions: localU.permissions || {},
+                  teacher_permissions: localU.teacher_permissions || {},
+                  created_by: localU.created_by || null,
+                  created_at: localU.created_at || now,
+                  updated_at: now,
+                };
+                const { error: retryErr } = await supabase
+                  .from('users')
+                  .upsert([retryRecord], { onConflict: 'national_id' });
+                if (retryErr) {
+                  console.error('[refreshData] Re-upload failed:', retryErr.code, retryErr.message);
+                } else {
+                  console.log('[refreshData] Re-upload succeeded for:', localU.name);
+                  // أضف إلى مجموعات القاعدة حتى لا يُعامل كمحذوف
+                  dbUserIds.add(localU.id);
+                  dbNationalIds.add(localU.national_id?.trim());
+                }
+              } catch (retryNetErr) {
+                console.error('[refreshData] Re-upload network error:', retryNetErr);
+              }
+              activeLocalUsers.push(localU);
+            } else {
+              // ─ قديم ولم يُرفع: حُذف من Supabase أو لم يُرفع أصلاً، احذفه محلياً
+              console.log(`[refreshData] Removing stale local-only user: ${localU.name} (${localU.id})`);
+            }
+          }
 
           // التحقق مما إذا كان المستخدم الحالي النشط قد حُذف من قاعدة البيانات
           const currentUserId = StorageService.getCurrentUserId();
-          if (currentUserId && !dbUserIds.has(currentUserId) && !dbNationalIds.has(currentUser?.national_id?.trim() || '')) {
-            console.warn('تم حذف حساب المستخدم الحالي من Supabase. تسجيل الخروج التلقائي.');
+          const currentNationalId = currentUser?.national_id?.trim() || '';
+          const currentIsRecent = currentUser?.created_at
+            ? Date.now() - new Date(currentUser.created_at).getTime() < 120000
+            : false;
+
+          if (
+            currentUserId &&
+            !dbUserIds.has(currentUserId) &&
+            !dbNationalIds.has(currentNationalId) &&
+            !currentIsRecent
+          ) {
+            console.warn('[refreshData] Current user deleted from Supabase — logging out.');
             localStorage.removeItem('itqan_current_user_id_v2');
             setCurrentUser(null);
             setCurrentView('login');
           }
 
-          // 2. دمج التعديلات بطريقة آمنة
+          // ────────────────────────────────────────────────────────────────
+          // 2. دمج التعديلات بطريقة آمنة (local wins when newer)
+          // ────────────────────────────────────────────────────────────────
           const mergedUsers = activeLocalUsers.map((localU) => {
-            const dbU = dbUsers.find((d: any) => d.id === localU.id || d.national_id === localU.national_id);
+            const dbU = dbUsers.find(
+              (d: any) => d.id === localU.id || d.national_id === localU.national_id
+            );
             if (!dbU) return localU;
 
             const localUpdated = localU.updated_at ? new Date(localU.updated_at).getTime() : 0;
             const dbUpdated = dbU.updated_at ? new Date(dbU.updated_at).getTime() : 0;
 
-            // إذا كان التعديل المحلي أحدث زمنياً، نحافظ على التعديل المحلي
+            // التعديل المحلي أحدث → الأولوية للنسخة المحلية
             if (localUpdated > dbUpdated && localUpdated > 0) {
-              return sanitizeUser({
-                ...dbU,
-                ...localU,
-              });
+              return sanitizeUser({ ...dbU, ...localU });
             }
 
-            // دمج الصلاحيات بأمان: عدم السماح لمصفوفة أو كائن فارغ من السيرفر بإلغاء صلاحيات ممنوحة
+            // دمج الصلاحيات بأمان
             const localPerms = localU.teacher_permissions || localU.permissions || {};
             const dbPerms = dbU.teacher_permissions || dbU.permissions || {};
             const mergedPerms = {
@@ -290,7 +352,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
               mergedSubs = [dbU.specialty_id || localU.specialty_id];
             }
 
-            // دمج الفصول والشعب المسندة
+            // دمج الفصول المسندة
             let mergedCls = (Array.isArray(dbU.assigned_class_ids) && dbU.assigned_class_ids.length > 0)
               ? dbU.assigned_class_ids
               : (localU.assigned_class_ids || []);
@@ -310,7 +372,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             });
           });
 
-          // إضافة أي مستخدمين جدد من السيرفر
+          // إضافة أي مستخدمين جدد من السيرفر غير موجودين محلياً
           for (const dbU of dbUsers) {
             if (!mergedUsers.some((m) => m.id === dbU.id || m.national_id === dbU.national_id)) {
               mergedUsers.push(sanitizeUser(dbU));
@@ -320,7 +382,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           localStorage.setItem('itqan_users_v2', JSON.stringify(mergedUsers));
         }
       } catch (err) {
-        console.warn('Supabase sync skipped/failed:', err);
+        console.warn('[refreshData] Supabase sync skipped/failed:', err);
       }
     }
 
@@ -334,7 +396,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setClasses(loadedClasses && loadedClasses.length > 0 ? loadedClasses : INITIAL_CLASSES);
 
     if (currentUserId) {
-      const updatedUser = updatedUsers.find((u) => u.id === currentUserId);
+      const updatedUser =
+        updatedUsers.find((u) => u.id === currentUserId) ||
+        updatedUsers.find((u) => u.national_id === currentUser?.national_id);
+
       if (updatedUser) {
         const safeUser = sanitizeUser(updatedUser);
         setCurrentUser(safeUser);
@@ -557,7 +622,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return newSubmission;
   };
 
-  const addUser = async (userData: Omit<User, 'id' | 'created_at'>) => {
+  const addUser = async (userData: Omit<User, 'id' | 'created_at'>): Promise<User> => {
     const perms = userData.teacher_permissions || userData.permissions;
     const assignedSubs = Array.isArray(userData.assigned_subject_ids)
       ? userData.assigned_subject_ids
@@ -578,59 +643,85 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       updated_at: now,
     };
 
+    // ✅ 1. حفظ محلي فوري في localStorage
     const newUser = StorageService.createUser(safeUserData);
 
+    // ✅ 2. تحديث React state فوراً (optimistic UI) لتجنب الاختفاء
+    const sanitized = sanitizeUser(newUser);
+    setUsers((prev) => {
+      const exists = prev.some((u) => u.id === sanitized.id || u.national_id === sanitized.national_id);
+      return exists ? prev : [...prev, sanitized];
+    });
+
+    // ✅ 3. await مزامنة Supabase قبل استدعاء refreshData
     if (isSupabaseConfigured()) {
       try {
-        const dbRecord: any = {
+        // payload كامل مع جميع الحقول المطلوبة
+        const dbRecord: Record<string, unknown> = {
           id: newUser.id,
           national_id: newUser.national_id,
           name: newUser.name,
-          role: newUser.role,
+          // username و email — قد تكون مطلوبة حسب إعداد الجدول
+          username: newUser.national_id,
+          email: newUser.email || `${newUser.national_id}@itqan.edu.sa`,
           password: newUser.password || 'itqan123',
+          role: newUser.role,
           specialty_id: newUser.specialty_id || null,
           class_id: newUser.class_id || null,
+          // مصفوفات jsonb / text[]
           assigned_subject_ids: newUser.assigned_subject_ids || [],
           assigned_class_ids: newUser.assigned_class_ids || [],
+          // كائنات jsonb للصلاحيات
           permissions: newUser.permissions || {},
           teacher_permissions: newUser.teacher_permissions || {},
-          updated_at: now,
+          created_by: newUser.created_by || null,
           created_at: newUser.created_at || now,
+          updated_at: now,
         };
 
-        // محاولة upsert كاملة أولاً (تجنب التكرار عبر national_id)
+        // محاولة #1: upsert بالـ payload الكامل
         const { error: upsertError } = await supabase
           .from('users')
           .upsert([dbRecord], { onConflict: 'national_id' });
 
         if (upsertError) {
-          console.warn('Supabase full upsert failed, retrying with minimal schema:', upsertError.message);
-          // محاولة ثانية بمخطط بيانات أدنى (الحقول الأساسية فقط)
-          const minimalRecord: any = {
+          console.error('[addUser] Supabase upsert (full schema) failed:', upsertError.code, upsertError.message, upsertError.details);
+
+          // محاولة #2: مخطط بيانات أدنى لتخطي أعمدة غير موجودة
+          const minimalRecord: Record<string, unknown> = {
             id: newUser.id,
             national_id: newUser.national_id,
             name: newUser.name,
-            role: newUser.role,
             password: newUser.password || 'itqan123',
+            role: newUser.role,
             specialty_id: newUser.specialty_id || null,
             class_id: newUser.class_id || null,
+            created_at: newUser.created_at || now,
+            updated_at: now,
           };
+
           const { error: minimalError } = await supabase
             .from('users')
             .upsert([minimalRecord], { onConflict: 'national_id' });
 
           if (minimalError) {
-            console.warn('Supabase minimal upsert also failed:', minimalError.message);
-            showToast('تم الحفظ محلياً، المزامنة مع السيرفر ستكتمل لاحقاً', 'info');
+            console.error('[addUser] Supabase upsert (minimal schema) also failed:', minimalError.code, minimalError.message, minimalError.details);
+            console.error('[addUser] Hint:', minimalError.hint, '| Details:', minimalError.details);
+            showToast('تم الحفظ محلياً — تحقق من إعدادات RLS وأعمدة جدول users في Supabase', 'info');
+          } else {
+            console.log('[addUser] Supabase minimal upsert succeeded for:', newUser.name);
           }
+        } else {
+          console.log('[addUser] Supabase upsert succeeded for:', newUser.name);
         }
-      } catch (err) {
-        console.warn('Network error syncing new user to Supabase:', err);
-        showToast('تم الحفظ محلياً، تعذّر الوصول إلى السيرفر', 'info');
+      } catch (networkErr) {
+        console.error('[addUser] Network error syncing to Supabase:', networkErr);
+        showToast('تم الحفظ محلياً — لا يوجد اتصال بالسيرفر', 'info');
       }
     }
 
-    refreshData();
+    // ✅ 4. تحديث شامل للحالة بعد اكتمال مزامنة Supabase
+    await refreshData();
     showToast(`تمت إضافة المستخدم (${newUser.name}) بنجاح`, 'success');
     return newUser;
   };
