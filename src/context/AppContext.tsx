@@ -14,12 +14,11 @@ import {
   StorageService,
   cleanUserPayloadForSupabase,
   extractMissingColumn,
-  CORE_USER_FIELDS,
 } from '../services/storage';
 import { supabase, isSupabaseConfigured } from '../services/supabase';
 
 // ==========================================
-// تم إلغاء البيانات الافتراضية — Supabase هو المصدر الوحيد للبيانات
+// Supabase + StorageService Integration
 
 interface AppContextType {
   currentUser: User | null;
@@ -93,20 +92,23 @@ const sanitizeUser = (user: User): User => {
     can_add_teachers: !!rawPerms.can_add_teachers,
   };
 
-  // مواءمة المواد المسندة مع التخصص الأساسي
-  let assignedSubs: string[] = [];
-  if (Array.isArray(user.assigned_subject_ids) && user.assigned_subject_ids.length > 0) {
-    assignedSubs = [...user.assigned_subject_ids];
+  // اعتماد المصفوفة طالما أنها معرفة (حتى لو كانت فارغة) وعدم استرجاع القيمة القديمة إلا إذا كانت undefined
+  let assignedSubs: string[];
+  if (Array.isArray(user.assigned_subject_ids)) {
+    assignedSubs = user.assigned_subject_ids;
   } else if (user.specialty_id) {
     assignedSubs = [user.specialty_id];
+  } else {
+    assignedSubs = [];
   }
 
-  // مواءمة الفصول والشعب المسندة مع الشعبة الأساسية
-  let assignedCls: string[] = [];
-  if (Array.isArray(user.assigned_class_ids) && user.assigned_class_ids.length > 0) {
-    assignedCls = [...user.assigned_class_ids];
+  let assignedCls: string[];
+  if (Array.isArray(user.assigned_class_ids)) {
+    assignedCls = user.assigned_class_ids;
   } else if (user.class_id) {
     assignedCls = [user.class_id];
+  } else {
+    assignedCls = [];
   }
 
   const natId = user.national_id || user.username || '';
@@ -116,8 +118,8 @@ const sanitizeUser = (user: User): User => {
     ...user,
     national_id: natId,
     username: usrName,
-    specialty_id: user.specialty_id || assignedSubs[0] || null,
-    class_id: user.class_id || assignedCls[0] || null,
+    specialty_id: assignedSubs.length > 0 ? assignedSubs[0] : (user.specialty_id || null),
+    class_id: assignedCls.length > 0 ? assignedCls[0] : (user.class_id || null),
     assigned_subject_ids: assignedSubs,
     assigned_class_ids: assignedCls,
     teacher_permissions: perms,
@@ -151,13 +153,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     StorageService.getUsers().map(sanitizeUser)
   );
 
-  const [subjects, setSubjects] = useState<Subject[]>(() => {
-    return StorageService.getSubjects();
-  });
+  const [subjects, setSubjects] = useState<Subject[]>(() => StorageService.getSubjects());
 
-  const [classes, setClasses] = useState<SchoolClass[]>(() => {
-    return StorageService.getClasses();
-  });
+  const [classes, setClasses] = useState<SchoolClass[]>(() => StorageService.getClasses());
 
   const [currentView, setCurrentView] = useState<string>('dashboard');
   const [activeQuizId, setActiveQuizId] = useState<string | null>(null);
@@ -204,7 +202,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   });
 
   const refreshData = useCallback(async () => {
-    // 1. قراءة المستخدمين الحاليين من التخزين المحلي الآمن
     const localUsers = StorageService.getUsers().map(sanitizeUser);
     let mergedUsers = [...localUsers];
 
@@ -212,7 +209,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       try {
         const { data: dbUsers, error } = await supabase.from('users').select('*');
         if (!error && Array.isArray(dbUsers)) {
-          // دمج ذكي وآمن (Safe Merge):
           mergedUsers = localUsers.map((localU) => {
             const dbU = dbUsers.find(
               (d: any) =>
@@ -224,44 +220,29 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             const localUpdated = localU.updated_at ? new Date(localU.updated_at).getTime() : 0;
             const dbUpdated = dbU.updated_at ? new Date(dbU.updated_at).getTime() : 0;
 
+            // حماية التعديل المحلي: إذا كان المحلي أحدث أو مساوي، احتفظ بالتعديل المحلي أولوية
             if (localUpdated >= dbUpdated || !dbU.updated_at) {
               return sanitizeUser({
                 ...dbU,
                 ...localU,
-                class_id: localU.class_id || localU.assigned_class_ids?.[0] || null,
-                assigned_class_ids: localU.assigned_class_ids && localU.assigned_class_ids.length > 0
-                  ? localU.assigned_class_ids
-                  : (localU.class_id ? [localU.class_id] : []),
-                specialty_id: localU.specialty_id || localU.assigned_subject_ids?.[0] || null,
-                assigned_subject_ids: localU.assigned_subject_ids && localU.assigned_subject_ids.length > 0
-                  ? localU.assigned_subject_ids
-                  : (localU.specialty_id ? [localU.specialty_id] : []),
+                // حماية المصفوفات من الضياع إذا كان Supabase أرجع null
+                assigned_subject_ids: localU.assigned_subject_ids ?? dbU.assigned_subject_ids ?? [],
+                assigned_class_ids: localU.assigned_class_ids ?? dbU.assigned_class_ids ?? [],
+                teacher_permissions: localU.teacher_permissions ?? dbU.teacher_permissions ?? {},
+                permissions: localU.permissions ?? dbU.permissions ?? {},
               });
             }
 
             const dbHasPerms = dbU.teacher_permissions && typeof dbU.teacher_permissions === 'object' && Object.keys(dbU.teacher_permissions).length > 0;
-            const dbHasSubs = Array.isArray(dbU.assigned_subject_ids) && dbU.assigned_subject_ids.length > 0;
-            const dbHasCls = Array.isArray(dbU.assigned_class_ids) && dbU.assigned_class_ids.length > 0;
+            const dbHasSubs = Array.isArray(dbU.assigned_subject_ids);
+            const dbHasCls = Array.isArray(dbU.assigned_class_ids);
 
-            const finalCls = dbHasCls
-              ? dbU.assigned_class_ids
-              : (localU.assigned_class_ids && localU.assigned_class_ids.length > 0
-                  ? localU.assigned_class_ids
-                  : (dbU.class_id ? [dbU.class_id] : (localU.class_id ? [localU.class_id] : [])));
-            const finalClassId = dbU.class_id || localU.class_id || finalCls[0] || null;
-
-            const finalSubs = dbHasSubs
-              ? dbU.assigned_subject_ids
-              : (localU.assigned_subject_ids && localU.assigned_subject_ids.length > 0
-                  ? localU.assigned_subject_ids
-                  : (dbU.specialty_id ? [dbU.specialty_id] : (localU.specialty_id ? [localU.specialty_id] : [])));
-            const finalSpecialtyId = dbU.specialty_id || localU.specialty_id || finalSubs[0] || null;
+            const finalCls = dbHasCls ? dbU.assigned_class_ids : (localU.assigned_class_ids ?? []);
+            const finalSubs = dbHasSubs ? dbU.assigned_subject_ids : (localU.assigned_subject_ids ?? []);
 
             return sanitizeUser({
               ...localU,
               ...dbU,
-              specialty_id: finalSpecialtyId,
-              class_id: finalClassId,
               assigned_subject_ids: finalSubs,
               assigned_class_ids: finalCls,
               teacher_permissions: dbHasPerms ? dbU.teacher_permissions : localU.teacher_permissions,
@@ -291,7 +272,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     const updatedUsers = StorageService.getUsers().map(sanitizeUser);
 
-    // 2. مزامنة واستدامة المواد مع Supabase
     let localSubjects = StorageService.getSubjects() || [];
     const deletedSubjectIds = StorageService.getDeletedSubjectIds();
     localSubjects = localSubjects.filter((s) => !deletedSubjectIds.includes(s.id));
@@ -316,17 +296,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           for (const localS of localSubjects) {
             if (!subMap.has(localS.id)) {
               subMap.set(localS.id, localS);
-              supabase.from('subjects').insert({
-                id: localS.id,
-                name: localS.name,
-                code: localS.code,
-                color: localS.color,
-                description: localS.description,
-                icon: localS.icon,
-                created_by: localS.created_by,
-              }).then(({ error }) => {
-                if (error) console.warn('[refreshData] Sync local subject to Supabase warning:', error.message);
-              });
             } else {
               subMap.set(localS.id, { ...subMap.get(localS.id)!, ...localS });
             }
@@ -335,11 +304,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           localStorage.setItem('itqan_subjects_v2', JSON.stringify(localSubjects));
         }
       } catch (err) {
-        console.warn('[refreshData] Subjects Supabase sync skipped:', err);
+        console.warn('[refreshData] Subjects sync skipped:', err);
       }
     }
 
-    // 3. مزامنة واستدامة الفصول مع Supabase
     let localClasses = StorageService.getClasses() || [];
     const deletedClassIds = StorageService.getDeletedClassIds();
     localClasses = localClasses.filter((c) => !deletedClassIds.includes(c.id));
@@ -362,15 +330,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           for (const localC of localClasses) {
             if (!clsMap.has(localC.id)) {
               clsMap.set(localC.id, localC);
-              supabase.from('classes').insert({
-                id: localC.id,
-                name: localC.name,
-                grade_level: localC.grade_level,
-                student_count: localC.student_count || 0,
-                created_by: localC.created_by,
-              }).then(({ error }) => {
-                if (error) console.warn('[refreshData] Sync local class to Supabase warning:', error.message);
-              });
             } else {
               clsMap.set(localC.id, { ...clsMap.get(localC.id)!, ...localC });
             }
@@ -379,7 +338,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           localStorage.setItem('itqan_classes_v2', JSON.stringify(localClasses));
         }
       } catch (err) {
-        console.warn('[refreshData] Classes Supabase sync skipped:', err);
+        console.warn('[refreshData] Classes sync skipped:', err);
       }
     }
 
@@ -419,7 +378,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         setSubmissions(StorageService.getAccessibleSubmissionsWithDetails(safeUser.id));
       }
     }
-  }, [currentUser]);
+  }, [currentUser?.id, currentUser?.national_id, currentUser?.role]);
 
   useEffect(() => {
     refreshData();
@@ -562,7 +521,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const updateQuizInfo = async (id: string, updates: Partial<Quiz>) => {
-    const updated = StorageService.updateQuiz(id, updates);
+    StorageService.updateQuiz(id, updates);
     const updatedWithDetails = StorageService.getQuizWithDetails(id);
     if (updatedWithDetails) {
       setQuizzes((prev) => prev.map((q) => (q.id === id ? updatedWithDetails : q)));
@@ -688,8 +647,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const now = new Date().toISOString();
     const safeUserData = {
       ...userData,
-      specialty_id: userData.specialty_id || assignedSubs[0] || null,
-      class_id: userData.class_id || assignedCls[0] || null,
+      specialty_id: assignedSubs.length > 0 ? assignedSubs[0] : (userData.specialty_id || null),
+      class_id: assignedCls.length > 0 ? assignedCls[0] : (userData.class_id || null),
       assigned_subject_ids: assignedSubs,
       assigned_class_ids: assignedCls,
       teacher_permissions: perms,
@@ -698,11 +657,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     };
 
     const newUser = StorageService.createUser(safeUserData);
-
     const sanitized = sanitizeUser(newUser);
+
     setUsers((prev) => {
       const exists = prev.some((u) => u.id === sanitized.id || u.national_id === sanitized.national_id);
-      return exists ? prev : [...prev, sanitized];
+      return exists ? prev.map((u) => (u.id === sanitized.id ? sanitized : u)) : [...prev, sanitized];
     });
 
     if (isSupabaseConfigured()) {
@@ -726,49 +685,24 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       });
 
       let attempts = 0;
-      const maxAttempts = 10;
-      let isInserted = false;
-
-      while (attempts < maxAttempts && !isInserted) {
+      while (attempts < 8) {
         attempts++;
         try {
-          let { error } = await supabase.from('users').insert([payload]);
+          const { error } = await supabase.from('users').insert([payload]);
+          if (!error) break;
 
-          if (!error) {
-            isInserted = true;
+          if (error.code === '23505') {
+            await supabase.from('users').update(payload).eq('id', newUser.id);
             break;
           }
 
-          if (error.code === '23505') {
-            const updateRes = await supabase.from('users').update(payload).eq('id', newUser.id);
-            if (!updateRes.error) {
-              isInserted = true;
-              break;
-            }
-            error = updateRes.error;
-          }
-
           const missingColumn = extractMissingColumn(error.message || '');
-          if (missingColumn && missingColumn in payload && !['id', 'name', 'role'].includes(missingColumn)) {
+          if (missingColumn && missingColumn in payload) {
             delete payload[missingColumn];
             continue;
           }
-
-          if (error.message?.includes('column') || error.code === 'PGRST204') {
-            const corePayload: Record<string, any> = {
-              id: newUser.id,
-              name: newUser.name,
-              email: newUser.email || `${newUser.national_id}@itqan.edu.sa`,
-              password: newUser.password || 'itqan123',
-              role: newUser.role,
-            };
-            if (payload.national_id) corePayload.national_id = payload.national_id;
-            payload = corePayload;
-            continue;
-          }
-
           break;
-        } catch (networkErr: any) {
+        } catch {
           break;
         }
       }
@@ -780,46 +714,43 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const updateUserData = async (id: string, updates: Partial<User>): Promise<void> => {
     const now = new Date().toISOString();
-    const targetNationalId = updates.national_id || updates.username || id;
+    const targetNationalId = updates.national_id || updates.username;
 
-    const cleanUpdates = {
+    const cleanUpdates: Partial<User> = {
       ...updates,
-      national_id: targetNationalId,
-      username: updates.username || targetNationalId,
       updated_at: now,
     };
 
-    if (Array.isArray(cleanUpdates.assigned_subject_ids)) {
-      cleanUpdates.specialty_id = cleanUpdates.assigned_subject_ids[0] || null;
+    if (updates.national_id) cleanUpdates.national_id = updates.national_id;
+    if (updates.username) cleanUpdates.username = updates.username;
+
+    // 1. التحديث والتثبيت المباشر والمضمون في LocalStorage أولاً
+    const updatedUserObj = StorageService.updateUser(id, cleanUpdates);
+
+    if (updatedUserObj) {
+      const sanitized = sanitizeUser(updatedUserObj);
+
+      setUsers((prev) =>
+        prev.map((u) => {
+          if (u.id === id || (targetNationalId && u.national_id === targetNationalId)) {
+            return sanitized;
+          }
+          return u;
+        })
+      );
+
+      if (currentUser && (currentUser.id === id || (targetNationalId && currentUser.national_id === targetNationalId))) {
+        setCurrentUser(sanitized);
+      }
     }
-    if (Array.isArray(cleanUpdates.assigned_class_ids)) {
-      cleanUpdates.class_id = cleanUpdates.assigned_class_ids[0] || null;
-    }
 
-    // 1. التحديث المحلي السريع فوراً
-    StorageService.updateUser(id, cleanUpdates);
-
-    setUsers((prev) =>
-      prev.map((u) => {
-        if (u.id === id || (u.national_id && u.national_id === targetNationalId)) {
-          return sanitizeUser({ ...u, ...cleanUpdates });
-        }
-        return u;
-      })
-    );
-
-    if (currentUser && (currentUser.id === id || currentUser.national_id === targetNationalId)) {
-      setCurrentUser((prev) => (prev ? sanitizeUser({ ...prev, ...cleanUpdates }) : null));
-    }
-
-    // 2. المزامنة مع Supabase بمرونة (البحث بـ id أو national_id أو username)
+    // 2. المزامنة في الخلفية مع Supabase بمرونة
     if (isSupabaseConfigured()) {
       try {
         let payload = cleanUserPayloadForSupabase(cleanUpdates);
-
         let attempts = 0;
-        let success = false;
-        while (attempts < 5 && !success) {
+
+        while (attempts < 5) {
           attempts++;
           const targetKey = targetNationalId || id;
           const { error } = await supabase
@@ -827,10 +758,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             .update(payload)
             .or(`id.eq.${id},national_id.eq.${targetKey},username.eq.${targetKey}`);
 
-          if (!error) {
-            success = true;
-            break;
-          }
+          if (!error) break;
 
           const missingColumn = extractMissingColumn(error.message || '');
           if (missingColumn && missingColumn in payload) {
@@ -840,11 +768,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           break;
         }
       } catch (err) {
-        console.warn('[updateUserData] Supabase sync warning:', err);
+        console.warn('[updateUserData] Supabase background sync warning:', err);
       }
     }
 
-    showToast('تم تحديث بيانات المستخدم بنجاح', 'success');
+    showToast('تم حفظ وتحديث بيانات المستخدم بنجاح', 'success');
   };
 
   const resetUserPassword = async (id: string, newPass: string): Promise<boolean> => {
@@ -950,19 +878,16 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     showToast('تم حذف الصف بنجاح', 'info');
   };
 
- // ✅ الكود المعدل والآمن
-const resetSystemData = () => {
-  // مسح جميع المفاتيح الخاصة بالتطبيق من التخزين المحلي
-  Object.keys(localStorage).forEach((key) => {
-    if (key.startsWith('itqan_')) {
-      localStorage.removeItem(key);
-    }
-  });
-  localStorage.removeItem('itqan_current_user_id_v2');
-  
-  // إعادة تحميل الصفحة لتهيئة النظام
-  window.location.reload();
-};
+  const resetSystemData = () => {
+    Object.keys(localStorage).forEach((key) => {
+      if (key.startsWith('itqan_')) {
+        localStorage.removeItem(key);
+      }
+    });
+    localStorage.removeItem('itqan_current_user_id_v2');
+    window.location.reload();
+  };
+
   return (
     <AppContext.Provider
       value={{
