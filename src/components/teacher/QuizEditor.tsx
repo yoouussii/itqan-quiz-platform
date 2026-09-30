@@ -106,7 +106,7 @@ export const QuizEditor: React.FC = () => {
               id: q.id,
               question_text: q.question_text,
               options: [...q.options],
-              correct_option_index: q.correct_option_index,
+              correct_option_index: correct_option_index ?? 0,
               marks: q.marks,
               explanation: q.explanation || '',
             }))
