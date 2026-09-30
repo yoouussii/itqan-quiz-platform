@@ -8,12 +8,8 @@ import {
   UserCheck,
   GraduationCap,
   X,
-  Check,
   Edit2,
   KeyRound,
-  Lock,
-  Layers,
-  Sparkles,
   Sliders,
   UserCircle2,
 } from 'lucide-react';
@@ -98,35 +94,43 @@ export const UsersManagement: React.FC = () => {
     setPassword('');
     setRole(u.role);
     setClassId(u.class_id || classes[0]?.id || '');
-    setAssignedSubjectIds(u.assigned_subject_ids || (u.specialty_id ? [u.specialty_id] : []));
-    setAssignedClassIds(u.assigned_class_ids || []);
-    setTeacherPermissions(
-      u.teacher_permissions
-        ? { ...u.teacher_permissions }
-        : {
-            can_add_custom_subjects: false,
-            can_manage_classes: false,
-            can_view_all_reports: false,
-            can_add_students: false,
-            can_add_teachers: false,
-          }
-    );
+    
+    // استرجاع المواد المسندة أو المادة الرئيسية
+    const subIds = u.assigned_subject_ids && u.assigned_subject_ids.length > 0
+      ? [...u.assigned_subject_ids]
+      : (u.specialty_id ? [u.specialty_id] : []);
+    setAssignedSubjectIds(subIds);
+
+    // استرجاع الفصول المسندة
+    setAssignedClassIds(u.assigned_class_ids ? [...u.assigned_class_ids] : []);
+
+    // استرجاع الصلاحيات مع القيم الافتراضية للقيم المفقودة
+    setTeacherPermissions({
+      can_add_custom_subjects: !!u.teacher_permissions?.can_add_custom_subjects,
+      can_manage_classes: !!u.teacher_permissions?.can_manage_classes,
+      can_view_all_reports: !!u.teacher_permissions?.can_view_all_reports,
+      can_add_students: !!u.teacher_permissions?.can_add_students,
+      can_add_teachers: !!u.teacher_permissions?.can_add_teachers,
+    });
   };
 
   const toggleSubjectAssignment = (subjId: string) => {
-    if (assignedSubjectIds.includes(subjId)) {
-      setAssignedSubjectIds(assignedSubjectIds.filter((id) => id !== subjId));
-    } else {
-      setAssignedSubjectIds([...assignedSubjectIds, subjId]);
-    }
+    setAssignedSubjectIds((prev) =>
+      prev.includes(subjId) ? prev.filter((id) => id !== subjId) : [...prev, subjId]
+    );
   };
 
   const toggleClassAssignment = (cId: string) => {
-    if (assignedClassIds.includes(cId)) {
-      setAssignedClassIds(assignedClassIds.filter((id) => id !== cId));
-    } else {
-      setAssignedClassIds([...assignedClassIds, cId]);
-    }
+    setAssignedClassIds((prev) =>
+      prev.includes(cId) ? prev.filter((id) => id !== cId) : [...prev, cId]
+    );
+  };
+
+  const togglePermissionKey = (key: keyof TeacherPermissions) => {
+    setTeacherPermissions((prev) => ({
+      ...prev,
+      [key]: !prev[key],
+    }));
   };
 
   const handleCreate = (e: React.FormEvent) => {
@@ -143,9 +147,9 @@ export const UsersManagement: React.FC = () => {
       national_id: nationalId.trim(),
       password,
       role,
-      specialty_id: assignedSubjectIds[0] || null,
-      assigned_subject_ids: role === 'teacher' ? assignedSubjectIds : [],
-      assigned_class_ids: role === 'teacher' ? assignedClassIds : [],
+      specialty_id: role === 'teacher' ? (assignedSubjectIds[0] || null) : null,
+      assigned_subject_ids: role === 'teacher' ? [...assignedSubjectIds] : [],
+      assigned_class_ids: role === 'teacher' ? [...assignedClassIds] : [],
       class_id: role === 'student' ? classId : null,
       teacher_permissions: role === 'teacher' ? { ...teacherPermissions } : undefined,
       created_by: currentUser?.id,
@@ -161,10 +165,17 @@ export const UsersManagement: React.FC = () => {
       name,
       national_id: nationalId.trim(),
       role,
+      specialty_id: role === 'teacher' ? (assignedSubjectIds[0] || null) : null, // مصلح: إضافة تحديث المادة الرئيسية
       class_id: role === 'student' ? classId : null,
-      assigned_subject_ids: role === 'teacher' ? assignedSubjectIds : [],
-      assigned_class_ids: role === 'teacher' ? assignedClassIds : [],
-      teacher_permissions: role === 'teacher' ? { ...teacherPermissions } : undefined,
+      assigned_subject_ids: role === 'teacher' ? [...assignedSubjectIds] : [],
+      assigned_class_ids: role === 'teacher' ? [...assignedClassIds] : [],
+      teacher_permissions: role === 'teacher' ? {
+        can_add_custom_subjects: !!teacherPermissions.can_add_custom_subjects,
+        can_manage_classes: !!teacherPermissions.can_manage_classes,
+        can_view_all_reports: !!teacherPermissions.can_view_all_reports,
+        can_add_students: !!teacherPermissions.can_add_students,
+        can_add_teachers: !!teacherPermissions.can_add_teachers,
+      } : undefined,
     };
 
     if (password.trim()) {
@@ -547,25 +558,25 @@ export const UsersManagement: React.FC = () => {
                     <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5">
                       المواد المسندة للمعلم (اختر مادة أو أكثر):
                     </label>
-                    <div className="grid grid-cols-2 gap-2 max-h-32 overflow-y-auto p-1 border rounded-xl border-slate-200 dark:border-slate-700">
+                    <div className="grid grid-cols-2 gap-2 max-h-36 overflow-y-auto p-1.5 border rounded-xl border-slate-200 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-800/30">
                       {subjects.map((s) => {
                         const isSelected = assignedSubjectIds.includes(s.id);
                         return (
                           <div
                             key={s.id}
                             onClick={() => toggleSubjectAssignment(s.id)}
-                            className={`p-2 rounded-xl border text-xs cursor-pointer flex items-center justify-between transition-colors ${
+                            className={`p-2.5 rounded-xl border text-xs cursor-pointer flex items-center justify-between transition-all select-none ${
                               isSelected
-                                ? 'border-indigo-600 bg-indigo-50 dark:bg-indigo-950 font-bold text-indigo-900 dark:text-indigo-200'
-                                : 'border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300'
+                                ? 'border-indigo-600 bg-indigo-50 dark:bg-indigo-950/80 font-bold text-indigo-900 dark:text-indigo-200 shadow-sm'
+                                : 'border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:border-slate-300'
                             }`}
                           >
                             <span>{s.name}</span>
                             <input
                               type="checkbox"
                               checked={isSelected}
-                              readOnly
-                              className="accent-indigo-600"
+                              onChange={() => {}} // Controlled by container click
+                              className="accent-indigo-600 w-4 h-4 rounded cursor-pointer pointer-events-none"
                             />
                           </div>
                         );
@@ -578,25 +589,25 @@ export const UsersManagement: React.FC = () => {
                     <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5">
                       الفصول والشعب المسندة للمعلم (اختر فصل أو أكثر):
                     </label>
-                    <div className="grid grid-cols-2 gap-2 max-h-32 overflow-y-auto p-1 border rounded-xl border-slate-200 dark:border-slate-700">
+                    <div className="grid grid-cols-2 gap-2 max-h-36 overflow-y-auto p-1.5 border rounded-xl border-slate-200 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-800/30">
                       {classes.map((c) => {
                         const isSelected = assignedClassIds.includes(c.id);
                         return (
                           <div
                             key={c.id}
                             onClick={() => toggleClassAssignment(c.id)}
-                            className={`p-2 rounded-xl border text-xs cursor-pointer flex items-center justify-between transition-colors ${
+                            className={`p-2.5 rounded-xl border text-xs cursor-pointer flex items-center justify-between transition-all select-none ${
                               isSelected
-                                ? 'border-indigo-600 bg-indigo-50 dark:bg-indigo-950 font-bold text-indigo-900 dark:text-indigo-200'
-                                : 'border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300'
+                                ? 'border-indigo-600 bg-indigo-50 dark:bg-indigo-950/80 font-bold text-indigo-900 dark:text-indigo-200 shadow-sm'
+                                : 'border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:border-slate-300'
                             }`}
                           >
                             <span>{c.name}</span>
                             <input
                               type="checkbox"
                               checked={isSelected}
-                              readOnly
-                              className="accent-indigo-600"
+                              onChange={() => {}} // Controlled by container click
+                              className="accent-indigo-600 w-4 h-4 rounded cursor-pointer pointer-events-none"
                             />
                           </div>
                         );
@@ -605,86 +616,35 @@ export const UsersManagement: React.FC = () => {
                   </div>
 
                   {/* الصلاحيات الإضافية */}
-                  <div className="p-3.5 bg-slate-50 dark:bg-slate-800/60 rounded-2xl border border-slate-200 dark:border-slate-700 space-y-2.5">
-                    <div className="flex items-center gap-1.5 text-xs font-bold text-slate-800 dark:text-white mb-1">
+                  <div className="p-3.5 bg-slate-50 dark:bg-slate-800/60 rounded-2xl border border-slate-200 dark:border-slate-700 space-y-2">
+                    <div className="flex items-center gap-1.5 text-xs font-bold text-slate-800 dark:text-white mb-2">
                       <Sliders className="w-4 h-4 text-indigo-600" />
                       <span>الصلاحيات الإضافية للمعلم:</span>
                     </div>
 
-                    <label className="flex items-center gap-2 text-xs text-slate-700 dark:text-slate-300 cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={teacherPermissions.can_add_students || false}
-                        onChange={(e) =>
-                          setTeacherPermissions({
-                            ...teacherPermissions,
-                            can_add_students: e.target.checked,
-                          })
-                        }
-                        className="accent-indigo-600 w-4 h-4 rounded"
-                      />
-                      <span>صلاحية إضافة طلاب جدد (can_add_students)</span>
-                    </label>
-
-                    <label className="flex items-center gap-2 text-xs text-slate-700 dark:text-slate-300 cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={teacherPermissions.can_add_teachers || false}
-                        onChange={(e) =>
-                          setTeacherPermissions({
-                            ...teacherPermissions,
-                            can_add_teachers: e.target.checked,
-                          })
-                        }
-                        className="accent-indigo-600 w-4 h-4 rounded"
-                      />
-                      <span>صلاحية إضافة معلمين (can_add_teachers)</span>
-                    </label>
-
-                    <label className="flex items-center gap-2 text-xs text-slate-700 dark:text-slate-300 cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={teacherPermissions.can_add_custom_subjects || false}
-                        onChange={(e) =>
-                          setTeacherPermissions({
-                            ...teacherPermissions,
-                            can_add_custom_subjects: e.target.checked,
-                          })
-                        }
-                        className="accent-indigo-600 w-4 h-4 rounded"
-                      />
-                      <span>صلاحية إضافة مواد دراسية (can_add_custom_subjects)</span>
-                    </label>
-
-                    <label className="flex items-center gap-2 text-xs text-slate-700 dark:text-slate-300 cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={teacherPermissions.can_manage_classes || false}
-                        onChange={(e) =>
-                          setTeacherPermissions({
-                            ...teacherPermissions,
-                            can_manage_classes: e.target.checked,
-                          })
-                        }
-                        className="accent-indigo-600 w-4 h-4 rounded"
-                      />
-                      <span>صلاحية إدارة الفصول والشعب (can_manage_classes)</span>
-                    </label>
-
-                    <label className="flex items-center gap-2 text-xs text-slate-700 dark:text-slate-300 cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={teacherPermissions.can_view_all_reports || false}
-                        onChange={(e) =>
-                          setTeacherPermissions({
-                            ...teacherPermissions,
-                            can_view_all_reports: e.target.checked,
-                          })
-                        }
-                        className="accent-indigo-600 w-4 h-4 rounded"
-                      />
-                      <span>صلاحية عرض جميع التقارير (can_view_all_reports)</span>
-                    </label>
+                    {[
+                      { key: 'can_add_students' as const, label: 'صلاحية إضافة طلاب جدد (can_add_students)' },
+                      { key: 'can_add_teachers' as const, label: 'صلاحية إضافة معلمين (can_add_teachers)' },
+                      { key: 'can_add_custom_subjects' as const, label: 'صلاحية إضافة مواد دراسية (can_add_custom_subjects)' },
+                      { key: 'can_manage_classes' as const, label: 'صلاحية إدارة الفصول والشعب (can_manage_classes)' },
+                      { key: 'can_view_all_reports' as const, label: 'صلاحية عرض جميع التقارير (can_view_all_reports)' },
+                    ].map((perm) => (
+                      <div
+                        key={perm.key}
+                        onClick={() => togglePermissionKey(perm.key)}
+                        className="flex items-center justify-between p-2 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-700/50 cursor-pointer transition-colors select-none"
+                      >
+                        <span className="text-xs text-slate-700 dark:text-slate-300 font-medium">
+                          {perm.label}
+                        </span>
+                        <input
+                          type="checkbox"
+                          checked={!!teacherPermissions[perm.key]}
+                          onChange={() => {}} // Controlled by container click
+                          className="accent-indigo-600 w-4 h-4 rounded cursor-pointer pointer-events-none"
+                        />
+                      </div>
+                    ))}
                   </div>
                 </>
               )}
