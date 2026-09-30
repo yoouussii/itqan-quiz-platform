@@ -10,17 +10,14 @@ export interface TeacherPermissions {
 
 export interface User {
   id: string;
-  national_id: string; // رقم الهوية / الرقم الأكاديمي (مفتاح الدخول الأساسي)
   name: string;
-  email?: string;
-  password?: string;
+  national_id: string;
   role: Role;
-  specialty_id?: string | null;          // Primary subject for teacher
-  assigned_subject_ids?: string[];       // All assigned subjects for teacher
-  class_id?: string | null;              // For students: enrolled class id; for teachers: advisory class
-  teacher_permissions?: TeacherPermissions; // Granular teacher permissions
-  avatar?: string;
-  created_at: string;
+  class_id?: string | null; // للطلاب
+  specialty_id?: string | null;
+  assigned_subject_ids?: string[]; // المواد المسندة للمعلم
+  assigned_class_ids?: string[];   // ✨ جديد: الفصول/الشعب المسندة للمعلم
+  teacher_permissions?: TeacherPermissions;
 }
 
 export interface Subject {
@@ -62,7 +59,7 @@ export interface Quiz {
   allowed_retake_student_ids?: string[];
 }
 
-export type QuestionType = 'mcq' | 'fill_blank' | 'matching' | 'passage';
+export type QuestionType = 'mcq' | 'true_false' | 'essay' | 'fill_blank' | 'matching' | 'passage';
 
 export interface MatchingPair {
   left: string;
@@ -73,22 +70,21 @@ export interface Question {
   id: string;
   quiz_id?: string;
   type?: QuestionType;
-  
+
   // الخصائص الأساسية
   question_text: string;
-  options: string[];
+  options?: string[];
   marks: number;
-  
-  // لاحظ علامة الاستفهام هنا (?) لتقبل undefined بدون مشاكل
-  correct_option_index?: number; 
-  
+
+  // الإجابات
+  correct_option_index?: number;
+  correctAnswer?: string; // تستخدم أيضاً لأسئلة صح/خطأ والمقالي
+
   // الخصائص الاختيارية الأخرى
   text?: string;
   explanation?: string;
-  correctAnswer?: string;
   blankAnswer?: string;
-  matchingPairs?: MatchingPair[];
-  subQuestions?: Question[];
+  pairs?: MatchingPair[];
 }
 export type TargetType = 'all' | 'class' | 'specific_students' | 'assigned_teacher';
 
