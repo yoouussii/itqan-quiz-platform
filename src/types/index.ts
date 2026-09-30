@@ -16,6 +16,7 @@ export interface User {
   email?: string;
   password?: string;
   created_at?: string;
+  created_by?: string;                // ← تم إضافة هذا الحقل لتحديد من قام بإنشاء الحساب
   class_id?: string | null;           // ← حل خطأ class_id
   assigned_class_ids?: string[];      // ← حل خطأ assigned_class_ids
   assigned_subject_ids?: string[];    // ← حل خطأ assigned_subject_ids
