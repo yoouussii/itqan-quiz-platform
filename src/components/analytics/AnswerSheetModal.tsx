@@ -205,7 +205,7 @@ export const AnswerSheetModal: React.FC<AnswerSheetModalProps> = ({ submission, 
 
                   {/* Options List */}
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mb-3">
-                    {question.options.map((opt, optIdx) => {
+                    (question.options || []).map(...)
                       const isSelected = selectedIdx === optIdx;
                       const isCorrectOption = optIdx === question.correct_option_index;
 
