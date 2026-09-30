@@ -10,18 +10,23 @@ export interface TeacherPermissions {
 
 export interface User {
   id: string;
-  name: string;
   national_id: string;
-  role: Role;
-  email?: string;
+  name: string;
+  role: 'admin' | 'teacher' | 'student';
   password?: string;
   created_at?: string;
-  created_by?: string;                // ← تم إضافة هذا الحقل لتحديد من قام بإنشاء الحساب
-  class_id?: string | null;           // ← حل خطأ class_id
-  assigned_class_ids?: string[];      // ← حل خطأ assigned_class_ids
-  assigned_subject_ids?: string[];    // ← حل خطأ assigned_subject_ids
-  specialty_id?: string | null;       // ← حل خطأ specialty_id
-  teacher_permissions?: TeacherPermissions; // ← حل خطأ teacher_permissions
+  
+  // 👈 أضف هذه الأسطر الخاصة بالإسنادات والصلاحيات
+  assigned_subject_ids?: string[];
+  assigned_class_ids?: string[];
+  permissions?: {
+    can_add_students?: boolean;
+    can_add_teachers?: boolean;
+    can_add_custom_subjects?: boolean;
+    can_manage_classes?: boolean;
+    can_view_all_reports?: boolean;
+    [key: string]: boolean | undefined;
+  };
 }
 
 export interface Subject {
