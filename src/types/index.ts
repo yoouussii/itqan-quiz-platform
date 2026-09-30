@@ -1,11 +1,11 @@
 export type Role = 'admin' | 'teacher' | 'student';
 
 export interface TeacherPermissions {
-  can_add_custom_subjects: boolean;
-  can_manage_classes: boolean;
-  can_view_all_reports: boolean;
-  can_add_students?: boolean;  // صلاحية إضافة الطلاب
-  can_add_teachers?: boolean;  // صلاحية إضافة معلمين
+  can_add_custom_subjects?: boolean;
+  can_manage_classes?: boolean;
+  can_view_all_reports?: boolean;
+  can_add_students?: boolean;
+  can_add_teachers?: boolean;
 }
 
 export interface User {
@@ -13,10 +13,14 @@ export interface User {
   name: string;
   national_id: string;
   role: Role;
-  email?: string;       // ← أضف هذا
-  password?: string;    // ← أضف هذا
-  created_at?: string;  // ← أضف هذا
-  // ... بقية الخصائص الحالية
+  email?: string;
+  password?: string;
+  created_at?: string;
+  class_id?: string | null;           // ← حل خطأ class_id
+  assigned_class_ids?: string[];      // ← حل خطأ assigned_class_ids
+  assigned_subject_ids?: string[];    // ← حل خطأ assigned_subject_ids
+  specialty_id?: string | null;       // ← حل خطأ specialty_id
+  teacher_permissions?: TeacherPermissions; // ← حل خطأ teacher_permissions
 }
 export interface Subject {
   id: string;
