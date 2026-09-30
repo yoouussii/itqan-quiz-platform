@@ -226,7 +226,7 @@ export const QuizReview: React.FC<QuizReviewProps> = ({ submissionId, onBack }) 
 
               {/* Options */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 mb-4">
-                question.options?.map(...) {
+                {(question.options || []).map((opt, optIdx) => {
                   const isCorrectOption = optIdx === question.correct_option_index;
                   const isUserSelection = selectedIdx === optIdx;
 
