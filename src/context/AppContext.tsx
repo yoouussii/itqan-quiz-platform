@@ -724,7 +724,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     if (updates.national_id) cleanUpdates.national_id = updates.national_id;
     if (updates.username) cleanUpdates.username = updates.username;
 
-    // 1. التحديث والتثبيت المباشر والمضمون في LocalStorage أولاً
+    // 1. التحديث المحلي السريع
     const updatedUserObj = StorageService.updateUser(id, cleanUpdates);
 
     if (updatedUserObj) {
@@ -744,21 +744,35 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       }
     }
 
-    // 2. المزامنة في الخلفية مع Supabase بمرونة
+    // 2. المزامنة مع Supabase مع طباعة تفصيلية للأخطاء
     if (isSupabaseConfigured()) {
       try {
         let payload = cleanUserPayloadForSupabase(cleanUpdates);
-        let attempts = 0;
+        const targetKey = targetNationalId || id;
 
-        while (attempts < 5) {
-          attempts++;
-          const targetKey = targetNationalId || id;
-          const { error } = await supabase
-            .from('users')
-            .update(payload)
-            .or(`id.eq.${id},national_id.eq.${targetKey},username.eq.${targetKey}`);
+        const { data, error } = await supabase
+          .from('users')
+          .update(payload)
+          .or(`id.eq.${id},national_id.eq.${targetKey},username.eq.${targetKey}`)
+          .select(); // إرجاع الصفوف المحدثة للتأكد
 
-          if (!error) break;
+        if (error) {
+          console.error('[Supabase Update Error]:', error.message, error.details, error.hint);
+          showToast(`خطأ Supabase: ${error.message}`, 'error');
+        } else if (!data || data.length === 0) {
+          console.warn('[Supabase Warning]: لم يتم العثور على أي مستخدم يطابق المعرف في Supabase لتحديثه');
+        } else {
+          console.log('[Supabase Success]: تم التحديث بنجاح في Supabase', data);
+        }
+      } catch (err) {
+        console.error('[updateUserData Exception]:', err);
+      }
+    } else {
+      console.warn('[Supabase Warning]: الاتصال بـ Supabase غير مفعل أو الناقصة بيانات .env');
+    }
+
+    showToast('تم حفظ وتحديث بيانات المستخدم بنجاح', 'success');
+  };
 
           const missingColumn = extractMissingColumn(error.message || '');
           if (missingColumn && missingColumn in payload) {
