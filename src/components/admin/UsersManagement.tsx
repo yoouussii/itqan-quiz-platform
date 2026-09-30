@@ -59,13 +59,20 @@ export const UsersManagement: React.FC = () => {
     can_add_teachers: false,
   });
 
+  const isTeacher = currentUser?.role === 'teacher';
+
   const filteredUsers = users.filter((u) => {
+    // المعلم لا يرى سوى الطلاب الذين أضافهم هو فقط
+    if (isTeacher) {
+      if (u.role !== 'student') return false;
+      if (u.created_by !== currentUser?.id) return false;
+    }
     const matchesSearch =
       !searchTerm.trim() ||
       u.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
       u.national_id.includes(searchTerm) ||
       (u.email && u.email.toLowerCase().includes(searchTerm.toLowerCase()));
-    const matchesRole = roleFilter === 'all' || u.role === roleFilter;
+    const matchesRole = isTeacher ? true : (roleFilter === 'all' || u.role === roleFilter);
     return matchesSearch && matchesRole;
   });
 
@@ -146,7 +153,9 @@ export const UsersManagement: React.FC = () => {
       return;
     }
 
-    const permsObj: TeacherPermissions | undefined = role === 'teacher' ? {
+    // المعلم يضيف طلاباً فقط دائماً
+    const effectiveRole: Role = isTeacher ? 'student' : role;
+    const permsObj: TeacherPermissions | undefined = effectiveRole === 'teacher' ? {
       can_add_custom_subjects: !!teacherPermissions.can_add_custom_subjects,
       can_manage_classes: !!teacherPermissions.can_manage_classes,
       can_view_all_reports: !!teacherPermissions.can_view_all_reports,
@@ -158,11 +167,11 @@ export const UsersManagement: React.FC = () => {
       name: name.trim(),
       national_id: nationalId.trim(),
       password,
-      role,
-      specialty_id: role === 'teacher' ? (assignedSubjectIds[0] || null) : null,
-      assigned_subject_ids: role === 'teacher' ? [...assignedSubjectIds] : [],
-      assigned_class_ids: role === 'teacher' ? [...assignedClassIds] : (role === 'student' ? [classId] : []),
-      class_id: role === 'student' ? classId : (assignedClassIds[0] || null),
+      role: effectiveRole,
+      specialty_id: effectiveRole === 'teacher' ? (assignedSubjectIds[0] || null) : null,
+      assigned_subject_ids: effectiveRole === 'teacher' ? [...assignedSubjectIds] : [],
+      assigned_class_ids: effectiveRole === 'teacher' ? [...assignedClassIds] : (effectiveRole === 'student' ? [classId] : []),
+      class_id: effectiveRole === 'student' ? classId : (assignedClassIds[0] || null),
       teacher_permissions: permsObj,
       permissions: permsObj,
       created_by: currentUser?.id,
@@ -174,7 +183,8 @@ export const UsersManagement: React.FC = () => {
     e.preventDefault();
     if (!editingUser) return;
 
-    const permsObj: TeacherPermissions | undefined = role === 'teacher' ? {
+    const effectiveRole: Role = isTeacher ? 'student' : role;
+    const permsObj: TeacherPermissions | undefined = effectiveRole === 'teacher' ? {
       can_add_custom_subjects: !!teacherPermissions.can_add_custom_subjects,
       can_manage_classes: !!teacherPermissions.can_manage_classes,
       can_view_all_reports: !!teacherPermissions.can_view_all_reports,
@@ -185,11 +195,11 @@ export const UsersManagement: React.FC = () => {
     const updates: Partial<User> & { password?: string } = {
       name: name.trim(),
       national_id: nationalId.trim(),
-      role,
-      specialty_id: role === 'teacher' ? (assignedSubjectIds[0] || null) : null,
-      class_id: role === 'student' ? classId : (assignedClassIds[0] || null),
-      assigned_subject_ids: role === 'teacher' ? [...assignedSubjectIds] : [],
-      assigned_class_ids: role === 'teacher' ? [...assignedClassIds] : (role === 'student' ? [classId] : []),
+      role: effectiveRole,
+      specialty_id: effectiveRole === 'teacher' ? (assignedSubjectIds[0] || null) : null,
+      class_id: effectiveRole === 'student' ? classId : (assignedClassIds[0] || null),
+      assigned_subject_ids: effectiveRole === 'teacher' ? [...assignedSubjectIds] : [],
+      assigned_class_ids: effectiveRole === 'teacher' ? [...assignedClassIds] : (effectiveRole === 'student' ? [classId] : []),
       teacher_permissions: permsObj,
       permissions: permsObj,
     };
@@ -240,13 +250,15 @@ export const UsersManagement: React.FC = () => {
             </button>
           )}
 
-          <button
-            onClick={() => handleOpenAddModal('teacher')}
-            className="inline-flex items-center gap-2 px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-2xl text-xs font-bold shadow-md shadow-indigo-600/20 transition-all hover:scale-105"
-          >
-            <UserPlus className="w-4 h-4" />
-            <span>إضافة مستخدم جديد</span>
-          </button>
+          {!isTeacher && (
+            <button
+              onClick={() => handleOpenAddModal('teacher')}
+              className="inline-flex items-center gap-2 px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-2xl text-xs font-bold shadow-md shadow-indigo-600/20 transition-all hover:scale-105"
+            >
+              <UserPlus className="w-4 h-4" />
+              <span>إضافة مستخدم جديد</span>
+            </button>
+          )}
         </div>
       </div>
 
@@ -263,18 +275,20 @@ export const UsersManagement: React.FC = () => {
           />
         </div>
 
-        <div className="flex items-center gap-2 w-full sm:w-auto">
-          <select
-            value={roleFilter}
-            onChange={(e) => setRoleFilter(e.target.value)}
-            className="px-4 py-2 text-xs rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-700 dark:text-slate-200 font-semibold"
-          >
-            <option value="all">كافة الأدوار ({users.length})</option>
-            <option value="admin">مديرو النظام</option>
-            <option value="teacher">المعلمون</option>
-            <option value="student">الطلاب</option>
-          </select>
-        </div>
+        {!isTeacher && (
+          <div className="flex items-center gap-2 w-full sm:w-auto">
+            <select
+              value={roleFilter}
+              onChange={(e) => setRoleFilter(e.target.value)}
+              className="px-4 py-2 text-xs rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-700 dark:text-slate-200 font-semibold"
+            >
+              <option value="all">كافة الأدوار ({users.length})</option>
+              <option value="admin">مديرو النظام</option>
+              <option value="teacher">المعلمون</option>
+              <option value="student">الطلاب</option>
+            </select>
+          </div>
+        )}
       </div>
 
       {/* Users Table */}
@@ -544,20 +558,22 @@ export const UsersManagement: React.FC = () => {
                 />
               </div>
 
-              <div>
-                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
-                  الدور في النظام (Role) *
-                </label>
-                <select
-                  value={role}
-                  onChange={(e) => setRole(e.target.value as Role)}
-                  className="w-full px-3 py-2 text-xs rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white font-bold"
-                >
-                  <option value="student">طالب (Student)</option>
-                  <option value="teacher">معلم (Teacher)</option>
-                  <option value="admin">مدير نظام (Super Admin)</option>
-                </select>
-              </div>
+              {!isTeacher && (
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
+                    الدور في النظام (Role) *
+                  </label>
+                  <select
+                    value={role}
+                    onChange={(e) => setRole(e.target.value as Role)}
+                    className="w-full px-3 py-2 text-xs rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white font-bold"
+                  >
+                    <option value="student">طالب (Student)</option>
+                    <option value="teacher">معلم (Teacher)</option>
+                    <option value="admin">مدير نظام (Super Admin)</option>
+                  </select>
+                </div>
+              )}
 
               {role === 'student' && (
                 <div>
@@ -578,7 +594,7 @@ export const UsersManagement: React.FC = () => {
                 </div>
               )}
 
-              {role === 'teacher' && (
+              {role === 'teacher' && !isTeacher && (
                 <>
                   {/* المواد المسندة */}
                   <div>
