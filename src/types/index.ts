@@ -62,6 +62,7 @@ export interface Quiz {
   pass_percentage: number;
   status: QuizStatus;
   created_at: string;
+  updated_at?: string;
   start_date?: string;
   end_date?: string;
   is_active: boolean;

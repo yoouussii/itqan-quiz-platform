@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   Plus,
   Trash2,
@@ -15,6 +15,7 @@ import {
 } from 'lucide-react';
 import { TargetType, Question, QuizAssignment } from '../../types';
 import { useApp } from '../../context/AppContext';
+import { StorageService } from '../../services/storage';
 
 export type QuestionType = 'mcq' | 'true_false' | 'essay' | 'passage';
 
@@ -122,59 +123,73 @@ export const QuizEditor: React.FC = () => {
     },
   ]);
 
-  // Pre-fill state when editing an existing quiz
+  const loadedQuizIdRef = useRef<string | null>(null);
+
+  // Pre-fill state when editing an existing quiz (تحميل لمرة واحدة فقط لمنع مسح تعديلات المعلم)
   useEffect(() => {
-    if (editingQuizId) {
-      const quizToEdit = quizzes.find((q) => q.id === editingQuizId);
-      if (quizToEdit) {
-        setTitle(quizToEdit.title);
-        setDescription(quizToEdit.description || '');
-        setSubjectId(quizToEdit.subject_id);
-        setDurationMinutes(quizToEdit.duration_minutes);
-        setPassPercentage(quizToEdit.pass_percentage);
-        setStartDate(quizToEdit.start_date ? quizToEdit.start_date.split('T')[0] : '');
-        setEndDate(quizToEdit.end_date ? quizToEdit.end_date.split('T')[0] : '');
-        setIsActive(quizToEdit.is_active ?? true);
+    if (!editingQuizId) {
+      loadedQuizIdRef.current = null;
+      return;
+    }
 
-        // Populate questions
-        if (quizToEdit.questions && quizToEdit.questions.length > 0) {
-          setQuestions(
-            quizToEdit.questions.map((q) => ({
-              id: q.id,
-              type: (q as any).type || 'mcq',
-              question_text: q.question_text,
-              options: q.options ? [...q.options] : [],
-              correct_option_index: q.correct_option_index ?? 0,
-              marks: q.marks,
-              explanation: q.explanation || '',
-              sub_questions: (q as any).sub_questions
-                ? (q as any).sub_questions.map((sq: any) => ({
-                    id: sq.id,
-                    question_text: sq.question_text || '',
-                    type: sq.type || 'mcq',
-                    options: sq.options ? [...sq.options] : ['', '', '', ''],
-                    correct_option_index: sq.correct_option_index ?? 0,
-                    marks: sq.marks || 1,
-                    explanation: sq.explanation || '',
-                  }))
-                : [],
-            }))
-          );
-        }
+    // إذا تم تحميل بيانات هذا الاختبار بالفعل في الـ State، نمنع إعادة تعيين الحقول
+    if (loadedQuizIdRef.current === editingQuizId) {
+      return;
+    }
 
-        // Populate assignments
-        if (quizToEdit.assignments && quizToEdit.assignments.length > 0) {
-          const primaryAsg = quizToEdit.assignments[0];
-          setTargetType(primaryAsg.target_type);
-          if (primaryAsg.target_type === 'class' && primaryAsg.target_id) {
-            setTargetClassId(primaryAsg.target_id);
-          } else if (primaryAsg.target_type === 'specific_students' && primaryAsg.target_id) {
-            setSelectedStudentIds(primaryAsg.target_id.split(',').map((s) => s.trim()));
-          }
+    const quizToEdit =
+      StorageService.getQuizWithDetails(editingQuizId) ||
+      quizzes.find((q) => q.id === editingQuizId);
+
+    if (quizToEdit) {
+      loadedQuizIdRef.current = editingQuizId;
+      setTitle(quizToEdit.title);
+      setDescription(quizToEdit.description || '');
+      setSubjectId(quizToEdit.subject_id);
+      setDurationMinutes(quizToEdit.duration_minutes);
+      setPassPercentage(quizToEdit.pass_percentage);
+      setStartDate(quizToEdit.start_date ? quizToEdit.start_date.split('T')[0] : '');
+      setEndDate(quizToEdit.end_date ? quizToEdit.end_date.split('T')[0] : '');
+      setIsActive(quizToEdit.is_active ?? true);
+
+      // Populate questions
+      if (quizToEdit.questions && quizToEdit.questions.length > 0) {
+        setQuestions(
+          quizToEdit.questions.map((q) => ({
+            id: q.id,
+            type: (q as any).type || 'mcq',
+            question_text: q.question_text,
+            options: q.options ? [...q.options] : [],
+            correct_option_index: q.correct_option_index ?? 0,
+            marks: q.marks,
+            explanation: q.explanation || '',
+            sub_questions: (q as any).sub_questions
+              ? (q as any).sub_questions.map((sq: any) => ({
+                  id: sq.id,
+                  question_text: sq.question_text || '',
+                  type: sq.type || 'mcq',
+                  options: sq.options ? [...sq.options] : ['', '', '', ''],
+                  correct_option_index: sq.correct_option_index ?? 0,
+                  marks: sq.marks || 1,
+                  explanation: sq.explanation || '',
+                }))
+              : [],
+          }))
+        );
+      }
+
+      // Populate assignments
+      if (quizToEdit.assignments && quizToEdit.assignments.length > 0) {
+        const primaryAsg = quizToEdit.assignments[0];
+        setTargetType(primaryAsg.target_type);
+        if (primaryAsg.target_type === 'class' && primaryAsg.target_id) {
+          setTargetClassId(primaryAsg.target_id);
+        } else if (primaryAsg.target_type === 'specific_students' && primaryAsg.target_id) {
+          setSelectedStudentIds(primaryAsg.target_id.split(',').map((s) => s.trim()));
         }
       }
     }
-  }, [editingQuizId, quizzes]);
+  }, [editingQuizId]);
 
   // --- دوال التحكم بالأسئلة الرئيسية --- //
   const handleAddQuestion = () => {
@@ -362,7 +377,7 @@ export const QuizEditor: React.FC = () => {
     return sum + (Number(q.marks) || 0);
   }, 0);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
     if (!title.trim()) {
@@ -432,7 +447,7 @@ export const QuizEditor: React.FC = () => {
     });
 
     if (isEditing && editingQuizId) {
-      updateFullQuiz(
+      await updateFullQuiz(
         editingQuizId,
         {
           title,
@@ -448,6 +463,7 @@ export const QuizEditor: React.FC = () => {
         formattedQuestions as any,
         assignments
       );
+      loadedQuizIdRef.current = null;
       setEditingQuizId(null);
     } else {
       createNewQuiz(

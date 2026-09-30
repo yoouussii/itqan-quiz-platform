@@ -250,26 +250,45 @@ public static getCurrentUser(): User | null {
         : ('specialty_id' in updates
             ? (updates.specialty_id ? [updates.specialty_id] : [])
             : current.assigned_subject_ids || (current.specialty_id ? [current.specialty_id] : []));
-      specialtyId = 'specialty_id' in updates ? (updates.specialty_id || null) : (assignedSubs[0] || null);
+      specialtyId = updates.specialty_id !== undefined
+        ? (updates.specialty_id || null)
+        : (assignedSubs[0] || current.specialty_id || null);
+      if (!specialtyId && assignedSubs.length > 0) {
+        specialtyId = assignedSubs[0];
+      }
+      if (specialtyId && assignedSubs.length === 0) {
+        assignedSubs = [specialtyId];
+      }
     }
 
     // توحيد الفصول والشعب
     let assignedCls: string[] = [];
     let classId: string | null = null;
     if (targetRole === 'student') {
-      classId = 'class_id' in updates
+      classId = updates.class_id !== undefined
         ? (updates.class_id || null)
         : (Array.isArray(updates.assigned_class_ids) && updates.assigned_class_ids.length > 0
             ? updates.assigned_class_ids[0]
             : (current.class_id || current.assigned_class_ids?.[0] || null));
-      assignedCls = classId ? [classId] : [];
+      assignedCls = classId ? [classId] : (Array.isArray(updates.assigned_class_ids) ? updates.assigned_class_ids : []);
+      if (!classId && assignedCls.length > 0) {
+        classId = assignedCls[0];
+      }
     } else if (targetRole === 'teacher') {
       assignedCls = Array.isArray(updates.assigned_class_ids)
         ? updates.assigned_class_ids
         : ('class_id' in updates
             ? (updates.class_id ? [updates.class_id] : [])
             : current.assigned_class_ids || (current.class_id ? [current.class_id] : []));
-      classId = 'class_id' in updates ? (updates.class_id || null) : (assignedCls[0] || null);
+      classId = updates.class_id !== undefined
+        ? (updates.class_id || null)
+        : (assignedCls[0] || current.class_id || null);
+      if (!classId && assignedCls.length > 0) {
+        classId = assignedCls[0];
+      }
+      if (classId && assignedCls.length === 0) {
+        assignedCls = [classId];
+      }
     }
 
     const now = new Date().toISOString();
@@ -483,7 +502,7 @@ public static getCurrentUser(): User | null {
     const quizzes = this.getQuizzes();
     const idx = quizzes.findIndex((q) => q.id === id);
     if (idx === -1) return null;
-    quizzes[idx] = { ...quizzes[idx], ...updates };
+    quizzes[idx] = { ...quizzes[idx], ...updates, updated_at: new Date().toISOString() };
     setLocalItem(STORAGE_KEYS.QUIZZES, quizzes);
     return quizzes[idx];
   }
@@ -501,7 +520,7 @@ public static getCurrentUser(): User | null {
     const idx = quizzes.findIndex((q) => q.id === quizId);
     if (idx === -1) return null;
 
-    quizzes[idx] = { ...quizzes[idx], ...quizUpdates };
+    quizzes[idx] = { ...quizzes[idx], ...quizUpdates, updated_at: new Date().toISOString() };
     setLocalItem(STORAGE_KEYS.QUIZZES, quizzes);
 
     // Save updated questions for this quiz

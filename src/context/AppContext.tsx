@@ -54,8 +54,8 @@ interface AppContextType {
     quizUpdates: Partial<Quiz>,
     questions: Array<Omit<Question, 'quiz_id' | 'id'> & { id?: string }>,
     assignments: Array<Omit<QuizAssignment, 'quiz_id' | 'created_at' | 'id'> & { id?: string }>
-  ) => Quiz | null;
-  updateQuizInfo: (id: string, updates: Partial<Quiz>) => void;
+  ) => Promise<Quiz | null> | Quiz | null;
+  updateQuizInfo: (id: string, updates: Partial<Quiz>) => Promise<void> | void;
   deleteQuizItem: (id: string) => void;
   toggleQuizActive: (id: string) => void;
   allowStudentRetake: (quizId: string, studentId: string) => void;
@@ -222,24 +222,51 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             const localUpdated = localU.updated_at ? new Date(localU.updated_at).getTime() : 0;
             const dbUpdated = dbU.updated_at ? new Date(dbU.updated_at).getTime() : 0;
 
-            // إذا كان التعديل المحلي أحدث أو مساوياً (تم حفظه محلياً للتو)، الأولوية الكاملة والنهائية للنسخة المحلية
-            if (localUpdated >= dbUpdated && localUpdated > 0) {
-              return sanitizeUser({ ...dbU, ...localU });
+            // إذا كان التعديل المحلي أحدث أو مساوياً (تم حفظه محلياً)، أو إذا لم يكن لدى السيرفر تاريخ تعديل صالح:
+            // الأولوية الكاملة والنهائية للنسخة المحلية لمنع أي تراجع أو مسح للبيانات
+            if (localUpdated >= dbUpdated || !dbU.updated_at) {
+              return sanitizeUser({
+                ...dbU,
+                ...localU,
+                // تثبيت الحقول المزدوجة وضمان عدم تفريغها
+                class_id: localU.class_id || localU.assigned_class_ids?.[0] || null,
+                assigned_class_ids: localU.assigned_class_ids && localU.assigned_class_ids.length > 0
+                  ? localU.assigned_class_ids
+                  : (localU.class_id ? [localU.class_id] : []),
+                specialty_id: localU.specialty_id || localU.assigned_subject_ids?.[0] || null,
+                assigned_subject_ids: localU.assigned_subject_ids && localU.assigned_subject_ids.length > 0
+                  ? localU.assigned_subject_ids
+                  : (localU.specialty_id ? [localU.specialty_id] : []),
+              });
             }
 
             // في حال كانت النسخة على السيرفر أحدث زمناً:
-            // نأخذ بيانات السيرفر، مع الحفاظ الكامل على الصلاحيات والمواد والفصول المحلية إذا لم تكن موجودة بالسيرفر
+            // نأخذ بيانات السيرفر دون مسح أي فصول أو مواد أو صلاحيات إذا كانت فارغة أو null في السيرفر
             const dbHasPerms = dbU.teacher_permissions && typeof dbU.teacher_permissions === 'object' && Object.keys(dbU.teacher_permissions).length > 0;
-            const dbHasSubs = Array.isArray(dbU.assigned_subject_ids);
-            const dbHasCls = Array.isArray(dbU.assigned_class_ids);
+            const dbHasSubs = Array.isArray(dbU.assigned_subject_ids) && dbU.assigned_subject_ids.length > 0;
+            const dbHasCls = Array.isArray(dbU.assigned_class_ids) && dbU.assigned_class_ids.length > 0;
+
+            const finalCls = dbHasCls
+              ? dbU.assigned_class_ids
+              : (localU.assigned_class_ids && localU.assigned_class_ids.length > 0
+                  ? localU.assigned_class_ids
+                  : (dbU.class_id ? [dbU.class_id] : (localU.class_id ? [localU.class_id] : [])));
+            const finalClassId = dbU.class_id || localU.class_id || finalCls[0] || null;
+
+            const finalSubs = dbHasSubs
+              ? dbU.assigned_subject_ids
+              : (localU.assigned_subject_ids && localU.assigned_subject_ids.length > 0
+                  ? localU.assigned_subject_ids
+                  : (dbU.specialty_id ? [dbU.specialty_id] : (localU.specialty_id ? [localU.specialty_id] : [])));
+            const finalSpecialtyId = dbU.specialty_id || localU.specialty_id || finalSubs[0] || null;
 
             return sanitizeUser({
               ...localU,
               ...dbU,
-              specialty_id: dbU.specialty_id !== undefined ? dbU.specialty_id : localU.specialty_id,
-              class_id: dbU.class_id !== undefined ? dbU.class_id : localU.class_id,
-              assigned_subject_ids: dbHasSubs ? dbU.assigned_subject_ids : (localU.assigned_subject_ids || []),
-              assigned_class_ids: dbHasCls ? dbU.assigned_class_ids : (localU.assigned_class_ids || []),
+              specialty_id: finalSpecialtyId,
+              class_id: finalClassId,
+              assigned_subject_ids: finalSubs,
+              assigned_class_ids: finalCls,
               teacher_permissions: dbHasPerms ? dbU.teacher_permissions : localU.teacher_permissions,
               permissions: dbHasPerms ? (dbU.permissions || dbU.teacher_permissions) : localU.permissions,
             });
@@ -406,26 +433,76 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     assignments: Array<Omit<QuizAssignment, 'id' | 'quiz_id' | 'created_at'>>
   ) => {
     const created = StorageService.createQuiz(quiz, questions, assignments);
-    refreshData();
+    const createdWithDetails = StorageService.getQuizWithDetails(created.id);
+    if (createdWithDetails) {
+      setQuizzes((prev) => [createdWithDetails, ...prev]);
+    }
     showToast(`تم إنشاء الاختبار بنجاح: ${created.title}`, 'success');
     return created;
   };
 
-  const updateFullQuiz = (
+  const updateFullQuiz = async (
     quizId: string,
     quizUpdates: Partial<Quiz>,
     questions: Array<Omit<Question, 'quiz_id' | 'id'> & { id?: string }>,
     assignments: Array<Omit<QuizAssignment, 'quiz_id' | 'created_at' | 'id'> & { id?: string }>
   ) => {
+    // 1. تحديث التخزين المحلي فوراً
     const updated = StorageService.updateFullQuiz(quizId, quizUpdates, questions, assignments);
-    refreshData();
+
+    // 2. تحديث قائمة الاختبارات في React State فوراً بالبيانات الجديدة
+    const updatedWithDetails = StorageService.getQuizWithDetails(quizId);
+    if (updatedWithDetails) {
+      setQuizzes((prev) => prev.map((q) => (q.id === quizId ? updatedWithDetails : q)));
+    }
+
+    // 3. إرسال التحديث لـ Supabase في الخلفية إن كانت مهيأة
+    if (isSupabaseConfigured()) {
+      try {
+        await supabase
+          .from('quizzes')
+          .update({
+            title: quizUpdates.title,
+            description: quizUpdates.description,
+            subject_id: quizUpdates.subject_id,
+            total_marks: quizUpdates.total_marks,
+            duration_minutes: quizUpdates.duration_minutes,
+            pass_percentage: quizUpdates.pass_percentage,
+            start_date: quizUpdates.start_date,
+            end_date: quizUpdates.end_date,
+            is_active: quizUpdates.is_active,
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', quizId);
+      } catch (err) {
+        console.warn('[updateFullQuiz] Supabase update warning:', err);
+      }
+    }
+
+    // يُمْنَع استدعاء refreshData() مباشرة بعد الحفظ حتى لا تُسحب النسخة القديمة من السيرفر وتلغي تعديلات المعلم
     showToast('تم حفظ وتحديث بيانات الاختبار بنجاح', 'success');
     return updated;
   };
 
-  const updateQuizInfo = (id: string, updates: Partial<Quiz>) => {
-    StorageService.updateQuiz(id, updates);
-    refreshData();
+  const updateQuizInfo = async (id: string, updates: Partial<Quiz>) => {
+    const updated = StorageService.updateQuiz(id, updates);
+    const updatedWithDetails = StorageService.getQuizWithDetails(id);
+    if (updatedWithDetails) {
+      setQuizzes((prev) => prev.map((q) => (q.id === id ? updatedWithDetails : q)));
+    }
+    if (isSupabaseConfigured()) {
+      try {
+        await supabase
+          .from('quizzes')
+          .update({
+            ...updates,
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', id);
+      } catch (err) {
+        console.warn('[updateQuizInfo] Supabase update warning:', err);
+      }
+    }
     showToast('تم تحديث بيانات الاختبار بنجاح', 'success');
   };
 
@@ -674,8 +751,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         prevUsers.map((u) => (u.id === id ? sanitizedUser : u))
       );
 
-      if (currentUser?.id === id) {
+      if (currentUser?.id === id || (currentUser?.national_id && currentUser.national_id === sanitizedUser.national_id)) {
         setCurrentUser(sanitizedUser);
+        StorageService.setCurrentUserId(sanitizedUser.id);
 
         if (sanitizedUser.role === 'admin') {
           setQuizzes(StorageService.getAllQuizzesWithDetails());
@@ -691,6 +769,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             setQuizzes(StorageService.getQuizzesForTeacher(sanitizedUser.id));
             setKpis(StorageService.getDynamicKPIs(sanitizedUser.id));
           }
+        } else if (sanitizedUser.role === 'student') {
+          setQuizzes(StorageService.getQuizzesForStudent(sanitizedUser.id));
+          setKpis(StorageService.getDynamicKPIs());
         }
       }
 
