@@ -459,22 +459,40 @@ const refreshData = useCallback(async () => {
     return newUser;
   };
 
-  const updateUserData = async (id: string, updates: Partial<User>) => {
-    StorageService.updateUser(id, updates);
+ const updateUserData = async (id: string, updates: Partial<User>) => {
+  // 1. تحديث الحالة في الذاكرة فوراً (React State) حتى تنعكس الصلاحيات في الواجهة
+  setUsers((prevUsers) =>
+    prevUsers.map((user) =>
+      user.id === id ? { ...user, ...updates } : user
+    )
+  );
 
-    try {
-      await supabase.from('users').update(updates).eq('id', id);
-    } catch (err) {
-      console.error('Error updating user in Supabase:', err);
+  // 2. تحديث التخزين المحلي
+  StorageService.updateUser(id, updates);
+
+  // 3. تحديث Supabase مع طباعة الخطأ في حال وجوده
+  try {
+    const { error } = await supabase
+      .from('users')
+      .update(updates)
+      .eq('id', id);
+
+    if (error) {
+      console.error('خطأ أثناء التحديث في Supabase:', error);
     }
+  } catch (err) {
+    console.error('Error updating user in Supabase:', err);
+  }
 
-    if (currentUser && currentUser.id === id) {
-      setCurrentUser((prev) => (prev ? sanitizeUser({ ...prev, ...updates }) : null));
-    }
+  // 4. تحديث حساب المستخدم الحالي إن كان هو نفسه
+  if (currentUser && currentUser.id === id) {
+    setCurrentUser((prev) => (prev ? sanitizeUser({ ...prev, ...updates }) : null));
+  }
 
-    refreshData();
-    showToast('تم تحديث بيانات وتصاريح المستخدم بنجاح', 'success');
-  };
+  // 5. إعادة جلب البيانات
+  await refreshData();
+  showToast('تم تحديث بيانات وتصاريح المستخدم بنجاح', 'success');
+};
 
   const resetUserPassword = async (id: string, newPass: string) => {
     const ok = StorageService.resetPassword(id, newPass);
