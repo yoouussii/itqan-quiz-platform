@@ -153,23 +153,19 @@ export const UsersManagement: React.FC = () => {
     setShowAddModal(false);
   };
 
- const handleUpdate = (e: React.FormEvent) => {
-  e.preventDefault();
-  if (!editingUser) return;
+  const handleUpdate = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingUser) return;
 
-  const updates: Partial<User> = {
-    name,
-    national_id: nationalId.trim(),
-    role,
-    class_id: role === 'student' ? classId : null,
-    assigned_subject_ids: role === 'teacher' ? assignedSubjectIds : [],
-    assigned_class_ids: role === 'teacher' ? assignedClassIds : [],
-    permissions: role === 'teacher' ? { ...teacherPermissions } : undefined,
-  };
-
-  updateUserData(editingUser.id, updates);
-  setEditingUser(null);
-};
+    const updates: Partial<User> & { password?: string } = {
+      name,
+      national_id: nationalId.trim(),
+      role,
+      class_id: role === 'student' ? classId : null,
+      assigned_subject_ids: role === 'teacher' ? assignedSubjectIds : [],
+      assigned_class_ids: role === 'teacher' ? assignedClassIds : [],
+      teacher_permissions: role === 'teacher' ? { ...teacherPermissions } : undefined,
+    };
 
     if (password.trim()) {
       updates.password = password.trim();
@@ -231,15 +227,13 @@ export const UsersManagement: React.FC = () => {
       <div className="bg-white dark:bg-slate-900 p-4 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-soft flex flex-col sm:flex-row gap-3 items-center justify-between">
         <div className="relative w-full sm:w-80">
           <Search className="w-4 h-4 text-slate-400 absolute right-3.5 top-1/2 -translate-y-1/2" />
-      <input
-  type="checkbox"
-  checked={teacherPermissions.can_add_students || false}
-onChange={(e) =>
-  setTeacherPermissions((prev) => ({
-    ...prev,
-    can_add_students: e.target.checked,
-  }))
-}
+          <input
+            type="text"
+            placeholder="بحث بالاسم، الهوية، أو البريد..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="w-full pl-4 pr-10 py-2 text-xs rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+          />
         </div>
 
         <div className="flex items-center gap-2 w-full sm:w-auto">
@@ -703,13 +697,13 @@ onChange={(e) =>
                     setShowAddModal(false);
                     setEditingUser(null);
                   }}
-                  className="px-4 py-2 text-xs font-semibold text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl transition-colors"
+                  className="px-4 py-2 text-xs font-bold text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl transition-colors"
                 >
                   إلغاء
                 </button>
                 <button
                   type="submit"
-                  className="px-5 py-2 text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-700 rounded-xl shadow-md shadow-indigo-600/20 transition-all"
+                  className="px-5 py-2 text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-700 rounded-xl shadow-md shadow-indigo-600/20 transition-all hover:scale-105"
                 >
                   {editingUser ? 'حفظ التعديلات' : 'إضافة المستخدم'}
                 </button>
@@ -719,7 +713,7 @@ onChange={(e) =>
         </div>
       )}
 
-      {/* Password Reset Modal */}
+      {/* Reset Password Modal */}
       {passwordResetUser && (
         <div className="fixed inset-0 z-50 overflow-y-auto bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4">
           <div className="bg-white dark:bg-slate-900 rounded-3xl max-w-md w-full p-6 shadow-2xl border border-slate-100 dark:border-slate-800 animate-in fade-in zoom-in-95">
@@ -729,7 +723,10 @@ onChange={(e) =>
                 <span>إعادة تعيين كلمة المرور</span>
               </h3>
               <button
-                onClick={() => setPasswordResetUser(null)}
+                onClick={() => {
+                  setPasswordResetUser(null);
+                  setNewPasswordValue('');
+                }}
                 className="p-1 text-slate-400 hover:text-slate-700 dark:hover:text-slate-200"
               >
                 <X className="w-5 h-5" />
@@ -737,7 +734,10 @@ onChange={(e) =>
             </div>
 
             <p className="text-xs text-slate-600 dark:text-slate-400 mb-4">
-              أدخل كلمة المرور الجديدة للحساب: <strong className="text-slate-900 dark:text-white">{passwordResetUser.name}</strong>
+              أدخل كلمة المرور الجديدة للمستخدم:{' '}
+              <span className="font-bold text-slate-900 dark:text-white">
+                {passwordResetUser.name}
+              </span>
             </p>
 
             <form onSubmit={handlePasswordResetSubmit} className="space-y-4">
@@ -755,19 +755,22 @@ onChange={(e) =>
                 />
               </div>
 
-              <div className="flex items-center justify-end gap-3 pt-3 border-t border-slate-100 dark:border-slate-800">
+              <div className="flex items-center justify-end gap-3 pt-4 border-t border-slate-100 dark:border-slate-800">
                 <button
                   type="button"
-                  onClick={() => setPasswordResetUser(null)}
-                  className="px-4 py-2 text-xs font-semibold text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl transition-colors"
+                  onClick={() => {
+                    setPasswordResetUser(null);
+                    setNewPasswordValue('');
+                  }}
+                  className="px-4 py-2 text-xs font-bold text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl transition-colors"
                 >
                   إلغاء
                 </button>
                 <button
                   type="submit"
-                  className="px-5 py-2 text-xs font-bold text-white bg-amber-600 hover:bg-amber-700 rounded-xl shadow-md shadow-amber-600/20 transition-all"
+                  className="px-5 py-2 text-xs font-bold text-white bg-amber-600 hover:bg-amber-700 rounded-xl shadow-md shadow-amber-600/20 transition-all hover:scale-105"
                 >
-تحديث كلمة المرور
+                  تغيير كلمة المرور
                 </button>
               </div>
             </form>
