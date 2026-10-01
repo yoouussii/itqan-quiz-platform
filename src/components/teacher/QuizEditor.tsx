@@ -1,5 +1,4 @@
 import React, { useState, useEffect, useRef } from 'react';
-import ReactQuill from 'react-quill';
 import { supabase } from '../../lib/supabase';
 import 'react-quill/dist/quill.snow.css';
 import {
@@ -16,16 +15,6 @@ import {
 import { TargetType } from '../../types';
 import { useApp } from '../../context/AppContext';
 import { StorageService } from '../../services/storage';
-
-const quillModules = {
-  toolbar: [
-    [{ 'size': ['small', false, 'large', 'huge'] }],
-    ['bold', 'italic', 'underline', 'strike'],
-    [{ 'color': [] }, { 'background': [] }],
-    [{ 'align': [] }],
-    ['clean']
-  ],
-};
 
 export type QuestionType = 'mcq' | 'true_false' | 'essay' | 'passage';
 
@@ -203,7 +192,7 @@ export const QuizEditor: React.FC = () => {
         }
       }
     }
-  }, [editingQuizId]);
+  }, [editingQuizId, quizzes]);
 
   const handleAddQuestion = () => {
     setQuestions([
@@ -389,95 +378,42 @@ export const QuizEditor: React.FC = () => {
   }, 0);
 
   const handleSubmit = async (e: React.FormEvent) => {
-  e.preventDefault();
+    e.preventDefault();
 
-  // 1. التحقق من عنوان الاختبار
-  if (!title.trim()) {
-    alert('يرجى إدخال عنوان للاختبار');
-    return;
-  }
-
-  // 2. التحقق من إدخال الأسئلة
-  for (let i = 0; i < questions.length; i++) {
-    const q = questions[i];
-    if (!q.question_text.trim()) {
-      alert(`يرجى كتابة نص السؤال رقم ${i + 1}`);
+    if (!title.trim()) {
+      alert('يرجى إدخال عنوان للاختبار');
       return;
     }
-    if (q.type === 'passage') {
-      if (!q.sub_questions || q.sub_questions.length === 0) {
-        alert(`يرجى إضافة سؤال فرعي واحد على الأقل للقطعة في السؤال رقم ${i + 1}`);
+
+    for (let i = 0; i < questions.length; i++) {
+      const q = questions[i];
+      if (!q.question_text.trim()) {
+        alert(`يرجى كتابة نص السؤال رقم ${i + 1}`);
         return;
       }
-      for (let j = 0; j < q.sub_questions.length; j++) {
-        if (!q.sub_questions[j].question_text.trim()) {
-          alert(`يرجى كتابة نص السؤال الفرعي رقم ${j + 1} للقطعة رقم ${i + 1}`);
+      if (q.type === 'passage') {
+        if (!q.sub_questions || q.sub_questions.length === 0) {
+          alert(`يرجى إضافة سؤال فرعي واحد على الأقل للقطعة في السؤال رقم ${i + 1}`);
           return;
+        }
+        for (let j = 0; j < q.sub_questions.length; j++) {
+          if (!q.sub_questions[j].question_text.trim()) {
+            alert(`يرجى كتابة نص السؤال الفرعي رقم ${j + 1} للقطعة رقم ${i + 1}`);
+            return;
+          }
         }
       }
     }
-  }
 
-  // 3. تحديد خيارات الاستهداف
-  let target_id: string | null = null;
-  let target_name = '';
-
-  if (targetType === 'all') {
-    target_id = null;
-    target_name = 'كافة طلاب المدرسة (شامل)';
-  } else if (targetType === 'class') {
-    target_id = targetClassId;
-    const targetClass = availableClasses.find((c) => c.id === targetClassId);
-    target_name = targetClass?.name || 'صف دراسي محدد';
-  } else if (targetType === 'specific_students') {
-    if (selectedStudentIds.length === 0) {
+    if (targetType === 'specific_students' && selectedStudentIds.length === 0) {
       alert('يرجى تحديد طالب واحد على الأقل للاستهداف المخصص');
       return;
     }
-    target_id = selectedStudentIds.join(',');
-    target_name = `${selectedStudentIds.length} طلاب محددين بالاسم`;
-  }
 
-  // 4. تجهيز كائن البيانات الموجه لجدول quizzes
-  const quizData = {
-    id: `quiz-${Date.now()}`,
-    title: title.trim(),
-    description: description || '',
-    subject_id: selectedSubjectId, // تأكد من مطابقة هذا المتغير لمعرّف المادة
-    teacher_id: currentUser?.id,
-    duration_minutes: Number(durationMinutes) || 30,
-    pass_percentage: Number(passPercentage) || 50,
-    start_date: startDate ? new Date(startDate).toISOString() : new Date().toISOString(),
-    end_date: endDate ? new Date(endDate).toISOString() : null,
-    target_type: targetType,
-    class_id: targetClassId || null,
-    student_ids: selectedStudentIds,
-    questions: questions,
-    is_active: true,
-    updated_at: new Date().toISOString()
-  };
-
-  try {
-    // 5. إرسال الطلب إلى Supabase مباشرة
-    const { data, error } = await supabase
-      .from('quizzes')
-      .insert([quizData])
-      .select();
-
-    if (error) {
-      console.error('خطأ Supabase:', error);
-      alert(`فشل حفظ الاختبار: ${error.message}`);
+    if (targetType === 'class' && !targetClassId) {
+      alert('يرجى اختيار الصف والشعبة المستهدفة');
       return;
     }
-
-    alert('تم حفظ الاختبار بنجاح في قاعدة البيانات!');
-    // يمكنك إضافة كود إعادة التوجيه أو تفريغ الحقول هنا
-
-  } catch (err) {
-    console.error('خطأ غير متوقع:', err);
-    alert('حدث خطأ غير متوقع أثناء عملية الحفظ.');
-  }
-};
 
     const formattedQuestions = questions.map((q) => {
       if (q.type === 'passage') {
@@ -491,13 +427,25 @@ export const QuizEditor: React.FC = () => {
       return q;
     });
 
+    const assignments = [
+      {
+        target_type: targetType,
+        target_id:
+          targetType === 'class'
+            ? targetClassId
+            : targetType === 'specific_students'
+            ? selectedStudentIds.join(',')
+            : null,
+      },
+    ];
+
     try {
       if (isEditing && editingQuizId) {
         await updateFullQuiz(
           editingQuizId,
           {
-            title,
-            description,
+            title: title.trim(),
+            description: description.trim(),
             subject_id: subjectId,
             total_marks: totalCalculatedMarks,
             duration_minutes: Number(durationMinutes),
@@ -507,15 +455,15 @@ export const QuizEditor: React.FC = () => {
             is_active: isActive,
           },
           formattedQuestions as any,
-          assignments
+          assignments as any
         );
         loadedQuizIdRef.current = null;
         setEditingQuizId(null);
       } else {
-        createNewQuiz(
+        await createNewQuiz(
           {
-            title,
-            description,
+            title: title.trim(),
+            description: description.trim(),
             subject_id: subjectId,
             teacher_id: currentUser?.id || 'usr-teacher-1',
             total_marks: totalCalculatedMarks,
@@ -527,35 +475,37 @@ export const QuizEditor: React.FC = () => {
             is_active: isActive,
           },
           formattedQuestions as any,
-          assignments
+          assignments as any
         );
       }
 
-      const { data, error } = await supabase
-        .from('quizzes')
-        .insert([
-          {
-            title: title.trim(),
-            description: description || '',
-            teacher_id: currentUser?.id,
-            subject_id: subjectId || null,
-            duration_minutes: Number(durationMinutes) || 30,
-            total_marks: Number(totalCalculatedMarks) || 100,
-          },
-        ])
-        .select();
+      // Supabase Direct Backup / Sync
+      const quizPayload = {
+        title: title.trim(),
+        description: description.trim(),
+        teacher_id: currentUser?.id,
+        subject_id: subjectId || null,
+        duration_minutes: Number(durationMinutes) || 30,
+        total_marks: Number(totalCalculatedMarks) || 100,
+        pass_percentage: Number(passPercentage) || 50,
+        start_date: startDate ? new Date(startDate).toISOString() : new Date().toISOString(),
+        end_date: endDate ? new Date(endDate).toISOString() : null,
+        is_active: isActive,
+        target_type: targetType,
+        class_id: targetType === 'class' ? targetClassId : null,
+      };
 
-      if (error) {
-        console.error('Supabase error:', error);
-        alert('فشل حفظ الاختبار في قاعدة البيانات: ' + error.message);
-        return;
+      if (isEditing && editingQuizId) {
+        await supabase.from('quizzes').update(quizPayload).eq('id', editingQuizId);
+      } else {
+        await supabase.from('quizzes').insert([quizPayload]);
       }
 
       alert('تم حفظ ونشر الاختبار بنجاح!');
       setCurrentView('quizzes');
     } catch (err: any) {
       console.error(err);
-      alert('حدث خطأ أثناء حفظ الاختبار');
+      alert('حدث خطأ أثناء حفظ الاختبار: ' + (err.message || 'خطأ غير معروف'));
     }
   };
 
@@ -587,7 +537,9 @@ export const QuizEditor: React.FC = () => {
 
         <div className="flex items-center gap-3">
           <div className="text-left bg-indigo-50 dark:bg-indigo-950 px-4 py-2 rounded-2xl border border-indigo-100 dark:border-indigo-900">
-            <span className="text-[11px] text-indigo-700 dark:text-indigo-300 block font-bold">الدرجة الإجمالية</span>
+            <span className="text-[11px] text-indigo-700 dark:text-indigo-300 block font-bold">
+              الدرجة الإجمالية
+            </span>
             <span className="text-xl font-black text-indigo-900 dark:text-indigo-200 font-cairo">
               {totalCalculatedMarks} درجات
             </span>
@@ -621,7 +573,9 @@ export const QuizEditor: React.FC = () => {
             </div>
 
             <div>
-              <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5">المادة / التخصص *</label>
+              <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5">
+                المادة / التخصص *
+              </label>
               <select
                 value={subjectId}
                 onChange={(e) => setSubjectId(e.target.value)}
@@ -681,12 +635,15 @@ export const QuizEditor: React.FC = () => {
                     حدد الفترة الزمنية التي يُسمح خلالها للطلاب بدخول الاختبار وإمكانية الإيقاف اليدوي
                   </p>
                 </div>
-                <label className="flex items-center gap-2 cursor-pointer select-none">
+                <button
+                  type="button"
+                  onClick={() => setIsActive(!isActive)}
+                  className="flex items-center gap-2 cursor-pointer select-none"
+                >
                   <span className="text-xs font-bold text-slate-700 dark:text-slate-300">
                     {isActive ? 'الاختبار مفعل ومتاح' : 'الاختبار موقوف ومغلق'}
                   </span>
                   <div
-                    onClick={() => setIsActive(!isActive)}
                     className={`w-11 h-6 flex items-center rounded-full p-1 transition-colors ${
                       isActive ? 'bg-emerald-600' : 'bg-slate-300 dark:bg-slate-700'
                     }`}
@@ -697,7 +654,7 @@ export const QuizEditor: React.FC = () => {
                       }`}
                     />
                   </div>
-                </label>
+                </button>
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2">
@@ -751,7 +708,7 @@ export const QuizEditor: React.FC = () => {
             </span>
             <div>
               <h2 className="font-bold text-base text-slate-900 dark:text-white">
-                صلاحيات وتخصيص استهداف الاختبار (Targeting & RBAC)
+                صلاحيات وتخصيص استهداف الاختبار (Targeting)
               </h2>
               <p className="text-xs text-slate-500 dark:text-slate-400">
                 حدد بدقة من يحق له أداء هذا الاختبار والظهور في لوحته المدرسية
@@ -850,21 +807,21 @@ export const QuizEditor: React.FC = () => {
           {targetType === 'specific_students' && (
             <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700">
               <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-2">
-                حدد الطلاب المستهدفين بالاسم:
+                اختر الطلاب المحددين ({selectedStudentIds.length} محددين):
               </label>
-              <div className="max-h-48 overflow-y-auto grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2 p-2 bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700">
+              <div className="max-h-48 overflow-y-auto grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2 p-2 bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-700">
                 {students.map((st) => (
                   <label
                     key={st.id}
-                    className="flex items-center gap-2 p-2 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-700/50 cursor-pointer text-xs"
+                    className="flex items-center gap-2 p-2 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800 cursor-pointer text-xs"
                   >
                     <input
                       type="checkbox"
                       checked={selectedStudentIds.includes(st.id)}
                       onChange={() => toggleStudentSelection(st.id)}
-                      className="rounded text-indigo-600 focus:ring-indigo-500"
+                      className="rounded accent-indigo-600"
                     />
-                    <span className="text-slate-700 dark:text-slate-300 font-medium">{st.name}</span>
+                    <span className="font-bold text-slate-800 dark:text-slate-200">{st.name}</span>
                   </label>
                 ))}
               </div>
@@ -872,19 +829,19 @@ export const QuizEditor: React.FC = () => {
           )}
         </div>
 
-        {/* Step 3: Questions */}
+        {/* Step 3: Questions List */}
         <div className="bg-white dark:bg-slate-900 p-6 sm:p-8 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-soft">
-          <div className="flex items-center justify-between mb-6 pb-4 border-b border-slate-100 dark:border-slate-800">
+          <div className="flex items-center justify-between mb-6 pb-3 border-b border-slate-100 dark:border-slate-800">
             <div className="flex items-center gap-2">
               <span className="w-7 h-7 rounded-xl bg-indigo-600 text-white font-bold text-xs flex items-center justify-center">
                 3
               </span>
-              <h2 className="font-bold text-base text-slate-900 dark:text-white">أسئلة الاختبار والتقييم</h2>
+              <h2 className="font-bold text-base text-slate-900 dark:text-white">الأسئلة والتمارين</h2>
             </div>
             <button
               type="button"
               onClick={handleAddQuestion}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 hover:bg-indigo-100 rounded-xl text-xs font-bold transition-colors"
+              className="inline-flex items-center gap-1.5 px-4 py-2 bg-indigo-600 text-white rounded-xl font-bold text-xs hover:bg-indigo-700 transition-colors"
             >
               <Plus className="w-4 h-4" />
               <span>إضافة سؤال جديد</span>
@@ -894,45 +851,43 @@ export const QuizEditor: React.FC = () => {
           <div className="space-y-6">
             {questions.map((q, qIdx) => (
               <div
-                key={q.id || qIdx}
-                className="p-5 rounded-2xl border border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/30 space-y-4"
+                key={qIdx}
+                className="p-5 sm:p-6 rounded-2xl border border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/30 space-y-4"
               >
-                <div className="flex items-center justify-between gap-4">
+                <div className="flex items-center justify-between gap-3">
                   <div className="flex items-center gap-2">
-                    <span className="px-2.5 py-1 bg-slate-200 dark:bg-slate-700 text-slate-800 dark:text-slate-200 text-xs font-bold rounded-lg">
+                    <span className="px-3 py-1 bg-indigo-100 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-300 text-xs font-bold rounded-lg">
                       سؤال {qIdx + 1}
                     </span>
                     <select
                       value={q.type}
                       onChange={(e) => handleQuestionTypeChange(qIdx, e.target.value as QuestionType)}
-                      className="px-3 py-1.5 text-xs font-bold rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                      className="px-3 py-1.5 text-xs font-bold rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white"
                     >
-                      <option value="mcq">اختيار من متعدد</option>
-                      <option value="true_false">صح / خطأ</option>
+                      <option value="mcq">اختيار من متعدد (MCQ)</option>
+                      <option value="true_false">صح أو خطأ</option>
                       <option value="essay">سؤال مقالي</option>
-                      <option value="passage">قطعة ونصوص قراءة</option>
+                      <option value="passage">قطعة وأسئلة فرعية</option>
                     </select>
                   </div>
 
                   <div className="flex items-center gap-3">
-                    {q.type !== 'passage' && (
-                      <div className="flex items-center gap-1.5">
-                        <span className="text-xs font-bold text-slate-500">الدرجة:</span>
-                        <input
-                          type="number"
-                          min={1}
-                          value={q.marks}
-                          onChange={(e) => handleMarksChange(qIdx, Number(e.target.value))}
-                          className="w-16 px-2 py-1 text-xs font-bold text-center rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white"
-                        />
-                      </div>
-                    )}
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-xs font-bold text-slate-500">الدرجة:</span>
+                      <input
+                        type="number"
+                        min={1}
+                        value={q.marks}
+                        onChange={(e) => handleMarksChange(qIdx, Number(e.target.value))}
+                        disabled={q.type === 'passage'}
+                        className="w-16 px-2 py-1 text-xs font-bold rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-center"
+                      />
+                    </div>
                     {questions.length > 1 && (
                       <button
                         type="button"
                         onClick={() => handleRemoveQuestion(qIdx)}
-                        className="p-1.5 text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/50 rounded-lg transition-colors"
-                        title="حذف السؤال"
+                        className="text-rose-500 hover:text-rose-700 p-1.5"
                       >
                         <Trash2 className="w-4 h-4" />
                       </button>
@@ -941,76 +896,106 @@ export const QuizEditor: React.FC = () => {
                 </div>
 
                 <div>
-                  <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5">
-                    {q.type === 'passage' ? 'نص القطعة / التعبير القراىي' : 'نص السؤال *'}
+                  <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
+                    {q.type === 'passage' ? 'نص القطعة / القرائية:' : 'نص السؤال:'}
                   </label>
-                  {q.type === 'passage' ? (
-                    <div className="bg-white dark:bg-slate-800 rounded-xl overflow-hidden border border-slate-200 dark:border-slate-700">
-                      <ReactQuill
-                        theme="snow"
-                        value={q.question_text}
-                        onChange={(content) => handleQuestionTextChange(qIdx, content)}
-                        modules={quillModules}
-                        className="text-slate-900 dark:text-white"
-                      />
-                    </div>
-                  ) : (
-                    <textarea
-                      rows={2}
-                      required
-                      value={q.question_text}
-                      onChange={(e) => handleQuestionTextChange(qIdx, e.target.value)}
-                      placeholder="أدخل نص السؤال هنا..."
-                      className="w-full px-4 py-2.5 text-xs rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                    />
-                  )}
+                  <textarea
+                    rows={q.type === 'passage' ? 4 : 2}
+                    value={q.question_text}
+                    onChange={(e) => handleQuestionTextChange(qIdx, e.target.value)}
+                    placeholder={q.type === 'passage' ? 'أدخل نص القطعة القراءية هنا...' : 'اكتب نص السؤال هنا...'}
+                    className="w-full px-3 py-2 text-xs rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white"
+                  />
                 </div>
 
+                {/* MCQ Options */}
+                {q.type === 'mcq' && (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2">
+                    {q.options.map((opt, optIdx) => (
+                      <div key={optIdx} className="flex items-center gap-2">
+                        <input
+                          type="radio"
+                          name={`correct_${qIdx}`}
+                          checked={q.correct_option_index === optIdx}
+                          onChange={() => handleCorrectOptionChange(qIdx, optIdx)}
+                          className="accent-indigo-600"
+                        />
+                        <input
+                          type="text"
+                          value={opt}
+                          onChange={(e) => handleOptionChange(qIdx, optIdx, e.target.value)}
+                          placeholder={`الخيار ${optIdx + 1}`}
+                          className="w-full px-3 py-1.5 text-xs rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white"
+                        />
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {/* True/False Options */}
+                {q.type === 'true_false' && (
+                  <div className="flex gap-4 pt-2">
+                    {['صح', 'خطأ'].map((opt, optIdx) => (
+                      <label key={optIdx} className="flex items-center gap-2 cursor-pointer text-xs font-bold">
+                        <input
+                          type="radio"
+                          name={`tf_${qIdx}`}
+                          checked={q.correct_option_index === optIdx}
+                          onChange={() => handleCorrectOptionChange(qIdx, optIdx)}
+                          className="accent-indigo-600"
+                        />
+                        <span>{opt}</span>
+                      </label>
+                    ))}
+                  </div>
+                )}
+
+                {/* Essay Note */}
+                {q.type === 'essay' && (
+                  <p className="text-xs text-amber-600 dark:text-amber-400 font-bold bg-amber-50 dark:bg-amber-950/40 p-3 rounded-xl border border-amber-200 dark:border-amber-900">
+                    * ملاحظة: الأسئلة المقالية تتطلب تصحيحاً يدويًا من قبل المعلم بعد تسليم الطالب.
+                  </p>
+                )}
+
+                {/* Passage Sub-Questions */}
                 {q.type === 'passage' && (
-                  <div className="mt-4 p-4 rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 space-y-4">
+                  <div className="mt-4 space-y-4 border-t border-slate-200 dark:border-slate-700 pt-4">
                     <div className="flex items-center justify-between">
-                      <h4 className="text-xs font-bold text-indigo-600 dark:text-indigo-400">
-                        الأسئلة الفرعية التابعة للقطعة ({q.sub_questions?.length || 0})
-                      </h4>
+                      <h4 className="text-xs font-bold text-slate-800 dark:text-slate-200">الأسئلة الفرعية للقطعة:</h4>
                       <button
                         type="button"
                         onClick={() => handleAddSubQuestion(qIdx)}
-                        className="inline-flex items-center gap-1 text-xs font-bold text-indigo-600 dark:text-indigo-400 hover:underline"
+                        className="text-xs font-bold text-indigo-600 hover:text-indigo-800 flex items-center gap-1"
                       >
                         <Plus className="w-3.5 h-3.5" /> إضافة سؤال فرعي
                       </button>
                     </div>
 
-                    {q.sub_questions?.map((sq, sqIdx) => (
-                      <div
-                        key={sq.id || sqIdx}
-                        className="p-3 rounded-xl border border-slate-100 dark:border-slate-700/60 bg-slate-50 dark:bg-slate-900/50 space-y-3"
-                      >
-                        <div className="flex items-center justify-between">
+                    {(q.sub_questions || []).map((sq, sqIdx) => (
+                      <div key={sqIdx} className="p-4 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 space-y-3">
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="text-[11px] font-bold text-slate-500">سؤال فرعي {sqIdx + 1}</span>
                           <div className="flex items-center gap-2">
-                            <span className="text-[11px] font-bold text-slate-500">س {sqIdx + 1}</span>
                             <select
                               value={sq.type}
                               onChange={(e) => handleSubQuestionTypeChange(qIdx, sqIdx, e.target.value as any)}
-                              className="px-2 py-1 text-[11px] font-bold rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white"
+                              className="px-2 py-1 text-xs font-bold rounded-lg border border-slate-200 dark:border-slate-700"
                             >
                               <option value="mcq">اختيار من متعدد</option>
-                              <option value="true_false">صح / خطأ</option>
+                              <option value="true_false">صح أو خطأ</option>
                               <option value="essay">مقالي</option>
                             </select>
-                          </div>
-                          <div className="flex items-center gap-2">
                             <input
                               type="number"
                               min={1}
                               value={sq.marks}
                               onChange={(e) => handleSubMarksChange(qIdx, sqIdx, Number(e.target.value))}
-                              className="w-12 px-1.5 py-0.5 text-xs text-center font-bold rounded border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white"
+                              className="w-14 px-2 py-1 text-xs font-bold rounded-lg border border-slate-200 dark:border-slate-700 text-center"
                             />
                             <button
                               type="button"
                               onClick={() => handleRemoveSubQuestion(qIdx, sqIdx)}
-                              className="text-rose-500 hover:text-rose-700 p-1"
+                              className="text-rose-500 p-1"
                             >
                               <Trash2 className="w-3.5 h-3.5" />
                             </button>
@@ -1019,136 +1004,72 @@ export const QuizEditor: React.FC = () => {
 
                         <input
                           type="text"
-                          required
                           value={sq.question_text}
                           onChange={(e) => handleSubQuestionTextChange(qIdx, sqIdx, e.target.value)}
-                          placeholder="أدخل نص السؤال الفرعي..."
-                          className="w-full px-3 py-1.5 text-xs rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                          placeholder="نص السؤال الفرعي..."
+                          className="w-full px-3 py-1.5 text-xs rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800"
                         />
 
                         {sq.type === 'mcq' && (
-                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                          <div className="grid grid-cols-2 gap-2">
                             {sq.options.map((opt, optIdx) => (
-                              <div key={optIdx} className="flex items-center gap-2">
+                              <div key={optIdx} className="flex items-center gap-1.5">
                                 <input
                                   type="radio"
-                                  name={`sub_opt_${qIdx}_${sqIdx}`}
+                                  name={`sub_correct_${qIdx}_${sqIdx}`}
                                   checked={sq.correct_option_index === optIdx}
                                   onChange={() => handleSubCorrectOptionChange(qIdx, sqIdx, optIdx)}
                                   className="accent-indigo-600"
                                 />
                                 <input
                                   type="text"
-                                  required
                                   value={opt}
                                   onChange={(e) => handleSubOptionChange(qIdx, sqIdx, optIdx, e.target.value)}
                                   placeholder={`خيار ${optIdx + 1}`}
-                                  className="w-full px-2.5 py-1 text-xs rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white"
+                                  className="w-full px-2 py-1 text-xs rounded-lg border border-slate-200 dark:border-slate-700"
                                 />
                               </div>
                             ))}
                           </div>
                         )}
-
-                        {sq.type === 'true_false' && (
-                          <div className="flex gap-4">
-                            {['صواب', 'خطأ'].map((opt, optIdx) => (
-                              <label key={optIdx} className="flex items-center gap-1.5 text-xs font-bold cursor-pointer">
-                                <input
-                                  type="radio"
-                                  name={`sub_tf_${qIdx}_${sqIdx}`}
-                                  checked={sq.correct_option_index === optIdx}
-                                  onChange={() => handleSubCorrectOptionChange(qIdx, sqIdx, optIdx)}
-                                  className="accent-indigo-600"
-                                />
-                                <span className="text-slate-700 dark:text-slate-300">{opt}</span>
-                              </label>
-                            ))}
-                          </div>
-                        )}
                       </div>
                     ))}
                   </div>
                 )}
 
-                {q.type === 'mcq' && (
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2">
-                    {q.options.map((opt, optIdx) => (
-                      <div key={optIdx} className="flex items-center gap-2">
-                        <input
-                          type="radio"
-                          name={`opt_${qIdx}`}
-                          checked={q.correct_option_index === optIdx}
-                          onChange={() => handleCorrectOptionChange(qIdx, optIdx)}
-                          className="accent-indigo-600 w-4 h-4"
-                        />
-                        <input
-                          type="text"
-                          required
-                          value={opt}
-                          onChange={(e) => handleOptionChange(qIdx, optIdx, e.target.value)}
-                          placeholder={`الخيار ${optIdx + 1}`}
-                          className="w-full px-3 py-2 text-xs rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                        />
-                      </div>
-                    ))}
-                  </div>
-                )}
-
-                {q.type === 'true_false' && (
-                  <div className="flex items-center gap-6 pt-2">
-                    {['صح', 'خطأ'].map((opt, optIdx) => (
-                      <label key={optIdx} className="flex items-center gap-2 cursor-pointer">
-                        <input
-                          type="radio"
-                          name={`tf_${qIdx}`}
-                          checked={q.correct_option_index === optIdx}
-                          onChange={() => handleCorrectOptionChange(qIdx, optIdx)}
-                          className="accent-indigo-600 w-4 h-4"
-                        />
-                        <span className="text-xs font-bold text-slate-700 dark:text-slate-300">{opt}</span>
-                      </label>
-                    ))}
-                  </div>
-                )}
-
-                {q.type !== 'passage' && (
-                  <div>
-                    <label className="block text-[11px] font-bold text-slate-500 dark:text-slate-400 mb-1">
-                      الشرح / التفسير الإرادي (يظهر للطالب بعد الحل)
-                    </label>
-                    <input
-                      type="text"
-                      value={q.explanation}
-                      onChange={(e) => handleExplanationChange(qIdx, e.target.value)}
-                      placeholder="توضيح سبب الإجابة الصحيحة..."
-                      className="w-full px-3 py-1.5 text-xs rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white"
-                    />
-                  </div>
-                )}
+                {/* Explanation */}
+                <div>
+                  <input
+                    type="text"
+                    value={q.explanation}
+                    onChange={(e) => handleExplanationChange(qIdx, e.target.value)}
+                    placeholder="شرح الإجابة النموذجية (اختياري يظهر للطلب بعد التقييم)..."
+                    className="w-full px-3 py-1.5 text-xs rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-500"
+                  />
+                </div>
               </div>
             ))}
           </div>
         </div>
 
-        {/* Submit Actions */}
-        <div className="flex items-center justify-end gap-3 pt-4 border-t border-slate-200 dark:border-slate-800">
+        {/* Footer Actions */}
+        <div className="flex items-center justify-end gap-3 pt-4">
           <button
             type="button"
             onClick={() => {
               setEditingQuizId(null);
               setCurrentView('quizzes');
             }}
-            className="px-5 py-2.5 text-xs font-bold text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl transition-colors"
+            className="px-6 py-2.5 rounded-xl border border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-300 text-xs font-bold hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
           >
             إلغاء
           </button>
           <button
             type="submit"
-            className="inline-flex items-center gap-2 px-6 py-2.5 text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-700 rounded-xl transition-colors shadow-lg shadow-indigo-600/20"
+            className="inline-flex items-center gap-2 px-6 py-2.5 bg-indigo-600 text-white rounded-xl font-bold text-xs hover:bg-indigo-700 transition-colors shadow-lg shadow-indigo-600/20"
           >
             <Save className="w-4 h-4" />
-            <span>{isEditing ? 'حفظ التعديلات' : 'حفظ ونشر الاختبار'}</span>
+            <span>{isEditing ? 'تحديث وتعديل الاختبار' : 'حفظ ونشر الاختبار'}</span>
           </button>
         </div>
       </form>
