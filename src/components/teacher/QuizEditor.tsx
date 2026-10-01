@@ -1128,9 +1128,11 @@ const handleSubmit = async (e: React.FormEvent) => {
           >
             <Save className="w-4 h-4" />
             <span>{isEditing ? 'حفظ التعديلات' : 'حفظ ونشر الاختبار'}</span>
-          </button>
-        </div>
-      </form>
-    </div>
-  );
+        </button>
+      </div>
+    </form>
+  </div>
+ );
 };
+
+export default QuizEditor;
