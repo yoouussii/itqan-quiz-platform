@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import ReactQuill from 'react-quill';
+import { supabase } from '../../lib/supabase';
 import 'react-quill/dist/quill.snow.css';
 import {
   Plus,
@@ -390,7 +391,7 @@ export const QuizEditor: React.FC = () => {
     return sum + (Number(q.marks) || 0);
   }, 0);
 
-  const handleSubmit = async (e: React.FormEvent) => {
+const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
     if (!title.trim()) {
@@ -445,6 +446,37 @@ export const QuizEditor: React.FC = () => {
         assigned_by_teacher_id: currentUser?.id || 'usr-teacher-1',
       },
     ];
+
+    // 🚀 كود الحفظ المباشر في Supabase
+    try {
+      const { data, error } = await supabase
+        .from('quizzes')
+        .insert([
+          {
+            title: title.trim(),
+            description: description || '',
+            teacher_id: currentUser?.id,
+            subject_id: subjectId || null,
+            duration_minutes: Number(duration) || 30,
+            total_marks: Number(totalCalculatedMarks) || 100,
+          },
+        ])
+        .select();
+
+      if (error) {
+        console.error('Supabase error:', error);
+        alert('فشل حفظ الاختبار في قاعدة البيانات: ' + error.message);
+        return;
+      }
+
+      alert('تم حفظ ونشر الاختبار بنجاح!');
+      setEditingQuizId(null);
+      setCurrentView('quizzes');
+    } catch (err: any) {
+      console.error(err);
+      alert('حدث خطأ أثناء حفظ الاختبار');
+    }
+  };
 
     const formattedQuestions = questions.map((q) => {
       if (q.type === 'passage') {
