@@ -27,11 +27,11 @@ import { Avatar } from '../common/Avatar';
 export const AdminDashboard: React.FC = () => {
   const {
     currentUser,
-    quizzes,
-    submissions,
+    quizzes = [],
+    submissions = [],
     kpis,
     setCurrentView,
-    users,
+    users = [],
     deleteQuizItem,
     setActiveQuizId,
     setEditingQuizId,
@@ -47,17 +47,31 @@ export const AdminDashboard: React.FC = () => {
         `هل أنت تأكد من حذف اختبار "${title}"؟ سيمسح ذلك جميع نتائج الطلاب المتعلقة به.`
       )
     ) {
-      await deleteQuizItem(quizId);
+      await deleteQuizItem?.(quizId);
     }
   };
 
   // فحص ما إذا كان المستخدم أدمن أم معلم
   const isAdmin = currentUser?.role === 'admin';
 
-  // حساب إجمالي الاختبارات: للأدمن يُحسب كل شيء، وللمعلم تُحسب اختباراته فقط
-  const totalQuizzesCount = isAdmin 
-    ? quizzes.length 
-    : quizzes.filter(q => q.teacher_id === currentUser?.id).length;
+  // معالجة آمنة للمصفوفات والكائنات لتفادي الشاشة البيضاء أثناء التحميل
+  const safeQuizzes = quizzes || [];
+  const safeUsers = users || [];
+  const safeSubmissions = submissions || [];
+
+  const totalQuizzesCount = isAdmin
+    ? safeQuizzes.length
+    : safeQuizzes.filter((q) => q?.teacher_id === currentUser?.id).length;
+
+  const safeKpis = {
+    totalStudents: kpis?.totalStudents ?? 0,
+    averageScore: kpis?.averageScore ?? 0,
+    passRate: kpis?.passRate ?? 0,
+    activeStudents: kpis?.activeStudents ?? 0,
+    scoreDistribution: kpis?.scoreDistribution || [],
+    completionTimeline: kpis?.completionTimeline || [],
+    subjectPerformance: kpis?.subjectPerformance || [],
+  };
 
   return (
     <div className="max-w-7xl mx-auto py-8 px-4 sm:px-6 lg:px-8 space-y-8" dir="rtl">
@@ -67,7 +81,7 @@ export const AdminDashboard: React.FC = () => {
 
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-6 relative z-10">
           <div className="flex items-center gap-4">
-            <Avatar name={currentUser?.name || ''} role={currentUser?.role} size="xl" showBadge />
+            <Avatar name={currentUser?.name || 'مدير النظام'} role={currentUser?.role} size="xl" showBadge />
             <div>
               <div className="flex items-center gap-2 mb-1">
                 <span className="text-xs px-2.5 py-0.5 rounded-full bg-indigo-500/30 border border-indigo-400/30 font-bold text-indigo-300">
@@ -76,7 +90,7 @@ export const AdminDashboard: React.FC = () => {
                 <span className="text-xs text-slate-300 font-medium">إشراف أكاديمي وإداري شامل</span>
               </div>
               <h1 className="text-2xl sm:text-3xl font-black font-cairo">
-                لوحة القيادة والمؤشرات العامة | {currentUser?.name}
+                لوحة القيادة والمؤشرات العامة | {currentUser?.name || 'مدير النظام'}
               </h1>
               <p className="text-xs sm:text-sm text-slate-300 mt-1 max-w-xl">
                 إشراف كامل على أداء المدرسة، كفاءة المعلمين، إحصائيات التقييمات، وإعادة تعيين ملكية
@@ -87,14 +101,14 @@ export const AdminDashboard: React.FC = () => {
 
           <div className="flex flex-wrap items-center gap-2.5">
             <button
-              onClick={() => setCurrentView('subjects_classes')}
+              onClick={() => setCurrentView?.('subjects_classes')}
               className="inline-flex items-center gap-2 px-4 py-2.5 bg-white/10 hover:bg-white/20 text-white rounded-2xl text-xs font-bold backdrop-blur-sm border border-white/20 transition-all"
             >
               <Layers className="w-4 h-4 text-indigo-300" />
               <span>المواد والشعب</span>
             </button>
             <button
-              onClick={() => setCurrentView('users')}
+              onClick={() => setCurrentView?.('users')}
               className="inline-flex items-center gap-2 px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-2xl text-xs font-bold shadow-md transition-all hover:scale-105"
             >
               <Users className="w-4 h-4" />
@@ -108,7 +122,7 @@ export const AdminDashboard: React.FC = () => {
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <KPICard
           title="إجمالي الطلاب المسجلين"
-          value={kpis.totalStudents}
+          value={safeKpis.totalStudents}
           subtitle="في كافة الفصول والشعب"
           icon={Users}
           colorScheme="indigo"
@@ -124,16 +138,16 @@ export const AdminDashboard: React.FC = () => {
 
         <KPICard
           title="متوسط النتائج العام"
-          value={`${kpis.averageScore}%`}
-          subtitle={`نسبة النجاح: ${kpis.passRate}%`}
+          value={`${safeKpis.averageScore}%`}
+          subtitle={`نسبة النجاح: ${safeKpis.passRate}%`}
           icon={Award}
           colorScheme="emerald"
-          trend={{ value: `${kpis.passRate}% نجاح`, isPositive: kpis.averageScore >= 60 }}
+          trend={{ value: `${safeKpis.passRate}% نجاح`, isPositive: safeKpis.averageScore >= 60 }}
         />
 
         <KPICard
           title="الطلاب النشطون (آخر 7 أيام)"
-          value={kpis.activeStudents}
+          value={safeKpis.activeStudents}
           subtitle="أكملوا اختباراً واحداً على الأقل"
           icon={TrendingUp}
           colorScheme="purple"
@@ -142,12 +156,12 @@ export const AdminDashboard: React.FC = () => {
 
       {/* Interactive Charts */}
       <AnalyticsCharts
-        scoreDistribution={kpis.scoreDistribution}
-        completionTimeline={kpis.completionTimeline}
-        subjectPerformance={kpis.subjectPerformance}
+        scoreDistribution={safeKpis.scoreDistribution}
+        completionTimeline={safeKpis.completionTimeline}
+        subjectPerformance={safeKpis.subjectPerformance}
       />
 
-      {/* School Quizzes Management with Re-assignment & Full Admin Control */}
+      {/* School Quizzes Management */}
       <div className="bg-white dark:bg-slate-900 rounded-3xl p-6 sm:p-8 border border-slate-200/80 dark:border-slate-800 shadow-soft transition-colors duration-200">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6 pb-4 border-b border-slate-100 dark:border-slate-800">
           <div>
@@ -159,7 +173,7 @@ export const AdminDashboard: React.FC = () => {
             </p>
           </div>
           <span className="text-xs font-bold text-indigo-700 dark:text-indigo-300 bg-indigo-50 dark:bg-indigo-950 px-3 py-1.5 rounded-xl border border-indigo-100 dark:border-indigo-900">
-            {quizzes.length} اختبارات معتمدة
+            {safeQuizzes.length} اختبارات معتمدة
           </span>
         </div>
 
@@ -178,8 +192,8 @@ export const AdminDashboard: React.FC = () => {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-              {quizzes.map((quiz) => {
-                const teacher = users.find((u) => u.id === quiz.teacher_id);
+              {safeQuizzes.map((quiz) => {
+                const teacher = safeUsers.find((u) => u.id === quiz.teacher_id);
                 const assignment = quiz.assignments?.[0];
                 let targetText = 'كافة الطلاب';
                 if (assignment?.target_type === 'class') targetText = assignment.target_name || 'صف محدد';
@@ -196,7 +210,7 @@ export const AdminDashboard: React.FC = () => {
                           color: quiz.subject?.color || '#6366f1',
                         }}
                       >
-                        {quiz.subject?.name}
+                        {quiz.subject?.name || 'عام'}
                       </span>
                     </td>
                     <td className="py-3.5 px-4">
@@ -215,8 +229,8 @@ export const AdminDashboard: React.FC = () => {
                       <button
                         onClick={() => {
                           if (quiz?.id) {
-                            setActiveQuizId(quiz.id);
-                            setCurrentView('quiz_results');
+                            setActiveQuizId?.(quiz.id);
+                            setCurrentView?.('quiz_results');
                           }
                         }}
                         className="font-bold text-indigo-700 dark:text-indigo-400 hover:underline"
@@ -236,12 +250,11 @@ export const AdminDashboard: React.FC = () => {
                     </td>
                     <td className="py-3.5 px-4 text-center">
                       <div className="flex items-center justify-center gap-1.5">
-                        {/* 1. زر معاينة الاختبار (العرض) */}
                         <button
                           onClick={() => {
                             if (quiz?.id) {
-                              setActiveQuizId(quiz.id);
-                              setCurrentView('quiz_preview');
+                              setActiveQuizId?.(quiz.id);
+                              setCurrentView?.('quiz_preview');
                             }
                           }}
                           className="p-1.5 text-slate-600 dark:text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors"
@@ -250,11 +263,10 @@ export const AdminDashboard: React.FC = () => {
                           <Eye className="w-4 h-4" />
                         </button>
 
-                        {/* 2. زر تعديل الاختبار */}
                         <button
                           onClick={() => {
-                            setEditingQuizId(quiz.id);
-                            setCurrentView('create_quiz');
+                            setEditingQuizId?.(quiz.id);
+                            setCurrentView?.('create_quiz');
                           }}
                           className="p-1.5 text-slate-600 dark:text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors"
                           title="تعديل الاختبار"
@@ -262,12 +274,11 @@ export const AdminDashboard: React.FC = () => {
                           <Edit3 className="w-4 h-4" />
                         </button>
 
-                        {/* 3. زر تقارير ونتائج الاختبار (التحليلات) */}
                         <button
                           onClick={() => {
                             if (quiz?.id) {
-                              setActiveQuizId(quiz.id);
-                              setCurrentView('quiz_results');
+                              setActiveQuizId?.(quiz.id);
+                              setCurrentView?.('quiz_results');
                             }
                           }}
                           className="p-1.5 text-slate-600 dark:text-slate-400 hover:text-emerald-600 dark:hover:text-emerald-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors"
@@ -276,7 +287,6 @@ export const AdminDashboard: React.FC = () => {
                           <BarChart2 className="w-4 h-4" />
                         </button>
 
-                        {/* 4. زر حذف الاختبار */}
                         <button
                           onClick={() => handleDeleteQuiz(quiz.id, quiz.title)}
                           className="p-1.5 text-red-500 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-950/50 rounded-lg transition-colors"
@@ -295,7 +305,7 @@ export const AdminDashboard: React.FC = () => {
       </div>
 
       {/* Comprehensive Submissions Results Table */}
-      <SubmissionsTable submissions={submissions} />
+      <SubmissionsTable submissions={safeSubmissions} />
 
       {/* Reassign Modal */}
       {selectedQuizForReassign && (
