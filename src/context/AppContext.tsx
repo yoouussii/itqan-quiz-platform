@@ -901,8 +901,18 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     showToast('تم حذف الصف بنجاح', 'info');
   };
 
-  const resetSystemData = () => {
-    StorageService.reset();
+const resetSystemData = () => {
+    if (typeof (StorageService as any).reset === 'function') {
+      (StorageService as any).reset();
+    } else {
+      // تفريغ مفاتيح النظام من الـ LocalStorage وإعادة التهيئة
+      Object.keys(localStorage).forEach((key) => {
+        if (key.startsWith('itqan_')) {
+          localStorage.removeItem(key);
+        }
+      });
+      StorageService.init();
+    }
     refreshData();
     showToast('تم إعادة ضبط بيانات النظام', 'info');
   };
