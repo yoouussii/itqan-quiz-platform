@@ -112,9 +112,9 @@ const totalQuizzesCount = isAdmin
           colorScheme="indigo"
         />
 
-        <KPICard
+      <KPICard
   title="إجمالي الاختبارات"
-  value={totalQuizzesCount}  {/* 👈 استبدل السطر القديم بهذا */}
+  value={totalQuizzesCount}
   subtitle="بمختلف المواد والتخصصات"
   icon={FileQuestion}
   colorScheme="cyan"
