@@ -447,8 +447,59 @@ const handleSubmit = async (e: React.FormEvent) => {
       },
     ];
 
-    // 🚀 كود الحفظ المباشر في Supabase
+    const formattedQuestions = questions.map((q) => {
+      if (q.type === 'passage') {
+        const passageMarks = (q.sub_questions || []).reduce((sum, sq) => sum + (Number(sq.marks) || 0), 0);
+        return {
+          ...q,
+          marks: passageMarks,
+          sub_questions: q.sub_questions || [],
+        };
+      }
+      return q;
+    });
+
     try {
+      if (isEditing && editingQuizId) {
+        await updateFullQuiz(
+          editingQuizId,
+          {
+            title,
+            description,
+            subject_id: subjectId,
+            total_marks: totalCalculatedMarks,
+            duration_minutes: Number(durationMinutes),
+            pass_percentage: Number(passPercentage),
+            start_date: startDate,
+            end_date: endDate,
+            is_active: isActive,
+          },
+          formattedQuestions as any,
+          assignments
+        );
+        loadedQuizIdRef.current = null;
+        setEditingQuizId(null);
+      } else {
+        createNewQuiz(
+          {
+            title,
+            description,
+            subject_id: subjectId,
+            teacher_id: currentUser?.id || 'usr-teacher-1',
+            total_marks: totalCalculatedMarks,
+            duration_minutes: Number(durationMinutes),
+            pass_percentage: Number(passPercentage),
+            status: 'published',
+            start_date: startDate,
+            end_date: endDate,
+            is_active: isActive,
+          },
+          formattedQuestions as any,
+          assignments
+        );
+      }
+
+      // 🚀 كود الحفظ المباشر في Supabase
       const { data, error } = await supabase
         .from('quizzes')
         .insert([
@@ -457,7 +508,7 @@ const handleSubmit = async (e: React.FormEvent) => {
             description: description || '',
             teacher_id: currentUser?.id,
             subject_id: subjectId || null,
-            duration_minutes: Number(duration) || 30,
+            duration_minutes: Number(durationMinutes) || 30,
             total_marks: Number(totalCalculatedMarks) || 100,
           },
         ])
@@ -470,7 +521,6 @@ const handleSubmit = async (e: React.FormEvent) => {
       }
 
       alert('تم حفظ ونشر الاختبار بنجاح!');
-      setEditingQuizId(null);
       setCurrentView('quizzes');
     } catch (err: any) {
       console.error(err);
