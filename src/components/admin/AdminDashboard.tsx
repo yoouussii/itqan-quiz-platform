@@ -206,8 +206,10 @@ export const AdminDashboard: React.FC = () => {
                     <td className="py-3.5 px-4">
                       <button
                         onClick={() => {
-                          setActiveQuizId(quiz.id);
-                          setCurrentView('quiz_results');
+                          if (quiz?.id) {
+                            setActiveQuizId(quiz.id);
+                            setCurrentView('quiz_results');
+                          }
                         }}
                         className="font-bold text-indigo-700 dark:text-indigo-400 hover:underline"
                         title="عرض نتائج محاولات الطلاب لهذا الاختبار"
@@ -226,11 +228,13 @@ export const AdminDashboard: React.FC = () => {
                     </td>
                     <td className="py-3.5 px-4 text-center">
                       <div className="flex items-center justify-center gap-1.5">
-                        {/* 1. زر معاينة الاختبار */}
+                        {/* 1. زر معاينة الاختبار (العرض) */}
                         <button
                           onClick={() => {
-                            setActiveQuizId(quiz.id);
-                            setCurrentView('quiz_preview');
+                            if (quiz?.id) {
+                              setActiveQuizId(quiz.id);
+                              setCurrentView('quiz_preview');
+                            }
                           }}
                           className="p-1.5 text-slate-600 dark:text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors"
                           title="معاينة وعرض الاختبار"
@@ -250,11 +254,13 @@ export const AdminDashboard: React.FC = () => {
                           <Edit3 className="w-4 h-4" />
                         </button>
 
-                        {/* 3. زر تقارير ونتائج الاختبار */}
+                        {/* 3. زر تقارير ونتائج الاختبار (التحليلات) */}
                         <button
                           onClick={() => {
-                            setActiveQuizId(quiz.id);
-                            setCurrentView('quiz_results');
+                            if (quiz?.id) {
+                              setActiveQuizId(quiz.id);
+                              setCurrentView('quiz_results');
+                            }
                           }}
                           className="p-1.5 text-slate-600 dark:text-slate-400 hover:text-emerald-600 dark:hover:text-emerald-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors"
                           title="تفاصيل النتائج ومَن اختبر"
