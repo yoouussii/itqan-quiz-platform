@@ -11,6 +11,10 @@ import {
   Calendar,
   Layers,
   Sparkles,
+  Eye,
+  Edit3,
+  BarChart2,
+  Trash2,
 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 import { KPICard } from '../common/KPICard';
@@ -21,11 +25,31 @@ import { QuizWithDetails } from '../../types';
 import { Avatar } from '../common/Avatar';
 
 export const AdminDashboard: React.FC = () => {
-  const { currentUser, quizzes, submissions, kpis, setCurrentView, users } = useApp();
+  const {
+    currentUser,
+    quizzes,
+    submissions,
+    kpis,
+    setCurrentView,
+    users,
+    deleteQuizItem,
+    setActiveQuizId,
+    setEditingQuizId,
+  } = useApp();
 
   const [selectedQuizForReassign, setSelectedQuizForReassign] = useState<QuizWithDetails | null>(
     null
   );
+
+  const handleDeleteQuiz = async (quizId: string, title: string) => {
+    if (
+      window.confirm(
+        `هل أنت تأكد من حذف اختبار "${title}"؟ سيمسح ذلك جميع نتائج الطلاب المتعلقة به.`
+      )
+    ) {
+      await deleteQuizItem(quizId);
+    }
+  };
 
   return (
     <div className="max-w-7xl mx-auto py-8 px-4 sm:px-6 lg:px-8 space-y-8" dir="rtl">
@@ -115,7 +139,7 @@ export const AdminDashboard: React.FC = () => {
         subjectPerformance={kpis.subjectPerformance}
       />
 
-      {/* School Quizzes Management with Re-assignment */}
+      {/* School Quizzes Management with Re-assignment & Full Admin Control */}
       <div className="bg-white dark:bg-slate-900 rounded-3xl p-6 sm:p-8 border border-slate-200/80 dark:border-slate-800 shadow-soft transition-colors duration-200">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6 pb-4 border-b border-slate-100 dark:border-slate-800">
           <div>
@@ -123,7 +147,7 @@ export const AdminDashboard: React.FC = () => {
               بنك الاختبارات المدرسي وإعادة الإسناد (Admin Quiz Control)
             </h3>
             <p className="text-xs text-slate-500 dark:text-slate-400">
-              يمكنك كمدير نظام نقل وتفويض ملكية أي اختبار من معلم إلى آخر فوراً
+              يمكنك كمدير نظام نقل وتفويض ملكية أي اختبار من معلم إلى آخر، معاينته، تعديله، مراجعة نتائج الطلاب، أو حذفه فوراً.
             </p>
           </div>
           <span className="text-xs font-bold text-indigo-700 dark:text-indigo-300 bg-indigo-50 dark:bg-indigo-950 px-3 py-1.5 rounded-xl border border-indigo-100 dark:border-indigo-900">
@@ -142,6 +166,7 @@ export const AdminDashboard: React.FC = () => {
                 <th className="py-3 px-4">المدة والدرجة</th>
                 <th className="py-3 px-4">المحاولات</th>
                 <th className="py-3 px-4 text-center">تفويض الاختبار</th>
+                <th className="py-3 px-4 text-center">الإجراءات</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
@@ -178,8 +203,17 @@ export const AdminDashboard: React.FC = () => {
                     <td className="py-3.5 px-4 text-slate-500 dark:text-slate-400">
                       {quiz.duration_minutes} دقيقة • {quiz.total_marks} درجة
                     </td>
-                    <td className="py-3.5 px-4 font-bold text-indigo-700 dark:text-indigo-400">
-                      {quiz.submissions_count || 0} تسليم
+                    <td className="py-3.5 px-4">
+                      <button
+                        onClick={() => {
+                          setActiveQuizId(quiz.id);
+                          setCurrentView('quiz_results');
+                        }}
+                        className="font-bold text-indigo-700 dark:text-indigo-400 hover:underline"
+                        title="عرض نتائج محاولات الطلاب لهذا الاختبار"
+                      >
+                        {quiz.submissions_count || 0} تسليم
+                      </button>
                     </td>
                     <td className="py-3.5 px-4 text-center">
                       <button
@@ -189,6 +223,54 @@ export const AdminDashboard: React.FC = () => {
                         <ArrowRightLeft className="w-3.5 h-3.5" />
                         <span>نقل لمعلم آخر</span>
                       </button>
+                    </td>
+                    <td className="py-3.5 px-4 text-center">
+                      <div className="flex items-center justify-center gap-1.5">
+                        {/* 1. زر معاينة الاختبار */}
+                        <button
+                          onClick={() => {
+                            setActiveQuizId(quiz.id);
+                            setCurrentView('quiz_preview');
+                          }}
+                          className="p-1.5 text-slate-600 dark:text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors"
+                          title="معاينة وعرض الاختبار"
+                        >
+                          <Eye className="w-4 h-4" />
+                        </button>
+
+                        {/* 2. زر تعديل الاختبار */}
+                        <button
+                          onClick={() => {
+                            setEditingQuizId(quiz.id);
+                            setCurrentView('create_quiz');
+                          }}
+                          className="p-1.5 text-slate-600 dark:text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors"
+                          title="تعديل الاختبار"
+                        >
+                          <Edit3 className="w-4 h-4" />
+                        </button>
+
+                        {/* 3. زر تقارير ونتائج الاختبار */}
+                        <button
+                          onClick={() => {
+                            setActiveQuizId(quiz.id);
+                            setCurrentView('quiz_results');
+                          }}
+                          className="p-1.5 text-slate-600 dark:text-slate-400 hover:text-emerald-600 dark:hover:text-emerald-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors"
+                          title="تفاصيل النتائج ومَن اختبر"
+                        >
+                          <BarChart2 className="w-4 h-4" />
+                        </button>
+
+                        {/* 4. زر حذف الاختبار */}
+                        <button
+                          onClick={() => handleDeleteQuiz(quiz.id, quiz.title)}
+                          className="p-1.5 text-red-500 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-950/50 rounded-lg transition-colors"
+                          title="حذف الاختبار نهائياً"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 );
