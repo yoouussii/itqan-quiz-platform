@@ -50,7 +50,13 @@ export const AdminDashboard: React.FC = () => {
       await deleteQuizItem(quizId);
     }
   };
+// فحص ما إذا كان المستخدم أدمن أم معلم
+const isAdmin = user?.role === 'admin' || user?.role === 'super_admin' || currentUser?.role === 'admin' || currentUser?.role === 'super_admin';
 
+// حساب إجمالي الاختبارات: للأدمن يُحسب كل شيء، وللمعلم تُحسب اختباراته فقط
+const totalQuizzesCount = isAdmin 
+  ? quizzes.length 
+  : quizzes.filter(q => q.teacher_id === (user?.id || currentUser?.id)).length;
   return (
     <div className="max-w-7xl mx-auto py-8 px-4 sm:px-6 lg:px-8 space-y-8" dir="rtl">
       {/* Super Admin Welcome Banner */}
@@ -107,12 +113,12 @@ export const AdminDashboard: React.FC = () => {
         />
 
         <KPICard
-          title="إجمالي الاختبارات"
-          value={kpis.totalQuizzes}
-          subtitle="بمختلف المواد والتخصصات"
-          icon={FileQuestion}
-          colorScheme="cyan"
-        />
+  title="إجمالي الاختبارات"
+  value={totalQuizzesCount}  {/* 👈 استبدل السطر القديم بهذا */}
+  subtitle="بمختلف المواد والتخصصات"
+  icon={FileQuestion}
+  colorScheme="cyan"
+/>
 
         <KPICard
           title="متوسط النتائج العام"
