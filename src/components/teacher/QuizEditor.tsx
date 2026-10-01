@@ -1,15 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import ReactQuill from 'react-quill';
 import 'react-quill/dist/quill.snow.css';
-const quillModules = {
-  toolbar: [
-    [{ 'size': ['small', false, 'large', 'huge'] }], // تكبير وتصغير الخط
-    ['bold', 'italic', 'underline', 'strike'],      // عريض، مائل، تحته خط
-    [{ 'color': [] }, { 'background': [] }],          // لون الخط ولون الخلفية
-    [{ 'align': [] }],                              // محاذاة النص
-    ['clean']                                       // مسح التنسيق
-  ],
-};
 import {
   Plus,
   Trash2,
@@ -24,6 +15,16 @@ import {
 import { TargetType } from '../../types';
 import { useApp } from '../../context/AppContext';
 import { StorageService } from '../../services/storage';
+
+const quillModules = {
+  toolbar: [
+    [{ 'size': ['small', false, 'large', 'huge'] }], // تكبير وتصغير الخط
+    ['bold', 'italic', 'underline', 'strike'],      // عريض، مائل، تحته خط
+    [{ 'color': [] }, { 'background': [] }],          // لون الخط ولون الخلفية
+    [{ 'align': [] }],                              // محاذاة النص
+    ['clean']                                       // مسح التنسيق
+  ],
+};
 
 export type QuestionType = 'mcq' | 'true_false' | 'essay' | 'passage';
 
@@ -619,7 +620,7 @@ export const QuizEditor: React.FC = () => {
                     جدولة إتاحة الاختبار وحالة التفعيل الفوري
                   </h3>
                   <p className="text-[11px] text-slate-500 dark:text-slate-400">
-                    حدد الفترة الزمنية التي يُسمح خلالها للطلاب بدخول الاختبار وإكانية الإيقاف اليدوي
+                    حدد الفترة الزمنية التي يُسمح خلالها للطلاب بدخول الاختبار وإمكانية الإيقاف اليدوي
                   </p>
                 </div>
                 <label className="flex items-center gap-2 cursor-pointer select-none">
@@ -788,91 +789,51 @@ export const QuizEditor: React.FC = () => {
             </div>
           )}
 
-          {/* الجزء المكتمل: قائمة تحديد الطلاب الفرديين */}
           {targetType === 'specific_students' && (
             <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700">
-              <div className="flex items-center justify-between mb-3">
-                <label className="text-xs font-bold text-slate-700 dark:text-slate-300">
-                  حدد الطلاب المشمولين بالتقييم ({selectedStudentIds.length} تم اختيارهم):
-                </label>
-                <div className="flex gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setSelectedStudentIds(students.map((s) => s.id))}
-                    className="text-[11px] font-bold text-indigo-600 dark:text-indigo-400 hover:underline"
+              <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-2">
+                حدد الطلاب المستهدفين بالاسم:
+              </label>
+              <div className="max-h-48 overflow-y-auto grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2 p-2 bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700">
+                {students.map((st) => (
+                  <label
+                    key={st.id}
+                    className="flex items-center gap-2 p-2 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-700/50 cursor-pointer text-xs"
                   >
-                    تحديد الكل
-                  </button>
-                  <span className="text-slate-300 dark:text-slate-600">|</span>
-                  <button
-                    type="button"
-                    onClick={() => setSelectedStudentIds([])}
-                    className="text-[11px] font-bold text-slate-500 hover:underline"
-                  >
-                    إلغاء التحديد
-                  </button>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2.5 max-h-48 overflow-y-auto p-1">
-                {students.map((st) => {
-                  const isChecked = selectedStudentIds.includes(st.id);
-                  const studentClass = classes.find((c) => c.id === st.class_id);
-                  return (
-                    <div
-                      key={st.id}
-                      onClick={() => toggleStudentSelection(st.id)}
-                      className={`p-2.5 rounded-xl border cursor-pointer transition-all flex items-center justify-between ${
-                        isChecked
-                          ? 'border-indigo-600 bg-indigo-50/80 dark:bg-indigo-950/80 text-indigo-900 dark:text-indigo-200'
-                          : 'border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300'
-                      }`}
-                    >
-                      <div className="flex items-center gap-2 overflow-hidden">
-                        <input
-                          type="checkbox"
-                          checked={isChecked}
-                          onChange={() => {}}
-                          className="accent-indigo-600 rounded"
-                        />
-                        <div className="truncate">
-                          <p className="text-xs font-bold truncate">{st.name}</p>
-                          {studentClass && (
-                            <p className="text-[10px] text-slate-400 font-normal">
-                              {studentClass.name}
-                            </p>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-                  );
-                })}
+                    <input
+                      type="checkbox"
+                      checked={selectedStudentIds.includes(st.id)}
+                      onChange={() => toggleStudentSelection(st.id)}
+                      className="accent-indigo-600 rounded"
+                    />
+                    <span className="text-slate-900 dark:text-white font-medium">{st.name}</span>
+                  </label>
+                ))}
               </div>
             </div>
           )}
         </div>
 
-        {/* Step 3: Questions Builder */}
+        {/* Step 3: Questions */}
         <div className="bg-white dark:bg-slate-900 p-6 sm:p-8 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-soft">
-          <div className="flex items-center justify-between mb-6 pb-3 border-b border-slate-100 dark:border-slate-800">
+          <div className="flex items-center justify-between mb-5 pb-3 border-b border-slate-100 dark:border-slate-800">
             <div className="flex items-center gap-2">
               <span className="w-7 h-7 rounded-xl bg-indigo-600 text-white font-bold text-xs flex items-center justify-center">
                 3
               </span>
               <div>
                 <h2 className="font-bold text-base text-slate-900 dark:text-white">
-                  أسئلة الاختبار والتقييم
+                  أسئلة الاختبار
                 </h2>
                 <p className="text-xs text-slate-500 dark:text-slate-400">
-                  أضف الأسئلة، حدد نوع كل سؤال، الإجابات الصحيحة، والدرجات
+                  قم بإضافة وصياغة أسئلة الاختبار وتحديد الإجابات الصحيحة والدرجات
                 </p>
               </div>
             </div>
-
             <button
               type="button"
               onClick={handleAddQuestion}
-              className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-indigo-50 dark:bg-indigo-950 text-indigo-600 dark:text-indigo-300 hover:bg-indigo-100 dark:hover:bg-indigo-900 text-xs font-bold transition-colors"
+              className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-700 rounded-xl transition-colors"
             >
               <Plus className="w-4 h-4" />
               <span>إضافة سؤال جديد</span>
@@ -882,36 +843,30 @@ export const QuizEditor: React.FC = () => {
           <div className="space-y-6">
             {questions.map((q, qIdx) => (
               <div
-                key={q.id || `q_${qIdx}`}
+                key={q.id || qIdx}
                 className="p-5 rounded-2xl border border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/40 space-y-4"
               >
-                {/* Question Header */}
-                <div className="flex flex-wrap items-center justify-between gap-3">
-                  <div className="flex items-center gap-2">
-                    <span className="font-extrabold text-xs text-indigo-600 dark:text-indigo-400 bg-indigo-100 dark:bg-indigo-950 px-2.5 py-1 rounded-lg">
+                <div className="flex items-center justify-between gap-3 pb-3 border-b border-slate-200/60 dark:border-slate-700/60">
+                  <div className="flex items-center gap-3">
+                    <span className="font-bold text-xs text-slate-700 dark:text-slate-300">
                       السؤال {qIdx + 1}
                     </span>
-
                     <select
                       value={q.type}
                       onChange={(e) => handleQuestionTypeChange(qIdx, e.target.value as QuestionType)}
-                      className="px-3 py-1.5 text-xs font-bold rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                      className="px-3 py-1.5 text-xs font-bold rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
                     >
                       <option value="mcq">اختيار من متعدد</option>
-                      <option value="true_false">صواب / خطأ</option>
-                      <option value="essay">سؤال مقالي (تحليل)</option>
-                      <option value="passage">قطعة فهم (نص + أسئلة فرعية)</option>
+                      <option value="true_false">صح / خطأ</option>
+                      <option value="essay">سؤال مقالي</option>
+                      <option value="passage">قطعة وفهم قرائي</option>
                     </select>
                   </div>
 
                   <div className="flex items-center gap-3">
-                    <div className="flex items-center gap-1.5">
-                      <span className="text-xs text-slate-500 font-bold">الدرجة:</span>
-                      {q.type === 'passage' ? (
-                        <span className="px-2.5 py-1 bg-amber-50 dark:bg-amber-950 text-amber-700 dark:text-amber-300 text-xs font-black rounded-lg border border-amber-200 dark:border-amber-900">
-                          {q.marks} (مجموع الفرعية)
-                        </span>
-                      ) : (
+                    {q.type !== 'passage' && (
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-xs font-bold text-slate-600 dark:text-slate-400">الدرجة:</span>
                         <input
                           type="number"
                           min={1}
@@ -919,14 +874,13 @@ export const QuizEditor: React.FC = () => {
                           onChange={(e) => handleMarksChange(qIdx, Number(e.target.value))}
                           className="w-16 px-2 py-1 text-xs text-center font-bold rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white"
                         />
-                      )}
-                    </div>
-
+                      </div>
+                    )}
                     {questions.length > 1 && (
                       <button
                         type="button"
                         onClick={() => handleRemoveQuestion(qIdx)}
-                        className="p-1.5 text-slate-400 hover:text-red-500 rounded-lg hover:bg-red-50 dark:hover:bg-red-950/50 transition-colors"
+                        className="p-1.5 text-rose-500 hover:text-rose-700 rounded-lg hover:bg-rose-50 dark:hover:bg-rose-950/30 transition-colors"
                         title="حذف السؤال"
                       >
                         <Trash2 className="w-4 h-4" />
@@ -935,62 +889,46 @@ export const QuizEditor: React.FC = () => {
                   </div>
                 </div>
 
-                {/* Question Text Input */}
+                {/* نص السؤال - محرر التنسيق ReactQuill */}
                 <div>
-                  <label className="block text-[11px] font-bold text-slate-500 dark:text-slate-400 mb-1">
-                    {q.type === 'passage' ? 'نص القطعة أو السند القرائي *' : 'نص السؤال *'}
+                  <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5">
+                    {q.type === 'passage' ? 'نص القطعة / النص القرائي *' : 'نص السؤال *'}
                   </label>
-                  {q.type === 'passage' ? (
-                    <textarea
-                      rows={4}
-                      required
-                      placeholder="اكتب القطعة القرائية أو النص هنا..."
+                  {/* الكود الجديد المنسق لنص السؤال */}
+                  <div className="rich-text-editor-container">
+                    <ReactQuill
+                      theme="snow"
+                      modules={quillModules}
                       value={q.question_text}
-                      onChange={(e) => handleQuestionTextChange(qIdx, e.target.value)}
-                      className="w-full px-3.5 py-2.5 text-xs rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                      onChange={(content) => handleQuestionTextChange(qIdx, content)}
+                      placeholder="اكتب نص السؤال هنا واستخدم أدوات التنسيق العلوي لتكبير الخط وتلوينه..."
+                      className="bg-white dark:bg-slate-800 text-slate-900 dark:text-white rounded-xl overflow-hidden"
                     />
-                  ) : (
-                    <input
-                      type="text"
-                      required
-                      placeholder="اكتب نص السؤال بوضوح..."
-                      value={q.question_text}
-                      onChange={(e) => handleQuestionTextChange(qIdx, e.target.value)}
-                      className="w-full px-3.5 py-2.5 text-xs rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                    />
-                  )}
+                  </div>
                 </div>
 
-                {/* Options / Answer Logic by Question Type */}
+                {/* خيارات MCQ */}
                 {q.type === 'mcq' && (
-                  <div className="space-y-2 pt-1">
-                    <label className="block text-[11px] font-bold text-slate-500 dark:text-slate-400">
-                      الخيارات (حدد الدائرة بجانب الإجابة الصحيحة):
+                  <div className="space-y-2.5 pt-2">
+                    <label className="block text-xs font-bold text-slate-700 dark:text-slate-300">
+                      الخيارات والإجابة الصحيحة:
                     </label>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                       {q.options.map((opt, optIdx) => (
-                        <div
-                          key={optIdx}
-                          className={`flex items-center gap-2 p-2 rounded-xl border ${
-                            q.correct_option_index === optIdx
-                              ? 'border-emerald-500 bg-emerald-50/50 dark:bg-emerald-950/30'
-                              : 'border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800'
-                          }`}
-                        >
+                        <div key={optIdx} className="flex items-center gap-2">
                           <input
                             type="radio"
                             name={`correct_opt_${qIdx}`}
                             checked={q.correct_option_index === optIdx}
                             onChange={() => handleCorrectOptionChange(qIdx, optIdx)}
-                            className="accent-emerald-600"
+                            className="accent-indigo-600"
                           />
                           <input
                             type="text"
-                            required
-                            placeholder={`الخيار ${optIdx + 1}`}
                             value={opt}
+                            placeholder={`الخيار ${optIdx + 1}`}
                             onChange={(e) => handleOptionChange(qIdx, optIdx, e.target.value)}
-                            className="w-full bg-transparent text-xs text-slate-900 dark:text-white focus:outline-none"
+                            className="w-full px-3 py-2 text-xs rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
                           />
                         </div>
                       ))}
@@ -998,92 +936,72 @@ export const QuizEditor: React.FC = () => {
                   </div>
                 )}
 
+                {/* خيارات صح وخطأ */}
                 {q.type === 'true_false' && (
-                  <div className="flex items-center gap-4 pt-1">
-                    <span className="text-[11px] font-bold text-slate-500">الإجابة الصحيحة:</span>
-                    {['صح', 'خطأ'].map((opt, optIdx) => (
-                      <label
-                        key={optIdx}
-                        className={`flex items-center gap-2 px-4 py-2 rounded-xl border cursor-pointer text-xs font-bold ${
-                          q.correct_option_index === optIdx
-                            ? 'border-emerald-500 bg-emerald-50 dark:bg-emerald-950/60 text-emerald-800 dark:text-emerald-200'
-                            : 'border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800'
-                        }`}
-                      >
-                        <input
-                          type="radio"
-                          name={`tf_opt_${qIdx}`}
-                          checked={q.correct_option_index === optIdx}
-                          onChange={() => handleCorrectOptionChange(qIdx, optIdx)}
-                          className="accent-emerald-600"
-                        />
-                        <span>{opt}</span>
-                      </label>
-                    ))}
+                  <div className="space-y-2.5 pt-2">
+                    <label className="block text-xs font-bold text-slate-700 dark:text-slate-300">
+                      الإجابة الصحيحة:
+                    </label>
+                    <div className="flex gap-4">
+                      {['صح', 'خطأ'].map((label, optIdx) => (
+                        <label key={optIdx} className="flex items-center gap-2 cursor-pointer text-xs font-bold text-slate-700 dark:text-slate-300">
+                          <input
+                            type="radio"
+                            name={`tf_correct_${qIdx}`}
+                            checked={q.correct_option_index === optIdx}
+                            onChange={() => handleCorrectOptionChange(qIdx, optIdx)}
+                            className="accent-indigo-600"
+                          />
+                          <span>{label}</span>
+                        </label>
+                      ))}
+                    </div>
                   </div>
                 )}
 
-                {q.type === 'essay' && (
-                  <div className="p-3 bg-amber-50/60 dark:bg-amber-950/30 border border-amber-200/60 dark:border-amber-900/40 rounded-xl text-xs text-amber-800 dark:text-amber-200 flex items-center gap-2">
-                    <HelpCircle className="w-4 h-4 shrink-0" />
-                    <span>
-                      هذا سؤال مقالي مفتوح الإجابة، وسيُترك للطالب مربع نص للتعبير والإجابة وستحتاج لتصحيحه يدوياً.
-                    </span>
-                  </div>
-                )}
-
-                {/* Passage Sub-questions */}
-                {q.type === 'passage' && (
-                  <div className="p-4 bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 space-y-4">
-                    <div className="flex items-center justify-between pb-2 border-b border-slate-100 dark:border-slate-700">
-                      <span className="text-xs font-bold text-slate-800 dark:text-slate-200 flex items-center gap-1.5">
-                        <FileText className="w-4 h-4 text-indigo-600" />
-                        الأسئلة الفرعية للقطعة ({q.sub_questions?.length || 0})
-                      </span>
+                {/* الأسئلة الفرعية للقطعة */}
+                {q.type === 'passage' && q.sub_questions && (
+                  <div className="space-y-4 pt-3 border-t border-slate-200 dark:border-slate-700">
+                    <div className="flex items-center justify-between">
+                      <h4 className="text-xs font-bold text-indigo-700 dark:text-indigo-300">الأسئلة الفرعية للقطعة:</h4>
                       <button
                         type="button"
                         onClick={() => handleAddSubQuestion(qIdx)}
-                        className="text-[11px] font-bold text-indigo-600 dark:text-indigo-400 hover:underline flex items-center gap-1"
+                        className="inline-flex items-center gap-1 text-[11px] font-bold text-indigo-600 hover:text-indigo-800"
                       >
                         <Plus className="w-3.5 h-3.5" />
-                        إضافة سؤال فرعي
+                        <span>إضافة سؤال فرعي</span>
                       </button>
                     </div>
 
-                    {q.sub_questions?.map((sq, sqIdx) => (
-                      <div
-                        key={sq.id || sqIdx}
-                        className="p-3 bg-slate-50 dark:bg-slate-900/60 rounded-xl border border-slate-200 dark:border-slate-700 space-y-3"
-                      >
+                    {q.sub_questions.map((sq, sqIdx) => (
+                      <div key={sq.id || sqIdx} className="p-4 rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 space-y-3">
                         <div className="flex items-center justify-between gap-2">
-                          <span className="text-[11px] font-bold text-indigo-600">
-                            فرعي {sqIdx + 1}
-                          </span>
                           <div className="flex items-center gap-2">
+                            <span className="text-xs font-bold text-slate-600 dark:text-slate-400">س {sqIdx + 1}</span>
                             <select
                               value={sq.type}
-                              onChange={(e) =>
-                                handleSubQuestionTypeChange(qIdx, sqIdx, e.target.value as any)
-                              }
-                              className="px-2 py-1 text-[11px] font-bold rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-200"
+                              onChange={(e) => handleSubQuestionTypeChange(qIdx, sqIdx, e.target.value as any)}
+                              className="px-2 py-1 text-xs font-bold rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 text-slate-900 dark:text-white"
                             >
                               <option value="mcq">اختيار من متعدد</option>
-                              <option value="true_false">صواب / خطأ</option>
-                              <option value="essay">مقالي</option>
+                              <option value="true_false">صح / خطأ</option>
+                              <option value="essay">سؤال مقالي</option>
                             </select>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <span className="text-xs font-bold text-slate-500">الدرجة:</span>
                             <input
                               type="number"
                               min={1}
                               value={sq.marks}
-                              onChange={(e) =>
-                                handleSubMarksChange(qIdx, sqIdx, Number(e.target.value))
-                              }
-                              className="w-14 px-1.5 py-1 text-[11px] text-center font-bold rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white"
+                              onChange={(e) => handleSubMarksChange(qIdx, sqIdx, Number(e.target.value))}
+                              className="w-14 px-2 py-1 text-xs text-center font-bold rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 text-slate-900 dark:text-white"
                             />
                             <button
                               type="button"
                               onClick={() => handleRemoveSubQuestion(qIdx, sqIdx)}
-                              className="text-slate-400 hover:text-red-500 p-1"
+                              className="p-1 text-rose-500 hover:text-rose-700"
                             >
                               <Trash2 className="w-3.5 h-3.5" />
                             </button>
@@ -1092,42 +1010,48 @@ export const QuizEditor: React.FC = () => {
 
                         <input
                           type="text"
-                          placeholder="نص السؤال الفرعي..."
                           value={sq.question_text}
-                          onChange={(e) =>
-                            handleSubQuestionTextChange(qIdx, sqIdx, e.target.value)
-                          }
-                          className="w-full px-3 py-1.5 text-xs rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white"
+                          onChange={(e) => handleSubQuestionTextChange(qIdx, sqIdx, e.target.value)}
+                          placeholder="نص السؤال الفرعي..."
+                          className="w-full px-3 py-2 text-xs rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
                         />
 
                         {sq.type === 'mcq' && (
                           <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                            {sq.options.map((sOpt, sOptIdx) => (
-                              <div
-                                key={sOptIdx}
-                                className={`flex items-center gap-2 p-1.5 rounded-lg border ${
-                                  sq.correct_option_index === sOptIdx
-                                    ? 'border-emerald-500 bg-emerald-50/40 dark:bg-emerald-950/20'
-                                    : 'border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800'
-                                }`}
-                              >
+                            {sq.options.map((opt, optIdx) => (
+                              <div key={optIdx} className="flex items-center gap-2">
                                 <input
                                   type="radio"
-                                  name={`sub_opt_${qIdx}_${sqIdx}`}
-                                  checked={sq.correct_option_index === sOptIdx}
-                                  onChange={() => handleSubCorrectOptionChange(qIdx, sqIdx, sOptIdx)}
-                                  className="accent-emerald-600"
+                                  name={`sub_correct_${qIdx}_${sqIdx}`}
+                                  checked={sq.correct_option_index === optIdx}
+                                  onChange={() => handleSubCorrectOptionChange(qIdx, sqIdx, optIdx)}
+                                  className="accent-indigo-600"
                                 />
                                 <input
                                   type="text"
-                                  placeholder={`خيار ${sOptIdx + 1}`}
-                                  value={sOpt}
-                                  onChange={(e) =>
-                                    handleSubOptionChange(qIdx, sqIdx, sOptIdx, e.target.value)
-                                  }
-                                  className="w-full bg-transparent text-[11px] text-slate-900 dark:text-white focus:outline-none"
+                                  value={opt}
+                                  placeholder={`خيار ${optIdx + 1}`}
+                                  onChange={(e) => handleSubOptionChange(qIdx, sqIdx, optIdx, e.target.value)}
+                                  className="w-full px-2.5 py-1.5 text-xs rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 text-slate-900 dark:text-white"
                                 />
                               </div>
+                            ))}
+                          </div>
+                        )}
+
+                        {sq.type === 'true_false' && (
+                          <div className="flex gap-4">
+                            {['صواب', 'خطأ'].map((label, optIdx) => (
+                              <label key={optIdx} className="flex items-center gap-1.5 cursor-pointer text-xs font-bold text-slate-700 dark:text-slate-300">
+                                <input
+                                  type="radio"
+                                  name={`sub_tf_correct_${qIdx}_${sqIdx}`}
+                                  checked={sq.correct_option_index === optIdx}
+                                  onChange={() => handleSubCorrectOptionChange(qIdx, sqIdx, optIdx)}
+                                  className="accent-indigo-600"
+                                />
+                                <span>{label}</span>
+                              </label>
                             ))}
                           </div>
                         )}
@@ -1136,14 +1060,17 @@ export const QuizEditor: React.FC = () => {
                   </div>
                 )}
 
-                {/* Explanation Field */}
+                {/* الشرح والتعليمات الإضافية */}
                 <div>
+                  <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
+                    التوضيح / التفسير بعد الإجابة (اختياري)
+                  </label>
                   <input
                     type="text"
-                    placeholder="التوضيح أو التفسير الإرشاد للإجابة الصحيحة (اختياري)..."
                     value={q.explanation}
                     onChange={(e) => handleExplanationChange(qIdx, e.target.value)}
-                    className="w-full px-3 py-1.5 text-[11px] rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800/80 text-slate-600 dark:text-slate-300"
+                    placeholder="سيظهر للطالب بعد إنهاء الاختبار لبيان سبب صحة الإجابة"
+                    className="w-full px-3 py-2 text-xs rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
                   />
                 </div>
               </div>
@@ -1151,7 +1078,7 @@ export const QuizEditor: React.FC = () => {
           </div>
         </div>
 
-        {/* Form Actions */}
+        {/* Submit Actions */}
         <div className="flex items-center justify-end gap-3 pt-4 border-t border-slate-200 dark:border-slate-800">
           <button
             type="button"
@@ -1159,17 +1086,16 @@ export const QuizEditor: React.FC = () => {
               setEditingQuizId(null);
               setCurrentView('quizzes');
             }}
-            className="px-5 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 text-xs font-bold text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+            className="px-5 py-2.5 text-xs font-bold text-slate-600 dark:text-slate-400 hover:text-slate-800 dark:hover:text-white transition-colors"
           >
-            إلغاء الأمر
+            إلغاء
           </button>
-
           <button
             type="submit"
-            className="inline-flex items-center gap-2 px-6 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold shadow-lg shadow-indigo-600/20 transition-all"
+            className="inline-flex items-center gap-2 px-6 py-2.5 text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-700 rounded-xl transition-colors shadow-lg shadow-indigo-600/20"
           >
-            {isEditing ? <Save className="w-4 h-4" /> : <CheckCircle className="w-4 h-4" />}
-            <span>{isEditing ? 'حفظ التعديلات' : 'نشر الاختبار الآن'}</span>
+            <Save className="w-4 h-4" />
+            <span>{isEditing ? 'حفظ التعديلات' : 'حفظ ونشر الاختبار'}</span>
           </button>
         </div>
       </form>
