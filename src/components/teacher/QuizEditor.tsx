@@ -1,6 +1,15 @@
 import React, { useState, useEffect, useRef } from 'react';
 import ReactQuill from 'react-quill';
 import 'react-quill/dist/quill.snow.css';
+const quillModules = {
+  toolbar: [
+    [{ 'size': ['small', false, 'large', 'huge'] }], // تكبير وتصغير الخط
+    ['bold', 'italic', 'underline', 'strike'],      // عريض، مائل، تحته خط
+    [{ 'color': [] }, { 'background': [] }],          // لون الخط ولون الخلفية
+    [{ 'align': [] }],                              // محاذاة النص
+    ['clean']                                       // مسح التنسيق
+  ],
+};
 import {
   Plus,
   Trash2,
