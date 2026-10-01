@@ -389,60 +389,95 @@ export const QuizEditor: React.FC = () => {
   }, 0);
 
   const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  e.preventDefault();
 
-    if (!title.trim()) {
-      alert('يرجى إدخال عنوان للاختبار');
+  // 1. التحقق من عنوان الاختبار
+  if (!title.trim()) {
+    alert('يرجى إدخال عنوان للاختبار');
+    return;
+  }
+
+  // 2. التحقق من إدخال الأسئلة
+  for (let i = 0; i < questions.length; i++) {
+    const q = questions[i];
+    if (!q.question_text.trim()) {
+      alert(`يرجى كتابة نص السؤال رقم ${i + 1}`);
+      return;
+    }
+    if (q.type === 'passage') {
+      if (!q.sub_questions || q.sub_questions.length === 0) {
+        alert(`يرجى إضافة سؤال فرعي واحد على الأقل للقطعة في السؤال رقم ${i + 1}`);
+        return;
+      }
+      for (let j = 0; j < q.sub_questions.length; j++) {
+        if (!q.sub_questions[j].question_text.trim()) {
+          alert(`يرجى كتابة نص السؤال الفرعي رقم ${j + 1} للقطعة رقم ${i + 1}`);
+          return;
+        }
+      }
+    }
+  }
+
+  // 3. تحديد خيارات الاستهداف
+  let target_id: string | null = null;
+  let target_name = '';
+
+  if (targetType === 'all') {
+    target_id = null;
+    target_name = 'كافة طلاب المدرسة (شامل)';
+  } else if (targetType === 'class') {
+    target_id = targetClassId;
+    const targetClass = availableClasses.find((c) => c.id === targetClassId);
+    target_name = targetClass?.name || 'صف دراسي محدد';
+  } else if (targetType === 'specific_students') {
+    if (selectedStudentIds.length === 0) {
+      alert('يرجى تحديد طالب واحد على الأقل للاستهداف المخصص');
+      return;
+    }
+    target_id = selectedStudentIds.join(',');
+    target_name = `${selectedStudentIds.length} طلاب محددين بالاسم`;
+  }
+
+  // 4. تجهيز كائن البيانات الموجه لجدول quizzes
+  const quizData = {
+    id: `quiz-${Date.now()}`,
+    title: title.trim(),
+    description: description || '',
+    subject_id: selectedSubjectId, // تأكد من مطابقة هذا المتغير لمعرّف المادة
+    teacher_id: currentUser?.id,
+    duration_minutes: Number(durationMinutes) || 30,
+    pass_percentage: Number(passPercentage) || 50,
+    start_date: startDate ? new Date(startDate).toISOString() : new Date().toISOString(),
+    end_date: endDate ? new Date(endDate).toISOString() : null,
+    target_type: targetType,
+    class_id: targetClassId || null,
+    student_ids: selectedStudentIds,
+    questions: questions,
+    is_active: true,
+    updated_at: new Date().toISOString()
+  };
+
+  try {
+    // 5. إرسال الطلب إلى Supabase مباشرة
+    const { data, error } = await supabase
+      .from('quizzes')
+      .insert([quizData])
+      .select();
+
+    if (error) {
+      console.error('خطأ Supabase:', error);
+      alert(`فشل حفظ الاختبار: ${error.message}`);
       return;
     }
 
-    for (let i = 0; i < questions.length; i++) {
-      const q = questions[i];
-      if (!q.question_text.trim()) {
-        alert(`يرجى كتابة نص السؤال رقم ${i + 1}`);
-        return;
-      }
-      if (q.type === 'passage') {
-        if (!q.sub_questions || q.sub_questions.length === 0) {
-          alert(`يرجى إضافة سؤال فرعي واحد على الأقل للقطعة في السؤال رقم ${i + 1}`);
-          return;
-        }
-        for (let j = 0; j < q.sub_questions.length; j++) {
-          if (!q.sub_questions[j].question_text.trim()) {
-            alert(`يرجى كتابة نص السؤال الفرعي رقم ${j + 1} للقطعة رقم ${i + 1}`);
-            return;
-          }
-        }
-      }
-    }
+    alert('تم حفظ الاختبار بنجاح في قاعدة البيانات!');
+    // يمكنك إضافة كود إعادة التوجيه أو تفريغ الحقول هنا
 
-    let target_id: string | null = null;
-    let target_name = '';
-
-    if (targetType === 'all') {
-      target_id = null;
-      target_name = 'كافة طلاب المدرسة (شامل)';
-    } else if (targetType === 'class') {
-      target_id = targetClassId;
-      const targetClass = availableClasses.find((c) => c.id === targetClassId);
-      target_name = targetClass?.name || 'صف دراسي محدد';
-    } else if (targetType === 'specific_students') {
-      if (selectedStudentIds.length === 0) {
-        alert('يرجى تحديد طالب واحد على الأقل للاستهداف المخصص');
-        return;
-      }
-      target_id = selectedStudentIds.join(',');
-      target_name = `${selectedStudentIds.length} طلاب محددين بالاسم`;
-    }
-
-    const assignments = [
-      {
-        target_type: targetType,
-        target_id,
-        target_name,
-        assigned_by_teacher_id: currentUser?.id || 'usr-teacher-1',
-      },
-    ];
+  } catch (err) {
+    console.error('خطأ غير متوقع:', err);
+    alert('حدث خطأ غير متوقع أثناء عملية الحفظ.');
+  }
+};
 
     const formattedQuestions = questions.map((q) => {
       if (q.type === 'passage') {
