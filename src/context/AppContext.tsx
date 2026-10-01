@@ -36,7 +36,7 @@ interface AppContextType {
   theme: 'light' | 'dark';
   toggleTheme: () => void;
   login: (nationalId: string, password?: string) => Promise<boolean>;
-  logout: () => void;
+  logout: () => Promise<void> | void;
   switchUser: (userId: string) => void;
   createNewQuiz: (
     quiz: Omit<Quiz, 'id' | 'created_at'>,
@@ -52,7 +52,7 @@ interface AppContextType {
     assignments: Array<Omit<QuizAssignment, 'quiz_id' | 'created_at' | 'id'> & { id?: string }>
   ) => Promise<Quiz | null> | Quiz | null;
   updateQuizInfo: (id: string, updates: Partial<Quiz>) => Promise<void> | void;
-  deleteQuizItem: (id: string) => void;
+  deleteQuizItem: (id: string) => Promise<void> | void;
   toggleQuizActive: (id: string) => void;
   allowStudentRetake: (quizId: string, studentId: string) => void;
   revokeStudentRetake: (quizId: string, studentId: string) => void;
@@ -194,6 +194,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return StorageService.getDynamicKPIs(isTeacher && !canViewAll ? currentUser.id : undefined);
   });
 
+  // 1️⃣ دالة التحديث الذكية ومنع استدعاء الكاش القديم عند فتح النظام
   const refreshData = useCallback(async () => {
     const localUsers = StorageService.getUsers().map(sanitizeUser);
     let mergedUsers = [...localUsers];
@@ -371,8 +372,23 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   }, [currentUser?.id, currentUser?.national_id, currentUser?.role]);
 
+  // فحص الجلسة ومزامنة البيانات فور تحميل التطبيق تلقائياً
   useEffect(() => {
-    refreshData();
+    const initSession = async () => {
+      if (isSupabaseConfigured()) {
+        try {
+          const { data: { session } } = await supabase.auth.getSession();
+          if (!session && !StorageService.getCurrentUserId()) {
+            setCurrentUser(null);
+          }
+        } catch (e) {
+          console.warn('[Session Verify Error]:', e);
+        }
+      }
+      await refreshData();
+    };
+
+    initSession();
   }, [currentUser?.id, currentUser?.role, refreshData]);
 
   const switchUser = (userId: string) => {
@@ -451,8 +467,17 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return false;
   };
 
-  const logout = () => {
+  // 2️⃣ دالة تسجيل الخروج النظيفة وتنظيف الـ LocalStorage والجلسة
+  const logout = async () => {
+    if (isSupabaseConfigured()) {
+      try {
+        await supabase.auth.signOut();
+      } catch (err) {
+        console.warn('[logout] Supabase signOut warning:', err);
+      }
+    }
     localStorage.removeItem('itqan_current_user_id_v2');
+    localStorage.removeItem('itqan_user_session');
     setCurrentUser(null);
     setCurrentView('login');
     showToast('تم تسجيل الخروج بنجاح', 'info');
@@ -533,9 +558,17 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     showToast('تم تحديث بيانات الاختبار بنجاح', 'success');
   };
 
-  const deleteQuizItem = (id: string) => {
+  // 3️⃣ دالة حذف الاختبار الشاملة (من الذاكرة المحلية ومن قاعدة البيانات Supabase)
+  const deleteQuizItem = async (id: string) => {
     StorageService.deleteQuiz(id);
-    refreshData();
+    if (isSupabaseConfigured()) {
+      try {
+        await supabase.from('quizzes').delete().eq('id', id);
+      } catch (err) {
+        console.warn('[deleteQuizItem] Supabase delete warning:', err);
+      }
+    }
+    await refreshData();
     showToast('تم حذف الاختبار واستبعاد درجاته', 'info');
   };
 
@@ -704,21 +737,21 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const updateUserData = async (id: string, updates: Partial<User>): Promise<void> => {
-  const now = new Date().toISOString();
-  const targetNationalId = updates.national_id || updates.username;
+    const now = new Date().toISOString();
+    const targetNationalId = updates.national_id || updates.username;
 
-  // 1. فصل كلمة المرور لتجنب إعادة كتابتها أو تشفيرها بالخطأ عند التعديل العادي
-  const { password, ...safeUpdates } = updates;
+    // فصل كلمة المرور لتجنب إعادتها أو تعديلها بشكل غير مقصود
+    const { password, ...safeUpdates } = updates;
 
-  const cleanUpdates: Partial<User> = {
-    ...safeUpdates,
-    updated_at: now,
-  };
+    const cleanUpdates: Partial<User> = {
+      ...safeUpdates,
+      updated_at: now,
+    };
 
-  if (updates.national_id) cleanUpdates.national_id = updates.national_id;
-  if (updates.username) cleanUpdates.username = updates.username;
+    if (updates.national_id) cleanUpdates.national_id = updates.national_id;
+    if (updates.username) cleanUpdates.username = updates.username;
 
-  const updatedUserObj = StorageService.updateUser(id, cleanUpdates);
+    const updatedUserObj = StorageService.updateUser(id, cleanUpdates);
     if (updatedUserObj) {
       const sanitized = sanitizeUser(updatedUserObj);
 
@@ -869,13 +902,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const resetSystemData = () => {
-    Object.keys(localStorage).forEach((key) => {
-      if (key.startsWith('itqan_')) {
-        localStorage.removeItem(key);
-      }
-    });
-    localStorage.removeItem('itqan_current_user_id_v2');
-    window.location.reload();
+    StorageService.reset();
+    refreshData();
+    showToast('تم إعادة ضبط بيانات النظام', 'info');
   };
 
   return (
@@ -927,19 +956,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       }}
     >
       {children}
-      {toastMessage && (
-        <div
-          className={`fixed bottom-5 left-5 z-50 px-5 py-3 rounded-lg shadow-xl text-white text-sm font-medium transition-all duration-300 animate-bounce ${
-            toastMessage.type === 'success'
-              ? 'bg-emerald-600'
-              : toastMessage.type === 'error'
-              ? 'bg-rose-600'
-              : 'bg-indigo-600'
-          }`}
-        >
-          {toastMessage.text}
-        </div>
-      )}
     </AppContext.Provider>
   );
 };
