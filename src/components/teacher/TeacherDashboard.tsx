@@ -4,8 +4,7 @@ import { KPICard } from '../common/KPICard';
 import { AnalyticsCharts } from '../analytics/AnalyticsCharts';
 import { SubmissionsTable } from '../analytics/SubmissionsTable';
 import { ReassignQuizModal } from '../common/ReassignQuizModal';
-import { Quiz } from '../../types';
-import { Avatar } from '../common/Avatar';
+import { Quiz, Submission, Subject } from '../../types';
 import {
   FileText,
   Users,
@@ -24,33 +23,31 @@ export const TeacherDashboard: React.FC = () => {
     quizzes,
     submissions,
     subjects,
-    classes,
-    users,
     setCurrentView,
     setEditingQuizId,
   } = useApp();
 
   const [selectedQuizForReassign, setSelectedQuizForReassign] = useState<Quiz | null>(null);
 
-  // Filter quizzes created by this teacher (or all if admin)
+  // تصفية الاختبارات الخاصة بالمعلم
   const teacherQuizzes =
     currentUser?.role === 'admin'
       ? quizzes
       : quizzes.filter((q: Quiz) => q.teacher_id === currentUser?.id);
 
   const teacherQuizIds = teacherQuizzes.map((q: Quiz) => q.id);
-  const teacherSubmissions = submissions.filter((s: any) =>
+  const teacherSubmissions = submissions.filter((s: Submission) =>
     teacherQuizIds.includes(s.quiz_id)
   );
 
-  // KPIs
+  // المؤشرات الرئيسية (KPIs)
   const totalQuizzes = teacherQuizzes.length;
   const activeQuizzes = teacherQuizzes.filter((q: Quiz) => q.is_active).length;
   const totalSubmissions = teacherSubmissions.length;
   const avgScore =
     teacherSubmissions.length > 0
       ? Math.round(
-          teacherSubmissions.reduce((acc: number, item: any) => acc + (item.score || 0), 0) /
+          teacherSubmissions.reduce((acc: number, item: Submission) => acc + (item.score || 0), 0) /
             teacherSubmissions.length
         )
       : 0;
@@ -62,7 +59,7 @@ export const TeacherDashboard: React.FC = () => {
 
   return (
     <div className="space-y-8" dir="rtl">
-      {/* Header */}
+      {/* الترويسة */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-black text-slate-900 dark:text-white font-cairo">
@@ -85,35 +82,31 @@ export const TeacherDashboard: React.FC = () => {
         </button>
       </div>
 
-      {/* KPI Cards */}
+      {/* بطاقات المؤشرات (بدون خاصية color غير المعرفة) */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <KPICard
           title="إجمالي الاختبارات"
           value={totalQuizzes}
           icon={FileText}
-          color="indigo"
         />
         <KPICard
           title="الاختبارات النشطة"
           value={activeQuizzes}
           icon={Clock}
-          color="emerald"
         />
         <KPICard
           title="إجمالي التسليمات"
           value={totalSubmissions}
           icon={Users}
-          color="blue"
         />
         <KPICard
           title="متوسط الدرجات"
           value={`${avgScore}%`}
           icon={CheckCircle}
-          color="amber"
         />
       </div>
 
-      {/* Analytics Charts Section */}
+      {/* قسم التحليلات البيانية */}
       <div className="bg-white dark:bg-slate-900 p-6 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-soft">
         <div className="flex items-center gap-2 mb-6">
           <BarChart2 className="w-5 h-5 text-indigo-600" />
@@ -121,10 +114,10 @@ export const TeacherDashboard: React.FC = () => {
             تحليلات الأداء العام
           </h2>
         </div>
-        <AnalyticsCharts submissions={teacherSubmissions} quizzes={teacherQuizzes} />
+        <AnalyticsCharts />
       </div>
 
-      {/* Quizzes List */}
+      {/* قائمة الاختبارات */}
       <div className="bg-white dark:bg-slate-900 p-6 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-soft space-y-4">
         <div className="flex items-center justify-between pb-4 border-b border-slate-100 dark:border-slate-800">
           <h2 className="font-bold text-base text-slate-900 dark:text-white flex items-center gap-2">
@@ -135,8 +128,8 @@ export const TeacherDashboard: React.FC = () => {
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {teacherQuizzes.map((quiz: Quiz) => {
-            const subject = subjects.find((s: any) => s.id === quiz.subject_id);
-            const quizSubs = teacherSubmissions.filter((s: any) => s.quiz_id === quiz.id);
+            const subject = subjects.find((s: Subject) => s.id === quiz.subject_id);
+            const quizSubs = teacherSubmissions.filter((s: Submission) => s.quiz_id === quiz.id);
 
             return (
               <div
@@ -193,7 +186,7 @@ export const TeacherDashboard: React.FC = () => {
         </div>
       </div>
 
-      {/* Submissions Table */}
+      {/* جدول التسليمات */}
       <div className="bg-white dark:bg-slate-900 p-6 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-soft">
         <h2 className="font-bold text-base text-slate-900 dark:text-white mb-4">
           سجل إجابات وتسليمات الطلاب
@@ -201,7 +194,7 @@ export const TeacherDashboard: React.FC = () => {
         <SubmissionsTable submissions={teacherSubmissions} />
       </div>
 
-      {/* Reassign Modal */}
+      {/* النافذة المنبثقة لإعادة التعيين */}
       {selectedQuizForReassign && (
         <ReassignQuizModal
           quiz={selectedQuizForReassign}
