@@ -1,169 +1,239 @@
-import React, { useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { Plus, PenLine, MoreHorizontal, Copy, Trash2, BellRing, Eye } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
-import { KPICard } from '../common/KPICard';
-import { AnalyticsCharts } from '../analytics/AnalyticsCharts';
-import { SubmissionsTable } from '../analytics/SubmissionsTable';
-import { Quiz, Submission, Subject } from '../../types';
-import {
-  FileText,
-  Users,
-  CheckCircle,
-  Clock,
-  Plus,
-  BarChart2,
-  Edit,
-  RotateCcw,
-  BookOpen,
-  Copy,
-  Trash2,
-  ClipboardList,
-} from 'lucide-react';
-import { KpiDetailModal } from '../common/KpiDetailModal';
+import { Quiz, Submission } from '../../types';
 import { StorageService } from '../../services/storage';
 import { InsightsPanels } from '../staff/InsightsPanels';
 import { hasPerm } from '../../utils/permissions';
-import { KpiSection, quizzesSection, perQuizSection, submissionsSection } from '../../utils/kpiSections';
-import { formatQuizDateTime, getWindowState } from '../../utils/quizWindow';
+import { getWindowState, parseWindowEnd, formatQuizDateTime } from '../../utils/quizWindow';
 import { describeQuizTarget } from '../../utils/quizTarget';
+import { targetStudents } from '../../utils/quizAudience';
+import { SUBMISSIONS_FILTER_KEY, ungradedSummary } from '../../utils/grading';
+import { Button, Card, Chip, PageHeader, Tone } from '../common/ui';
 
+type Tab = 'all' | 'open' | 'upcoming' | 'pending' | 'draft' | 'ended';
+
+const quizState = (q: Quiz): Exclude<Tab, 'all'> => {
+  if (q.status === 'draft' || q.status === 'archived') return 'draft';
+  if (q.status === 'pending_approval' || q.status === 'rejected') return 'pending';
+  const w = getWindowState(q.start_date, q.end_date);
+  return w === 'open' ? 'open' : w === 'upcoming' ? 'upcoming' : 'ended';
+};
+
+/** «ينتهي بعد 5 أيام» / «ينتهي اليوم» */
+const endsIn = (end?: string): { text: string; urgent: boolean } => {
+  const e = parseWindowEnd(end);
+  if (!e) return { text: 'بلا موعد انتهاء', urgent: false };
+  const startOf = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
+  const days = Math.round((startOf(e) - startOf(new Date())) / 864e5);
+  if (days <= 0) return { text: 'ينتهي اليوم', urgent: true };
+  if (days === 1) return { text: 'ينتهي غداً', urgent: true };
+  if (days === 2) return { text: 'ينتهي بعد يومين', urgent: false };
+  return { text: `ينتهي بعد ${days} ${days <= 10 ? 'أيام' : 'يوماً'}`, urgent: false };
+};
+
+const TABS: Array<{ id: Tab; label: string }> = [
+  { id: 'all', label: 'الكل' },
+  { id: 'open', label: 'متاح الآن' },
+  { id: 'upcoming', label: 'لم يبدأ' },
+  { id: 'pending', label: 'بانتظار الاعتماد' },
+  { id: 'draft', label: 'مسودات' },
+  { id: 'ended', label: 'منتهية' },
+];
+
+const QuizMenu: React.FC<{ items: Array<{ label: string; icon: React.ElementType; onClick: () => void; danger?: boolean }> }> = ({ items }) => {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const onDown = (e: MouseEvent) => ref.current && !ref.current.contains(e.target as Node) && setOpen(false);
+    document.addEventListener('mousedown', onDown);
+    return () => document.removeEventListener('mousedown', onDown);
+  }, []);
+  return (
+    <div className="relative" ref={ref}>
+      <button type="button" aria-label="خيارات أخرى" onClick={() => setOpen(!open)} className="w-9 h-9 flex items-center justify-center rounded-lg text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800">
+        <MoreHorizontal className="w-5 h-5" />
+      </button>
+      {open && (
+        <div className="absolute left-0 top-10 z-20 w-52 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl shadow-lg p-1">
+          {items.map((it) => {
+            const Icon = it.icon;
+            return (
+              <button key={it.label} type="button" onClick={() => { setOpen(false); it.onClick(); }}
+                className={`w-full flex items-center gap-2.5 px-3 h-10 rounded-lg text-sm font-semibold text-right ${it.danger ? 'text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/50' : 'text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800'}`}>
+                <Icon className="w-4 h-4" />{it.label}
+              </button>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+};
+
+/** صفحة المعلم الرئيسية «اختباراتي»: بطاقات الاختبارات حسب الحالة + تنبيه التصحيح */
 export const TeacherDashboard: React.FC = () => {
   const {
-    currentUser,
-    quizzes,
-    submissions,
-    subjects,
-    kpis,
-    classes,
-    users,
-    setCurrentView,
-    setEditingQuizId,
-    setDuplicateQuizId,
-    deleteQuizItem,
-    setActiveQuizId,
+    currentUser, quizzes, submissions, subjects, classes, users, setCurrentView, setEditingQuizId, setDuplicateQuizId,
+    deleteQuizItem, setActiveQuizId, remindLateStudents,
   } = useApp();
+  const [tab, setTab] = useState<Tab>('all');
+  const [reminding, setReminding] = useState<string | null>(null);
 
-
-  const staffData = React.useMemo(
+  const staffData = useMemo(
     () => (currentUser ? StorageService.getStaffData(currentUser) : null),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [currentUser, quizzes, submissions, users]
   );
-  const [kpiModal, setKpiModal] = useState<'quizzes' | 'active' | 'subs' | 'avg' | null>(null);
 
-  // تصفية الاختبارات الخاصة بالمعلم
-  const teacherQuizzes =
-    currentUser?.role === 'admin'
-      ? quizzes
-      : quizzes.filter((q: Quiz) => q.teacher_id === currentUser?.id);
-
-  const teacherQuizIds = teacherQuizzes.map((q: Quiz) => q.id);
-  const teacherSubmissions = submissions.filter((s: Submission) =>
-    teacherQuizIds.includes(s.quiz_id)
+  const myQuizzes = useMemo(
+    () => quizzes
+      .filter((q: Quiz) => !q.is_deleted && (currentUser?.role === 'admin' || q.teacher_id === currentUser?.id))
+      .sort((a, b) => (b.updated_at || b.created_at || '').localeCompare(a.updated_at || a.created_at || '')),
+    [quizzes, currentUser]
   );
+  const myIds = useMemo(() => new Set(myQuizzes.map((q) => q.id)), [myQuizzes]);
+  const mySubs = useMemo(() => submissions.filter((s: Submission) => myIds.has(s.quiz_id)), [submissions, myIds]);
+  const grading = useMemo(() => ungradedSummary(mySubs), [mySubs]);
+  const students = useMemo(() => users.filter((u) => u.role === 'student'), [users]);
 
-  // المؤشرات الرئيسية (KPIs)
-  const totalQuizzes = teacherQuizzes.length;
-  const activeQuizzes = teacherQuizzes.filter((q: Quiz) => q.is_active).length;
-  const totalSubmissions = teacherSubmissions.length;
-  const avgScore =
-    teacherSubmissions.length > 0
-      ? Math.round(
-          teacherSubmissions.reduce((acc: number, item: Submission) => acc + (item.score || 0), 0) /
-            teacherSubmissions.length
-        )
-      : 0;
+  const counts = useMemo(() => {
+    const c: Record<Tab, number> = { all: myQuizzes.length, open: 0, upcoming: 0, pending: 0, draft: 0, ended: 0 };
+    myQuizzes.forEach((q) => { c[quizState(q)]++; });
+    return c;
+  }, [myQuizzes]);
+  const shown = tab === 'all' ? myQuizzes : myQuizzes.filter((q) => quizState(q) === tab);
 
-  const handleDeleteQuiz = async (quiz: Quiz) => {
-    if (
-      window.confirm(
-        `هل أنت متأكد من حذف الاختبار "${quiz.title}"؟\nسيختفي من قوائم الطلاب، وتبقى درجات الطلاب السابقة محفوظة ومستبعدة من المعدل.`
-      )
-    ) {
-      await deleteQuizItem(quiz.id);
-    }
+  const mySubjects = subjects.filter((s) => currentUser?.assigned_subject_ids?.includes(s.id)).map((s) => s.name);
+  const myClassCount = currentUser?.assigned_class_ids?.length || 0;
+  const myStudentCount = students.filter((s) => s.class_id && currentUser?.assigned_class_ids?.includes(s.class_id)).length;
+  const subtitle = [mySubjects.join('، '), myClassCount ? `${myClassCount} ${myClassCount === 1 ? 'شعبة' : 'شعب'}` : '', myStudentCount ? `${myStudentCount} طالباً` : '']
+    .filter(Boolean).join(' · ') || 'إنشاء الاختبارات ومتابعة نتائج طلابك';
+
+  const newQuiz = () => { setEditingQuizId(null); setDuplicateQuizId(null); setCurrentView('create_quiz'); };
+  const edit = (id: string) => { setEditingQuizId(id); setCurrentView('create_quiz'); };
+  const duplicate = (id: string) => { setEditingQuizId(null); setDuplicateQuizId(id); setCurrentView('create_quiz'); };
+  const results = (id: string) => { setActiveQuizId(id); setCurrentView('quiz_results'); };
+  const preview = (id: string) => { setActiveQuizId(id); setCurrentView('quiz_preview'); };
+  const remove = async (q: Quiz) => {
+    if (window.confirm(`حذف الاختبار «${q.title}»؟\nسيختفي من قوائم الطلاب، وتبقى درجاتهم السابقة محفوظة ومستبعدة من المعدل.`)) await deleteQuizItem(q.id);
   };
-
-  const handleDuplicateQuiz = (quizId: string) => {
-    setEditingQuizId(null);
-    setDuplicateQuizId(quizId);
-    setCurrentView('create_quiz');
-  };
-
-  const handleEditQuiz = (quizId: string) => {
-    setEditingQuizId(quizId);
-    setCurrentView('create_quiz');
-  };
+  const remind = async (id: string) => { setReminding(id); await remindLateStudents(id); setReminding(null); };
 
   return (
-    <div className="max-w-7xl mx-auto py-8 px-4 sm:px-6 lg:px-8 space-y-8" dir="rtl">
-      {/* الترويسة */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-black text-slate-900 dark:text-white font-cairo">
-            مرحباً، {currentUser?.name || 'المعلم'} 👋
-          </h1>
-          <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
-            لوحة تحكم المعلم - متابعة الاختبارات، التقييمات، وتحليلات أداء الطلاب
-          </p>
-        </div>
+    <div className="max-w-7xl mx-auto py-8 px-4 sm:px-6 lg:px-8 space-y-6" dir="rtl">
+      <PageHeader title="اختباراتي" subtitle={subtitle} actions={<Button icon={Plus} onClick={newQuiz}>اختبار جديد</Button>} />
 
-        <button
-          onClick={() => {
-            setEditingQuizId(null);
-            setCurrentView('create_quiz');
-          }}
-          className="inline-flex items-center gap-2 px-5 py-2.5 bg-indigo-600 text-white rounded-xl font-bold text-xs hover:bg-indigo-700 transition-colors shadow-lg shadow-indigo-600/20 self-start md:self-auto"
-        >
-          <Plus className="w-4 h-4" />
-          <span>إنشاء اختبار جديد</span>
-        </button>
+      {grading.essays > 0 && (
+        <Card className="p-4 sm:px-5 flex flex-wrap items-center gap-4 !border-indigo-200 dark:!border-indigo-900 !bg-indigo-50/60 dark:!bg-indigo-950/30">
+          <span className="w-11 h-11 rounded-full bg-indigo-600 text-white flex items-center justify-center shrink-0"><PenLine className="w-5 h-5" /></span>
+          <div className="flex-1 min-w-[12rem]">
+            <div className="font-bold text-base text-slate-900 dark:text-white">{grading.essays} إجابة مقالية بانتظار تصحيحك</div>
+            <div className="text-[13.5px] text-slate-600 dark:text-slate-400">الطلاب لا يرون درجتهم النهائية حتى تُصحَّح</div>
+          </div>
+          <Button onClick={() => { try { sessionStorage.setItem(SUBMISSIONS_FILTER_KEY, 'ungraded'); } catch { /* ignore */ } setCurrentView('analytics'); }}>
+            ابدأ التصحيح
+          </Button>
+        </Card>
+      )}
+
+      <div className="flex gap-1 p-1 rounded-xl bg-slate-200/60 dark:bg-slate-800/70 w-fit max-w-full overflow-x-auto" role="tablist" aria-label="تصفية الاختبارات">
+        {TABS.filter((t) => t.id === 'all' || counts[t.id] > 0).map((t) => (
+          <button key={t.id} type="button" role="tab" aria-selected={tab === t.id} onClick={() => setTab(t.id)}
+            className={`h-10 px-4 rounded-lg text-[14.5px] font-semibold whitespace-nowrap ${tab === t.id ? 'bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-sm' : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'}`}>
+            {t.label} <span className="tabular-nums">{counts[t.id]}</span>
+          </button>
+        ))}
       </div>
 
-      {/* بطاقات المؤشرات (بدون خاصية color غير المعرفة) */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <KPICard
-          title="إجمالي الاختبارات"
-          value={totalQuizzes}
-          icon={ClipboardList}
-          colorScheme="indigo"
-          onClick={() => setKpiModal('quizzes')}
-        />
-        <KPICard
-          title="الاختبارات النشطة"
-          value={activeQuizzes}
-          icon={Clock}
-          colorScheme="emerald"
-          onClick={() => setKpiModal('active')}
-        />
-        <KPICard
-          title="إجمالي التسليمات"
-          value={totalSubmissions}
-          icon={Users}
-          colorScheme="purple"
-          onClick={() => setKpiModal('subs')}
-        />
-        <KPICard
-          title="متوسط الدرجات"
-          value={`${avgScore}%`}
-          icon={CheckCircle}
-          colorScheme="amber"
-          onClick={() => setKpiModal('avg')}
-        />
-      </div>
+      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+        {shown.map((quiz) => {
+          const st = quizState(quiz);
+          const subject = subjects.find((s) => s.id === quiz.subject_id);
+          const quizSubs = mySubs.filter((s) => s.quiz_id === quiz.id);
+          const target = targetStudents((quiz as any).assignments, students).length;
+          const done = new Set(quizSubs.map((s) => s.student_id)).size;
+          const avg = quizSubs.length ? Math.round(quizSubs.reduce((a, s) => a + (Number(s.percentage) || 0), 0) / quizSubs.length) : 0;
+          const qCount = (quiz as any).questions?.length ?? StorageService.getQuestionsByQuizId(quiz.id).length;
+          const ends = endsIn(quiz.end_date);
+          const chip: { label: string; tone: Tone } =
+            st === 'open' ? { label: `متاح · ${ends.text}`, tone: ends.urgent ? 'warn' : 'ok' }
+              : st === 'upcoming' ? { label: `يبدأ ${formatQuizDateTime(quiz.start_date, 'start')}`, tone: 'info' }
+              : st === 'pending' ? (quiz.status === 'rejected' ? { label: 'مرفوض', tone: 'bad' } : { label: 'بانتظار الاعتماد', tone: 'info' })
+              : st === 'draft' ? { label: 'مسودة', tone: 'muted' }
+              : { label: 'منتهٍ', tone: 'muted' };
+          const menu = [
+            { label: 'معاينة', icon: Eye, onClick: () => preview(quiz.id) },
+            { label: 'نسخ كاختبار جديد', icon: Copy, onClick: () => duplicate(quiz.id) },
+            ...(st === 'open' && done < target ? [{ label: 'تذكير المتأخرين', icon: BellRing, onClick: () => remind(quiz.id) }] : []),
+            { label: 'حذف', icon: Trash2, onClick: () => remove(quiz), danger: true },
+          ];
+          return (
+            <Card key={quiz.id} className="p-5 flex flex-col gap-3.5">
+              <div className="flex items-start justify-between gap-2">
+                <Chip tone={chip.tone}>{chip.label}</Chip>
+                <QuizMenu items={menu} />
+              </div>
+              <div>
+                <h3 className="text-lg font-bold text-slate-900 dark:text-white leading-snug">{quiz.title}</h3>
+                <div className="flex flex-wrap gap-x-3 gap-y-1 mt-1 text-[13.5px] text-slate-500 dark:text-slate-400">
+                  {subject && <span>{subject.name}</span>}
+                  <span>{qCount} {qCount === 1 ? 'سؤال' : qCount === 2 ? 'سؤالان' : qCount <= 10 ? 'أسئلة' : 'سؤالاً'}</span>
+                  <span>{quiz.duration_minutes} دقيقة</span>
+                  <span>{describeQuizTarget((quiz as any).assignments, classes)}</span>
+                </div>
+              </div>
 
-      {/* قسم التحليلات البيانية */}
-      <div className="bg-white dark:bg-slate-900 p-6 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-soft">
-        <div className="flex items-center gap-2 mb-6">
-          <BarChart2 className="w-5 h-5 text-indigo-600" />
-          <h2 className="font-bold text-base text-slate-900 dark:text-white">
-            تحليلات الأداء العام
-          </h2>
-        </div>
-        <AnalyticsCharts
-          scoreDistribution={kpis?.scoreDistribution || []}
-          completionTimeline={kpis?.completionTimeline || []}
-          subjectPerformance={kpis?.subjectPerformance || []}
-        />
+              {st === 'pending' ? (
+                <div className={`text-[13.5px] leading-relaxed rounded-xl px-3 py-2.5 ${quiz.status === 'rejected' ? 'bg-rose-50 text-rose-800 dark:bg-rose-950/50 dark:text-rose-300' : 'bg-slate-50 text-slate-600 dark:bg-slate-800/60 dark:text-slate-300'}`}>
+                  {quiz.status === 'rejected'
+                    ? `سبب الرفض: ${quiz.review_note || 'لم يُذكر'}. عدّله لإعادة الإرسال.`
+                    : 'أُرسل للاعتماد. سيصلك إشعار عند الموافقة، ولن يظهر للطلاب قبلها.'}
+                </div>
+              ) : st === 'draft' ? (
+                <div className="text-[13.5px] text-slate-500 dark:text-slate-400">لم يُنشر بعد للطلاب</div>
+              ) : (
+                <div>
+                  <div className="flex justify-between text-[13.5px] mb-1.5">
+                    <span className="text-slate-500 dark:text-slate-400">سلّم {done} من {target || '—'}</span>
+                    {quizSubs.length > 0 && <span className="font-bold text-slate-900 dark:text-white tabular-nums">متوسط {avg}%</span>}
+                  </div>
+                  <div className="h-2 rounded-full bg-slate-100 dark:bg-slate-800">
+                    <div className={`h-2 rounded-full ${st === 'ended' ? 'bg-emerald-600' : 'bg-indigo-600'}`} style={{ width: `${target ? Math.min(100, (done / target) * 100) : 0}%` }} />
+                  </div>
+                </div>
+              )}
+
+              <div className="flex gap-2 mt-auto pt-1">
+                {st === 'draft' ? (
+                  <Button className="flex-1" size="sm" onClick={() => edit(quiz.id)}>أكمل التحرير</Button>
+                ) : (
+                  <>
+                    <Button className="flex-1" size="sm" variant="secondary" onClick={() => (st === 'pending' ? preview(quiz.id) : results(quiz.id))}>
+                      {st === 'pending' ? 'معاينة' : 'النتائج'}
+                    </Button>
+                    {st === 'open' && done < target ? (
+                      <Button className="flex-1" size="sm" variant="secondary" icon={BellRing} disabled={reminding === quiz.id} onClick={() => remind(quiz.id)}>
+                        تذكير المتأخرين
+                      </Button>
+                    ) : (
+                      <Button className="flex-1" size="sm" variant="secondary" onClick={() => edit(quiz.id)}>تعديل</Button>
+                    )}
+                  </>
+                )}
+              </div>
+            </Card>
+          );
+        })}
+
+        {tab === 'all' && (
+          <button type="button" onClick={newQuiz}
+            className="min-h-[220px] rounded-2xl border-2 border-dashed border-slate-300 dark:border-slate-700 flex flex-col items-center justify-center gap-2 text-indigo-700 dark:text-indigo-400 hover:border-indigo-400 hover:bg-indigo-50/40 dark:hover:bg-indigo-950/20 transition-colors">
+            <Plus className="w-8 h-8" />
+            <span className="font-bold text-base">اختبار جديد</span>
+            <span className="text-[13.5px] text-slate-500 dark:text-slate-400">ابدأ من الصفر أو انسخ اختباراً سابقاً</span>
+          </button>
+        )}
       </div>
 
       {hasPerm(currentUser, 'can_view_insights') && staffData && (
@@ -176,158 +246,6 @@ export const TeacherDashboard: React.FC = () => {
           showTeacherPerformance={hasPerm(currentUser, 'can_view_teachers_performance')}
         />
       )}
-
-      {/* قائمة الاختبارات */}
-      <div className="bg-white dark:bg-slate-900 p-6 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-soft space-y-4">
-        <div className="flex items-center justify-between pb-4 border-b border-slate-100 dark:border-slate-800">
-          <h2 className="font-bold text-base text-slate-900 dark:text-white flex items-center gap-2">
-            <BookOpen className="w-5 h-5 text-indigo-600" />
-            إدارة الاختبارات الحالية ({teacherQuizzes.length})
-          </h2>
-        </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {teacherQuizzes.map((quiz: Quiz) => {
-            const subject = subjects.find((s: Subject) => s.id === quiz.subject_id);
-            const quizSubs = teacherSubmissions.filter((s: Submission) => s.quiz_id === quiz.id);
-
-            return (
-              <div
-                key={quiz.id}
-                className="p-5 rounded-2xl border border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/40 space-y-4 hover:border-indigo-300 dark:hover:border-indigo-700 transition-all"
-              >
-                <div className="flex items-start justify-between gap-2">
-                  <div>
-                    <span className="inline-block px-2.5 py-1 text-[10px] font-bold rounded-lg bg-indigo-100 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-300 mb-2">
-                      {subject?.name || 'مادة عامة'}
-                    </span>
-                    <h3 className="font-bold text-sm text-slate-900 dark:text-white line-clamp-1">
-                      {quiz.title}
-                    </h3>
-                  </div>
-                  <span
-                    className={`px-2 py-0.5 text-[10px] font-bold rounded-full ${
-                      quiz.is_active
-                        ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300'
-                        : 'bg-slate-200 text-slate-600 dark:bg-slate-700 dark:text-slate-400'
-                    }`}
-                  >
-                    {quiz.is_active ? 'نشط' : 'موقف'}
-                  </span>
-                </div>
-
-                <div className="text-[11px] text-slate-500 dark:text-slate-400 flex items-start gap-1.5 pt-2 border-t border-slate-200/60 dark:border-slate-700/60">
-                  <span className="font-bold shrink-0">الفئة المستهدفة:</span>
-                  <span className="font-semibold text-slate-700 dark:text-slate-200">
-                    {describeQuizTarget((quiz as any).assignments, classes)}
-                  </span>
-                </div>
-
-                {quiz.status === 'pending_approval' && (
-                  <div className="text-[11px] font-bold px-2.5 py-1.5 rounded-lg bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300">
-                    🕓 بانتظار اعتماد المسؤول — لن يظهر للطلاب قبل الموافقة
-                  </div>
-                )}
-                {quiz.status === 'rejected' && (
-                  <div className="text-[11px] font-bold px-2.5 py-1.5 rounded-lg bg-rose-100 text-rose-800 dark:bg-rose-950 dark:text-rose-300">
-                    ❌ مرفوض{quiz.review_note ? `: ${quiz.review_note}` : ''} — عدّله لإعادة الإرسال
-                  </div>
-                )}
-
-                <div className="text-[11px] text-slate-500 dark:text-slate-400 flex flex-wrap items-start gap-x-1.5 gap-y-1">
-                  <span className="font-bold shrink-0">فترة الإتاحة:</span>
-                  <span className="font-semibold text-slate-700 dark:text-slate-200">
-                    من {formatQuizDateTime(quiz.start_date, 'start')} إلى {formatQuizDateTime(quiz.end_date, 'end')}
-                  </span>
-                  <span
-                    className={`px-1.5 py-0.5 rounded-md text-[10px] font-bold ${
-                      getWindowState(quiz.start_date, quiz.end_date) === 'open'
-                        ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300'
-                        : getWindowState(quiz.start_date, quiz.end_date) === 'upcoming'
-                        ? 'bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-300'
-                        : 'bg-slate-200 text-slate-600 dark:bg-slate-700 dark:text-slate-300'
-                    }`}
-                  >
-                    {getWindowState(quiz.start_date, quiz.end_date) === 'open'
-                      ? 'جارية الآن'
-                      : getWindowState(quiz.start_date, quiz.end_date) === 'upcoming'
-                      ? 'لم تبدأ بعد'
-                      : 'انتهت'}
-                  </span>
-                </div>
-
-                <div className="grid grid-cols-2 gap-2 text-xs text-slate-500 dark:text-slate-400">
-                  <div>الدرجة: <span className="font-bold text-slate-700 dark:text-slate-200">{quiz.total_marks}</span></div>
-                  <div>المدة: <span className="font-bold text-slate-700 dark:text-slate-200">{quiz.duration_minutes} دقيقة</span></div>
-                  <div>التسليمات: <span className="font-bold text-slate-700 dark:text-slate-200">{quizSubs.length}</span></div>
-                  <div>النجاح: <span className="font-bold text-slate-700 dark:text-slate-200">{quiz.pass_percentage}%</span></div>
-                </div>
-
-                <div className="flex flex-wrap items-center gap-2 pt-2">
-                  <button
-                    onClick={() => handleEditQuiz(quiz.id)}
-                    className="flex-1 inline-flex items-center justify-center gap-1.5 px-3 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 rounded-xl text-xs font-bold hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors"
-                  >
-                    <Edit className="w-3.5 h-3.5" />
-                    <span>تعديل</span>
-                  </button>
-
-                  <button
-                    onClick={() => { setActiveQuizId(quiz.id); setCurrentView('quiz_results'); }}
-                    title="نتائج الاختبار وتحليله"
-                    className="flex-1 inline-flex items-center justify-center gap-1.5 px-3 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 rounded-xl text-xs font-bold hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors"
-                  >
-                    <BarChart2 className="w-3.5 h-3.5" />
-                    <span>النتائج</span>
-                  </button>
-
-                  <button
-                    onClick={() => handleDuplicateQuiz(quiz.id)}
-                    title="نسخ هذا الاختبار وتعديله كاختبار جديد"
-                    className="flex-1 inline-flex items-center justify-center gap-1.5 px-3 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 rounded-xl text-xs font-bold hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors"
-                  >
-                    <Copy className="w-3.5 h-3.5" />
-                    <span>تكرار مع التعديل</span>
-                  </button>
-
-                  <button
-                    onClick={() => handleDeleteQuiz(quiz)}
-                    title="حذف الاختبار"
-                    className="inline-flex items-center justify-center gap-1.5 px-3 py-2 bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-900 text-rose-700 dark:text-rose-300 rounded-xl text-xs font-bold hover:bg-rose-100 dark:hover:bg-rose-900/50 transition-colors"
-                  >
-                    <Trash2 className="w-3.5 h-3.5" />
-                    <span>حذف</span>
-                  </button>
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      </div>
-
-      {/* جدول التسليمات */}
-      <div className="bg-white dark:bg-slate-900 p-6 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-soft">
-        <h2 className="font-bold text-base text-slate-900 dark:text-white mb-4">
-          سجل إجابات وتسليمات الطلاب
-        </h2>
-        <SubmissionsTable submissions={teacherSubmissions} />
-      </div>
-
-
-      {kpiModal && (() => {
-        const tq = teacherQuizzes as any[];
-        const ts = teacherSubmissions as any[];
-        const sections: KpiSection[] =
-          kpiModal === 'quizzes'
-            ? [quizzesSection('اختباراتي', tq, ts, subjects, users, classes)]
-            : kpiModal === 'active'
-            ? [quizzesSection('الاختبارات النشطة', tq.filter((q) => q.is_active && getWindowState(q.start_date, q.end_date) !== 'ended'), ts, subjects, users, classes)]
-            : kpiModal === 'subs'
-            ? [submissionsSection('تسليمات الطلاب', ts)]
-            : [perQuizSection('متوسط الدرجات حسب الاختبار', tq, ts)];
-        const titles = { quizzes: 'إجمالي اختباراتي', active: 'الاختبارات النشطة', subs: 'إجمالي التسليمات', avg: 'متوسط الدرجات' } as const;
-        return <KpiDetailModal title={titles[kpiModal]} sections={sections} onClose={() => setKpiModal(null)} />;
-      })()}
     </div>
   );
 };

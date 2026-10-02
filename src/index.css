@@ -21,15 +21,25 @@
 
   body {
     direction: rtl;
-    font-family: 'Cairo', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
-    background-color: #f8fafc;
-    color: #0f172a;
+    font-family: 'IBM Plex Sans Arabic', 'Cairo', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    background-color: #f5f6fa;
+    color: #161a33;
     transition: background-color 0.2s ease, color 0.2s ease;
   }
 
   html.dark body {
     background-color: #0b0f19;
     color: #ffffff;
+  }
+
+  /* العناوين بخط Cairo والنصوص بخط IBM Plex Sans Arabic */
+  h1, h2, h3 {
+    font-family: 'Cairo', 'IBM Plex Sans Arabic', sans-serif;
+  }
+
+  /* أرقام بعرض ثابت في الجداول والعدادات */
+  table, .tabular-nums {
+    font-variant-numeric: tabular-nums;
   }
 
   /* Custom smooth scrollbar */
@@ -165,3 +175,7 @@
 @media (prefers-reduced-motion: reduce) {
   .banner-in, .banner-in-rev { animation: none; }
 }
+
+/* النصوص الصغيرة جداً: حد أدنى أوضح للقراءة */
+.text-\[10px\] { font-size: 11px; }
+.text-\[11px\] { font-size: 12px; }

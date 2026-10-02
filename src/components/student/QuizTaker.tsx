@@ -1,14 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import {
-  Clock,
-  ArrowRight,
-  ArrowLeft,
-  CheckCircle2,
-  AlertTriangle,
-  Flag,
-  Send,
-  BookOpen,
-} from 'lucide-react';
+import { Clock, ArrowRight, ArrowLeft, CheckCircle2, Flag, Send, X } from 'lucide-react';
 import { StorageService } from '../../services/storage';
 import { useApp, QuizAttemptAnswer } from '../../context/AppContext';
 import { RichText } from '../common/RichText';
@@ -126,8 +117,9 @@ export const QuizTaker: React.FC<QuizTakerProps> = ({ quizId, onFinish, onCancel
       <div className="p-8 text-center" dir="rtl">
         <p className="text-slate-500 dark:text-slate-400">عذراً، لم يتم العثور على أسئلة لهذا الاختبار.</p>
         <button
+          type="button"
           onClick={onCancel}
-          className="mt-4 px-4 py-2 bg-indigo-600 text-white rounded-xl text-xs font-bold"
+          className="mt-4 h-11 px-5 bg-indigo-600 text-white rounded-xl font-semibold"
         >
           العودة
         </button>
@@ -149,7 +141,6 @@ export const QuizTaker: React.FC<QuizTakerProps> = ({ quizId, onFinish, onCancel
       : hasAnswer(q.id, q.type);
 
   const answeredCount = questions.filter(isQuestionAnswered).length;
-  const progressPercentage = Math.round((answeredCount / questions.length) * 100);
 
   const formatTimer = (totalSeconds: number) => {
     const mins = Math.floor(totalSeconds / 60);
@@ -211,140 +202,96 @@ export const QuizTaker: React.FC<QuizTakerProps> = ({ quizId, onFinish, onCancel
   const optionLetters = ['أ', 'ب', 'ج', 'د', 'هـ', 'و'];
 
   const renderOptions = (key: string, options: string[], compact = false) => (
-    <div className={compact ? 'space-y-2' : 'space-y-3 mb-8'}>
+    <div className={compact ? 'space-y-2' : 'space-y-2.5'} role="radiogroup">
       {options.map((optionText, optIdx) => {
         const isSelected = userAnswers[key] === optIdx;
         return (
-          <div
+          <button
+            type="button"
+            role="radio"
+            aria-checked={isSelected}
             key={optIdx}
             onClick={() => handleSelectOption(key, optIdx)}
-            className={`${compact ? 'p-3 rounded-xl' : 'p-4 rounded-2xl'} border-2 cursor-pointer transition-all flex items-center justify-between group ${
+            className={`w-full text-right flex items-center gap-3.5 ${compact ? 'min-h-[50px] px-3.5 py-2' : 'min-h-[58px] px-4 py-2.5'} rounded-2xl border-2 transition-colors ${
               isSelected
-                ? 'border-indigo-600 bg-indigo-50/70 dark:bg-indigo-950/70 shadow-sm ring-1 ring-indigo-500'
-                : 'border-slate-200 dark:border-slate-700 hover:border-indigo-200 hover:bg-slate-50/60 dark:hover:bg-slate-800/60'
+                ? 'border-indigo-600 bg-indigo-50/80 dark:bg-indigo-950/60'
+                : 'border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 hover:border-indigo-300 dark:hover:border-indigo-700'
             }`}
           >
-            <div className="flex items-center gap-3.5">
-              <span
-                className={`w-8 h-8 rounded-xl text-xs font-bold flex items-center justify-center transition-colors ${
-                  isSelected
-                    ? 'bg-indigo-600 text-white shadow-sm'
-                    : 'bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-300 group-hover:bg-indigo-100 group-hover:text-indigo-700'
-                }`}
-              >
-                {optionLetters[optIdx] || optIdx + 1}
-              </span>
-              <span
-                className={`text-sm ${
-                  isSelected ? 'font-bold text-indigo-950 dark:text-indigo-200' : 'text-slate-800 dark:text-slate-200 font-medium'
-                }`}
-              >
-                <RichText html={optionText} inline />
-              </span>
-            </div>
-
-            <div
-              className={`w-5 h-5 rounded-full border-2 flex items-center justify-center ${
-                isSelected
-                  ? 'border-indigo-600 bg-indigo-600'
-                  : 'border-slate-300 dark:border-slate-600 group-hover:border-indigo-400'
+            <span
+              className={`w-8 h-8 rounded-full border-2 text-sm font-bold flex items-center justify-center shrink-0 ${
+                isSelected ? 'bg-indigo-600 border-indigo-600 text-white' : 'border-slate-300 dark:border-slate-600 text-slate-500 dark:text-slate-400'
               }`}
             >
-              {isSelected && <div className="w-2 h-2 rounded-full bg-white" />}
-            </div>
-          </div>
+              {optionLetters[optIdx] || optIdx + 1}
+            </span>
+            <span className={`${compact ? 'text-[15px]' : 'text-[17px]'} font-semibold text-slate-900 dark:text-slate-100`}>
+              <RichText html={optionText} inline />
+            </span>
+          </button>
         );
       })}
     </div>
   );
 
   const renderEssay = (key: string, compact = false) => (
-    <div className={compact ? '' : 'mb-8'}>
+    <div>
       <textarea
         value={textAnswers[key] || ''}
         onChange={(e) => handleTextChange(key, e.target.value)}
-        rows={compact ? 3 : 6}
+        rows={compact ? 3 : 7}
         placeholder="اكتب إجابتك هنا..."
-        className="w-full p-4 rounded-2xl border-2 border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm text-slate-800 dark:text-slate-200 focus:border-indigo-500 focus:outline-none transition-colors"
+        aria-label="إجابتك"
+        className="w-full p-4 rounded-2xl border-2 border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-base leading-relaxed text-slate-900 dark:text-slate-100 focus:border-indigo-500 focus:outline-none transition-colors"
       />
-      <p className="text-[11px] text-slate-400 mt-1">سؤال مقالي: يصحّحه المعلم يدوياً بعد التسليم.</p>
+      <p className="text-[13px] text-slate-500 dark:text-slate-400 mt-1.5">سؤال مقالي: يصحّحه المعلم بعد التسليم.</p>
     </div>
   );
 
-  // Pre-test Briefing Screen
+  const qCountLabel = (n: number) => `${n} ${n === 1 ? 'سؤال' : n === 2 ? 'سؤالان' : n <= 10 ? 'أسئلة' : 'سؤالاً'}`;
+  const marksLabel = (n: number) => (n === 1 ? 'درجة' : n === 2 ? 'درجتان' : n <= 10 ? `${n} درجات` : `${n} درجة`);
+
+  // شاشة ما قبل البدء
   if (!hasStarted) {
     return (
-      <div className="max-w-2xl mx-auto py-12 px-4" dir="rtl">
-        <div className="bg-white dark:bg-slate-900 rounded-3xl p-8 shadow-card border border-slate-200/80 dark:border-slate-800 text-center">
-          <div className="w-16 h-16 rounded-3xl bg-indigo-50 dark:bg-indigo-950 text-indigo-600 dark:text-indigo-400 flex items-center justify-center mx-auto mb-5 shadow-sm">
-            <BookOpen className="w-8 h-8" />
+      <div className="min-h-screen flex items-center justify-center py-10 px-4" dir="rtl">
+        <div className="w-full max-w-lg bg-white dark:bg-slate-900 rounded-3xl p-6 sm:p-8 border border-slate-200 dark:border-slate-800">
+          <div className="text-sm font-semibold text-slate-500 dark:text-slate-400">{[quiz.subject?.name, quiz.teacher?.name].filter(Boolean).join(' · ')}</div>
+          <h1 className="text-[26px] font-extrabold text-slate-900 dark:text-white leading-snug mt-1">{quiz.title}</h1>
+          {quiz.description && <p className="text-[15px] text-slate-600 dark:text-slate-400 mt-2 leading-relaxed">{quiz.description}</p>}
+
+          <div className="grid grid-cols-3 gap-2 mt-6 text-center">
+            {[
+              { v: qCountLabel(questions.length), l: 'الأسئلة' },
+              { v: `${quiz.duration_minutes} دقيقة`, l: 'الوقت' },
+              { v: marksLabel(quiz.total_marks), l: 'الدرجة الكلية' },
+            ].map((x) => (
+              <div key={x.l} className="rounded-2xl bg-slate-50 dark:bg-slate-800/60 py-3 px-2">
+                <div className="font-bold text-base text-slate-900 dark:text-white">{x.v}</div>
+                <div className="text-[13px] text-slate-500 dark:text-slate-400">{x.l}</div>
+              </div>
+            ))}
           </div>
 
-          <span
-            className="inline-block text-xs font-bold px-3 py-1 rounded-full mb-3"
-            style={{
-              backgroundColor: `${quiz.subject?.color || '#6366f1'}15`,
-              color: quiz.subject?.color || '#6366f1',
-            }}
-          >
-            {quiz.subject?.name}
-          </span>
-
-          <h1 className="text-2xl font-black text-slate-900 dark:text-white font-cairo mb-2">{quiz.title}</h1>
-          <p className="text-xs text-slate-600 dark:text-slate-400 max-w-md mx-auto mb-6 leading-relaxed">
-            {quiz.description || 'اختبار تقييمي لقياس التحصيل العلمي والمعرفي في المادة الدراسية.'}
-          </p>
-
-          <div className="grid grid-cols-3 gap-3 p-4 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-100 dark:border-slate-700 mb-8 text-right">
-            <div>
-              <span className="text-[11px] text-slate-400 block font-semibold">عدد الأسئلة</span>
-              <span className="text-base font-bold text-slate-800 dark:text-slate-200 font-cairo">
-                {questions.length} أسئلة
-              </span>
-            </div>
-            <div>
-              <span className="text-[11px] text-slate-400 block font-semibold">الدرجة الكلية</span>
-              <span className="text-base font-bold text-slate-800 dark:text-slate-200 font-cairo">
-                {quiz.total_marks} درجات
-              </span>
-            </div>
-            <div>
-              <span className="text-[11px] text-slate-400 block font-semibold">الزمن المتاح</span>
-              <span className="text-base font-bold text-slate-800 dark:text-slate-200 font-cairo">
-                {quiz.duration_minutes} دقيقة
-              </span>
-            </div>
-          </div>
-
-          <div className="text-right text-xs text-slate-600 dark:text-slate-300 space-y-2 mb-8 bg-amber-50/50 dark:bg-amber-950/30 p-4 rounded-2xl border border-amber-200/60 dark:border-amber-800/60">
-            <div className="font-bold text-amber-900 dark:text-amber-300 flex items-center gap-1.5 mb-1">
-              <AlertTriangle className="w-4 h-4 text-amber-600" />
-              <span>إرشادات وتعليمات الاختبار في منصة إتقان:</span>
-            </div>
-            <p>• يبدأ المؤقت التنازلي فور الضغط على زر بدء الاختبار أدناه، ولا يتوقف عند تحديث الصفحة أو الخروج منها.</p>
-            <p>• يمكنك التنقل بحرية بين الأسئلة وتعديل إجاباتك قبل التسليم النهائي.</p>
-            <p>• يتم تصحيح الاختبار وتوليد تقرير تفصيلي لدرجتك فور التسليم مباشرة.</p>
-          </div>
+          <ul className="mt-6 space-y-2.5 text-[15px] text-slate-700 dark:text-slate-300">
+            <li className="flex gap-2.5"><Clock className="w-5 h-5 text-indigo-600 shrink-0 mt-0.5" />المؤقت يبدأ عند الضغط على «ابدأ»، ولا يتوقف إذا خرجت أو حدّثت الصفحة.</li>
+            <li className="flex gap-2.5"><Flag className="w-5 h-5 text-indigo-600 shrink-0 mt-0.5" />تنقّل بين الأسئلة بحرية، وعلّم أي سؤال لتراجعه قبل التسليم.</li>
+            <li className="flex gap-2.5"><CheckCircle2 className="w-5 h-5 text-indigo-600 shrink-0 mt-0.5" />إجاباتك تُحفظ تلقائياً، ونتيجتك تظهر فور التسليم.</li>
+          </ul>
 
           {isPreview && (
-            <p className="text-xs font-bold text-amber-800 dark:text-amber-300 bg-amber-100 dark:bg-amber-950/50 rounded-2xl p-3 mb-6">
-              👁️ وضع المعاينة: يمكنك تصفح الأسئلة، لكن لا يُسجَّل تسليم باسم الطالب.
+            <p className="text-sm font-semibold text-amber-900 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/50 rounded-xl p-3 mt-5">
+              وضع المعاينة: تصفّح الأسئلة فقط، ولا يُسجَّل تسليم باسم الطالب.
             </p>
           )}
 
-          <div className="flex items-center justify-center gap-4">
-            <button
-              onClick={onCancel}
-              className="px-6 py-3 rounded-2xl text-xs font-bold text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
-            >
-              إلغاء وخروج
+          <div className="flex gap-2.5 mt-7">
+            <button type="button" onClick={onCancel} className="h-[52px] px-5 rounded-2xl border border-slate-300 dark:border-slate-700 font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800">
+              رجوع
             </button>
-            <button
-              onClick={() => void handleStart()}
-              disabled={starting}
-              className="px-10 py-3 rounded-2xl text-xs font-bold bg-indigo-600 hover:bg-indigo-700 text-white shadow-lg shadow-indigo-600/30 transition-all hover:scale-105 disabled:opacity-60"
-            >
-              {starting ? 'جارٍ التجهيز...' : 'ابدأ الاختبار الآن 🚀'}
+            <button type="button" onClick={() => void handleStart()} disabled={starting}
+              className="flex-1 h-[52px] rounded-2xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-[17px] disabled:opacity-60">
+              {starting ? 'جارٍ التجهيز...' : 'ابدأ الاختبار'}
             </button>
           </div>
         </div>
@@ -352,272 +299,177 @@ export const QuizTaker: React.FC<QuizTakerProps> = ({ quizId, onFinish, onCancel
     );
   }
 
+  const isLast = currentQuestionIndex === questions.length - 1;
+  const flagged = !!flaggedQuestions[currentQ.id];
+  const exitQuiz = () => {
+    if (window.confirm('الخروج لا يوقف المؤقت. يمكنك العودة وإكمال الاختبار قبل انتهاء الوقت. هل تريد الخروج؟')) onCancel();
+  };
+
   return (
-    <div className="max-w-5xl mx-auto py-6 px-4" dir="rtl">
-      {/* Top Test Header Bar */}
-      <div className="bg-white dark:bg-slate-900 rounded-3xl p-5 border border-slate-200/80 dark:border-slate-800 shadow-soft mb-6 sticky top-20 z-30">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-          <div>
-            <div className="flex items-center gap-2">
-              <span
-                className="text-[10px] font-bold px-2 py-0.5 rounded-full"
-                style={{
-                  backgroundColor: `${quiz.subject?.color || '#6366f1'}15`,
-                  color: quiz.subject?.color || '#6366f1',
-                }}
-              >
-                {quiz.subject?.name}
-              </span>
-              <h2 className="font-bold text-base text-slate-900 dark:text-white">{quiz.title}</h2>
+    <div className="min-h-screen flex flex-col" dir="rtl">
+      {/* الشريط العلوي: خروج، العنوان، المؤقت، والتقدم */}
+      <header className="sticky top-0 z-30 bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800">
+        <div className="max-w-3xl mx-auto px-4 pt-2.5 pb-3 space-y-2.5">
+          <div className="flex items-center justify-between gap-3">
+            <button type="button" onClick={exitQuiz} aria-label="الخروج من الاختبار" className="w-11 h-11 -mr-2 flex items-center justify-center rounded-xl text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800">
+              <X className="w-6 h-6" />
+            </button>
+            <div className="text-center min-w-0">
+              <div className="font-bold text-[15.5px] text-slate-900 dark:text-white truncate">{quiz.title}</div>
+              <div className="text-[12.5px] text-slate-500 dark:text-slate-400">إجاباتك تُحفظ تلقائياً</div>
             </div>
-            <div className="text-xs text-slate-500 dark:text-slate-400 mt-1">
-              تمت الإجابة على{' '}
-              <span className="font-bold text-indigo-600 dark:text-indigo-400">{answeredCount}</span> من أصل{' '}
-              <span className="font-bold">{questions.length}</span> أسئلة ({progressPercentage}%)
-            </div>
-          </div>
-
-          <div className="flex items-center gap-4">
-            {/* Countdown Timer */}
             <div
-              className={`flex items-center gap-2 px-4 py-2 rounded-2xl font-mono text-sm font-bold border transition-colors ${
-                isLowTime
-                  ? 'bg-rose-50 dark:bg-rose-950 text-rose-700 dark:text-rose-400 border-rose-200 dark:border-rose-800 animate-pulse'
-                  : 'bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-200 border-slate-200 dark:border-slate-700'
+              role="timer"
+              aria-label="الوقت المتبقي"
+              className={`h-9 px-3 rounded-xl flex items-center gap-1.5 font-bold text-base tabular-nums shrink-0 ${
+                isLowTime ? 'bg-rose-50 text-rose-700 dark:bg-rose-950/60 dark:text-rose-300 animate-pulse' : 'bg-amber-50 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300'
               }`}
+              dir="ltr"
             >
-              <Clock className={`w-4 h-4 ${isLowTime ? 'text-rose-600' : 'text-slate-500'}`} />
-              <span className="tracking-wider">{formatTimer(secondsRemaining)}</span>
+              <Clock className="w-4 h-4" />{formatTimer(secondsRemaining)}
             </div>
-
-            {/* Submit Button */}
-            <button
-              onClick={() => setShowConfirmModal(true)}
-              className="inline-flex items-center gap-2 px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-2xl text-xs font-bold shadow-md shadow-emerald-600/20 transition-all"
-            >
-              <Send className="w-4 h-4 rotate-180" />
-              <span>تسليم الاختبار</span>
-            </button>
+          </div>
+          <div className="flex items-center gap-2.5">
+            <div className="flex-1 h-1.5 rounded-full bg-slate-100 dark:bg-slate-800">
+              <div className="h-1.5 rounded-full bg-indigo-600 transition-all duration-300" style={{ width: `${((currentQuestionIndex + 1) / questions.length) * 100}%` }} />
+            </div>
+            <span className="text-[13px] font-semibold text-slate-500 dark:text-slate-400 tabular-nums">{currentQuestionIndex + 1} من {questions.length}</span>
           </div>
         </div>
+      </header>
 
-        {/* Progress Bar */}
-        <div className="w-full bg-slate-100 dark:bg-slate-800 h-2 rounded-full overflow-hidden mt-4">
-          <div
-            className="bg-indigo-600 h-full rounded-full transition-all duration-300"
-            style={{ width: `${progressPercentage}%` }}
-          />
+      <main className="flex-1 w-full max-w-3xl mx-auto px-4 py-6 space-y-5">
+        <div className="flex items-center justify-between gap-3">
+          <span className="text-sm font-bold text-indigo-700 dark:text-indigo-400">السؤال {currentQuestionIndex + 1} · {marksLabel(Number(currentQ.marks) || 0)}</span>
+          <button
+            type="button"
+            onClick={() => toggleFlag(currentQ.id)}
+            aria-pressed={flagged}
+            className={`h-9 px-3 rounded-xl border text-[13px] font-semibold inline-flex items-center gap-1.5 ${
+              flagged ? 'border-amber-300 bg-amber-50 text-amber-800 dark:border-amber-800 dark:bg-amber-950/60 dark:text-amber-300' : 'border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800'
+            }`}
+          >
+            <Flag className={`w-4 h-4 ${flagged ? 'fill-amber-500 text-amber-600' : ''}`} />
+            {flagged ? 'معلَّم للمراجعة' : 'راجعه لاحقاً'}
+          </button>
         </div>
-      </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
-        {/* Main Question Area */}
-        <div className="lg:col-span-3 bg-white dark:bg-slate-900 rounded-3xl p-6 sm:p-8 border border-slate-200/80 dark:border-slate-800 shadow-soft">
-          <div className="flex items-center justify-between pb-4 mb-6 border-b border-slate-100 dark:border-slate-800">
-            <div className="flex items-center gap-2.5">
-              <span className="w-8 h-8 rounded-xl bg-indigo-600 text-white font-bold text-sm flex items-center justify-center font-cairo">
-                {currentQuestionIndex + 1}
-              </span>
-              <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">
-                السؤال {currentQuestionIndex + 1} من {questions.length}
-              </span>
-            </div>
+        <div className="text-[21px] sm:text-[23px] font-bold leading-[1.7] text-slate-900 dark:text-white font-cairo">
+          <RichText html={currentQ.question_text} />
+        </div>
 
-            <div className="flex items-center gap-2">
-              <span className="text-xs font-bold bg-indigo-50 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-300 px-2.5 py-1 rounded-lg">
-                +{currentQ.marks} درجات
-              </span>
-
-              <button
-                onClick={() => toggleFlag(currentQ.id)}
-                className={`p-2 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-colors ${
-                  flaggedQuestions[currentQ.id]
-                    ? 'bg-amber-100 dark:bg-amber-950 text-amber-800 dark:text-amber-300'
-                    : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200'
-                }`}
-                title="تحديد السؤال للمراجعة لاحقاً"
-              >
-                <Flag
-                  className={`w-3.5 h-3.5 ${
-                    flaggedQuestions[currentQ.id] ? 'fill-amber-600 text-amber-600' : ''
-                  }`}
-                />
-                <span className="hidden sm:inline">
-                  {flaggedQuestions[currentQ.id] ? 'مُعلَم للمراجعة' : 'تعليم'}
-                </span>
-              </button>
-            </div>
-          </div>
-
-          <div className="mb-8">
-            <h3 className="text-lg sm:text-xl font-bold text-slate-900 dark:text-white leading-relaxed font-cairo">
-              <RichText html={currentQ.question_text} />
-            </h3>
-          </div>
-
-          {/* Answer area: options / essay / passage sub-questions */}
-          {currentQ.type === 'passage' ? (
-            <div className="space-y-5 mb-8">
-              {(currentQ.sub_questions || []).map((sq, sqIdx) => {
-                const key = subKey(currentQ.id, sq.id);
-                return (
-                  <div
-                    key={sq.id}
-                    className="p-4 rounded-2xl border border-slate-200 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-800/40"
-                  >
-                    <div className="flex items-start justify-between gap-3 mb-3">
-                      <div className="flex items-start gap-2 text-sm font-bold text-slate-800 dark:text-slate-200">
-                        <span className="text-indigo-600 dark:text-indigo-400">{sqIdx + 1}.</span>
-                        <RichText html={sq.question_text} />
-                      </div>
-                      <span className="shrink-0 text-[11px] font-bold text-indigo-700 dark:text-indigo-300">
-                        +{sq.marks}
-                      </span>
+        {currentQ.type === 'passage' ? (
+          <div className="space-y-4">
+            {(currentQ.sub_questions || []).map((sq, sqIdx) => {
+              const key = subKey(currentQ.id, sq.id);
+              return (
+                <div key={sq.id} className="p-4 rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900">
+                  <div className="flex items-start justify-between gap-3 mb-3">
+                    <div className="flex items-start gap-2 text-base font-bold text-slate-900 dark:text-slate-100">
+                      <span className="text-indigo-700 dark:text-indigo-400">{sqIdx + 1}.</span>
+                      <RichText html={sq.question_text} />
                     </div>
-                    {sq.type === 'essay' ? renderEssay(key, true) : renderOptions(key, sq.options || [], true)}
+                    <span className="shrink-0 text-[13px] font-semibold text-slate-500">{marksLabel(Number(sq.marks) || 0)}</span>
                   </div>
-                );
-              })}
-            </div>
-          ) : currentQ.type === 'essay' ? (
-            renderEssay(currentQ.id)
-          ) : (
-            renderOptions(currentQ.id, currentQ.options || [])
-          )}
-
-          {/* Stepper Navigation Buttons */}
-          <div className="flex items-center justify-between pt-6 border-t border-slate-100 dark:border-slate-800">
-            <button
-              onClick={() => setCurrentQuestionIndex((prev) => Math.max(0, prev - 1))}
-              disabled={currentQuestionIndex === 0}
-              className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl text-xs font-bold text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 disabled:opacity-40 disabled:hover:bg-transparent transition-colors"
-            >
-              <ArrowRight className="w-4 h-4" />
-              <span>السؤال السابق</span>
-            </button>
-
-            {currentQuestionIndex < questions.length - 1 ? (
-              <button
-                onClick={() =>
-                  setCurrentQuestionIndex((prev) => Math.min(questions.length - 1, prev + 1))
-                }
-                className="inline-flex items-center gap-2 px-6 py-2.5 rounded-xl text-xs font-bold bg-indigo-600 hover:bg-indigo-700 text-white transition-all shadow-md shadow-indigo-600/20"
-              >
-                <span>السؤال التالي</span>
-                <ArrowLeft className="w-4 h-4" />
-              </button>
-            ) : (
-              <button
-                onClick={() => setShowConfirmModal(true)}
-                className="inline-flex items-center gap-2 px-6 py-2.5 rounded-xl text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white transition-all shadow-md shadow-emerald-600/20"
-              >
-                <span>مراجعة وتسليم الاختبار</span>
-                <CheckCircle2 className="w-4 h-4" />
-              </button>
-            )}
+                  {sq.type === 'essay' ? renderEssay(key, true) : renderOptions(key, sq.options || [], true)}
+                </div>
+              );
+            })}
           </div>
-        </div>
+        ) : currentQ.type === 'essay' ? (
+          renderEssay(currentQ.id)
+        ) : (
+          renderOptions(currentQ.id, currentQ.options || [])
+        )}
 
-        {/* Questions Stepper Sidebar */}
-        <div className="bg-white dark:bg-slate-900 rounded-3xl p-5 border border-slate-200/80 dark:border-slate-800 shadow-soft h-fit">
-          <h4 className="text-xs font-bold text-slate-700 dark:text-slate-300 mb-4 pb-2 border-b border-slate-100 dark:border-slate-800">
-            خريطة الأسئلة ({questions.length})
-          </h4>
-
-          <div className="grid grid-cols-4 sm:grid-cols-5 lg:grid-cols-4 gap-2 mb-6">
+        {/* خريطة الأسئلة */}
+        <nav aria-label="خريطة الأسئلة" className="pt-3">
+          <div className="flex flex-wrap justify-center gap-1.5">
             {questions.map((q, idx) => {
-              const isAnswered = isQuestionAnswered(q);
               const isCurrent = currentQuestionIndex === idx;
               const isFlagged = flaggedQuestions[q.id];
-
-              let btnClasses =
-                'border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:border-slate-400';
-
-              if (isCurrent) {
-                btnClasses = 'border-indigo-600 bg-indigo-600 text-white font-bold shadow-md';
-              } else if (isFlagged) {
-                btnClasses = 'border-amber-400 bg-amber-100 dark:bg-amber-950 text-amber-900 dark:text-amber-300 font-bold';
-              } else if (isAnswered) {
-                btnClasses = 'border-emerald-400 bg-emerald-50 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-300 font-semibold';
-              }
-
+              const isAnswered = isQuestionAnswered(q);
+              const cls = isCurrent
+                ? 'bg-white dark:bg-slate-900 border-2 border-indigo-600 text-indigo-700 dark:text-indigo-300'
+                : isFlagged
+                ? 'bg-amber-100 text-amber-900 dark:bg-amber-950/70 dark:text-amber-300'
+                : isAnswered
+                ? 'bg-indigo-600 text-white'
+                : 'bg-slate-200 text-slate-600 dark:bg-slate-800 dark:text-slate-400';
               return (
-                <button
-                  key={q.id}
-                  onClick={() => setCurrentQuestionIndex(idx)}
-                  className={`h-10 rounded-xl border text-xs flex items-center justify-center relative transition-all ${btnClasses}`}
-                >
-                  <span>{idx + 1}</span>
-                  {isFlagged && !isCurrent && (
-                    <span className="w-2 h-2 rounded-full bg-amber-500 absolute top-1 right-1" />
-                  )}
+                <button key={q.id} type="button" onClick={() => setCurrentQuestionIndex(idx)} aria-current={isCurrent ? 'step' : undefined}
+                  aria-label={`السؤال ${idx + 1}${isAnswered ? '، تمت الإجابة' : ''}${isFlagged ? '، معلَّم للمراجعة' : ''}`}
+                  className={`w-9 h-9 rounded-lg text-[13px] font-bold tabular-nums ${cls}`}>
+                  {idx + 1}
                 </button>
               );
             })}
           </div>
-
-          <div className="space-y-2 text-[11px] text-slate-500 dark:text-slate-400 pt-3 border-t border-slate-100 dark:border-slate-800">
-            <div className="flex items-center gap-2">
-              <span className="w-3 h-3 rounded-md bg-indigo-600" />
-              <span>السؤال الحالي المعروض</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <span className="w-3 h-3 rounded-md bg-emerald-500" />
-              <span>تمت الإجابة عليه</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <span className="w-3 h-3 rounded-md bg-amber-400" />
-              <span>مُعلَم لمراجعته لاحقاً</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <span className="w-3 h-3 rounded-md bg-slate-200 dark:bg-slate-700" />
-              <span>لم تتم الإجابة عليه بعد</span>
-            </div>
+          <div className="flex flex-wrap justify-center gap-x-4 gap-y-1 mt-3 text-[12.5px] text-slate-500 dark:text-slate-400">
+            <span className="inline-flex items-center gap-1.5"><span className="w-3 h-3 rounded bg-indigo-600" />أُجيب</span>
+            <span className="inline-flex items-center gap-1.5"><span className="w-3 h-3 rounded bg-amber-200 dark:bg-amber-900" />للمراجعة</span>
+            <span className="inline-flex items-center gap-1.5"><span className="w-3 h-3 rounded bg-slate-200 dark:bg-slate-700" />لم يُجب</span>
           </div>
+        </nav>
+      </main>
+
+      {/* أزرار التنقل ثابتة أسفل الشاشة */}
+      <footer className="sticky bottom-0 z-30 bg-white dark:bg-slate-900 border-t border-slate-200 dark:border-slate-800">
+        <div className="max-w-3xl mx-auto px-4 pt-3 pb-[max(1rem,env(safe-area-inset-bottom))] flex gap-2.5">
+          <button
+            type="button"
+            onClick={() => setCurrentQuestionIndex((prev) => Math.max(0, prev - 1))}
+            disabled={currentQuestionIndex === 0}
+            className="h-[52px] px-5 rounded-2xl border border-slate-300 dark:border-slate-700 font-semibold text-slate-800 dark:text-slate-100 disabled:opacity-40 inline-flex items-center gap-1.5"
+          >
+            <ArrowRight className="w-5 h-5" />السابق
+          </button>
+          {isLast ? (
+            <button type="button" onClick={() => setShowConfirmModal(true)}
+              className="flex-1 h-[52px] rounded-2xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-[17px] inline-flex items-center justify-center gap-2">
+              <Send className="w-5 h-5 rotate-180" />مراجعة وتسليم
+            </button>
+          ) : (
+            <button type="button" onClick={() => setCurrentQuestionIndex((prev) => Math.min(questions.length - 1, prev + 1))}
+              className="flex-1 h-[52px] rounded-2xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-[17px] inline-flex items-center justify-center gap-2">
+              التالي<ArrowLeft className="w-5 h-5" />
+            </button>
+          )}
+          {!isLast && (
+            <button type="button" onClick={() => setShowConfirmModal(true)} title="تسليم الاختبار"
+              className="hidden sm:inline-flex h-[52px] px-5 rounded-2xl border border-emerald-300 dark:border-emerald-800 text-emerald-700 dark:text-emerald-400 font-semibold items-center gap-1.5 hover:bg-emerald-50 dark:hover:bg-emerald-950/40">
+              تسليم
+            </button>
+          )}
         </div>
-      </div>
+      </footer>
 
       {submitting && !showConfirmModal && (
-        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-white dark:bg-slate-900 rounded-3xl px-8 py-6 text-sm font-bold text-slate-800 dark:text-white shadow-2xl">
-            جارٍ تسليم الاختبار وتصحيحه...
-          </div>
+        <div className="fixed inset-0 z-50 bg-slate-900/60 flex items-center justify-center p-4">
+          <div className="bg-white dark:bg-slate-900 rounded-2xl px-8 py-6 text-base font-bold text-slate-900 dark:text-white">جارٍ تسليم الاختبار وتصحيحه...</div>
         </div>
       )}
 
-      {/* Confirmation Modal */}
       {showConfirmModal && (
-        <div className="fixed inset-0 z-50 overflow-y-auto bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-white dark:bg-slate-900 rounded-3xl max-w-md w-full p-6 shadow-2xl border border-slate-100 dark:border-slate-800 text-center animate-in fade-in zoom-in-95">
-            <div className="w-14 h-14 rounded-2xl bg-emerald-50 dark:bg-emerald-950 text-emerald-600 dark:text-emerald-400 flex items-center justify-center mx-auto mb-4">
-              <CheckCircle2 className="w-8 h-8" />
-            </div>
-
-            <h3 className="text-lg font-bold text-slate-900 dark:text-white mb-2">هل أنت متأكد من تسليم الاختبار؟</h3>
-
-            <p className="text-xs text-slate-600 dark:text-slate-400 mb-4 leading-relaxed">
-              لقد أجبت على <span className="font-bold text-emerald-600 dark:text-emerald-400">{answeredCount}</span> من أصل{' '}
-              <span className="font-bold">{questions.length}</span> أسئلة.
-              {answeredCount < questions.length && (
-                <span className="block text-rose-600 dark:text-rose-400 font-bold mt-1">
-                  تنبيه: يوجد {questions.length - answeredCount} أسئلة متروكة دون إجابة!
-                </span>
-              )}
+        <div className="fixed inset-0 z-50 overflow-y-auto bg-slate-900/60 flex items-center justify-center p-4" role="dialog" aria-modal="true" aria-labelledby="submit-title">
+          <div className="bg-white dark:bg-slate-900 rounded-3xl max-w-md w-full p-6 border border-slate-200 dark:border-slate-800">
+            <h3 id="submit-title" className="text-xl font-bold text-slate-900 dark:text-white">تسليم الاختبار؟</h3>
+            <p className="text-[15px] text-slate-600 dark:text-slate-400 mt-2 leading-relaxed">
+              أجبت على <b className="text-slate-900 dark:text-white">{answeredCount}</b> من <b className="text-slate-900 dark:text-white">{questions.length}</b>.
             </p>
-
-            <div className="flex items-center justify-center gap-3">
-              <button
-                onClick={() => setShowConfirmModal(false)}
-                className="px-5 py-2.5 rounded-xl text-xs font-bold text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
-              >
+            {answeredCount < questions.length && (
+              <p className="text-[15px] font-semibold text-rose-700 dark:text-rose-400 mt-1">بقي {questions.length - answeredCount} بلا إجابة.</p>
+            )}
+            {Object.values(flaggedQuestions).some(Boolean) && (
+              <p className="text-[15px] font-semibold text-amber-800 dark:text-amber-300 mt-1">لديك أسئلة معلَّمة للمراجعة.</p>
+            )}
+            <div className="flex gap-2.5 mt-6">
+              <button type="button" onClick={() => setShowConfirmModal(false)} className="flex-1 h-12 rounded-xl border border-slate-300 dark:border-slate-700 font-semibold text-slate-800 dark:text-slate-100 hover:bg-slate-50 dark:hover:bg-slate-800">
                 العودة للأسئلة
               </button>
-              <button
-                onClick={() => void handleFinalSubmit()}
-                disabled={submitting}
-                className="px-6 py-2.5 rounded-xl text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white shadow-md shadow-emerald-600/30 transition-all disabled:opacity-60"
-              >
-                {submitting ? 'جارٍ التسليم والتصحيح...' : 'نعم، اعتمد التسليم فوراً'}
+              <button type="button" onClick={() => void handleFinalSubmit()} disabled={submitting}
+                className="flex-1 h-12 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold disabled:opacity-60">
+                {submitting ? 'جارٍ التسليم...' : 'نعم، سلّم'}
               </button>
             </div>
           </div>

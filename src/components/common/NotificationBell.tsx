@@ -7,7 +7,7 @@ import { notifAction, notifLines } from './notificationActions';
 
 export const NOTIF_ICONS: Record<string, string> = {
   quiz_published: '📝', quiz_pending: '🕓', quiz_approved: '✅', quiz_rejected: '❌',
-  retake_granted: '🔁', award: '🏆', announcement: '📣',
+  retake_granted: '🔁', award: '🏆', announcement: '📣', quiz_reminder: '⏰',
 };
 
 export function timeAgo(iso: string): string {

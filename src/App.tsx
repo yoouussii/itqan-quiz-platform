@@ -1,6 +1,6 @@
 import React from 'react';
 import { AppProvider, useApp } from './context/AppContext';
-import { Navbar } from './components/common/Navbar';
+import { AppShell } from './components/common/AppShell';
 import { Footer } from './components/common/Footer';
 import { Toast } from './components/common/Toast';
 import { AuthScreen } from './components/auth/AuthScreen';
@@ -9,9 +9,11 @@ import { AuthScreen } from './components/auth/AuthScreen';
 import { hasPerm } from './utils/permissions';
 import { ForcePasswordChange } from './components/common/ForcePasswordChange';
 import { BannerStrip } from './components/common/BannerStrip';
+import { PageHeader } from './components/common/ui';
 
 // الصفحات تُحمَّل عند فتحها فقط: كل مستخدم ينزّل كود صفحاته (أسرع على الجوال)
 const AdminDashboard = React.lazy(() => import('./components/admin/AdminDashboard').then((m) => ({ default: m.AdminDashboard })));
+const AdminQuizBank = React.lazy(() => import('./components/admin/AdminQuizBank').then((m) => ({ default: m.AdminQuizBank })));
 const UsersManagement = React.lazy(() => import('./components/admin/UsersManagement').then((m) => ({ default: m.UsersManagement })));
 const SubjectsClassesManagement = React.lazy(() => import('./components/admin/SubjectsClassesManagement').then((m) => ({ default: m.SubjectsClassesManagement })));
 const TeacherDashboard = React.lazy(() => import('./components/teacher/TeacherDashboard').then((m) => ({ default: m.TeacherDashboard })));
@@ -67,7 +69,7 @@ const AppContent: React.FC = () => {
   // If user is not logged in or in login view
   if (!currentUser || currentView === 'login') {
     return (
-      <div className="min-h-screen flex flex-col bg-slate-50 dark:bg-[#0b0f19] text-slate-900 dark:text-white font-cairo transition-colors duration-200" dir="rtl">
+      <div className="min-h-screen flex flex-col bg-slate-50 dark:bg-[#0b0f19] text-slate-900 dark:text-white transition-colors duration-200" dir="rtl">
         <div className="flex-1">
           <AuthScreen />
         </div>
@@ -112,19 +114,16 @@ const AppContent: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen flex flex-col bg-slate-50 dark:bg-[#0b0f19] text-slate-900 dark:text-white font-cairo transition-colors duration-200" dir="rtl">
-      {/* Top Navbar */}
-      <Navbar />
+    <div className="min-h-screen bg-slate-50 dark:bg-[#0b0f19] text-slate-900 dark:text-white transition-colors duration-200" dir="rtl">
+      <AppShell
+        banner={isPreview && (
+          <div className="bg-amber-100 dark:bg-amber-950/60 border-b border-amber-300 dark:border-amber-800 text-amber-900 dark:text-amber-200 text-sm font-semibold px-4 py-2 flex flex-wrap items-center justify-center gap-3" role="status">
+            <span>وضع المعاينة: تشاهد الموقع كما يراه «{currentUser.name}». للعرض فقط، ولا يُسجَّل أي تسليم باسمه.</span>
+            <button type="button" onClick={exitPreview} className="px-3 py-1.5 rounded-lg bg-amber-700 hover:bg-amber-800 text-white">العودة لحسابي</button>
+          </div>
+        )}
+      >
 
-      {isPreview && (
-        <div className="bg-amber-100 dark:bg-amber-950/60 border-b border-amber-300 dark:border-amber-800 text-amber-900 dark:text-amber-200 text-xs font-bold px-4 py-2 flex flex-wrap items-center justify-center gap-3" role="status">
-          <span>👁️ وضع المعاينة: تشاهد الموقع كما يراه «{currentUser.name}». للعرض فقط، ولا يُسجَّل أي تسليم باسمه.</span>
-          <button onClick={exitPreview} className="px-3 py-1 rounded-lg bg-amber-600 hover:bg-amber-700 text-white">العودة لحسابي</button>
-        </div>
-      )}
-
-      {/* Main Body Content */}
-      <main className="flex-1 pb-16">
         <React.Suspense
           fallback={
             <div className="flex items-center justify-center py-24" role="status" aria-label="جارٍ التحميل">
@@ -168,15 +167,11 @@ const AppContent: React.FC = () => {
 
         {/* View 6: General Analytics / School-Wide Reports View */}
         {(currentView === 'analytics' || currentView === 'reports') && (
-          <div className="max-w-7xl mx-auto py-8 px-4 sm:px-6 lg:px-8 space-y-8">
-            <div className="pb-3 border-b border-slate-200 dark:border-slate-800">
-              <h1 className="text-2xl font-black text-slate-900 dark:text-white font-cairo">
-                التحليلات والمؤشرات البيانية المتقدمة
-              </h1>
-              <p className="text-xs text-slate-500 dark:text-slate-400">
-                تقارير إحصائية دقيقة لمستويات النجاح وتوزيع الدرجات ومعدلات التسليم
-              </p>
-            </div>
+          <div className="max-w-7xl mx-auto py-8 px-4 sm:px-6 lg:px-8 space-y-6">
+            <PageHeader
+              title={currentUser.role === 'student' ? 'نتائجي' : 'النتائج والتحليلات'}
+              subtitle={currentUser.role === 'student' ? 'كل اختباراتك السابقة ودرجاتك' : 'توزيع الدرجات ومعدلات التسليم ونتائج كل طالب'}
+            />
 
             <AnalyticsView />
           </div>
@@ -213,7 +208,7 @@ const AppContent: React.FC = () => {
             ) : currentUser.role === 'supervisor' ? (
               <SupervisorDashboard />
             ) : (
-              <AdminDashboard />
+              <AdminQuizBank />
             )}
           </>
         )}
@@ -222,7 +217,7 @@ const AppContent: React.FC = () => {
         {currentView === 'dashboard' && (
           <>
             {/* بانرات المدرسة (صور وتهاني) أعلى الصفحة الرئيسية للجميع */}
-            <BannerStrip />
+            {currentUser.role !== 'student' && <BannerStrip />}
             {currentUser.role === 'admin' && <AdminDashboard />}
             {currentUser.role === 'teacher' && <TeacherDashboard />}
             {currentUser.role === 'supervisor' && <SupervisorDashboard />}
@@ -235,10 +230,7 @@ const AppContent: React.FC = () => {
           </>
         )}
         </React.Suspense>
-      </main>
-
-      {/* Uniform Clean Footer on ALL layouts */}
-      <Footer />
+      </AppShell>
 
       {/* كلمة المرور الافتراضية: تغيير إلزامي (لا يقاطع الطالب أثناء الاختبار) */}
       {passwordIsDefault && currentView !== 'take_quiz' && <ForcePasswordChange />}

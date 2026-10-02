@@ -48,7 +48,7 @@ export function notifAction(
   if (n.type === 'quiz_pending') return { label: 'مراجعة الاختبار', view: 'approvals' };
 
   if (!quiz) {
-    if (n.type === 'quiz_published' || n.type === 'retake_granted') {
+    if (n.type === 'quiz_published' || n.type === 'retake_granted' || n.type === 'quiz_reminder') {
       return { label: 'فتح اختباراتي', view: 'dashboard', notice: 'الاختبار لم يعد متاحاً أو حُذف' };
     }
     return null;

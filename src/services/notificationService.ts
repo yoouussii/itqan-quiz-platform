@@ -7,7 +7,7 @@ import { safe, readJson, writeJson, newId } from './remote';
 
 export type NotifType =
   | 'quiz_published' | 'quiz_pending' | 'quiz_approved' | 'quiz_rejected'
-  | 'retake_granted' | 'award' | 'announcement';
+  | 'retake_granted' | 'award' | 'announcement' | 'quiz_reminder';
 
 export interface NotifAudience {
   all?: boolean;
