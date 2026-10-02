@@ -1,4 +1,5 @@
-export type Role = 'admin' | 'teacher' | 'student' | 'supervisor';
+export type Role = 'admin' | 'teacher' | 'student' | 'supervisor' | 'parent';
+export type Gender = 'male' | 'female';
 
 export interface TeacherPermissions {
   can_add_custom_subjects?: boolean;
@@ -37,7 +38,21 @@ export interface User {
 
   teacher_permissions?: TeacherPermissions;
   permissions?: TeacherPermissions;
+
+  /** فرع المدرسة (يحدده المدير). المعلم/المشرف المسند لفرع يرى فرعه فقط */
+  branch_id?: string | null;
+  gender?: Gender | null;
+  /** لولي الأمر: معرّفات أبنائه */
+  child_ids?: string[];
 }
+
+export interface Branch {
+  id: string;
+  name: string;
+  created_at?: string;
+  updated_at?: string;
+}
+
 export interface Subject {
   id: string;
   name: string;
@@ -54,6 +69,7 @@ export interface SchoolClass {
   grade_level: string;
   student_count?: number;
   created_by?: string;
+  branch_id?: string | null;
 }
 
 export type QuizStatus = 'published' | 'draft' | 'archived' | 'pending_approval' | 'rejected';

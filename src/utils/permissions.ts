@@ -49,7 +49,7 @@ const SUPERVISOR_DEFAULT = new Set(['can_access_preparations']);
 export function hasPerm(user: User | null | undefined, key: string): boolean {
   if (!user) return false;
   if (user.role === 'admin') return true; // المدير يملك كل شيء تلقائياً
-  if (user.role === 'student') return false;
+  if (user.role === 'student' || user.role === 'parent') return false;
   const perms: any = user.teacher_permissions || (user as any).permissions || {};
   if (perms[key]) return true;
   if (user.role === 'teacher' && TEACHER_ALWAYS.has(key)) return true;

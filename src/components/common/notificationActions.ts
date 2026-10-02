@@ -43,9 +43,12 @@ export function notifAction(
   const quiz = n.ref_type === 'quiz' && n.ref_id ? quizzes.find((q) => q.id === n.ref_id) : undefined;
 
   if (n.type === 'award') {
+    if (me.role === 'parent') return { label: 'متابعة أبنائي', view: 'dashboard' };
     return me.role === 'student' ? { label: 'عرض نقاطي وجوائزي', view: 'my_points' } : null;
   }
   if (n.type === 'quiz_pending') return { label: 'مراجعة الاختبار', view: 'approvals' };
+
+  if (me.role === 'parent') return { label: 'متابعة أبنائي', view: 'dashboard' };
 
   if (!quiz) {
     if (n.type === 'quiz_published' || n.type === 'retake_granted' || n.type === 'quiz_reminder') {

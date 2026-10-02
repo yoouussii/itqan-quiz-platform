@@ -222,6 +222,30 @@ export async function pullQuizzes(currentUser: User | null, serverRole?: string)
     // دوال الحماية غير موجودة بعد: نكمل بالطريقة القديمة
   }
 
+  // ولي الأمر: اختبارات كل ابن عبر دالة المتابعة (بدون الإجابات النموذجية قبل وقتها)
+  if ((serverRole ?? currentUser.role) === 'parent') {
+    const keep = new Set<string>();
+    const users = StorageService.getUsers();
+    for (const childId of currentUser.child_ids || []) {
+      const { data, error } = await supabase.rpc('itqan_child_quizzes', { p_child: childId });
+      if (error) {
+        console.warn('[sync] تعذر جلب اختبارات الابن:', error.message);
+        return;
+      }
+      for (const row of asArray<any>(data)) {
+        keep.add(row.id);
+        const b = rowToBundle(row);
+        StorageService.saveQuizBundleFromRemote(b.quiz, b.questions, b.assignments);
+        if (row.teacher?.id && !users.some((u) => u.id === row.teacher.id)) {
+          users.push({ id: row.teacher.id, name: row.teacher.name, role: row.teacher.role, national_id: '', job_title: row.teacher.job_title ?? null } as User);
+        }
+      }
+    }
+    StorageService.pruneQuizzesExcept(keep);
+    localStorage.setItem('itqan_users_v2', JSON.stringify(users));
+    return;
+  }
+
   const { data, error } = await supabase.from('quizzes').select('*');
   if (error || !Array.isArray(data)) {
     console.warn('[sync] تعذر جلب الاختبارات:', error?.message);
@@ -429,6 +453,8 @@ export async function pullSubmissions(currentUser: User | null): Promise<void> {
   let query = supabase.from('submissions').select('*');
   if (currentUser.role === 'student') {
     query = query.eq('student_id', currentUser.id);
+  } else if (currentUser.role === 'parent') {
+    query = query.in('student_id', currentUser.child_ids?.length ? currentUser.child_ids : ['-']);
   } else {
     query = query.order('completed_at', { ascending: false }).limit(5000);
   }
@@ -457,7 +483,7 @@ export async function pullSubmissions(currentUser: User | null): Promise<void> {
   } catch {
     /* ignore */
   }
-  const complete = currentUser.role === 'student' || data.length < 5000;
+  const complete = currentUser.role === 'student' || currentUser.role === 'parent' || data.length < 5000;
   if (complete) {
     for (const s of StorageService.getSubmissions()) {
       if (remoteIds.has(s.id) || pending.has(s.id)) continue;
@@ -520,7 +546,7 @@ export async function flushPending(me: User | null = null): Promise<void> {
     }
     await flushAttempts(me);
     // في الوضع الآمن يرفع الطاقم الاختبارات وتصحيحات المقالي المعلّقة
-    if (me && me.role !== 'student') {
+    if (me && me.role !== 'student' && me.role !== 'parent') {
       for (const id of StorageService.getPendingSync('quiz')) await pushQuiz(id);
       for (const id of StorageService.getPendingSync('submission')) await pushSubmission(id);
     }

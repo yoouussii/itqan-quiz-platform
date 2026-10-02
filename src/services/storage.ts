@@ -847,6 +847,9 @@ public static getCurrentUser(): User | null {
     // STRICT PRIVACY: If student, strictly filter to their own submissions only!
     if (requestingUser.role === 'student') {
       submissions = submissions.filter((s) => s.student_id === requestingUserId);
+    } else if (requestingUser.role === 'parent') {
+      const kids = new Set(requestingUser.child_ids || []);
+      submissions = submissions.filter((s) => kids.has(s.student_id));
     } else if (requestingUser.role === 'supervisor') {
       const ids = new Set(this.getSupervisorData(requestingUser).submissions.map((x) => x.id));
       submissions = submissions.filter((x) => ids.has(x.id));
@@ -1269,6 +1272,9 @@ export function cleanUserPayloadForSupabase(user: Partial<User>): Record<string,
     permissions: user.permissions || {},
     teacher_permissions: user.teacher_permissions || {},
     job_title: user.job_title || null,
+    branch_id: user.branch_id || null,
+    gender: user.gender || null,
+    child_ids: user.child_ids || [],
     created_by: user.created_by || null,
     created_at: user.created_at || now,
     updated_at: user.updated_at || now,

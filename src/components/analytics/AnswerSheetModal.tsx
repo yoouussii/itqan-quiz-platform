@@ -20,7 +20,7 @@ export const AnswerSheetModal: React.FC<AnswerSheetModalProps> = ({ submission: 
   const fresh = initial ? submissions.find((x) => x.id === initial.id) : undefined;
   const submission = initial ? { ...initial, ...(fresh || {}) } : null;
   if (!submission) return null;
-  const canGrade = !!currentUser && currentUser.role !== 'student';
+  const canGrade = !!currentUser && currentUser.role !== 'student' && currentUser.role !== 'parent';
 
   const questions: Question[] = submission.quiz_id
     ? StorageService.getQuestionsByQuizId(submission.quiz_id)

@@ -7,7 +7,7 @@ import { describeUser } from '../../utils/userDescription';
 import { fileToAvatarDataUrl } from '../../services/avatarService';
 import { DEFAULT_PASSWORD } from '../../services/storage';
 
-const ROLE_TEXT: Record<string, string> = { admin: 'مدير النظام', teacher: 'معلم', student: 'طالب', supervisor: 'مشرف' };
+const ROLE_TEXT: Record<string, string> = { admin: 'مدير النظام', teacher: 'معلم', student: 'طالب', supervisor: 'مشرف', parent: 'ولي أمر' };
 const inputCls = 'w-full px-3 py-2 text-xs rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500';
 
 export const ProfileModal: React.FC<{ onClose: () => void }> = ({ onClose }) => {
