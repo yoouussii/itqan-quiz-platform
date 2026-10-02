@@ -154,7 +154,8 @@ public static getCurrentUser(): User | null {
   public static authenticate(nationalId: string, password?: string): User | null {
     const user = this.getUserByNationalId(nationalId);
     if (!user) return null;
-    if (password && user.password && user.password !== password) {
+    // إذا كان للمستخدم كلمة مرور محفوظة فيجب أن تطابق تماماً (كلمة مرور فارغة لا تُقبل)
+    if (user.password && user.password !== (password ?? '')) {
       return null;
     }
     return user;
@@ -1004,6 +1005,79 @@ public static getCurrentUser(): User | null {
       completionTimeline,
       subjectPerformance,
     };
+  }
+
+  // =====================================================================
+  // دوال المزامنة مع Supabase (تُستخدم من services/quizSync.ts)
+  // =====================================================================
+
+  /** الاختبار مع أسئلته وتعييناته كما هي محلياً (يشمل المحذوف حذفاً ناعماً) */
+  public static getQuizBundle(id: string): {
+    quiz: Quiz;
+    questions: Question[];
+    assignments: QuizAssignment[];
+  } | null {
+    const quiz = this.getQuizById(id);
+    if (!quiz) return null;
+    return {
+      quiz,
+      questions: this.getQuestionsByQuizId(id),
+      assignments: this.getAssignmentsByQuizId(id),
+    };
+  }
+
+  /** إدراج/استبدال اختبار قادم من الخادم بدون إنشاء نسخ مكررة */
+  public static saveQuizBundleFromRemote(
+    quiz: Quiz,
+    questions: Question[],
+    assignments: QuizAssignment[]
+  ): void {
+    const quizzes = getLocalItem<Quiz[]>(STORAGE_KEYS.QUIZZES, []);
+    const idx = quizzes.findIndex((q) => q.id === quiz.id);
+    if (idx >= 0) quizzes[idx] = quiz;
+    else quizzes.push(quiz);
+    setLocalItem(STORAGE_KEYS.QUIZZES, quizzes);
+
+    const allQuestions = getLocalItem<Question[]>(STORAGE_KEYS.QUESTIONS, []);
+    setLocalItem(STORAGE_KEYS.QUESTIONS, [
+      ...allQuestions.filter((q) => q.quiz_id !== quiz.id),
+      ...questions.map((q) => ({ ...q, quiz_id: quiz.id })),
+    ]);
+
+    const allAssignments = getLocalItem<QuizAssignment[]>(STORAGE_KEYS.ASSIGNMENTS, []);
+    setLocalItem(STORAGE_KEYS.ASSIGNMENTS, [
+      ...allAssignments.filter((a) => a.quiz_id !== quiz.id),
+      ...assignments.map((a) => ({ ...a, quiz_id: quiz.id })),
+    ]);
+  }
+
+  /** إدراج/استبدال تسليم قادم من الخادم */
+  public static saveSubmissionFromRemote(sub: Submission): void {
+    const list = getLocalItem<Submission[]>(STORAGE_KEYS.SUBMISSIONS, []);
+    const idx = list.findIndex((s) => s.id === sub.id);
+    if (idx >= 0) list[idx] = sub;
+    else list.push(sub);
+    setLocalItem(STORAGE_KEYS.SUBMISSIONS, list);
+  }
+
+  // --- قائمة الانتظار: عناصر حُفظت محلياً ولم تصل للخادم بعد ---
+  public static getPendingSync(kind: 'quiz' | 'submission'): string[] {
+    return getLocalItem<string[]>(`itqan_pending_${kind}_ids`, []);
+  }
+
+  public static addPendingSync(kind: 'quiz' | 'submission', id: string): void {
+    const list = this.getPendingSync(kind);
+    if (!list.includes(id)) {
+      list.push(id);
+      setLocalItem(`itqan_pending_${kind}_ids`, list);
+    }
+  }
+
+  public static removePendingSync(kind: 'quiz' | 'submission', id: string): void {
+    setLocalItem(
+      `itqan_pending_${kind}_ids`,
+      this.getPendingSync(kind).filter((x) => x !== id)
+    );
   }
 }
 

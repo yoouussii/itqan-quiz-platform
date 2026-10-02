@@ -49,9 +49,9 @@ interface AnalyticsChartsProps {
 }
 
 export const AnalyticsCharts: React.FC<AnalyticsChartsProps> = ({
-  scoreDistribution,
-  completionTimeline,
-  subjectPerformance,
+  scoreDistribution = [],
+  completionTimeline = [],
+  subjectPerformance = [],
 }) => {
   const { theme, submissions, quizzes, users } = useApp();
   const isDark = theme === 'dark';

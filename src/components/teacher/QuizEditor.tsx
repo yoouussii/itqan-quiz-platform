@@ -1,5 +1,4 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { supabase } from '../../lib/supabase';
 import 'react-quill/dist/quill.snow.css';
 import {
   Plus,
@@ -15,6 +14,8 @@ import {
 import { TargetType } from '../../types';
 import { useApp } from '../../context/AppContext';
 import { StorageService } from '../../services/storage';
+import { RichTextEditor } from '../common/RichTextEditor';
+import { stripHtml } from '../common/RichText';
 
 export type QuestionType = 'mcq' | 'true_false' | 'essay' | 'passage';
 
@@ -130,6 +131,18 @@ export const QuizEditor: React.FC = () => {
     },
   ]);
 
+  // ضمان أن المادة المختارة في الـ state موجودة فعلاً في القائمة المعروضة
+  // (الحالة الابتدائية قد تكون فارغة لأن المواد تُحمَّل بعد أول رندر)
+  const subjectIdsKey = availableSubjects.map((s) => s.id).join(',');
+  useEffect(() => {
+    if (availableSubjects.length === 0) return;
+    const isValid = availableSubjects.some((s) => s.id === subjectId);
+    if (!isValid) {
+      setSubjectId(availableSubjects[0].id);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [subjectIdsKey, subjectId]);
+
   const loadedQuizIdRef = useRef<string | null>(null);
 
   useEffect(() => {
@@ -143,14 +156,14 @@ export const QuizEditor: React.FC = () => {
     }
 
     const quizToEdit =
-      StorageService.getQuizWithDetails(editingQuizId) ||
-      quizzes.find((q) => q.id === editingQuizId);
+      quizzes.find((q) => q.id === editingQuizId) ||
+      StorageService.getQuizWithDetails(editingQuizId);
 
     if (quizToEdit) {
       loadedQuizIdRef.current = editingQuizId;
       setTitle(quizToEdit.title);
       setDescription(quizToEdit.description || '');
-      setSubjectId(quizToEdit.subject_id);
+      setSubjectId(quizToEdit.subject_id || '');
       setDurationMinutes(quizToEdit.duration_minutes);
       setPassPercentage(quizToEdit.pass_percentage);
       setStartDate(quizToEdit.start_date ? quizToEdit.start_date.split('T')[0] : '');
@@ -387,7 +400,7 @@ export const QuizEditor: React.FC = () => {
 
     for (let i = 0; i < questions.length; i++) {
       const q = questions[i];
-      if (!q.question_text.trim()) {
+      if (!stripHtml(q.question_text).trim()) {
         alert(`يرجى كتابة نص السؤال رقم ${i + 1}`);
         return;
       }
@@ -397,12 +410,22 @@ export const QuizEditor: React.FC = () => {
           return;
         }
         for (let j = 0; j < q.sub_questions.length; j++) {
-          if (!q.sub_questions[j].question_text.trim()) {
+          if (!stripHtml(q.sub_questions[j].question_text).trim()) {
             alert(`يرجى كتابة نص السؤال الفرعي رقم ${j + 1} للقطعة رقم ${i + 1}`);
             return;
           }
         }
       }
+    }
+
+    if (!subjectId) {
+      alert('يرجى اختيار المادة');
+      return;
+    }
+
+    if (!currentUser?.id) {
+      alert('انتهت الجلسة، يرجى تسجيل الدخول من جديد');
+      return;
     }
 
     if (targetType === 'specific_students' && selectedStudentIds.length === 0) {
@@ -440,8 +463,10 @@ export const QuizEditor: React.FC = () => {
     ];
 
     try {
+      let outcome: { synced: boolean; error?: string };
+
       if (isEditing && editingQuizId) {
-        await updateFullQuiz(
+        outcome = await updateFullQuiz(
           editingQuizId,
           {
             title: title.trim(),
@@ -460,12 +485,13 @@ export const QuizEditor: React.FC = () => {
         loadedQuizIdRef.current = null;
         setEditingQuizId(null);
       } else {
-        await createNewQuiz(
+        // الحفظ هنا يذهب إلى Supabase أولاً عبر الـ context (مصدر البيانات الرئيسي)
+        outcome = await createNewQuiz(
           {
             title: title.trim(),
             description: description.trim(),
             subject_id: subjectId,
-            teacher_id: currentUser?.id || 'usr-teacher-1',
+            teacher_id: currentUser.id,
             total_marks: totalCalculatedMarks,
             duration_minutes: Number(durationMinutes),
             pass_percentage: Number(passPercentage),
@@ -479,29 +505,15 @@ export const QuizEditor: React.FC = () => {
         );
       }
 
-      // Supabase Direct Backup / Sync
-      const quizPayload = {
-        title: title.trim(),
-        description: description.trim(),
-        teacher_id: currentUser?.id,
-        subject_id: subjectId || null,
-        duration_minutes: Number(durationMinutes) || 30,
-        total_marks: Number(totalCalculatedMarks) || 100,
-        pass_percentage: Number(passPercentage) || 50,
-        start_date: startDate ? new Date(startDate).toISOString() : new Date().toISOString(),
-        end_date: endDate ? new Date(endDate).toISOString() : null,
-        is_active: isActive,
-        target_type: targetType,
-        class_id: targetType === 'class' ? targetClassId : null,
-      };
-
-      if (isEditing && editingQuizId) {
-        await supabase.from('quizzes').update(quizPayload).eq('id', editingQuizId);
+      if (outcome.synced) {
+        alert('تم حفظ ونشر الاختبار بنجاح!');
       } else {
-        await supabase.from('quizzes').insert([quizPayload]);
+        alert(
+          'تم حفظ الاختبار على جهازك، لكنه لم يصل إلى الخادم بعد، ولن يراه الآدمن أو الطلاب قبل ذلك.\n' +
+            'سيُعاد الإرسال تلقائياً. السبب: ' +
+            (outcome.error || 'غير معروف')
+        );
       }
-
-      alert('تم حفظ ونشر الاختبار بنجاح!');
       setCurrentView('quizzes');
     } catch (err: any) {
       console.error(err);
@@ -581,6 +593,7 @@ export const QuizEditor: React.FC = () => {
                 onChange={(e) => setSubjectId(e.target.value)}
                 className="w-full px-4 py-2.5 text-xs rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
               >
+                <option value="">...اختر المادة</option>
                 {availableSubjects.map((s) => (
                   <option key={s.id} value={s.id}>
                     {s.name} ({s.code})
@@ -899,12 +912,11 @@ export const QuizEditor: React.FC = () => {
                   <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
                     {q.type === 'passage' ? 'نص القطعة / القرائية:' : 'نص السؤال:'}
                   </label>
-                  <textarea
-                    rows={q.type === 'passage' ? 4 : 2}
+                  <RichTextEditor
                     value={q.question_text}
-                    onChange={(e) => handleQuestionTextChange(qIdx, e.target.value)}
+                    onChange={(html) => handleQuestionTextChange(qIdx, html)}
                     placeholder={q.type === 'passage' ? 'أدخل نص القطعة القراءية هنا...' : 'اكتب نص السؤال هنا...'}
-                    className="w-full px-3 py-2 text-xs rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white"
+                    minHeight={q.type === 'passage' ? 140 : 80}
                   />
                 </div>
 
@@ -920,13 +932,14 @@ export const QuizEditor: React.FC = () => {
                           onChange={() => handleCorrectOptionChange(qIdx, optIdx)}
                           className="accent-indigo-600"
                         />
-                        <input
-                          type="text"
-                          value={opt}
-                          onChange={(e) => handleOptionChange(qIdx, optIdx, e.target.value)}
-                          placeholder={`الخيار ${optIdx + 1}`}
-                          className="w-full px-3 py-1.5 text-xs rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white"
-                        />
+                        <div className="flex-1 min-w-0">
+                          <RichTextEditor
+                            variant="compact"
+                            value={opt}
+                            onChange={(html) => handleOptionChange(qIdx, optIdx, html)}
+                            placeholder={`الخيار ${optIdx + 1}`}
+                          />
+                        </div>
                       </div>
                     ))}
                   </div>
@@ -1002,12 +1015,12 @@ export const QuizEditor: React.FC = () => {
                           </div>
                         </div>
 
-                        <input
-                          type="text"
+                        <RichTextEditor
+                          variant="compact"
                           value={sq.question_text}
-                          onChange={(e) => handleSubQuestionTextChange(qIdx, sqIdx, e.target.value)}
+                          onChange={(html) => handleSubQuestionTextChange(qIdx, sqIdx, html)}
                           placeholder="نص السؤال الفرعي..."
-                          className="w-full px-3 py-1.5 text-xs rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800"
+                          minHeight={50}
                         />
 
                         {sq.type === 'mcq' && (
@@ -1021,13 +1034,14 @@ export const QuizEditor: React.FC = () => {
                                   onChange={() => handleSubCorrectOptionChange(qIdx, sqIdx, optIdx)}
                                   className="accent-indigo-600"
                                 />
-                                <input
-                                  type="text"
-                                  value={opt}
-                                  onChange={(e) => handleSubOptionChange(qIdx, sqIdx, optIdx, e.target.value)}
-                                  placeholder={`خيار ${optIdx + 1}`}
-                                  className="w-full px-2 py-1 text-xs rounded-lg border border-slate-200 dark:border-slate-700"
-                                />
+                                <div className="flex-1 min-w-0">
+                                  <RichTextEditor
+                                    variant="compact"
+                                    value={opt}
+                                    onChange={(html) => handleSubOptionChange(qIdx, sqIdx, optIdx, html)}
+                                    placeholder={`خيار ${optIdx + 1}`}
+                                  />
+                                </div>
                               </div>
                             ))}
                           </div>
@@ -1039,12 +1053,12 @@ export const QuizEditor: React.FC = () => {
 
                 {/* Explanation */}
                 <div>
-                  <input
-                    type="text"
+                  <RichTextEditor
+                    variant="compact"
                     value={q.explanation}
-                    onChange={(e) => handleExplanationChange(qIdx, e.target.value)}
-                    placeholder="شرح الإجابة النموذجية (اختياري يظهر للطلب بعد التقييم)..."
-                    className="w-full px-3 py-1.5 text-xs rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-500"
+                    onChange={(html) => handleExplanationChange(qIdx, html)}
+                    placeholder="شرح الإجابة النموذجية (اختياري يظهر للطلاب بعد التقييم)..."
+                    minHeight={50}
                   />
                 </div>
               </div>

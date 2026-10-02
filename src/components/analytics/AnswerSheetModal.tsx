@@ -3,6 +3,7 @@ import { X, CheckCircle, XCircle, Clock, Calendar, Award, BookOpen, Printer } fr
 import { SubmissionWithDetails, Question } from '../../types';
 import { StorageService } from '../../services/storage';
 import { Avatar } from '../common/Avatar';
+import { RichText } from '../common/RichText';
 
 interface AnswerSheetModalProps {
   submission: SubmissionWithDetails | null;
@@ -177,7 +178,7 @@ export const AnswerSheetModal: React.FC<AnswerSheetModalProps> = ({ submission, 
                         {qIdx + 1}
                       </span>
                       <h5 className="font-bold text-slate-800 dark:text-white text-sm">
-                        {question.question_text}
+                        <RichText html={question.question_text} />
                       </h5>
                     </div>
                     <div className="flex items-center gap-2 shrink-0">
@@ -229,7 +230,7 @@ export const AnswerSheetModal: React.FC<AnswerSheetModalProps> = ({ submission, 
                             <span className="w-5 h-5 rounded-md bg-white/80 dark:bg-slate-700 border text-[11px] font-bold flex items-center justify-center shrink-0">
                               {['أ', 'ب', 'ج', 'د'][optIdx] || optIdx + 1}
                             </span>
-                            <span>{opt}</span>
+                            <span><RichText html={opt} inline /></span>
                           </div>
 
                           <div className="flex items-center gap-1 text-[10px] font-bold">
@@ -262,7 +263,7 @@ export const AnswerSheetModal: React.FC<AnswerSheetModalProps> = ({ submission, 
                         <span>💡 التفسير والشرح التعليمي:</span>
                       </div>
                       <p className="leading-relaxed font-medium">
-                        {question.explanation}
+                        <RichText html={question.explanation} />
                       </p>
                     </div>
                   )}

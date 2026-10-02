@@ -83,3 +83,46 @@
 .animate-pulse-subtle {
   animation: pulseSubtle 3s infinite ease-in-out;
 }
+
+/* ===== النصوص المنسّقة (Quill) ===== */
+.rich-editor .ql-toolbar.ql-snow {
+  border-radius: 0.75rem 0.75rem 0 0;
+  border-color: rgb(226 232 240);
+  background: rgb(248 250 252);
+  direction: rtl;
+}
+.rich-editor .ql-container.ql-snow {
+  border-radius: 0 0 0.75rem 0.75rem;
+  border-color: rgb(226 232 240);
+  font-family: inherit;
+  font-size: 0.8rem;
+}
+.rich-editor .ql-editor {
+  direction: rtl;
+  text-align: right;
+  min-height: var(--editor-min-height, 90px);
+}
+.rich-editor .ql-editor.ql-blank::before {
+  right: 15px;
+  left: auto;
+  font-style: normal;
+}
+.rich-editor-compact .ql-toolbar.ql-snow { padding: 2px 6px; }
+.rich-editor-compact .ql-editor { padding: 6px 10px; }
+.dark .rich-editor .ql-toolbar.ql-snow,
+.dark .rich-editor .ql-container.ql-snow { border-color: rgb(51 65 85); }
+.dark .rich-editor .ql-toolbar.ql-snow { background: rgb(30 41 59); }
+.dark .rich-editor .ql-editor { color: #fff; background: rgb(15 23 42); }
+.dark .rich-editor .ql-snow .ql-stroke { stroke: #cbd5e1; }
+.dark .rich-editor .ql-snow .ql-fill { fill: #cbd5e1; }
+.dark .rich-editor .ql-snow .ql-picker { color: #cbd5e1; }
+
+.rich-text p { margin: 0 0 0.35rem; }
+.rich-text p:last-child { margin-bottom: 0; }
+.rich-text ol { list-style: decimal; padding-right: 1.5rem; margin: 0.25rem 0; }
+.rich-text ul { list-style: disc; padding-right: 1.5rem; margin: 0.25rem 0; }
+.rich-text .ql-align-center { text-align: center; }
+.rich-text .ql-align-right { text-align: right; }
+.rich-text .ql-align-left { text-align: left; }
+.rich-text .ql-align-justify { text-align: justify; }
+.rich-text a { color: #4f46e5; text-decoration: underline; }

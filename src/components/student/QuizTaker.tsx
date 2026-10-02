@@ -11,6 +11,7 @@ import {
 } from 'lucide-react';
 import { StorageService } from '../../services/storage';
 import { useApp } from '../../context/AppContext';
+import { RichText } from '../common/RichText';
 
 interface QuizTakerProps {
   quizId: string;
@@ -278,7 +279,7 @@ export const QuizTaker: React.FC<QuizTakerProps> = ({ quizId, onFinish, onCancel
 
           <div className="mb-8">
             <h3 className="text-lg sm:text-xl font-bold text-slate-900 dark:text-white leading-relaxed font-cairo">
-              {currentQ.question_text}
+              <RichText html={currentQ.question_text} />
             </h3>
           </div>
 
@@ -313,7 +314,7 @@ export const QuizTaker: React.FC<QuizTakerProps> = ({ quizId, onFinish, onCancel
                         isSelected ? 'font-bold text-indigo-950 dark:text-indigo-200' : 'text-slate-800 dark:text-slate-200 font-medium'
                       }`}
                     >
-                      {optionText}
+                      <RichText html={optionText} inline />
                     </span>
                   </div>
 

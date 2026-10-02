@@ -23,6 +23,7 @@ export const TeacherDashboard: React.FC = () => {
     quizzes,
     submissions,
     subjects,
+    kpis,
     setCurrentView,
     setEditingQuizId,
   } = useApp();
@@ -54,7 +55,7 @@ export const TeacherDashboard: React.FC = () => {
 
   const handleEditQuiz = (quizId: string) => {
     setEditingQuizId(quizId);
-    setCurrentView('quiz-editor');
+    setCurrentView('create_quiz');
   };
 
   return (
@@ -73,7 +74,7 @@ export const TeacherDashboard: React.FC = () => {
         <button
           onClick={() => {
             setEditingQuizId(null);
-            setCurrentView('quiz-editor');
+            setCurrentView('create_quiz');
           }}
           className="inline-flex items-center gap-2 px-5 py-2.5 bg-indigo-600 text-white rounded-xl font-bold text-xs hover:bg-indigo-700 transition-colors shadow-lg shadow-indigo-600/20 self-start md:self-auto"
         >
@@ -88,21 +89,25 @@ export const TeacherDashboard: React.FC = () => {
           title="إجمالي الاختبارات"
           value={totalQuizzes}
           icon={FileText}
+          colorScheme="indigo"
         />
         <KPICard
           title="الاختبارات النشطة"
           value={activeQuizzes}
           icon={Clock}
+          colorScheme="emerald"
         />
         <KPICard
           title="إجمالي التسليمات"
           value={totalSubmissions}
           icon={Users}
+          colorScheme="purple"
         />
         <KPICard
           title="متوسط الدرجات"
           value={`${avgScore}%`}
           icon={CheckCircle}
+          colorScheme="amber"
         />
       </div>
 
@@ -114,7 +119,11 @@ export const TeacherDashboard: React.FC = () => {
             تحليلات الأداء العام
           </h2>
         </div>
-        <AnalyticsCharts />
+        <AnalyticsCharts
+          scoreDistribution={kpis?.scoreDistribution || []}
+          completionTimeline={kpis?.completionTimeline || []}
+          subjectPerformance={kpis?.subjectPerformance || []}
+        />
       </div>
 
       {/* قائمة الاختبارات */}

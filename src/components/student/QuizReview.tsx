@@ -10,6 +10,7 @@ import {
   Sparkles,
 } from 'lucide-react';
 import { StorageService } from '../../services/storage';
+import { RichText } from '../common/RichText';
 
 interface QuizReviewProps {
   submissionId: string;
@@ -205,7 +206,7 @@ export const QuizReview: React.FC<QuizReviewProps> = ({ submissionId, onBack }) 
                     {qIdx + 1}
                   </span>
                   <h3 className="font-bold text-slate-900 dark:text-white text-sm sm:text-base leading-relaxed">
-                    {question.question_text}
+                    <RichText html={question.question_text} />
                   </h3>
                 </div>
 
@@ -249,7 +250,7 @@ export const QuizReview: React.FC<QuizReviewProps> = ({ submissionId, onBack }) 
                         <span className="w-5 h-5 rounded-lg bg-white/90 dark:bg-slate-700 border text-[11px] font-bold flex items-center justify-center shrink-0">
                           {['أ', 'ب', 'ج', 'د'][optIdx]}
                         </span>
-                        <span>{opt}</span>
+                        <span><RichText html={opt} inline /></span>
                       </div>
 
                       <div className="text-[10px] font-bold">
@@ -276,7 +277,7 @@ export const QuizReview: React.FC<QuizReviewProps> = ({ submissionId, onBack }) 
                     <span>💡 الشرح والتعليل النموذجي:</span>
                   </div>
                   <p className="text-indigo-800 dark:text-indigo-200 leading-relaxed font-medium">
-                    {question.explanation}
+                    <RichText html={question.explanation} />
                   </p>
                 </div>
               )}

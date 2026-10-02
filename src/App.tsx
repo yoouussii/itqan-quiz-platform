@@ -14,6 +14,23 @@ import { QuizTaker } from './components/student/QuizTaker';
 import { QuizReview } from './components/student/QuizReview';
 import { AnalyticsCharts } from './components/analytics/AnalyticsCharts';
 import { SubmissionsTable } from './components/analytics/SubmissionsTable';
+import { QuizResults } from './components/analytics/QuizResults';
+import { QuizPreview } from './components/common/QuizPreview';
+
+const KNOWN_VIEWS = [
+  'take_quiz', 'quiz_review', 'create_quiz', 'users', 'users_management',
+  'students_management', 'subjects_classes', 'analytics', 'reports',
+  'quiz_results', 'quiz_preview', 'quizzes', 'dashboard',
+];
+
+/** يُعيد المستخدم للوحة التحكم إذا وصل لصفحة غير موجودة بدلاً من إظهار شاشة فارغة */
+const UnknownViewRedirect: React.FC = () => {
+  const { setCurrentView } = useApp();
+  React.useEffect(() => {
+    setCurrentView('dashboard');
+  }, [setCurrentView]);
+  return null;
+};
 
 const AppContent: React.FC = () => {
   const {
@@ -125,6 +142,15 @@ const AppContent: React.FC = () => {
             <SubmissionsTable submissions={submissions} />
           </div>
         )}
+
+        {/* View 6b: نتائج وتحليلات اختبار واحد (زر التحليلات عند الآدمن/المعلم) */}
+        {currentView === 'quiz_results' && currentUser.role !== 'student' && <QuizResults />}
+
+        {/* View 6c: معاينة اختبار للقراءة فقط (زر العرض) */}
+        {currentView === 'quiz_preview' && currentUser.role !== 'student' && <QuizPreview />}
+
+        {/* حماية من الشاشة البيضاء: أي صفحة غير معروفة تعيد المستخدم للوحة التحكم */}
+        {!KNOWN_VIEWS.includes(currentView) && <UnknownViewRedirect />}
 
         {/* View 7: Quizzes Bank View */}
         {currentView === 'quizzes' && (
