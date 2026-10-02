@@ -3,6 +3,7 @@ import { Role } from '../../types';
 import { ShieldCheck, UserCheck, GraduationCap, UserCog } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 import { parsePreset } from '../../utils/avatarPresets';
+import { CharacterSvg, findCharacter } from './CharacterAvatar';
 
 interface AvatarProps {
   name: string;
@@ -48,6 +49,7 @@ export const Avatar: React.FC<AvatarProps> = ({
   const { avatars } = useApp();
   const custom = userId ? avatars?.[userId] : undefined;
   const preset = parsePreset(custom);
+  const character = custom?.startsWith('preset:') ? findCharacter(custom.slice(7)) : undefined;
   const isImage = !!custom && custom.startsWith('data:');
 
   const getInitials = (n: string) => {
@@ -63,6 +65,8 @@ export const Avatar: React.FC<AvatarProps> = ({
     <div className={`relative inline-flex items-center justify-center shrink-0 ${className}`}>
       {isImage ? (
         <img src={custom} alt={name} data-avatar="image" className={`${sizeClasses[size]} rounded-2xl object-cover shadow-sm`} />
+      ) : character ? (
+        <CharacterSvg preset={character} title={name} className={`${sizeClasses[size]} rounded-2xl shadow-sm`} />
       ) : preset ? (
         <div
           data-avatar="preset"

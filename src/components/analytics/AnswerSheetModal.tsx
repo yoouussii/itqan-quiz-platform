@@ -1,9 +1,11 @@
-import React from 'react';
+import React, { useRef } from 'react';
 import { X, CheckCircle, XCircle, Clock, Calendar, Award, BookOpen, Printer } from 'lucide-react';
 import { SubmissionWithDetails, Question } from '../../types';
 import { StorageService } from '../../services/storage';
 import { Avatar } from '../common/Avatar';
 import { RichText } from '../common/RichText';
+import { exportElementToPdf } from '../../utils/exportPdf';
+import { useApp } from '../../context/AppContext';
 import { AnswerExtras, answerStatus, STATUS_LABEL } from '../common/AnswerExtras';
 
 interface AnswerSheetModalProps {
@@ -11,8 +13,14 @@ interface AnswerSheetModalProps {
   onClose: () => void;
 }
 
-export const AnswerSheetModal: React.FC<AnswerSheetModalProps> = ({ submission, onClose }) => {
+export const AnswerSheetModal: React.FC<AnswerSheetModalProps> = ({ submission: initial, onClose }) => {
+  const contentRef = useRef<HTMLDivElement>(null);
+  const { currentUser, submissions, gradeEssay } = useApp();
+  // نسخة محدّثة من التسليم (تتغير بعد تصحيح المقالي)
+  const fresh = initial ? submissions.find((x) => x.id === initial.id) : undefined;
+  const submission = initial ? { ...initial, ...(fresh || {}) } : null;
   if (!submission) return null;
+  const canGrade = !!currentUser && currentUser.role !== 'student';
 
   const questions: Question[] = submission.quiz_id
     ? StorageService.getQuestionsByQuizId(submission.quiz_id)
@@ -46,8 +54,15 @@ export const AnswerSheetModal: React.FC<AnswerSheetModalProps> = ({ submission, 
     });
   };
 
+  // طباعة ورقة الإجابة فقط (وليس الصفحة كاملة)
   const handlePrint = () => {
-    window.print();
+    if (!contentRef.current) return;
+    void exportElementToPdf({
+      element: contentRef.current,
+      title: `ورقة إجابة: ${submission.student?.name || ''}`,
+      subtitle: `${submission.quiz?.title || ''}${submission.subject?.name ? ` • ${submission.subject.name}` : ''}`,
+      orientation: 'portrait',
+    });
   };
 
   return (
@@ -86,7 +101,7 @@ export const AnswerSheetModal: React.FC<AnswerSheetModalProps> = ({ submission, 
         </div>
 
         {/* Content */}
-        <div className="p-6 space-y-6">
+        <div ref={contentRef} className="p-6 space-y-6">
           {/* Student & Quiz Overview Banner */}
           <div className="bg-gradient-to-br from-slate-50 to-indigo-50/30 dark:from-slate-800 dark:to-indigo-950/20 p-5 rounded-2xl border border-slate-200/80 dark:border-slate-700">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
@@ -268,7 +283,8 @@ export const AnswerSheetModal: React.FC<AnswerSheetModalProps> = ({ submission, 
                     })}
                   </div>
 
-                  <AnswerExtras question={question} answer={studentAnswer} />
+                  <AnswerExtras question={question} answer={studentAnswer}
+                    onGrade={canGrade ? (subId, marks) => gradeEssay(submission.id, question.id, subId, marks) : undefined} />
 
                   {/* Explanation Note */}
                   {question.explanation && (

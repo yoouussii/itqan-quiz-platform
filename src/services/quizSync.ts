@@ -174,7 +174,13 @@ export async function pushQuiz(quizId: string): Promise<SyncResult> {
       quizToRow(bundle.quiz, bundle.questions, bundle.assignments)
     );
     if (res.ok) StorageService.removePendingSync('quiz', quizId);
-    else StorageService.addPendingSync('quiz', quizId);
+    else if (/row-level security|42501|متاح لصاحبه|متاح للمدير|باسم معلم آخر/i.test(res.error || '')) {
+      // رفض صلاحيات (ليس انقطاع شبكة): لا نعيد المحاولة، ونترك نسخة الخادم تحل محل التعديل المحلي
+      StorageService.removePendingSync('quiz', quizId);
+      const b = StorageService.getQuizBundle(quizId);
+      if (b) StorageService.saveQuizBundleFromRemote({ ...b.quiz, updated_at: '1970-01-01T00:00:00Z' }, b.questions, b.assignments);
+      return { ok: false, error: 'لا تملك صلاحية تعديل هذا الاختبار (التعديل متاح لصاحبه أو للمدير)' };
+    } else StorageService.addPendingSync('quiz', quizId);
     return res;
   } catch (e: any) {
     StorageService.addPendingSync('quiz', quizId);
@@ -360,6 +366,31 @@ export async function submitAttemptRemote(a: QuizAttempt): Promise<AttemptResult
   }
 }
 
+export type StartResult =
+  | { kind: 'ok'; startedAt: number; endsAt: number; offset: number }
+  | { kind: 'rejected'; error: string }
+  | { kind: 'offline' }
+  | { kind: 'legacy' };
+
+/** تسجيل بدء المحاولة على الخادم (أو استئنافها): يُرجع وقت النهاية الفعلي */
+export async function startAttemptRemote(quizId: string): Promise<StartResult> {
+  if (!getSessionToken()) return { kind: 'legacy' };
+  try {
+    const { data, error } = await supabase.rpc('itqan_start_quiz', { p_quiz_id: quizId });
+    if (error) return isMissingRpc(error) ? { kind: 'legacy' } : { kind: 'offline' };
+    if (!data?.ok) return { kind: 'rejected', error: data?.error || 'unknown' };
+    const serverNow = new Date(data.server_now).getTime();
+    return {
+      kind: 'ok',
+      startedAt: new Date(data.started_at).getTime(),
+      endsAt: new Date(data.ends_at).getTime(),
+      offset: serverNow - Date.now(),
+    };
+  } catch {
+    return { kind: 'offline' };
+  }
+}
+
 /** إعادة إرسال المحاولات التي لم تصل للخادم (انقطاع الإنترنت لحظة التسليم) */
 export async function flushAttempts(me: User | null): Promise<number> {
   if (!getSessionToken() || me?.role !== 'student') return 0;
@@ -450,9 +481,10 @@ export async function flushPending(me: User | null = null): Promise<void> {
       }
     }
     await flushAttempts(me);
-    // في الوضع الآمن لا يُرفع إلا ما يملكه الطاقم (الاختبارات)
-    if (me?.role !== 'student') {
+    // في الوضع الآمن يرفع الطاقم الاختبارات وتصحيحات المقالي المعلّقة
+    if (me && me.role !== 'student') {
       for (const id of StorageService.getPendingSync('quiz')) await pushQuiz(id);
+      for (const id of StorageService.getPendingSync('submission')) await pushSubmission(id);
     }
     return;
   }

@@ -4,32 +4,36 @@ import { Navbar } from './components/common/Navbar';
 import { Footer } from './components/common/Footer';
 import { Toast } from './components/common/Toast';
 import { AuthScreen } from './components/auth/AuthScreen';
-import { AdminDashboard } from './components/admin/AdminDashboard';
-import { UsersManagement } from './components/admin/UsersManagement';
-import { SubjectsClassesManagement } from './components/admin/SubjectsClassesManagement';
-import { TeacherDashboard } from './components/teacher/TeacherDashboard';
-import { QuizEditor } from './components/teacher/QuizEditor';
-import { StudentDashboard } from './components/student/StudentDashboard';
-import { QuizTaker } from './components/student/QuizTaker';
-import { QuizReview } from './components/student/QuizReview';
-import { AnalyticsCharts } from './components/analytics/AnalyticsCharts';
-import { SubmissionsTable } from './components/analytics/SubmissionsTable';
-import { QuizResults } from './components/analytics/QuizResults';
-import { AnalyticsView } from './components/analytics/AnalyticsView';
-import { SupervisorDashboard } from './components/supervisor/SupervisorDashboard';
-import { MyPoints } from './components/student/MyPoints';
-import { Leaderboard } from './components/staff/Leaderboard';
-import { ApprovalsPage } from './components/staff/ApprovalsPage';
-import { ActivityLogPage } from './components/staff/ActivityLogPage';
-import { SettingsPage } from './components/staff/SettingsPage';
+
+
 import { hasPerm } from './utils/permissions';
-import { QuizPreview } from './components/common/QuizPreview';
+import { ForcePasswordChange } from './components/common/ForcePasswordChange';
+
+// الصفحات تُحمَّل عند فتحها فقط: كل مستخدم ينزّل كود صفحاته (أسرع على الجوال)
+const AdminDashboard = React.lazy(() => import('./components/admin/AdminDashboard').then((m) => ({ default: m.AdminDashboard })));
+const UsersManagement = React.lazy(() => import('./components/admin/UsersManagement').then((m) => ({ default: m.UsersManagement })));
+const SubjectsClassesManagement = React.lazy(() => import('./components/admin/SubjectsClassesManagement').then((m) => ({ default: m.SubjectsClassesManagement })));
+const TeacherDashboard = React.lazy(() => import('./components/teacher/TeacherDashboard').then((m) => ({ default: m.TeacherDashboard })));
+const QuizEditor = React.lazy(() => import('./components/teacher/QuizEditor').then((m) => ({ default: m.QuizEditor })));
+const StudentDashboard = React.lazy(() => import('./components/student/StudentDashboard').then((m) => ({ default: m.StudentDashboard })));
+const QuizTaker = React.lazy(() => import('./components/student/QuizTaker').then((m) => ({ default: m.QuizTaker })));
+const QuizReview = React.lazy(() => import('./components/student/QuizReview').then((m) => ({ default: m.QuizReview })));
+const QuizResults = React.lazy(() => import('./components/analytics/QuizResults').then((m) => ({ default: m.QuizResults })));
+const AnalyticsView = React.lazy(() => import('./components/analytics/AnalyticsView').then((m) => ({ default: m.AnalyticsView })));
+const SupervisorDashboard = React.lazy(() => import('./components/supervisor/SupervisorDashboard').then((m) => ({ default: m.SupervisorDashboard })));
+const MyPoints = React.lazy(() => import('./components/student/MyPoints').then((m) => ({ default: m.MyPoints })));
+const Leaderboard = React.lazy(() => import('./components/staff/Leaderboard').then((m) => ({ default: m.Leaderboard })));
+const ApprovalsPage = React.lazy(() => import('./components/staff/ApprovalsPage').then((m) => ({ default: m.ApprovalsPage })));
+const ActivityLogPage = React.lazy(() => import('./components/staff/ActivityLogPage').then((m) => ({ default: m.ActivityLogPage })));
+const SettingsPage = React.lazy(() => import('./components/staff/SettingsPage').then((m) => ({ default: m.SettingsPage })));
+const QuizPreview = React.lazy(() => import('./components/common/QuizPreview').then((m) => ({ default: m.QuizPreview })));
+const NotificationsPage = React.lazy(() => import('./components/common/NotificationsPage').then((m) => ({ default: m.NotificationsPage })));
 
 const KNOWN_VIEWS = [
   'take_quiz', 'quiz_review', 'create_quiz', 'users', 'users_management',
   'students_management', 'subjects_classes', 'analytics', 'reports',
   'quiz_results', 'quiz_preview', 'quizzes', 'dashboard',
-  'my_points', 'leaderboard', 'approvals', 'activity_log', 'settings',
+  'my_points', 'leaderboard', 'approvals', 'activity_log', 'settings', 'notifications',
 ];
 
 /** يُعيد المستخدم للوحة التحكم إذا وصل لصفحة غير موجودة بدلاً من إظهار شاشة فارغة */
@@ -53,6 +57,9 @@ const AppContent: React.FC = () => {
     kpis,
     submissions,
     switchUser,
+    passwordIsDefault,
+    isPreview,
+    exitPreview,
   } = useApp();
 
   // If user is not logged in or in login view
@@ -106,8 +113,22 @@ const AppContent: React.FC = () => {
       {/* Top Navbar */}
       <Navbar />
 
+      {isPreview && (
+        <div className="bg-amber-100 dark:bg-amber-950/60 border-b border-amber-300 dark:border-amber-800 text-amber-900 dark:text-amber-200 text-xs font-bold px-4 py-2 flex flex-wrap items-center justify-center gap-3" role="status">
+          <span>👁️ وضع المعاينة: تشاهد الموقع كما يراه «{currentUser.name}». للعرض فقط، ولا يُسجَّل أي تسليم باسمه.</span>
+          <button onClick={exitPreview} className="px-3 py-1 rounded-lg bg-amber-600 hover:bg-amber-700 text-white">العودة لحسابي</button>
+        </div>
+      )}
+
       {/* Main Body Content */}
       <main className="flex-1 pb-16">
+        <React.Suspense
+          fallback={
+            <div className="flex items-center justify-center py-24" role="status" aria-label="جارٍ التحميل">
+              <div className="w-10 h-10 rounded-full border-4 border-indigo-200 border-t-indigo-600 animate-spin" />
+            </div>
+          }
+        >
         {/* View 1: Quiz Taker Engine (Interactive testing) */}
         {currentView === 'take_quiz' && activeQuizId && (
           <QuizTaker
@@ -159,6 +180,7 @@ const AppContent: React.FC = () => {
         )}
 
         {/* الصفحات الجديدة: كل صفحة محمية بالصلاحية المناسبة */}
+        {currentView === 'notifications' && <NotificationsPage />}
         {currentView === 'my_points' && currentUser.role === 'student' && <MyPoints />}
         {currentView === 'leaderboard' && hasPerm(currentUser, 'can_view_leaderboard') && <Leaderboard />}
         {currentView === 'approvals' && hasPerm(currentUser, 'can_approve_quizzes') && <ApprovalsPage />}
@@ -206,10 +228,14 @@ const AppContent: React.FC = () => {
             )}
           </>
         )}
+        </React.Suspense>
       </main>
 
       {/* Uniform Clean Footer on ALL layouts */}
       <Footer />
+
+      {/* كلمة المرور الافتراضية: تغيير إلزامي (لا يقاطع الطالب أثناء الاختبار) */}
+      {passwordIsDefault && currentView !== 'take_quiz' && <ForcePasswordChange />}
 
       {/* Notification Toast */}
       <Toast />

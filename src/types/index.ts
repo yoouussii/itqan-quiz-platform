@@ -143,6 +143,8 @@ export interface SubAnswerItem {
   text_answer?: string;
   is_correct?: boolean;
   marks_awarded?: number;
+  /** صحّحه المعلم يدوياً (أسئلة المقالي) */
+  graded?: boolean;
 }
 
 // هيكل إجابة السؤال الرئيسي
@@ -153,6 +155,8 @@ export interface AnswerItem {
   is_correct: boolean;
   marks_awarded: number;
   sub_answers?: SubAnswerItem[]; // يحوي إجابات الأسئلة الفرعية للقطعة
+  /** صحّحه المعلم يدوياً (أسئلة المقالي) */
+  graded?: boolean;
 }
 
 export type SubmissionStatus = 'completed' | 'in_progress';

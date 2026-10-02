@@ -7,10 +7,15 @@ export type AnswerStatus = 'correct' | 'partial' | 'wrong' | 'pending';
 /** حالة إجابة السؤال للعرض: صحيحة / جزئية (قطعة) / خاطئة / بانتظار التصحيح اليدوي (مقالي) */
 export function answerStatus(question: Question, ans?: AnswerItem): AnswerStatus {
   if (ans?.is_correct) return 'correct';
-  if (question.type === 'essay') return 'pending';
+  if (question.type === 'essay') {
+    if (!ans?.graded) return 'pending';
+    return (ans.marks_awarded || 0) > 0 ? 'partial' : 'wrong';
+  }
   if (question.type === 'passage') {
     if ((ans?.marks_awarded || 0) > 0) return 'partial';
-    const hasEssay = (question.sub_questions || []).some((sq) => sq.type === 'essay');
+    const hasEssay = (question.sub_questions || []).some(
+      (sq) => sq.type === 'essay' && !ans?.sub_answers?.find((x) => x.sub_question_id === sq.id)?.graded
+    );
     const autoMarks = (question.sub_questions || [])
       .filter((sq) => sq.type !== 'essay')
       .reduce((s, sq) => s + (Number(sq.marks) || 0), 0);
@@ -28,22 +33,51 @@ export const STATUS_LABEL: Record<AnswerStatus, (awarded: number, marks: number)
 
 const letters = ['أ', 'ب', 'ج', 'د'];
 
-const TextAnswer: React.FC<{ text?: string }> = ({ text }) => (
+type GradeFn = (subQuestionId: string | null, marks: number) => Promise<boolean> | void;
+
+/** خانة درجة المقالي للمعلم */
+const GradeBox: React.FC<{ max: number; current?: number; graded?: boolean; onSave: (m: number) => Promise<boolean> | void }> = ({ max, current, graded, onSave }) => {
+  const [val, setVal] = React.useState<string>(graded ? String(current ?? 0) : '');
+  const [busy, setBusy] = React.useState(false);
+  return (
+    <div data-pdf-hide className="flex flex-wrap items-center gap-2 mt-2 pt-2 border-t border-slate-200 dark:border-slate-700">
+      <label className="text-[11px] font-bold text-slate-600 dark:text-slate-300">الدرجة:</label>
+      <input type="number" min={0} max={max} step={0.5} value={val} onChange={(e) => setVal(e.target.value)}
+        aria-label="درجة السؤال المقالي"
+        className="w-20 px-2 py-1 text-xs rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-900 dark:text-white" />
+      <span className="text-[11px] text-slate-500">من {max}</span>
+      <button type="button" disabled={busy || val === ''}
+        onClick={async () => { setBusy(true); await onSave(Number(val)); setBusy(false); }}
+        className="px-3 py-1 rounded-lg text-[11px] font-bold bg-indigo-600 hover:bg-indigo-700 text-white disabled:opacity-50">
+        {graded ? 'تحديث الدرجة' : 'حفظ الدرجة'}
+      </button>
+      {graded && <span className="text-[11px] font-bold text-emerald-600">✓ مصحَّح</span>}
+    </div>
+  );
+};
+
+const TextAnswer: React.FC<{ text?: string; graded?: boolean; awarded?: number; max?: number; onGrade?: (m: number) => Promise<boolean> | void }> = ({ text, graded, awarded, max = 0, onGrade }) => (
   <div className="p-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50/70 dark:bg-slate-800/60 text-xs">
     <div className="font-bold text-slate-500 dark:text-slate-400 mb-1">الإجابة المكتوبة:</div>
     <p className="whitespace-pre-wrap text-slate-800 dark:text-slate-200 leading-relaxed">
       {text?.trim() || <span className="text-slate-400">لم تتم الإجابة</span>}
     </p>
-    <div className="text-[10px] font-bold text-amber-700 dark:text-amber-300 mt-2">سؤال مقالي: يُصحَّح يدوياً</div>
+    {graded ? (
+      <div className="text-[10px] font-bold text-emerald-700 dark:text-emerald-300 mt-2">صحّحه المعلم: {awarded ?? 0} من {max}</div>
+    ) : (
+      <div className="text-[10px] font-bold text-amber-700 dark:text-amber-300 mt-2">سؤال مقالي: بانتظار تصحيح المعلم</div>
+    )}
+    {onGrade && <GradeBox max={max} current={awarded} graded={graded} onSave={onGrade} />}
   </div>
 );
 
 /** تفاصيل إضافية لأسئلة المقالي والقطعة (أسئلة الاختيار تعرضها الصفحة نفسها) */
-export const AnswerExtras: React.FC<{ question: Question; answer?: AnswerItem }> = ({ question, answer }) => {
+export const AnswerExtras: React.FC<{ question: Question; answer?: AnswerItem; onGrade?: GradeFn }> = ({ question, answer, onGrade }) => {
   if (question.type === 'essay') {
     return (
       <div className="mb-3">
-        <TextAnswer text={answer?.text_answer} />
+        <TextAnswer text={answer?.text_answer} graded={answer?.graded} awarded={answer?.marks_awarded} max={Number(question.marks) || 0}
+          onGrade={onGrade ? (m) => onGrade(null, m) : undefined} />
       </div>
     );
   }
@@ -70,11 +104,12 @@ export const AnswerExtras: React.FC<{ question: Question; answer?: AnswerItem }>
                     : 'text-rose-700 dark:text-rose-300'
                 }`}
               >
-                {sq.type === 'essay' ? `— / ${sq.marks}` : `${sa?.marks_awarded || 0} / ${sq.marks}`}
+                {sq.type === 'essay' && !sa?.graded ? `— / ${sq.marks}` : `${sa?.marks_awarded || 0} / ${sq.marks}`}
               </span>
             </div>
             {sq.type === 'essay' ? (
-              <TextAnswer text={sa?.text_answer} />
+              <TextAnswer text={sa?.text_answer} graded={sa?.graded} awarded={sa?.marks_awarded} max={Number(sq.marks) || 0}
+                onGrade={onGrade ? (m) => onGrade(sq.id, m) : undefined} />
             ) : (
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                 {(sq.options || []).map((opt, optIdx) => {

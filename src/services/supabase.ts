@@ -22,6 +22,8 @@ const SESSION_INFO_KEY = 'itqan_session_info_v1';
 
 export interface ServerSessionInfo {
   expires_at: string;
+  /** صاحب الجلسة على الخادم (يختلف عن المستخدم المعروض في «تبديل الحساب» للمعاينة) */
+  user_id?: string;
   password_is_default?: boolean;
 }
 

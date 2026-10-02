@@ -17,13 +17,16 @@ export interface PdfExportOptions {
   subtitle?: string;
   table?: PdfTableData;
   tableTitle?: string;
+  /** اتجاه الصفحة: أفقي للرسوم والجداول العريضة، عمودي للتقارير (الافتراضي أفقي) */
+  orientation?: 'portrait' | 'landscape';
 }
 
 const esc = (v: unknown) =>
   String(v ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 
 export function buildPdfHtml(opts: PdfExportOptions): string {
-  const isDark = document.documentElement.classList.contains('dark');
+  // الطباعة دائماً بخلفية بيضاء (ورق وحبر) حتى لو كان الموقع في الوضع الليلي
+  const isDark = false;
   const bg = isDark ? '#0b0f19' : '#ffffff';
   const fg = isDark ? '#e2e8f0' : '#0f172a';
   const border = isDark ? '#334155' : '#cbd5e1';
@@ -37,6 +40,10 @@ export function buildPdfHtml(opts: PdfExportOptions): string {
   if (!bodyContent && opts.element) {
     const clone = opts.element.cloneNode(true) as HTMLElement;
     clone.querySelectorAll('[data-pdf-hide]').forEach((n) => n.remove());
+    // إلغاء حدود الارتفاع والتمرير (النوافذ المنبثقة) حتى يُطبع المحتوى كاملاً
+    [clone, ...Array.from(clone.querySelectorAll<HTMLElement>('*'))].forEach((el) => {
+      el.classList.remove('overflow-y-auto', 'overflow-auto', 'max-h-[90vh]', 'sticky', 'fixed');
+    });
     bodyContent = clone.outerHTML;
   }
 
@@ -53,7 +60,7 @@ export function buildPdfHtml(opts: PdfExportOptions): string {
   return `<!doctype html><html lang="ar" dir="rtl" class="${isDark ? 'dark' : ''}"><head><meta charset="utf-8">
 <base href="${window.location.origin}/"><title>${esc(opts.title)}</title>${headTags}
 <style>
-  @page { size: A4 landscape; margin: 10mm; }
+  @page { size: A4 ${opts.orientation || 'landscape'}; margin: 10mm; }
   html, body { background: ${bg} !important; color: ${fg}; margin: 0; }
   * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
   .pdf-wrap { padding: 12px 16px; }

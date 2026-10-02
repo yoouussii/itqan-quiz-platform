@@ -11,6 +11,7 @@ import {
 } from 'lucide-react';
 import { StorageService } from '../../services/storage';
 import { RichText } from '../common/RichText';
+import { formatQuizDateTime } from '../../utils/quizWindow';
 import { AnswerExtras, answerStatus, STATUS_LABEL } from '../common/AnswerExtras';
 
 interface QuizReviewProps {
@@ -40,6 +41,16 @@ export const QuizReview: React.FC<QuizReviewProps> = ({ submissionId, onBack }) 
     : [];
 
   const isPassed = submission.percentage >= (submission.quiz?.pass_percentage || 60);
+  // الخادم يخفي الإجابات النموذجية حتى ينتهي وقت إتاحة الاختبار (حتى لا تنتقل للزملاء)
+  const answersHidden =
+    questions.length > 0 &&
+    questions.every((q) =>
+      q.type === 'essay' ||
+      (q.type === 'passage'
+        ? (q.sub_questions || []).every((sq) => sq.type === 'essay' || sq.correct_option_index === undefined)
+        : q.correct_option_index === undefined)
+    ) &&
+    questions.some((q) => q.type !== 'essay');
 
   const formatDuration = (seconds?: number) => {
     if (!seconds) return 'دقيقتان';
@@ -179,6 +190,13 @@ export const QuizReview: React.FC<QuizReviewProps> = ({ submissionId, onBack }) 
             {questions.length} أسئلة مراجعة
           </span>
         </div>
+
+        {answersHidden && (
+          <div className="p-4 rounded-2xl border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-950/40 text-xs font-bold text-amber-800 dark:text-amber-300">
+            🔒 الإجابات النموذجية والشرح تظهر هنا بعد انتهاء وقت إتاحة الاختبار
+            {submission.quiz?.end_date ? ` (${formatQuizDateTime(submission.quiz.end_date, 'end')})` : ''}.
+          </div>
+        )}
 
         {questions.map((question, qIdx) => {
           const studentAns = submission.answers_json.find((a) => a.question_id === question.id);

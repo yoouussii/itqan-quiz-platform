@@ -13,6 +13,8 @@ import { StorageService } from '../../services/storage';
 import { useApp, QuizAttemptAnswer } from '../../context/AppContext';
 import { RichText } from '../common/RichText';
 import { Question } from '../../types';
+import { loadAttempt, saveAttempt, clearAttempt, secondsLeft } from '../../utils/activeAttempt';
+import { startAttemptRemote } from '../../services/quizSync';
 
 const subKey = (questionId: string, subId: string) => `${questionId}::${subId}`;
 
@@ -23,32 +25,95 @@ interface QuizTakerProps {
 }
 
 export const QuizTaker: React.FC<QuizTakerProps> = ({ quizId, onFinish, onCancel }) => {
-  const { submitQuizAttempt } = useApp();
+  const { submitQuizAttempt, currentUser, showToast, isPreview } = useApp();
   const quiz = StorageService.getQuizWithDetails(quizId);
   const questions = StorageService.getQuestionsByQuizId(quizId);
+  const studentId = currentUser?.id || '';
 
-  const [hasStarted, setHasStarted] = useState(false);
-  const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
+  // محاولة جارية محفوظة (تحديث الصفحة أثناء الاختبار يكمل من نفس المكان ونفس المؤقت)
+  const [saved] = useState(() => (studentId ? loadAttempt(studentId, quizId) : null));
+  const [hasStarted, setHasStarted] = useState(!!saved);
+  const [starting, setStarting] = useState(false);
+  const [currentQuestionIndex, setCurrentQuestionIndex] = useState(saved?.index || 0);
   // الاختيارات والإجابات النصية؛ مفتاح السؤال الفرعي: subKey(معرّف القطعة، معرّف السؤال الفرعي)
-  const [userAnswers, setUserAnswers] = useState<Record<string, number | null>>({});
-  const [textAnswers, setTextAnswers] = useState<Record<string, string>>({});
-  const [flaggedQuestions, setFlaggedQuestions] = useState<Record<string, boolean>>({});
+  const [userAnswers, setUserAnswers] = useState<Record<string, number | null>>(saved?.answers || {});
+  const [textAnswers, setTextAnswers] = useState<Record<string, string>>(saved?.texts || {});
+  const [flaggedQuestions, setFlaggedQuestions] = useState<Record<string, boolean>>(saved?.flagged || {});
+  const [timing, setTiming] = useState<{ endsAt: number; offset: number; startedAt: number } | null>(
+    saved ? { endsAt: saved.ends_at, offset: saved.offset, startedAt: saved.started_at } : null
+  );
   const [secondsRemaining, setSecondsRemaining] = useState(
-    (quiz?.duration_minutes || 20) * 60
+    saved ? secondsLeft(saved) : (quiz?.duration_minutes || 20) * 60
   );
   const [showConfirmModal, setShowConfirmModal] = useState(false);
   const [submitting, setSubmitting] = useState(false);
-  const [startTime, setStartTime] = useState<number>(Date.now());
+  const startTime = timing?.startedAt ? timing.startedAt - timing.offset : Date.now();
   const submittedRef = useRef(false);
 
-  // Countdown timer
+  // عند الاستئناف: مزامنة وقت النهاية مع الخادم (قد تكون ساعة الجهاز غير دقيقة)
   useEffect(() => {
-    if (!hasStarted) return;
-    const timer = setInterval(() => {
-      setSecondsRemaining((prev) => Math.max(0, prev - 1));
-    }, 1000);
+    if (!saved || isPreview) return;
+    void startAttemptRemote(quizId).then((r) => {
+      if (r.kind === 'ok') setTiming({ endsAt: r.endsAt, offset: r.offset, startedAt: r.startedAt });
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // المؤقت: يُحسب من وقت النهاية كل ثانية (لا يتأثر بتحديث الصفحة أو إيقاف الجهاز مؤقتاً)
+  useEffect(() => {
+    if (!hasStarted || !timing) return;
+    const tick = () => setSecondsRemaining(secondsLeft({ ends_at: timing.endsAt, offset: timing.offset }));
+    tick();
+    const timer = setInterval(tick, 1000);
     return () => clearInterval(timer);
-  }, [hasStarted]);
+  }, [hasStarted, timing]);
+
+  // حفظ الإجابات على الجهاز أولاً بأول
+  useEffect(() => {
+    if (!hasStarted || !timing || !studentId || submittedRef.current) return;
+    saveAttempt({
+      student_id: studentId,
+      quiz_id: quizId,
+      ends_at: timing.endsAt,
+      offset: timing.offset,
+      started_at: timing.startedAt,
+      answers: userAnswers,
+      texts: textAnswers,
+      flagged: flaggedQuestions,
+      index: currentQuestionIndex,
+    });
+  }, [hasStarted, timing, studentId, quizId, userAnswers, textAnswers, flaggedQuestions, currentQuestionIndex]);
+
+  const startMessages: Record<string, string> = {
+    ended: 'انتهى وقت إتاحة هذا الاختبار',
+    not_started: 'لم يبدأ وقت هذا الاختبار بعد',
+    quiz_not_available: 'هذا الاختبار غير متاح لك',
+    already_submitted: 'سبق أن سلّمت هذا الاختبار',
+    quiz_not_found: 'الاختبار غير موجود',
+    no_session: 'انتهت الجلسة، سجّل الدخول من جديد',
+  };
+
+  const handleStart = async () => {
+    if (!quiz) return;
+    setStarting(true);
+    // في المعاينة لا نسجّل محاولة على الخادم باسم الطالب (مؤقت محلي للتصفح فقط)
+    const r = isPreview ? ({ kind: 'legacy' } as const) : await startAttemptRemote(quizId);
+    setStarting(false);
+    if (r.kind === 'rejected') {
+      showToast(startMessages[r.error] || `تعذر بدء الاختبار (${r.error})`, 'error');
+      onCancel();
+      return;
+    }
+    // بدون خادم (انقطاع الشبكة أو قبل تحديث قاعدة البيانات): وقت محلي
+    const now = Date.now();
+    const t =
+      r.kind === 'ok'
+        ? { endsAt: r.endsAt, offset: r.offset, startedAt: r.startedAt }
+        : { endsAt: now + (quiz.duration_minutes || 20) * 60_000, offset: 0, startedAt: now };
+    setTiming(t);
+    setSecondsRemaining(secondsLeft({ ends_at: t.endsAt, offset: t.offset }));
+    setHasStarted(true);
+  };
 
   // التسليم التلقائي عند انتهاء الوقت (يستخدم أحدث الإجابات عبر المرجع)
   const finalSubmitRef = useRef<() => void>(() => undefined);
@@ -130,6 +195,8 @@ export const QuizTaker: React.FC<QuizTakerProps> = ({ quizId, onFinish, onCancel
 
     try {
       const submission = await submitQuizAttempt(quiz.id, answersArray, timeSpent);
+      // سُلّم أو حُفظ للإرسال لاحقاً: لم يعد اختباراً جارياً
+      if (studentId) clearAttempt(studentId, quiz.id);
       // null: حُفظت المحاولة للإرسال لاحقاً أو رفضها الخادم (رسالة السبب ظاهرة)
       if (submission) onFinish(submission.id);
       else onCancel();
@@ -254,10 +321,16 @@ export const QuizTaker: React.FC<QuizTakerProps> = ({ quizId, onFinish, onCancel
               <AlertTriangle className="w-4 h-4 text-amber-600" />
               <span>إرشادات وتعليمات الاختبار في منصة إتقان:</span>
             </div>
-            <p>• يبدأ المؤقت التنازلي فور الضغط على زر بدء الاختبار أدناه.</p>
+            <p>• يبدأ المؤقت التنازلي فور الضغط على زر بدء الاختبار أدناه، ولا يتوقف عند تحديث الصفحة أو الخروج منها.</p>
             <p>• يمكنك التنقل بحرية بين الأسئلة وتعديل إجاباتك قبل التسليم النهائي.</p>
             <p>• يتم تصحيح الاختبار وتوليد تقرير تفصيلي لدرجتك فور التسليم مباشرة.</p>
           </div>
+
+          {isPreview && (
+            <p className="text-xs font-bold text-amber-800 dark:text-amber-300 bg-amber-100 dark:bg-amber-950/50 rounded-2xl p-3 mb-6">
+              👁️ وضع المعاينة: يمكنك تصفح الأسئلة، لكن لا يُسجَّل تسليم باسم الطالب.
+            </p>
+          )}
 
           <div className="flex items-center justify-center gap-4">
             <button
@@ -267,13 +340,11 @@ export const QuizTaker: React.FC<QuizTakerProps> = ({ quizId, onFinish, onCancel
               إلغاء وخروج
             </button>
             <button
-              onClick={() => {
-                setHasStarted(true);
-                setStartTime(Date.now());
-              }}
-              className="px-10 py-3 rounded-2xl text-xs font-bold bg-indigo-600 hover:bg-indigo-700 text-white shadow-lg shadow-indigo-600/30 transition-all hover:scale-105"
+              onClick={() => void handleStart()}
+              disabled={starting}
+              className="px-10 py-3 rounded-2xl text-xs font-bold bg-indigo-600 hover:bg-indigo-700 text-white shadow-lg shadow-indigo-600/30 transition-all hover:scale-105 disabled:opacity-60"
             >
-              ابدأ الاختبار الآن 🚀
+              {starting ? 'جارٍ التجهيز...' : 'ابدأ الاختبار الآن 🚀'}
             </button>
           </div>
         </div>

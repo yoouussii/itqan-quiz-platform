@@ -2,7 +2,8 @@ import React, { useRef, useState } from 'react';
 import { X, Upload, Trash2, KeyRound } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 import { Avatar } from './Avatar';
-import { AVATAR_PRESETS } from '../../utils/avatarPresets';
+import { CHARACTER_PRESETS, CharacterSvg } from './CharacterAvatar';
+import { describeUser } from '../../utils/userDescription';
 import { fileToAvatarDataUrl } from '../../services/avatarService';
 import { DEFAULT_PASSWORD } from '../../services/storage';
 
@@ -10,7 +11,7 @@ const ROLE_TEXT: Record<string, string> = { admin: 'مدير النظام', teac
 const inputCls = 'w-full px-3 py-2 text-xs rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500';
 
 export const ProfileModal: React.FC<{ onClose: () => void }> = ({ onClose }) => {
-  const { currentUser, avatars, setMyAvatar, changeMyPassword, showToast, passwordIsDefault } = useApp();
+  const { currentUser, avatars, setMyAvatar, changeMyPassword, showToast, passwordIsDefault, subjects, classes } = useApp();
   const fileRef = useRef<HTMLInputElement>(null);
   const [busy, setBusy] = useState(false);
   const [cur, setCur] = useState('');
@@ -74,28 +75,36 @@ export const ProfileModal: React.FC<{ onClose: () => void }> = ({ onClose }) => 
           <Avatar name={currentUser.name} role={currentUser.role} userId={currentUser.id} size="xl" showBadge />
           <div>
             <div className="font-bold text-slate-900 dark:text-white">{currentUser.name}</div>
-            <div className="text-xs text-slate-500 dark:text-slate-400">
-              {currentUser.job_title?.trim() || ROLE_TEXT[currentUser.role] || ''}
-            </div>
+            {(() => {
+              const d = describeUser(currentUser, subjects, classes);
+              return (
+                <>
+                  <div className="text-xs font-bold text-indigo-700 dark:text-indigo-300 mt-0.5">{d.title || ROLE_TEXT[currentUser.role]}</div>
+                  {d.details.map((line) => (
+                    <div key={line} className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">{line}</div>
+                  ))}
+                </>
+              );
+            })()}
           </div>
         </div>
 
         <div>
-          <p className="text-xs font-bold text-slate-700 dark:text-slate-300 mb-2">اختر صورة رمزية جاهزة:</p>
+          <p className="text-xs font-bold text-slate-700 dark:text-slate-300 mb-2">اختر شخصيتك:</p>
           <div className="grid grid-cols-6 gap-2">
-            {AVATAR_PRESETS.map((p) => (
+            {CHARACTER_PRESETS.map((p) => (
               <button
                 key={p.key}
                 type="button"
                 disabled={busy}
                 aria-label={`avatar-${p.key}`}
+                title={p.label}
                 onClick={() => apply(`preset:${p.key}`)}
-                style={{ background: `linear-gradient(135deg, ${p.from}, ${p.to})` }}
-                className={`w-11 h-11 rounded-2xl flex items-center justify-center text-xl shadow-sm transition-transform hover:scale-110 ${
+                className={`w-12 h-12 rounded-2xl shadow-sm transition-transform hover:scale-110 ${
                   current === `preset:${p.key}` ? 'ring-2 ring-offset-2 ring-indigo-500 dark:ring-offset-slate-900' : ''
                 }`}
               >
-                {p.emoji}
+                <CharacterSvg preset={p} className="w-full h-full rounded-2xl" />
               </button>
             ))}
           </div>

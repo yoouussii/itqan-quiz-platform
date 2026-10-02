@@ -31,12 +31,14 @@ import { hasPerm, normalizePerms, PERM_KEYS } from '../utils/permissions';
 import {
   AppNotification, NotifAudience, loadNotifCache, loadReads, isForUser, makeNotification,
   pushNotification, pullNotifications, pullReads, markRead,
+  loadHidden, hideNotifications, hideNotificationsForUser, deleteNotificationsEverywhere,
 } from '../services/notificationService';
 import { logActivity } from '../services/activityService';
 import { loadAwardsCache, makeAward, pushAward, pullAwards } from '../services/awardsService';
 import { AppSettings, loadSettings, syncSettings, saveSettings } from '../services/settingsService';
 import { StudentAward } from '../utils/points';
 import { describeQuizTarget } from '../utils/quizTarget';
+import { loadAttempt } from '../utils/activeAttempt';
 import { formatQuizDateTime } from '../utils/quizWindow';
 import {
   supabase,
@@ -112,6 +114,14 @@ interface AppContextType {
   unreadCount: number;
   markNotificationsRead: (ids: string[] | 'all') => Promise<void>;
   sendAnnouncement: (p: { title: string; body: string; audience: NotifAudience }) => Promise<{ ok: boolean; error?: string }>;
+  /** حذف إشعارات من عند المستخدم الحالي فقط */
+  deleteMyNotifications: (ids: string[] | 'all') => Promise<void>;
+  /** كل إشعارات النظام (للمدير: صفحة إدارة الإشعارات) */
+  allNotifications: AppNotification[];
+  /** حذف نهائي من الجميع (المدير، أو مُرسل الإشعار لما أرسله) */
+  deleteNotificationsForAll: (ids: string[]) => Promise<void>;
+  /** المدير: مسح كل إشعارات مستخدم معيّن */
+  clearUserNotifications: (userId: string) => Promise<void>;
   awards: StudentAward[];
   giveAward: (p: { student: User; title: string; note?: string; points: number }) => Promise<{ ok: boolean; error?: string }>;
   settings: AppSettings;
@@ -119,6 +129,10 @@ interface AppContextType {
   changeMyPassword: (current: string, next: string) => Promise<{ ok: boolean; error?: string }>;
   /** المستخدم الحالي ما زال يستخدم كلمة المرور الافتراضية (يُطلب منه تغييرها) */
   passwordIsDefault: boolean;
+  /** المدير يعاين حساباً آخر («تبديل الحساب»): العرض فقط، والخادم يتعامل معه كمدير */
+  isPreview: boolean;
+  /** العودة من المعاينة إلى حساب صاحب الجلسة */
+  exitPreview: () => void;
   approveQuiz: (id: string) => Promise<void>;
   rejectQuiz: (id: string, reason: string) => Promise<void>;
   pendingApprovalsCount: number;
@@ -167,6 +181,9 @@ interface AppContextType {
     answers: QuizAttemptAnswer[],
     timeSpentSeconds: number
   ) => Promise<Submission | null>;
+
+  /** تصحيح سؤال مقالي يدوياً (subQuestionId للسؤال الفرعي داخل القطعة) */
+  gradeEssay: (submissionId: string, questionId: string, subQuestionId: string | null, marks: number) => Promise<boolean>;
 
   addUser: (userData: any) => Promise<User>;
   updateUserData: (id: string, updates: Partial<User>) => Promise<void>;
@@ -301,8 +318,9 @@ const VIEW_KEY = 'itqan_view_state_v1';
 
 function allowedViews(u: User | null): string[] {
   if (!u) return [];
-  const base = ['dashboard', 'quizzes', 'analytics', 'quiz_review'];
-  if (u.role === 'student') return [...base, 'my_points']; // لا نعيد الطالب لصفحة الاختبار (take_quiz) بعد التحديث حتى لا يُعاد المؤقت
+  const base = ['dashboard', 'quizzes', 'analytics', 'quiz_review', 'notifications'];
+  // صفحة الاختبار تُستعاد بعد التحديث فقط إذا كانت هناك محاولة جارية محفوظة (المؤقت محفوظ معها)
+  if (u.role === 'student') return [...base, 'my_points', 'take_quiz'];
   const out = [...base];
   if (u.role === 'admin') {
     out.push('users', 'users_management', 'students_management', 'subjects_classes', 'reports', 'create_quiz', 'quiz_results', 'quiz_preview', 'settings');
@@ -329,6 +347,7 @@ function restoreViewState(u: User | null) {
     if (st.userId !== u.id || !allowedViews(u).includes(st.view)) return fallback;
     if ((st.view === 'quiz_results' || st.view === 'quiz_preview') && !st.activeQuizId) return fallback;
     if (st.view === 'quiz_review' && !st.activeSubmissionId) return fallback;
+    if (st.view === 'take_quiz' && !(st.activeQuizId && loadAttempt(u.id, st.activeQuizId))) return fallback;
     return {
       view: st.view as string,
       activeQuizId: (st.activeQuizId || null) as string | null,
@@ -552,6 +571,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   // الإشعارات والجوائز والإعدادات
   const [notifCache, setNotifCache] = useState<AppNotification[]>(() => loadNotifCache());
   const [reads, setReads] = useState<Set<string>>(() => (currentUser ? loadReads(currentUser.id) : new Set<string>()));
+  const [hidden, setHidden] = useState<Set<string>>(() => (currentUser ? loadHidden(currentUser.id) : new Set<string>()));
   const [awards, setAwards] = useState<StudentAward[]>(() => loadAwardsCache());
   const [settings, setSettings] = useState<AppSettings>(() => loadSettings());
   const seenNotifRef = useRef<Set<string> | null>(null);
@@ -559,9 +579,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const notifications = useMemo(
     () =>
       currentUser
-        ? notifCache.filter((n) => isForUser(n, currentUser)).map((n) => ({ ...n, read: reads.has(n.id) }))
+        ? notifCache
+            .filter((n) => isForUser(n, currentUser) && !hidden.has(n.id))
+            .map((n) => ({ ...n, read: reads.has(n.id) }))
         : [],
-    [notifCache, reads, currentUser]
+    [notifCache, reads, hidden, currentUser]
   );
   const unreadCount = notifications.filter((n) => !n.read).length;
   const pendingApprovalsCount = useMemo(
@@ -627,7 +649,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             logoutRef.current('انتهت الجلسة، يرجى تسجيل الدخول من جديد');
             return;
           }
-          if (!error && data) serverRole = data.role;
+          if (!error && data) {
+            serverRole = data.role;
+            if (getSessionInfo()?.user_id !== data.id) updateSessionInfo({ user_id: data.id });
+          }
         } catch {
           /* انقطاع الشبكة: نكمل بالنسخة المحلية */
         }
@@ -682,6 +707,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       if (me) {
         const rd = loadReads(me.id);
         setReads(rd);
+        setHidden(loadHidden(me.id));
         // تنبيه منبثق عند وصول إشعار جديد (لا نُنبّه بالقديم عند أول تحميل)
         const relevant = loadNotifCache().filter((n) => isForUser(n, me));
         if (seenNotifRef.current === null) {
@@ -799,7 +825,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         const { data, error } = await supabase.rpc('itqan_login', { p_national_id: id, p_password: password });
         if (!error && data) {
           if (data.ok) {
-            setServerSession(data.token, { expires_at: data.expires_at, password_is_default: !!data.password_is_default });
+            setServerSession(data.token, { expires_at: data.expires_at, password_is_default: !!data.password_is_default, user_id: data.user?.id });
             setPasswordIsDefault(!!data.password_is_default);
             const user = normalizeUser(data.user);
             cacheUser(user);
@@ -865,6 +891,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setActiveQuizId(null);
     setActiveSubmissionId(null);
     showToast(`تم التبديل إلى: ${u?.name}`, 'info');
+  };
+
+  const sessionOwnerId = getSessionToken() ? getSessionInfo()?.user_id : undefined;
+  const isPreview = !!currentUser && !!sessionOwnerId && currentUser.id !== sessionOwnerId;
+  const exitPreview = () => {
+    if (sessionOwnerId) switchUser(sessionOwnerId);
   };
 
   // ---------------- الاختبارات ----------------
@@ -957,7 +989,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       void syncQuiz(quizId);
       const qz = StorageService.getQuizById(quizId);
       const st = StorageService.getUserById(studentId);
-      void notify({ type: 'retake_granted', title: 'تم السماح لك بإعادة اختبار', body: qz?.title || '', audience: { user_ids: [studentId] }, ref_type: 'quiz', ref_id: quizId });
+      void notify({ type: 'retake_granted', title: 'تم السماح لك بإعادة اختبار', body: `الاختبار: ${qz?.title || ''}`, audience: { user_ids: [studentId] }, ref_type: 'quiz', ref_id: quizId });
       log('retake_granted', { type: 'quiz', id: quizId, name: qz?.title }, st?.name);
     }
     showToast(res.message, res.success ? 'success' : 'error');
@@ -997,6 +1029,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   ) => {
     const me = currentUserRef.current;
     if (!me) throw new Error('لا يوجد مستخدم مسجل');
+
+    // معاينة المدير لحساب طالب: لا يُسجَّل تسليم باسم الطالب
+    const ownerId = getSessionInfo()?.user_id;
+    if (getSessionToken() && ownerId && ownerId !== me.id) {
+      showToast('أنت في وضع معاينة حساب الطالب: يمكنك تصفح الاختبار فقط، ولا يُسجَّل التسليم. للتجربة الكاملة سجّل الدخول بحساب الطالب نفسه.', 'info');
+      return null;
+    }
 
     // الوضع الآمن: الخادم يصحّح (لا يمكن للطالب إرسال درجة جاهزة)
     if (getSessionToken()) {
@@ -1125,6 +1164,53 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     showToast(`تم تسليم الاختبار! حصلت على ${percentage}%`, percentage >= 60 ? 'success' : 'info');
     return submission;
+  };
+
+  const gradeEssay: AppContextType['gradeEssay'] = async (submissionId, questionId, subQuestionId, marks) => {
+    const me = currentUserRef.current;
+    if (!me || me.role === 'student') return false;
+    const sub = StorageService.getSubmissionById(submissionId);
+    if (!sub) return false;
+    const q = StorageService.getQuestionsByQuizId(sub.quiz_id).find((x) => x.id === questionId);
+    if (!q) return false;
+    const sq = subQuestionId ? (q.sub_questions || []).find((x) => x.id === subQuestionId) : undefined;
+    const max = Number((sq || q).marks) || 0;
+    const value = Math.max(0, Math.min(max, Math.round((Number(marks) || 0) * 2) / 2));
+
+    const answers = [...(sub.answers_json || [])];
+    let idx = answers.findIndex((a) => a.question_id === questionId);
+    if (idx < 0) {
+      answers.push({ question_id: questionId, selected_option: null, is_correct: false, marks_awarded: 0 });
+      idx = answers.length - 1;
+    }
+    const item = { ...answers[idx] };
+    if (subQuestionId) {
+      const subs = [...(item.sub_answers || [])];
+      let si = subs.findIndex((x) => x.sub_question_id === subQuestionId);
+      if (si < 0) {
+        subs.push({ sub_question_id: subQuestionId, selected_option: null });
+        si = subs.length - 1;
+      }
+      subs[si] = { ...subs[si], marks_awarded: value, is_correct: value === max && max > 0, graded: true };
+      item.sub_answers = subs;
+      item.marks_awarded = subs.reduce((t, x) => t + (Number(x.marks_awarded) || 0), 0);
+      const possible = (q.sub_questions || []).reduce((t, x) => t + (Number(x.marks) || 0), 0);
+      item.is_correct = possible > 0 && item.marks_awarded === possible;
+    } else {
+      item.marks_awarded = value;
+      item.is_correct = value === max && max > 0;
+      item.graded = true;
+    }
+    answers[idx] = item;
+
+    const score = answers.reduce((t, a) => t + (Number(a.marks_awarded) || 0), 0);
+    const total = Number(sub.total_possible_score) || 0;
+    const updated = { ...sub, answers_json: answers, score, percentage: total > 0 ? Math.round((score / total) * 100) : 0 };
+    StorageService.saveSubmissionFromRemote(updated);
+    recompute();
+    const res = await pushSubmission(submissionId);
+    showToast(res.ok ? 'تم حفظ درجة السؤال المقالي' : `حُفظت الدرجة على جهازك فقط (${res.error})`, res.ok ? 'success' : 'error');
+    return res.ok;
   };
 
   // ---------------- المستخدمون ----------------
@@ -1524,7 +1610,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     await notify({
       type: 'quiz_published',
       title: `اختبار جديد: ${quiz.title}`,
-      body: `المادة: ${subject} • الفئة: ${target} • من ${formatQuizDateTime(quiz.start_date, 'start')} إلى ${formatQuizDateTime(quiz.end_date, 'end')}`,
+      // سطر لكل معلومة (تُعرض كجدول مرتب في الإشعارات)
+      body: [
+        `المادة: ${subject}`,
+        `الفئة: ${target}`,
+        `يبدأ: ${formatQuizDateTime(quiz.start_date, 'start')}`,
+        `ينتهي: ${formatQuizDateTime(quiz.end_date, 'end')}`,
+        `المدة: ${quiz.duration_minutes} دقيقة`,
+      ].join('\n'),
       audience, ref_type: 'quiz', ref_id: quizId,
     });
   };
@@ -1536,7 +1629,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     await notify({
       type: 'quiz_pending',
       title: `اختبار بانتظار الاعتماد: ${quiz.title}`,
-      body: `أرسله ${StorageService.getUserById(quiz.teacher_id)?.name || 'معلم'} • المادة: ${StorageService.getSubjectById(quiz.subject_id)?.name || '—'}`,
+      body: [
+        `المعلم: ${StorageService.getUserById(quiz.teacher_id)?.name || 'معلم'}`,
+        `المادة: ${StorageService.getSubjectById(quiz.subject_id)?.name || '—'}`,
+      ].join('\n'),
       audience: { roles: ['admin'], user_ids: approvers }, ref_type: 'quiz', ref_id: quizId,
     });
   };
@@ -1575,6 +1671,45 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     if (!list.length) return;
     setReads((prev) => new Set([...Array.from(prev), ...list]));
     await markRead(me.id, list);
+  };
+
+  const deleteMyNotifications: AppContextType['deleteMyNotifications'] = async (ids) => {
+    const me = currentUserRef.current;
+    if (!me) return;
+    const list = ids === 'all' ? notifications.map((n) => n.id) : ids;
+    if (!list.length) return;
+    setHidden((prev) => new Set([...Array.from(prev), ...list]));
+    setReads((prev) => new Set([...Array.from(prev), ...list]));
+    const res = await hideNotifications(me.id, list);
+    showToast(
+      res.ok ? (list.length > 1 ? `تم حذف ${list.length} إشعارات` : 'تم حذف الإشعار') : res.error || 'حُذف من هذا الجهاز فقط',
+      res.ok ? 'success' : 'info'
+    );
+  };
+
+  const deleteNotificationsForAll: AppContextType['deleteNotificationsForAll'] = async (ids) => {
+    const me = currentUserRef.current;
+    if (!me || !ids.length) return;
+    const allowed = ids.filter((id) => me.role === 'admin' || notifCache.find((n) => n.id === id)?.created_by === me.id);
+    if (!allowed.length) return void showToast('الحذف النهائي متاح للمدير أو لمُرسل الإشعار فقط', 'error');
+    const res = await deleteNotificationsEverywhere(allowed);
+    setNotifCache(loadNotifCache());
+    if (res.error && !res.deleted) showToast(`تعذر الحذف (${res.error})`, 'error');
+    else if (res.deleted < allowed.length) showToast(`حُذف ${res.deleted} من ${allowed.length} (الباقي لا تملك صلاحية حذفه)`, 'info');
+    else showToast(res.deleted > 1 ? `تم حذف ${res.deleted} إشعارات من الجميع` : 'تم حذف الإشعار من الجميع', 'success');
+    log('notifications_deleted', { type: 'notification', name: `${res.deleted} إشعار` });
+  };
+
+  const clearUserNotifications: AppContextType['clearUserNotifications'] = async (userId) => {
+    const me = currentUserRef.current;
+    if (me?.role !== 'admin') return void showToast('هذا الإجراء للمدير فقط', 'error');
+    const target = StorageService.getUserById(userId);
+    if (!target) return;
+    const ids = notifCache.filter((n) => isForUser(n, normalizeUser(target))).map((n) => n.id);
+    if (!ids.length) return void showToast(`لا توجد إشعارات لـ ${target.name}`, 'info');
+    const res = await hideNotificationsForUser(userId, ids);
+    showToast(res.ok ? `تم مسح ${ids.length} إشعارات من عند ${target.name}` : `تعذر المسح (${res.error})`, res.ok ? 'success' : 'error');
+    if (res.ok) log('notifications_cleared', { type: 'user', id: userId, name: target.name }, `${ids.length} إشعار`);
   };
 
   const sendAnnouncement: AppContextType['sendAnnouncement'] = async ({ title, body, audience }) => {
@@ -1695,12 +1830,18 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         unreadCount,
         markNotificationsRead,
         sendAnnouncement,
+        deleteMyNotifications,
+        allNotifications: notifCache,
+        deleteNotificationsForAll,
+        clearUserNotifications,
         awards,
         giveAward,
         settings,
         updateSettings,
         changeMyPassword,
         passwordIsDefault,
+        isPreview,
+        exitPreview,
         approveQuiz,
         rejectQuiz,
         pendingApprovalsCount,
@@ -1730,6 +1871,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         revokeStudentRetake,
         reassignQuizToTeacher,
         submitQuizAttempt,
+        gradeEssay,
         addUser,
         updateUserData,
         resetUserPassword,
