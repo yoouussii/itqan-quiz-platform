@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { ArrowRightLeft, Eye, Edit3, BarChart2, Trash2, Copy as CopyIcon, PlusCircle, Search } from 'lucide-react';
+import { ArrowRightLeft, Eye, Edit3, BarChart2, Trash2, Copy as CopyIcon, PlusCircle, Search, Undo2 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 import { ReassignQuizModal } from '../common/ReassignQuizModal';
 import { QuizWithDetails } from '../../types';
@@ -22,7 +22,7 @@ const statusOf = (q: QuizWithDetails): { label: string; tone: Tone } => {
 /** بنك الاختبارات المدرسي (للمدير): معاينة، تعديل، نتائج، نسخ، نقل لمعلم آخر، حذف */
 export const AdminQuizBank: React.FC = () => {
   const {
-    quizzes = [], users = [], classes = [], deleteQuizItem, setActiveQuizId, setEditingQuizId, setDuplicateQuizId, setCurrentView,
+    quizzes = [], users = [], classes = [], deleteQuizItem, updateQuizInfo, setActiveQuizId, setEditingQuizId, setDuplicateQuizId, setCurrentView,
   } = useApp();
   const [reassign, setReassign] = useState<QuizWithDetails | null>(null);
   const [term, setTerm] = useState('');
@@ -40,6 +40,12 @@ export const AdminQuizBank: React.FC = () => {
   };
   const handleDelete = async (q: QuizWithDetails) => {
     if (window.confirm(`حذف اختبار «${q.title}»؟ سيمسح ذلك جميع نتائج الطلاب المتعلقة به.`)) await deleteQuizItem?.(q.id);
+  };
+  /** إيقاف اختبار منشور وإعادته لقائمة الاعتماد (لا يراه الطلاب حتى يُعتمد) */
+  const pullBack = async (q: QuizWithDetails) => {
+    if (window.confirm(`سحب «${q.title}» للمراجعة؟ سيختفي من قوائم الطلاب حتى تعتمده من «بانتظار الاعتماد».`)) {
+      await updateQuizInfo(q.id, { status: 'pending_approval' });
+    }
   };
   const iconBtn = 'w-9 h-9 flex items-center justify-center rounded-lg text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800';
 
@@ -104,6 +110,9 @@ export const AdminQuizBank: React.FC = () => {
                         <button type="button" onClick={() => { setEditingQuizId?.(quiz.id); setCurrentView?.('create_quiz'); }} className={iconBtn} title="تعديل" aria-label="تعديل"><Edit3 className="w-[18px] h-[18px]" /></button>
                         <button type="button" onClick={() => open(quiz.id, 'quiz_results')} className={iconBtn} title="النتائج" aria-label="النتائج"><BarChart2 className="w-[18px] h-[18px]" /></button>
                         <button type="button" onClick={() => { setEditingQuizId?.(null); setDuplicateQuizId?.(quiz.id); setCurrentView?.('create_quiz'); }} className={iconBtn} title="نسخ مع التعديل" aria-label="نسخ"><CopyIcon className="w-[18px] h-[18px]" /></button>
+                        {quiz.status === 'published' && (
+                          <button type="button" onClick={() => pullBack(quiz)} className={iconBtn} title="سحب للمراجعة (إيقاف النشر)" aria-label="سحب للمراجعة"><Undo2 className="w-[18px] h-[18px]" /></button>
+                        )}
                         <button type="button" onClick={() => setReassign(quiz)} className={iconBtn} title="نقل لمعلم آخر" aria-label="نقل لمعلم آخر"><ArrowRightLeft className="w-[18px] h-[18px]" /></button>
                         <button type="button" onClick={() => handleDelete(quiz)} className="w-9 h-9 flex items-center justify-center rounded-lg text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/50" title="حذف" aria-label="حذف"><Trash2 className="w-[18px] h-[18px]" /></button>
                       </div>
