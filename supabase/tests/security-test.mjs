@@ -1,7 +1,7 @@
 // اختبارات الحماية (55 اختباراً) على نسخة محلية من قاعدة البيانات.
 // التشغيل (يتطلب Docker):
 //   1. docker run -d --name sbdb -e POSTGRES_PASSWORD=postgres -p 54322:5432 supabase/postgres:15.8.1.085
-//   2. شغّل baseline.sql ثم 001 و002 ثم بيانات الاختبار (أعلى الملف seed أدناه) ثم 003_security.sql
+//   2. شغّل baseline.sql ثم 001 و002 ثم seed.sql ثم أجزاء 003_security بالترتيب 1 ← 5
 //   3. شغّل PostgREST على المنفذ 3001 بمفتاح JWT محلي، ثم:
 //      node supabase/tests/security-test.mjs <ملف-مفتاح-anon>
 import { readFileSync } from 'node:fs';

@@ -74,7 +74,7 @@ const fetchWithSession: typeof fetch = (input, init) => {
   return fetch(input, { ...init, headers });
 };
 
-/** هل الخطأ يعني أن دوال الحماية لم تُنشأ بعد في قاعدة البيانات (لم يُشغَّل 003_security.sql)؟ */
+/** هل الخطأ يعني أن دوال الحماية لم تُنشأ بعد في قاعدة البيانات (لم يُشغَّل ملفات 003_security)؟ */
 export const isMissingRpc = (error: { code?: string; message?: string } | null | undefined): boolean =>
   !!error &&
   (error.code === 'PGRST202' ||

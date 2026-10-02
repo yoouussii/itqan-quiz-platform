@@ -818,7 +818,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           showToast(`تعذر الاتصال بالخادم (${error.message})`, 'error');
           return false;
         }
-        // دوال الحماية غير موجودة بعد (لم يُشغَّل 003_security.sql): نكمل بالطريقة القديمة
+        // دوال الحماية غير موجودة بعد (لم يُشغَّل ملفات 003_security): نكمل بالطريقة القديمة
       } catch (e: any) {
         showToast('تعذر الاتصال بالخادم، تحقق من الإنترنت', 'error');
         return false;
