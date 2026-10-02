@@ -12,6 +12,7 @@ import {
   Lock,
   Ban,
   RotateCcw,
+  Trash2,
 } from 'lucide-react';
 import { SubmissionWithDetails } from '../../types';
 import { useApp } from '../../context/AppContext';
@@ -41,7 +42,10 @@ export const SubmissionsTable: React.FC<SubmissionsTableProps> = ({
     quizzes,
     allowStudentRetake,
     revokeStudentRetake,
+    deleteSubmissions,
   } = useApp();
+  const [picked, setPicked] = useState<string[]>([]);
+  const [deleting, setDeleting] = useState(false);
 
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedSubjectId, setSelectedSubjectId] = useState<string>('all');
@@ -58,6 +62,16 @@ export const SubmissionsTable: React.FC<SubmissionsTableProps> = ({
   // التصدير ومنح إعادة المحاولة بحسب الصلاحيات (المدير: تلقائي، المعلم: كما كان، المشرف: بصلاحية صريحة)
   const canExport = !isStudent && hasPerm(currentUser, 'can_export_reports');
   const canManageRetakes = !isStudent && hasPerm(currentUser, 'can_manage_retakes');
+  const canDelete = !isStudent && hasPerm(currentUser, 'can_delete_submissions');
+
+  const removeSubs = async (ids: string[], what: string) => {
+    if (!ids.length) return;
+    if (!window.confirm(`حذف ${what} نهائياً؟\nسيتمكن الطالب من دخول الاختبار مرة أخرى إن كان ما زال متاحاً. لا يمكن التراجع.`)) return;
+    setDeleting(true);
+    await deleteSubmissions(ids);
+    setDeleting(false);
+    setPicked((prev) => prev.filter((id) => !ids.includes(id)));
+  };
 
   // المعلم (بدون صلاحية التقارير العامة) يرى في الفلتر المواد المسندة إليه فقط
   const visibleSubjects = useMemo(() => {
@@ -315,10 +329,35 @@ export const SubmissionsTable: React.FC<SubmissionsTableProps> = ({
       </div>
 
       {/* Table Content */}
+      {canDelete && filteredSubmissions.length > 0 && (() => {
+        const deletedQuizSubs = safeSubmissions.filter((x) => x.quiz?.is_deleted || !x.quiz).map((x) => x.id);
+        return (
+          <div className="px-5 py-3 border-b border-slate-100 dark:border-slate-800 flex flex-wrap items-center gap-2 bg-rose-50/40 dark:bg-rose-950/10">
+            <label className="inline-flex items-center gap-2 text-xs font-bold text-slate-600 dark:text-slate-300 cursor-pointer">
+              <input type="checkbox" className="accent-rose-600"
+                checked={picked.length > 0 && filteredSubmissions.every((x) => picked.includes(x.id))}
+                onChange={(e) => setPicked(e.target.checked ? filteredSubmissions.map((x) => x.id) : [])} />
+              تحديد كل النتائج المعروضة ({filteredSubmissions.length})
+            </label>
+            <button type="button" disabled={deleting || !picked.length} onClick={() => void removeSubs(picked, `${picked.length} مشاركة محددة`)}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[11px] font-bold text-rose-700 dark:text-rose-300 bg-rose-100 dark:bg-rose-950/50 hover:bg-rose-200 disabled:opacity-40">
+              <Trash2 className="w-3.5 h-3.5" /> حذف المحدد ({picked.length})
+            </button>
+            {deletedQuizSubs.length > 0 && (
+              <button type="button" disabled={deleting} onClick={() => void removeSubs(deletedQuizSubs, `${deletedQuizSubs.length} مشاركة في اختبارات محذوفة`)}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[11px] font-bold text-rose-700 dark:text-rose-300 bg-rose-100 dark:bg-rose-950/50 hover:bg-rose-200 disabled:opacity-40">
+                <Trash2 className="w-3.5 h-3.5" /> حذف مشاركات الاختبارات المحذوفة ({deletedQuizSubs.length})
+              </button>
+            )}
+          </div>
+        );
+      })()}
+
       <div className="overflow-x-auto">
         <table className="w-full text-right text-xs">
           <thead>
             <tr className="bg-slate-50/80 dark:bg-slate-800/60 text-slate-500 dark:text-slate-400 font-bold border-b border-slate-100 dark:border-slate-800">
+              {canDelete && <th className="py-3 pr-4 w-8"><span className="sr-only">تحديد</span></th>}
               {!isStudent && <th className="py-3 px-4">اسم الطالب ورقم الهوية</th>}
               {!isStudent && <th className="py-3 px-4">الصف الدراسي</th>}
               <th className="py-3 px-4">الاختبار والمادة</th>
@@ -332,7 +371,7 @@ export const SubmissionsTable: React.FC<SubmissionsTableProps> = ({
           <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
             {paginatedSubmissions.length === 0 ? (
               <tr>
-                <td colSpan={isStudent ? 6 : 8} className="py-12 text-center text-slate-400">
+                <td colSpan={(isStudent ? 6 : 8) + (canDelete ? 1 : 0)} className="py-12 text-center text-slate-400">
                   <GraduationCap className="w-10 h-10 mx-auto mb-2 text-slate-300 dark:text-slate-600" />
                   <p className="font-semibold text-sm text-slate-600 dark:text-slate-300">
                     لا توجد نتائج مطابقة لمعايير البحث الحالية
@@ -345,6 +384,13 @@ export const SubmissionsTable: React.FC<SubmissionsTableProps> = ({
                   key={sub.id}
                   className="hover:bg-indigo-50/20 dark:hover:bg-slate-800/40 transition-colors group"
                 >
+                  {canDelete && (
+                    <td className="py-3 pr-4">
+                      <input type="checkbox" className="accent-rose-600" aria-label={`تحديد مشاركة ${sub.student?.name || ''}`}
+                        checked={picked.includes(sub.id)}
+                        onChange={() => setPicked(picked.includes(sub.id) ? picked.filter((x) => x !== sub.id) : [...picked, sub.id])} />
+                    </td>
+                  )}
                   {/* Student Name & ID (Hidden for student view for clean UI) */}
                   {!isStudent && (
                     <td className="py-3 px-4">
@@ -433,6 +479,19 @@ export const SubmissionsTable: React.FC<SubmissionsTableProps> = ({
                         <Eye className="w-3.5 h-3.5" />
                         <span>عرض الإجابة</span>
                       </button>
+
+                      {canDelete && (
+                        <button
+                          onClick={() => void removeSubs([sub.id], `مشاركة ${sub.student?.name || 'الطالب'} في «${sub.quiz?.title || 'الاختبار'}»`)}
+                          disabled={deleting}
+                          className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-xl text-[11px] font-bold bg-rose-50 dark:bg-rose-950/40 text-rose-700 dark:text-rose-300 hover:bg-rose-100 dark:hover:bg-rose-900/50 disabled:opacity-40"
+                          title="حذف المشاركة"
+                          aria-label="حذف المشاركة"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                          <span>حذف</span>
+                        </button>
+                      )}
 
                       {canManageRetakes && !sub.quiz?.is_deleted && (
                         <>

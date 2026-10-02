@@ -449,20 +449,58 @@ export async function pullSubmissions(currentUser: User | null): Promise<void> {
     StorageService.saveSubmissionFromRemote(rowToSubmission(row));
   }
 
+  // مشاركات كانت على الخادم ثم اختفت = حذفها المدير: تُحذف من الجهاز ولا تُعاد
+  const seenKey = `itqan_seen_remote_submission_ids_${currentUser.id}`;
+  let seen = new Set<string>();
+  try {
+    seen = new Set<string>(JSON.parse(localStorage.getItem(seenKey) || '[]'));
+  } catch {
+    /* ignore */
+  }
+  const complete = currentUser.role === 'student' || data.length < 5000;
+  if (complete) {
+    for (const s of StorageService.getSubmissions()) {
+      if (remoteIds.has(s.id) || pending.has(s.id)) continue;
+      // الطاقم: الخادم هو المرجع. الطالب: نحذف فقط ما سبق أن رأيناه على الخادم
+      if (currentUser.role !== 'student' || seen.has(s.id)) StorageService.removeSubmissionLocal(s.id);
+    }
+    localStorage.setItem(seenKey, JSON.stringify(Array.from(remoteIds)));
+  }
+
   // تسليمات محلية لهذا الطالب لم تصل للخادم: نرفعها
   if (currentUser.role === 'student') {
     const secure = !!getSessionToken();
     for (const s of StorageService.getSubmissionsByStudentId(currentUser.id)) {
       if (remoteIds.has(s.id) || pending.has(s.id)) continue;
       if (secure) {
-        // الوضع الآمن: يُعاد تصحيحها على الخادم من إجاباتها (نفس المعرّف فلا تتكرر)
-        queueAttempt({ client_id: s.id, student_id: s.student_id, quiz_id: s.quiz_id, answers: s.answers_json || [], time_spent: s.time_spent_seconds || 0 });
+        // الوضع الآمن: ما لم يُرسل يكون في قائمة الانتظار؛ غير ذلك حُذف على الخادم (حذفه المدير)
         StorageService.removeSubmissionLocal(s.id);
       } else {
         void pushSubmission(s.id);
       }
     }
   }
+}
+
+/** حذف مشاركات نهائياً (المدير أو صاحب الصلاحية). يُرجع المعرّفات التي حُذفت فعلاً */
+export async function deleteSubmissionsRemote(ids: string[]): Promise<{ deleted: string[]; error?: string }> {
+  const deleted: string[] = [];
+  let error: string | undefined;
+  if (!isSupabaseConfigured()) {
+    ids.forEach((id) => StorageService.removeSubmissionLocal(id));
+    return { deleted: ids };
+  }
+  for (let i = 0; i < ids.length; i += 100) {
+    const chunk = ids.slice(i, i + 100);
+    const { data, error: e } = await supabase.from('submissions').delete().in('id', chunk).select('id');
+    if (e) error = e.message;
+    else (data || []).forEach((r: any) => deleted.push(r.id));
+  }
+  deleted.forEach((id) => {
+    StorageService.removeSubmissionLocal(id);
+    StorageService.removePendingSync('submission', id);
+  });
+  return { deleted, error };
 }
 
 /** إعادة محاولة إرسال كل ما بقي في قائمة الانتظار */

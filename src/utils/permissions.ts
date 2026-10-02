@@ -25,6 +25,7 @@ export const PERMISSION_DEFS: PermDef[] = [
 
   { key: 'can_approve_quizzes', label: 'اعتماد الاختبارات قبل نشرها للطلاب', short: 'اعتماد الاختبارات', group: 'الاختبارات' },
   { key: 'can_manage_retakes', label: 'منح الطلاب إعادة محاولة', short: 'إعادة محاولات', group: 'الاختبارات' },
+  { key: 'can_delete_submissions', label: 'حذف مشاركات (نتائج) الطلاب', short: 'حذف مشاركات', group: 'الاختبارات' },
 
   { key: 'can_send_announcements', label: 'إرسال إعلانات وإشعارات للطلاب', short: 'إعلانات', group: 'التفاعل والتحفيز' },
   { key: 'can_view_leaderboard', label: 'لوحة المتصدرين ونقاط الطلاب', short: 'المتصدرون', group: 'التفاعل والتحفيز' },
