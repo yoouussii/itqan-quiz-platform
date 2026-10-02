@@ -20,6 +20,7 @@ import { AnswerSheetModal } from './AnswerSheetModal';
 import { hasPerm } from '../../utils/permissions';
 import { Avatar } from '../common/Avatar';
 import { formatArabicQuizDate } from '../../utils/dateUtils';
+import { SUBMISSIONS_FILTER_KEY, ungradedSummary } from '../../utils/grading';
 
 interface SubmissionsTableProps {
   submissions: SubmissionWithDetails[];
@@ -50,7 +51,16 @@ export const SubmissionsTable: React.FC<SubmissionsTableProps> = ({
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedSubjectId, setSelectedSubjectId] = useState<string>('all');
   const [selectedClassId, setSelectedClassId] = useState<string>('all');
-  const [selectedGradeFilter, setSelectedGradeFilter] = useState<string>('all');
+  // يمكن فتح الجدول مباشرة على فلتر محدد (مثل «يحتاج تصحيح» من الرئيسية)
+  const [selectedGradeFilter, setSelectedGradeFilter] = useState<string>(() => {
+    try {
+      const f = sessionStorage.getItem(SUBMISSIONS_FILTER_KEY);
+      if (f) sessionStorage.removeItem(SUBMISSIONS_FILTER_KEY);
+      return f || 'all';
+    } catch {
+      return 'all';
+    }
+  });
   const [selectedSubmission, setSelectedSubmission] = useState<SubmissionWithDetails | null>(null);
 
   // Pagination state for high performance
@@ -91,6 +101,11 @@ export const SubmissionsTable: React.FC<SubmissionsTableProps> = ({
     return submissions;
   }, [submissions, isStudent, currentUser]);
 
+  const ungradedIds = useMemo(
+    () => (isStudent ? new Set<string>() : ungradedSummary(safeSubmissions).submissionIds),
+    [safeSubmissions, isStudent]
+  );
+
   // Filter submissions
   const filteredSubmissions = useMemo(() => {
     return safeSubmissions.filter((sub) => {
@@ -115,13 +130,15 @@ export const SubmissionsTable: React.FC<SubmissionsTableProps> = ({
         matchesGrade = sub.percentage >= 90;
       } else if (selectedGradeFilter === 'passed') {
         matchesGrade = sub.percentage >= 60;
+      } else if (selectedGradeFilter === 'ungraded') {
+        matchesGrade = ungradedIds.has(sub.id);
       } else if (selectedGradeFilter === 'failed') {
         matchesGrade = sub.percentage < 60;
       }
 
       return matchesSearch && matchesSubject && matchesClass && matchesGrade;
     });
-  }, [safeSubmissions, searchTerm, selectedSubjectId, selectedClassId, selectedGradeFilter]);
+  }, [safeSubmissions, searchTerm, selectedSubjectId, selectedClassId, selectedGradeFilter, ungradedIds]);
 
   // Paginated slice
   const totalPages = Math.ceil(filteredSubmissions.length / pageSize) || 1;
@@ -323,6 +340,7 @@ export const SubmissionsTable: React.FC<SubmissionsTableProps> = ({
               <option value="excellent">الدرجات الممتازة (≥ 90%)</option>
               <option value="passed">الناجحون فقط (≥ 60%)</option>
               <option value="failed">بحاجة لتحسين / راسب (&lt; 60%)</option>
+              {!isStudent && <option value="ungraded">يحتاج تصحيح مقالي ({ungradedIds.size})</option>}
             </select>
           </div>
         </div>

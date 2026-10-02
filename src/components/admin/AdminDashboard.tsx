@@ -1,418 +1,228 @@
 import React, { useMemo, useState } from 'react';
-import {
-  Users,
-  FileQuestion,
-  Award,
-  TrendingUp,
-  ShieldCheck,
-  ArrowRightLeft,
-  PlusCircle,
-  BookOpen,
-  Calendar,
-  Layers,
-  Sparkles,
-  Eye,
-  Edit3,
-  BarChart2,
-  Trash2,
-} from 'lucide-react';
+import { PlusCircle, ClipboardCheck, PenLine, AlertTriangle, CheckCircle2, Star, UserPlus } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
-import { KPICard } from '../common/KPICard';
-import { AnalyticsCharts } from '../analytics/AnalyticsCharts';
-import { SubmissionsTable } from '../analytics/SubmissionsTable';
-import { ReassignQuizModal } from '../common/ReassignQuizModal';
-import { QuizWithDetails } from '../../types';
-import { Avatar } from '../common/Avatar';
-import { Copy as CopyIcon } from 'lucide-react';
-import { ClipboardList, ExternalLink } from 'lucide-react';
-import { StorageService } from '../../services/storage';
-import { InsightsPanels } from '../staff/InsightsPanels';
 import { KpiDetailModal } from '../common/KpiDetailModal';
 import {
   KpiSection, studentsSection, quizzesSection, perQuizSection, perSubjectSection,
   activeStudentsSection, inactiveStudentsSection,
 } from '../../utils/kpiSections';
-import { describeQuizTarget } from '../../utils/quizTarget';
+import { getWindowState, parseWindowEnd } from '../../utils/quizWindow';
+import { SUBMISSIONS_FILTER_KEY, ungradedSummary } from '../../utils/grading';
+import { hasPerm } from '../../utils/permissions';
+import { Avatar } from '../common/Avatar';
+import { Button, Card, Chip, PageHeader, SectionTitle, StatTile, greeting, scoreTone, timeAgo, todayLabel } from '../common/ui';
 
+const avgOf = (vals: number[]) => (vals.length ? Math.round(vals.reduce((a, b) => a + b, 0) / vals.length) : 0);
+
+/** الرئيسية للمدير: مؤشرات مختصرة + «يحتاج انتباهك» + أداء الشعب + آخر التسليمات + الأوائل.
+ *  الجداول الكاملة في صفحاتها: بنك الاختبارات، والنتائج والتحليلات. */
 export const AdminDashboard: React.FC = () => {
   const {
-    currentUser,
-    quizzes = [],
-    submissions = [],
-    kpis,
-    setCurrentView,
-    users = [],
-    deleteQuizItem,
-    setActiveQuizId,
-    setEditingQuizId,
-    setDuplicateQuizId,
-    classes = [],
-    subjects = [],
-    settings,
-    pendingApprovalsCount,
+    currentUser, quizzes = [], submissions = [], kpis, setCurrentView, users = [], classes = [], subjects = [],
+    pendingApprovalsCount, setEditingQuizId, setDuplicateQuizId,
   } = useApp();
+  const [kpiModal, setKpiModal] = useState<'students' | 'quizzes' | 'avg' | 'active' | 'struggling' | null>(null);
 
-  const [selectedQuizForReassign, setSelectedQuizForReassign] = useState<QuizWithDetails | null>(
-    null
+  const students = useMemo(() => users.filter((u) => u.role === 'student'), [users]);
+  const liveQuizzes = useMemo(() => quizzes.filter((q) => q && !q.is_deleted), [quizzes]);
+  const openNow = useMemo(
+    () => liveQuizzes.filter((q) => q.status === 'published' && getWindowState(q.start_date, q.end_date) === 'open'),
+    [liveQuizzes]
   );
+  const endingToday = openNow.filter((q) => {
+    const e = parseWindowEnd(q.end_date);
+    return e && e.toDateString() === new Date().toDateString();
+  }).length;
 
-  const staffData = useMemo(
-    () => (currentUser ? StorageService.getStaffData(currentUser) : null),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [currentUser, quizzes, submissions, users]
+  const perStudent = useMemo(() => {
+    const m = new Map<string, number[]>();
+    submissions.forEach((s) => m.set(s.student_id, [...(m.get(s.student_id) || []), Number(s.percentage) || 0]));
+    return m;
+  }, [submissions]);
+  const struggling = useMemo(() => students.filter((st) => { const v = perStudent.get(st.id); return v && avgOf(v) < 50; }), [students, perStudent]);
+  const topStudents = useMemo(
+    () => students
+      .map((st) => ({ st, v: perStudent.get(st.id) || [] }))
+      .filter((x) => x.v.length > 0)
+      .map((x) => ({ st: x.st, avg: avgOf(x.v) }))
+      .sort((a, b) => b.avg - a.avg)
+      .slice(0, 5),
+    [students, perStudent]
   );
-  const [kpiModal, setKpiModal] = useState<'students' | 'quizzes' | 'avg' | 'active' | null>(null);
+  const classPerf = useMemo(() => {
+    const byClass = new Map<string, number[]>();
+    submissions.forEach((s) => {
+      const cid = students.find((u) => u.id === s.student_id)?.class_id;
+      if (cid) byClass.set(cid, [...(byClass.get(cid) || []), Number(s.percentage) || 0]);
+    });
+    return classes
+      .map((c) => ({ c, avg: avgOf(byClass.get(c.id) || []), n: (byClass.get(c.id) || []).length }))
+      .filter((x) => x.n > 0)
+      .sort((a, b) => b.avg - a.avg)
+      .slice(0, 6);
+  }, [submissions, students, classes]);
+  const recent = useMemo(
+    () => [...submissions].sort((a, b) => (b.completed_at || '').localeCompare(a.completed_at || '')).slice(0, 5),
+    [submissions]
+  );
+  const grading = useMemo(() => ungradedSummary(submissions), [submissions]);
 
-  const handleDeleteQuiz = async (quizId: string, title: string) => {
-    if (
-      window.confirm(
-        `هل أنت تأكد من حذف اختبار "${title}"؟ سيمسح ذلك جميع نتائج الطلاب المتعلقة به.`
-      )
-    ) {
-      await deleteQuizItem?.(quizId);
-    }
-  };
+  const totalStudents = kpis?.totalStudents ?? students.length;
+  const activeStudents = kpis?.activeStudents ?? 0;
+  const firstName = (currentUser?.name || '').replace(/^(د\.|أ\.|م\.)\s*/, '').split(' ')[0];
 
-  // فحص ما إذا كان المستخدم أدمن أم معلم
-  const isAdmin = currentUser?.role === 'admin';
+  const attention: Array<{ key: string; icon: React.ElementType; tone: string; title: string; desc: string; action: string; go: () => void }> = [];
+  if (pendingApprovalsCount > 0) {
+    attention.push({
+      key: 'approvals', icon: ClipboardCheck, tone: 'bg-amber-50 text-amber-700 dark:bg-amber-950/60 dark:text-amber-300',
+      title: `${pendingApprovalsCount} ${pendingApprovalsCount === 1 ? 'اختبار' : 'اختبارات'} بانتظار اعتمادك`,
+      desc: liveQuizzes.filter((q) => q.status === 'pending_approval').slice(0, 2).map((q) => `«${q.title}»`).join(' و') || 'راجعها قبل نشرها للطلاب',
+      action: 'مراجعة', go: () => setCurrentView('approvals'),
+    });
+  }
+  if (grading.essays > 0) {
+    attention.push({
+      key: 'grading', icon: PenLine, tone: 'bg-indigo-50 text-indigo-700 dark:bg-indigo-950/60 dark:text-indigo-300',
+      title: `${grading.essays} إجابة مقالية لم تُصحَّح`,
+      desc: `في ${grading.quizzes} ${grading.quizzes === 1 ? 'اختبار' : 'اختبارات'}، والطالب لا يرى درجته النهائية قبل التصحيح`,
+      action: 'تصحيح', go: () => { try { sessionStorage.setItem(SUBMISSIONS_FILTER_KEY, 'ungraded'); } catch { /* ignore */ } setCurrentView('analytics'); },
+    });
+  }
+  if (struggling.length > 0) {
+    attention.push({
+      key: 'struggling', icon: AlertTriangle, tone: 'bg-rose-50 text-rose-700 dark:bg-rose-950/60 dark:text-rose-300',
+      title: `${struggling.length} ${struggling.length === 1 ? 'طالب متوسطه' : 'طلاب متوسطهم'} أقل من 50%`,
+      desc: 'يحتاجون متابعة من معلميهم',
+      action: 'عرض', go: () => setKpiModal('struggling'),
+    });
+  }
 
-  // معالجة آمنة للمصفوفات والكائنات لتفادي الشاشة البيضاء أثناء التحميل
-  const safeQuizzes = quizzes || [];
-  const safeUsers = users || [];
-  const safeSubmissions = submissions || [];
-
-  const totalQuizzesCount = isAdmin
-    ? safeQuizzes.length
-    : safeQuizzes.filter((q) => q?.teacher_id === currentUser?.id).length;
-
-  const safeKpis = {
-    totalStudents: kpis?.totalStudents ?? 0,
-    averageScore: kpis?.averageScore ?? 0,
-    passRate: kpis?.passRate ?? 0,
-    activeStudents: kpis?.activeStudents ?? 0,
-    scoreDistribution: kpis?.scoreDistribution || [],
-    completionTimeline: kpis?.completionTimeline || [],
-    subjectPerformance: kpis?.subjectPerformance || [],
-  };
-
-  const studentUsers = safeUsers.filter((u) => u.role === 'student');
-  const kpiModalContent = ((): { title: string; subtitle?: string; sections: KpiSection[] } | null => {
+  const modal = ((): { title: string; subtitle?: string; sections: KpiSection[] } | null => {
     switch (kpiModal) {
-      case 'students':
-        return { title: 'الطلاب المسجلون', sections: [studentsSection('قائمة الطلاب (حسب الصف)', studentUsers, safeSubmissions, classes)] };
-      case 'quizzes':
-        return { title: 'إجمالي الاختبارات', sections: [quizzesSection('قائمة الاختبارات', safeQuizzes as any, safeSubmissions, subjects, safeUsers, classes)] };
-      case 'avg':
-        return {
-          title: 'متوسط النتائج العام',
-          subtitle: `المتوسط ${safeKpis.averageScore}% • نسبة النجاح ${safeKpis.passRate}%`,
-          sections: [perQuizSection('حسب الاختبار', safeQuizzes as any, safeSubmissions), perSubjectSection('حسب المادة', safeQuizzes as any, safeSubmissions, subjects)],
-        };
-      case 'active':
-        return {
-          title: 'نشاط الطلاب (آخر 7 أيام)',
-          sections: [
-            activeStudentsSection('الطلاب النشطون', studentUsers, safeSubmissions, classes),
-            inactiveStudentsSection('لم يؤدوا اختباراً خلال هذه الفترة', studentUsers, safeSubmissions, classes),
-          ],
-        };
-      default:
-        return null;
+      case 'students': return { title: 'الطلاب', sections: [studentsSection('قائمة الطلاب (حسب الصف)', students, submissions, classes)] };
+      case 'quizzes': return { title: 'الاختبارات', sections: [quizzesSection('قائمة الاختبارات', liveQuizzes as any, submissions, subjects, users, classes)] };
+      case 'avg': return {
+        title: 'متوسط النتائج', subtitle: `المتوسط ${kpis?.averageScore ?? 0}% • نسبة النجاح ${kpis?.passRate ?? 0}%`,
+        sections: [perQuizSection('حسب الاختبار', liveQuizzes as any, submissions), perSubjectSection('حسب المادة', liveQuizzes as any, submissions, subjects)],
+      };
+      case 'active': return {
+        title: 'نشاط الطلاب (آخر 7 أيام)',
+        sections: [activeStudentsSection('الطلاب النشطون', students, submissions, classes), inactiveStudentsSection('لم يؤدوا اختباراً خلال هذه الفترة', students, submissions, classes)],
+      };
+      case 'struggling': return { title: 'طلاب يحتاجون متابعة', subtitle: 'متوسطهم أقل من 50%', sections: [studentsSection('الطلاب', struggling, submissions, classes)] };
+      default: return null;
     }
   })();
 
   return (
-    <div className="max-w-7xl mx-auto py-8 px-4 sm:px-6 lg:px-8 space-y-8" dir="rtl">
-      {/* Super Admin Welcome Banner */}
-      <div className="bg-gradient-to-r from-slate-900 via-indigo-950 to-primary-950 rounded-3xl p-6 sm:p-8 text-white shadow-xl relative overflow-hidden">
-        <div className="absolute top-0 right-0 w-80 h-80 bg-indigo-500/10 rounded-full blur-3xl pointer-events-none -mr-20 -mt-20" />
-
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-6 relative z-10">
-          <div className="flex items-center gap-4">
-            <Avatar name={currentUser?.name || 'مدير النظام'} role={currentUser?.role} userId={currentUser?.id} size="xl" showBadge />
-            <div>
-              <div className="flex items-center gap-2 mb-1">
-                <span className="text-xs px-2.5 py-0.5 rounded-full bg-indigo-500/30 border border-indigo-400/30 font-bold text-indigo-300">
-                  منصة إتقان | Super Admin
-                </span>
-                <span className="text-xs text-slate-300 font-medium">إشراف أكاديمي وإداري شامل</span>
-              </div>
-              <h1 className="text-2xl sm:text-3xl font-black font-cairo">
-                لوحة القيادة والمؤشرات العامة | {currentUser?.name || 'مدير النظام'}
-              </h1>
-              <p className="text-xs sm:text-sm text-slate-300 mt-1 max-w-xl">
-                إشراف كامل على أداء المدرسة، كفاءة المعلمين، إحصائيات التقييمات، وإعادة تعيين ملكية
-                الاختبارات بين أعضاء الهيئة التعليمية.
-              </p>
-            </div>
-          </div>
-
-          <div className="flex flex-wrap items-center gap-2.5">
-            <button
-              onClick={() => setCurrentView?.('subjects_classes')}
-              className="inline-flex items-center gap-2 px-4 py-2.5 bg-white/10 hover:bg-white/20 text-white rounded-2xl text-xs font-bold backdrop-blur-sm border border-white/20 transition-all"
-            >
-              <Layers className="w-4 h-4 text-indigo-300" />
-              <span>المواد والشعب</span>
-            </button>
-            <a
-              href={settings.preparations_url}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex items-center gap-2 px-4 py-2.5 bg-emerald-600/90 hover:bg-emerald-600 text-white rounded-2xl text-xs font-bold shadow-md transition-all"
-            >
-              <ExternalLink className="w-4 h-4" />
-              <span>متابعة التحضيرات</span>
-            </a>
-            <button
-              onClick={() => setCurrentView?.('users')}
-              className="inline-flex items-center gap-2 px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-2xl text-xs font-bold shadow-md transition-all hover:scale-105"
-            >
-              <Users className="w-4 h-4" />
-              <span>إدارة المستخدمين</span>
-            </button>
-          </div>
-        </div>
-      </div>
-
-      {/* Top Dynamic KPI Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <KPICard
-          title="إجمالي الطلاب المسجلين"
-          value={safeKpis.totalStudents}
-          subtitle="في كافة الفصول والشعب"
-          icon={Users}
-          colorScheme="indigo"
-          onClick={() => setKpiModal('students')}
-        />
-
-        <KPICard
-          title="إجمالي الاختبارات"
-          value={totalQuizzesCount}
-          subtitle="بمختلف المواد والتخصصات"
-          icon={ClipboardList}
-          colorScheme="cyan"
-          onClick={() => setKpiModal('quizzes')}
-        />
-
-        <KPICard
-          title="متوسط النتائج العام"
-          value={`${safeKpis.averageScore}%`}
-          subtitle={`نسبة النجاح: ${safeKpis.passRate}%`}
-          icon={Award}
-          colorScheme="emerald"
-          trend={{ value: `${safeKpis.passRate}% نجاح`, isPositive: safeKpis.averageScore >= 60 }}
-          onClick={() => setKpiModal('avg')}
-        />
-
-        <KPICard
-          title="الطلاب النشطون (آخر 7 أيام)"
-          value={safeKpis.activeStudents}
-          subtitle="أكملوا اختباراً واحداً على الأقل"
-          icon={TrendingUp}
-          colorScheme="purple"
-          onClick={() => setKpiModal('active')}
-        />
-      </div>
-
-      {pendingApprovalsCount > 0 && (
-        <button
-          onClick={() => setCurrentView?.('approvals')}
-          className="w-full text-right px-5 py-3 rounded-2xl bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800 text-xs font-bold text-amber-800 dark:text-amber-300 hover:bg-amber-100"
-        >
-          🕓 {pendingApprovalsCount} اختبار بانتظار اعتمادك — اضغط للمراجعة
-        </button>
-      )}
-
-      {staffData && (
-        <InsightsPanels
-          mode="extra"
-          students={staffData.students}
-          teachers={staffData.teachers}
-          quizzes={staffData.quizzes}
-          submissions={staffData.submissions}
-          showTeacherPerformance
-        />
-      )}
-
-      {/* Interactive Charts */}
-      <AnalyticsCharts
-        scoreDistribution={safeKpis.scoreDistribution}
-        completionTimeline={safeKpis.completionTimeline}
-        subjectPerformance={safeKpis.subjectPerformance}
+    <div className="max-w-7xl mx-auto py-8 px-4 sm:px-6 lg:px-8 space-y-6" dir="rtl">
+      <PageHeader
+        eyebrow={todayLabel()}
+        title={`${greeting()}، ${firstName || 'مدير النظام'}`}
+        actions={
+          <>
+            <Button variant="secondary" icon={UserPlus} onClick={() => setCurrentView('users')}>إضافة مستخدم</Button>
+            <Button icon={PlusCircle} onClick={() => { setEditingQuizId?.(null); setDuplicateQuizId?.(null); setCurrentView('create_quiz'); }}>اختبار جديد</Button>
+          </>
+        }
       />
 
-      {/* School Quizzes Management */}
-      <div className="bg-white dark:bg-slate-900 rounded-3xl p-6 sm:p-8 border border-slate-200/80 dark:border-slate-800 shadow-soft transition-colors duration-200">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6 pb-4 border-b border-slate-100 dark:border-slate-800">
-          <div>
-            <h3 className="text-lg font-bold text-slate-900 dark:text-white font-cairo">
-              بنك الاختبارات المدرسي وإعادة الإسناد (Admin Quiz Control)
-            </h3>
-            <p className="text-xs text-slate-500 dark:text-slate-400">
-              يمكنك كمدير نظام نقل وتفويض ملكية أي اختبار من معلم إلى آخر، معاينته، تعديله، مراجعة نتائج الطلاب، أو حذفه فوراً.
-            </p>
-          </div>
-          <span className="text-xs font-bold text-indigo-700 dark:text-indigo-300 bg-indigo-50 dark:bg-indigo-950 px-3 py-1.5 rounded-xl border border-indigo-100 dark:border-indigo-900">
-            {safeQuizzes.length} اختبارات معتمدة
-          </span>
-        </div>
-
-        <div className="overflow-x-auto">
-          <table className="w-full text-right text-xs">
-            <thead>
-              <tr className="bg-slate-50 dark:bg-slate-800/60 text-slate-500 dark:text-slate-400 font-bold border-b border-slate-100 dark:border-slate-800">
-                <th className="py-3 px-4">عنوان الاختبار</th>
-                <th className="py-3 px-4">المادة الدراسية</th>
-                <th className="py-3 px-4">المعلم المالك</th>
-                <th className="py-3 px-4">الفئة المستهدفة</th>
-                <th className="py-3 px-4">المدة والدرجة</th>
-                <th className="py-3 px-4">المحاولات</th>
-                <th className="py-3 px-4 text-center">تفويض الاختبار</th>
-                <th className="py-3 px-4 text-center">الإجراءات</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-              {safeQuizzes.map((quiz) => {
-                const teacher = safeUsers.find((u) => u.id === quiz.teacher_id);
-                const targetText = describeQuizTarget(quiz.assignments, classes);
-
-                return (
-                  <tr key={quiz.id} className="hover:bg-slate-50/60 dark:hover:bg-slate-800/40 transition-colors">
-                    <td className="py-3.5 px-4 font-bold text-slate-900 dark:text-white">{quiz.title}</td>
-                    <td className="py-3.5 px-4">
-                      <span
-                        className="inline-block px-2 py-0.5 rounded-md text-[11px] font-bold"
-                        style={{
-                          backgroundColor: `${quiz.subject?.color || '#6366f1'}15`,
-                          color: quiz.subject?.color || '#6366f1',
-                        }}
-                      >
-                        {quiz.subject?.name || 'عام'}
-                      </span>
-                    </td>
-                    <td className="py-3.5 px-4">
-                      <div className="flex items-center gap-2">
-                        <Avatar name={teacher?.name || 'م'} role={teacher?.role} userId={teacher?.id} size="xs" />
-                        <span className="font-semibold text-slate-700 dark:text-slate-300">
-                          {teacher?.name || 'غير معروف'}
-                        </span>
-                      </div>
-                    </td>
-                    <td className="py-3.5 px-4 text-slate-600 dark:text-slate-400">{targetText}</td>
-                    <td className="py-3.5 px-4 text-slate-500 dark:text-slate-400">
-                      {quiz.duration_minutes} دقيقة • {quiz.total_marks} درجة
-                    </td>
-                    <td className="py-3.5 px-4">
-                      <button
-                        onClick={() => {
-                          if (quiz?.id) {
-                            setActiveQuizId?.(quiz.id);
-                            setCurrentView?.('quiz_results');
-                          }
-                        }}
-                        className="font-bold text-indigo-700 dark:text-indigo-400 hover:underline"
-                        title="عرض نتائج محاولات الطلاب لهذا الاختبار"
-                      >
-                        {quiz.submissions_count || 0} تسليم
-                      </button>
-                    </td>
-                    <td className="py-3.5 px-4 text-center">
-                      <button
-                        onClick={() => setSelectedQuizForReassign(quiz)}
-                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold bg-indigo-50 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-300 hover:bg-indigo-100 dark:hover:bg-indigo-900 transition-colors"
-                      >
-                        <ArrowRightLeft className="w-3.5 h-3.5" />
-                        <span>نقل لمعلم آخر</span>
-                      </button>
-                    </td>
-                    <td className="py-3.5 px-4 text-center">
-                      <div className="flex items-center justify-center gap-1.5">
-                        <button
-                          onClick={() => {
-                            if (quiz?.id) {
-                              setActiveQuizId?.(quiz.id);
-                              setCurrentView?.('quiz_preview');
-                            }
-                          }}
-                          className="p-1.5 text-slate-600 dark:text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors"
-                          title="معاينة وعرض الاختبار"
-                        >
-                          <Eye className="w-4 h-4" />
-                        </button>
-
-                        <button
-                          onClick={() => {
-                            setEditingQuizId?.(quiz.id);
-                            setCurrentView?.('create_quiz');
-                          }}
-                          className="p-1.5 text-slate-600 dark:text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors"
-                          title="تعديل الاختبار"
-                        >
-                          <Edit3 className="w-4 h-4" />
-                        </button>
-
-                        <button
-                          onClick={() => {
-                            if (quiz?.id) {
-                              setActiveQuizId?.(quiz.id);
-                              setCurrentView?.('quiz_results');
-                            }
-                          }}
-                          className="p-1.5 text-slate-600 dark:text-slate-400 hover:text-emerald-600 dark:hover:text-emerald-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors"
-                          title="تفاصيل النتائج ومَن اختبر"
-                        >
-                          <BarChart2 className="w-4 h-4" />
-                        </button>
-
-                        <button
-                          onClick={() => {
-                            setEditingQuizId?.(null);
-                            setDuplicateQuizId?.(quiz.id);
-                            setCurrentView?.('create_quiz');
-                          }}
-                          className="p-1.5 text-slate-600 dark:text-slate-400 hover:text-violet-600 dark:hover:text-violet-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors"
-                          title="تكرار الاختبار مع التعديل"
-                        >
-                          <CopyIcon className="w-4 h-4" />
-                        </button>
-
-                        <button
-                          onClick={() => handleDeleteQuiz(quiz.id, quiz.title)}
-                          className="p-1.5 text-red-500 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-950/50 rounded-lg transition-colors"
-                          title="حذف الاختبار نهائياً"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        <StatTile label="الطلاب" value={totalStudents} hint={`في ${classes.length} ${classes.length === 1 ? 'شعبة' : 'شعب'}`} onClick={() => setKpiModal('students')} />
+        <StatTile label="اختبارات متاحة الآن" value={openNow.length} hint={endingToday > 0 ? `${endingToday} تنتهي اليوم` : `من ${liveQuizzes.length} اختباراً`} hintTone={endingToday > 0 ? 'bad' : 'muted'} onClick={() => setKpiModal('quizzes')} />
+        <StatTile label="متوسط النتائج" value={`${kpis?.averageScore ?? 0}%`} hint={`نسبة النجاح ${kpis?.passRate ?? 0}%`} onClick={() => setKpiModal('avg')} />
+        <StatTile label="الطلاب النشطون (7 أيام)" value={activeStudents} progress={totalStudents ? (activeStudents / totalStudents) * 100 : 0} onClick={() => setKpiModal('active')} />
       </div>
 
-      {/* Comprehensive Submissions Results Table */}
-      <SubmissionsTable submissions={safeSubmissions} />
+      <div className="grid grid-cols-1 lg:grid-cols-5 gap-4">
+        <Card className="lg:col-span-3 p-5 sm:p-6">
+          <SectionTitle action={attention.length > 0 && <Chip tone="warn">{attention.length} {attention.length === 1 ? 'مهمة' : 'مهام'}</Chip>}>يحتاج انتباهك</SectionTitle>
+          {attention.length === 0 ? (
+            <div className="flex items-center gap-3 py-8 justify-center text-emerald-700 dark:text-emerald-400">
+              <CheckCircle2 className="w-6 h-6" />
+              <span className="font-semibold">لا توجد مهام معلّقة. كل شيء على ما يرام.</span>
+            </div>
+          ) : (
+            attention.map((a) => {
+              const Icon = a.icon;
+              return (
+                <div key={a.key} className="flex items-center gap-3.5 py-3.5 border-t border-slate-100 dark:border-slate-800 first-of-type:border-t-0">
+                  <span className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 ${a.tone}`}><Icon className="w-5 h-5" /></span>
+                  <div className="flex-1 min-w-0">
+                    <div className="font-semibold text-[15px] text-slate-900 dark:text-white">{a.title}</div>
+                    <div className="text-[13px] text-slate-500 dark:text-slate-400 truncate">{a.desc}</div>
+                  </div>
+                  <Button variant="secondary" size="sm" onClick={a.go}>{a.action}</Button>
+                </div>
+              );
+            })
+          )}
+        </Card>
 
-      {kpiModalContent && (
-        <KpiDetailModal
-          title={kpiModalContent.title}
-          subtitle={kpiModalContent.subtitle}
-          sections={kpiModalContent.sections}
-          onClose={() => setKpiModal(null)}
-        />
-      )}
+        <Card className="lg:col-span-2 p-5 sm:p-6 flex flex-col gap-4">
+          <SectionTitle>أداء الشعب</SectionTitle>
+          {classPerf.length === 0 && <p className="text-sm text-slate-500 py-6 text-center">لا توجد نتائج بعد</p>}
+          {classPerf.map(({ c, avg }) => (
+            <div key={c.id}>
+              <div className="flex justify-between text-sm mb-1.5">
+                <span className="font-semibold text-slate-800 dark:text-slate-200">{c.name}</span>
+                <span className={`tabular-nums ${avg < 50 ? 'text-rose-700 dark:text-rose-400 font-semibold' : 'text-slate-700 dark:text-slate-300'}`}>{avg}%</span>
+              </div>
+              <div className="h-2 rounded-full bg-slate-100 dark:bg-slate-800">
+                <div className={`h-2 rounded-full ${avg < 50 ? 'bg-amber-500' : 'bg-indigo-600'}`} style={{ width: `${avg}%` }} />
+              </div>
+            </div>
+          ))}
+          <button type="button" onClick={() => setCurrentView('analytics')} className="mt-auto text-sm font-semibold text-indigo-700 dark:text-indigo-400 text-right hover:underline">
+            كل الشعب والتحليلات ←
+          </button>
+        </Card>
+      </div>
 
-      {/* Reassign Modal */}
-      {selectedQuizForReassign && (
-        <ReassignQuizModal
-          quiz={selectedQuizForReassign}
-          onClose={() => setSelectedQuizForReassign(null)}
-        />
-      )}
+      <div className="grid grid-cols-1 lg:grid-cols-5 gap-4">
+        <Card className="lg:col-span-3 p-5 sm:p-6">
+          <SectionTitle action={<button type="button" onClick={() => setCurrentView('analytics')} className="text-sm font-semibold text-indigo-700 dark:text-indigo-400 hover:underline">عرض الكل</button>}>
+            آخر التسليمات
+          </SectionTitle>
+          {recent.length === 0 && <p className="text-sm text-slate-500 py-6 text-center">لا توجد تسليمات بعد</p>}
+          {recent.map((s) => {
+            const st = users.find((u) => u.id === s.student_id);
+            const q = quizzes.find((x) => x.id === s.quiz_id);
+            return (
+              <div key={s.id} className="flex items-center gap-3 py-3 border-t border-slate-100 dark:border-slate-800 first-of-type:border-t-0">
+                <Avatar name={st?.name || 'طالب'} role="student" userId={st?.id} size="sm" />
+                <div className="flex-1 min-w-0">
+                  <div className="font-semibold text-[15px] text-slate-900 dark:text-white truncate">{st?.name || 'طالب'}</div>
+                  <div className="text-[13px] text-slate-500 dark:text-slate-400 truncate">{q?.title || 'اختبار'} · {timeAgo(s.completed_at)}</div>
+                </div>
+                <Chip tone={scoreTone(Number(s.percentage) || 0, q?.pass_percentage)}>
+                  <span className="tabular-nums" dir="ltr">{s.score}/{s.total_possible_score}</span>
+                </Chip>
+              </div>
+            );
+          })}
+        </Card>
+
+        <Card className="lg:col-span-2 p-5 sm:p-6">
+          <SectionTitle action={<Star className="w-5 h-5 fill-amber-400 text-amber-400" />}>الأوائل</SectionTitle>
+          {topStudents.length === 0 && <p className="text-sm text-slate-500 py-6 text-center">لا توجد نتائج بعد</p>}
+          {topStudents.map(({ st, avg }, i) => (
+            <div key={st.id} className="flex items-center gap-3 py-3 border-t border-slate-100 dark:border-slate-800 first-of-type:border-t-0">
+              <span className={`w-6 font-bold tabular-nums ${i === 0 ? 'text-amber-700 dark:text-amber-400' : 'text-slate-500'}`}>{i + 1}</span>
+              <span className="flex-1 font-semibold text-[15px] text-slate-900 dark:text-white truncate">{st.name}</span>
+              <span className="font-bold tabular-nums text-slate-900 dark:text-white">{avg}%</span>
+            </div>
+          ))}
+          {hasPerm(currentUser, 'can_view_leaderboard') && topStudents.length > 0 && (
+            <button type="button" onClick={() => setCurrentView('leaderboard')} className="mt-3 text-sm font-semibold text-indigo-700 dark:text-indigo-400 hover:underline">
+              لوحة الشرف كاملة ←
+            </button>
+          )}
+        </Card>
+      </div>
+
+      {modal && <KpiDetailModal title={modal.title} subtitle={modal.subtitle} sections={modal.sections} onClose={() => setKpiModal(null)} />}
     </div>
   );
 };
+

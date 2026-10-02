@@ -4,6 +4,8 @@ import { AnalyticsCharts } from './AnalyticsCharts';
 import { SubmissionsTable } from './SubmissionsTable';
 import { PdfExportButton } from './PdfExportButton';
 import { exportElementToPdf } from '../../utils/exportPdf';
+import { InsightsPanels } from '../staff/InsightsPanels';
+import { StorageService } from '../../services/storage';
 
 const MONTHS = ['يناير','فبراير','مارس','أبريل','مايو','يونيو','يوليو','أغسطس','سبتمبر','أكتوبر','نوفمبر','ديسمبر'];
 
@@ -46,7 +48,13 @@ function buildQuizChartData(
 }
 
 export const AnalyticsView: React.FC = () => {
-  const { currentUser, quizzes, submissions, kpis, subjects } = useApp();
+  const { currentUser, quizzes, submissions, kpis, subjects, users } = useApp();
+  // المدير: مؤشرات المتابعة وأداء المعلمين (انتقلت من الرئيسية إلى هنا)
+  const staffData = useMemo(
+    () => (currentUser?.role === 'admin' ? StorageService.getStaffData(currentUser) : null),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [currentUser, quizzes, submissions, users]
+  );
   const isStudent = currentUser?.role === 'student';
   const [quizId, setQuizId] = useState<string>('all');
   const exportRef = useRef<HTMLDivElement>(null);
@@ -155,6 +163,17 @@ export const AnalyticsView: React.FC = () => {
           subjectPerformance={chartData.subjectPerformance}
         />
       </div>
+
+      {staffData && !selectedQuiz && (
+        <InsightsPanels
+          mode="extra"
+          students={staffData.students}
+          teachers={staffData.teachers}
+          quizzes={staffData.quizzes}
+          submissions={staffData.submissions}
+          showTeacherPerformance
+        />
+      )}
 
       <SubmissionsTable
         submissions={filteredSubs}
