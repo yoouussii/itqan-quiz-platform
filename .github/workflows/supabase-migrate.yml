@@ -20,6 +20,7 @@ on:
           - supabase/migrations/003_security_all.sql
           - supabase/migrations/004_timer_answers_permissions.sql
           - supabase/migrations/005_notification_delete.sql
+          - supabase/migrations/006_banners.sql
           - supabase/migrations/003_rollback.sql
 
 jobs:
@@ -54,5 +55,6 @@ jobs:
           select 'policies: ' || count(*) from pg_policies where schemaname = 'public';
           select 'login function: ' || (to_regproc('public.itqan_login') is not null);
           select 'quiz timer function (004): ' || (to_regproc('public.itqan_start_quiz') is not null);
+          select 'banners (006): ' || (to_regclass('public.banners') is not null);
           select 'notification delete (005): ' || exists(select 1 from information_schema.columns where table_schema = 'public' and table_name = 'notification_reads' and column_name = 'deleted_at');
           SQL

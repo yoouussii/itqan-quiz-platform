@@ -8,6 +8,7 @@ import { AuthScreen } from './components/auth/AuthScreen';
 
 import { hasPerm } from './utils/permissions';
 import { ForcePasswordChange } from './components/common/ForcePasswordChange';
+import { BannerStrip } from './components/common/BannerStrip';
 
 // الصفحات تُحمَّل عند فتحها فقط: كل مستخدم ينزّل كود صفحاته (أسرع على الجوال)
 const AdminDashboard = React.lazy(() => import('./components/admin/AdminDashboard').then((m) => ({ default: m.AdminDashboard })));
@@ -27,13 +28,14 @@ const ApprovalsPage = React.lazy(() => import('./components/staff/ApprovalsPage'
 const ActivityLogPage = React.lazy(() => import('./components/staff/ActivityLogPage').then((m) => ({ default: m.ActivityLogPage })));
 const SettingsPage = React.lazy(() => import('./components/staff/SettingsPage').then((m) => ({ default: m.SettingsPage })));
 const QuizPreview = React.lazy(() => import('./components/common/QuizPreview').then((m) => ({ default: m.QuizPreview })));
+const BannersPage = React.lazy(() => import('./components/staff/BannersPage').then((m) => ({ default: m.BannersPage })));
 const NotificationsPage = React.lazy(() => import('./components/common/NotificationsPage').then((m) => ({ default: m.NotificationsPage })));
 
 const KNOWN_VIEWS = [
   'take_quiz', 'quiz_review', 'create_quiz', 'users', 'users_management',
   'students_management', 'subjects_classes', 'analytics', 'reports',
   'quiz_results', 'quiz_preview', 'quizzes', 'dashboard',
-  'my_points', 'leaderboard', 'approvals', 'activity_log', 'settings', 'notifications',
+  'my_points', 'leaderboard', 'approvals', 'activity_log', 'settings', 'notifications', 'banners',
 ];
 
 /** يُعيد المستخدم للوحة التحكم إذا وصل لصفحة غير موجودة بدلاً من إظهار شاشة فارغة */
@@ -85,6 +87,7 @@ const AppContent: React.FC = () => {
     approvals: hasPerm(currentUser, 'can_approve_quizzes'),
     activity_log: hasPerm(currentUser, 'can_view_activity_log'),
     settings: currentUser.role === 'admin',
+    banners: currentUser.role === 'admin',
     quiz_results: isStaff,
     quiz_preview: isStaff,
   };
@@ -186,6 +189,7 @@ const AppContent: React.FC = () => {
         {currentView === 'approvals' && hasPerm(currentUser, 'can_approve_quizzes') && <ApprovalsPage />}
         {currentView === 'activity_log' && hasPerm(currentUser, 'can_view_activity_log') && <ActivityLogPage />}
         {currentView === 'settings' && currentUser.role === 'admin' && <SettingsPage />}
+        {currentView === 'banners' && currentUser.role === 'admin' && <BannersPage />}
 
         {/* View 6b: نتائج وتحليلات اختبار واحد (زر التحليلات عند الآدمن/المعلم) */}
         {currentView === 'quiz_results' && currentUser.role !== 'student' && <QuizResults />}
@@ -217,6 +221,8 @@ const AppContent: React.FC = () => {
         {/* View 8: Default Dashboard based on RBAC */}
         {currentView === 'dashboard' && (
           <>
+            {/* بانرات المدرسة (صور وتهاني) أعلى الصفحة الرئيسية للجميع */}
+            <BannerStrip />
             {currentUser.role === 'admin' && <AdminDashboard />}
             {currentUser.role === 'teacher' && <TeacherDashboard />}
             {currentUser.role === 'supervisor' && <SupervisorDashboard />}
