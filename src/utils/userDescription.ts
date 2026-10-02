@@ -18,7 +18,7 @@ export function describeUser(u: User, subjects: Subject[], classes: SchoolClass[
   if (u.role === 'student') {
     const cls = myClasses[0];
     return {
-      title: cls ? cls.name : 'طالب',
+      title: cls ? cls.name : u.gender === 'female' ? 'طالبة' : 'طالب',
       details: cls?.grade_level ? [cls.grade_level] : [],
     };
   }
@@ -33,6 +33,9 @@ export function describeUser(u: User, subjects: Subject[], classes: SchoolClass[
     if (subjectNames.length) d.push(`المواد: ${join(subjectNames)}`);
     if (myClasses.length) d.push(`الصفوف: ${myClasses.map((c) => c.name).join('، ')}`);
     return { title: custom || 'مشرف', details: d };
+  }
+  if (u.role === 'parent') {
+    return { title: 'ولي أمر', details: (u.child_ids || []).length ? [`مرتبط بـ ${(u.child_ids || []).length} من الأبناء`] : [] };
   }
   return { title: custom || 'مدير النظام', details: [] };
 }

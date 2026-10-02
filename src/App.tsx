@@ -24,6 +24,7 @@ const QuizReview = React.lazy(() => import('./components/student/QuizReview').th
 const QuizResults = React.lazy(() => import('./components/analytics/QuizResults').then((m) => ({ default: m.QuizResults })));
 const AnalyticsView = React.lazy(() => import('./components/analytics/AnalyticsView').then((m) => ({ default: m.AnalyticsView })));
 const SupervisorDashboard = React.lazy(() => import('./components/supervisor/SupervisorDashboard').then((m) => ({ default: m.SupervisorDashboard })));
+const ParentDashboard = React.lazy(() => import('./components/parent/ParentDashboard').then((m) => ({ default: m.ParentDashboard })));
 const MyPoints = React.lazy(() => import('./components/student/MyPoints').then((m) => ({ default: m.MyPoints })));
 const Leaderboard = React.lazy(() => import('./components/staff/Leaderboard').then((m) => ({ default: m.Leaderboard })));
 const ApprovalsPage = React.lazy(() => import('./components/staff/ApprovalsPage').then((m) => ({ default: m.ApprovalsPage })));
@@ -80,7 +81,7 @@ const AppContent: React.FC = () => {
   }
 
   // صفحات تتطلب صلاحية أو بيانات مسبقة: إن لم تتوفر نعيد المستخدم للوحة التحكم بدل شاشة فارغة
-  const isStaff = currentUser.role !== 'student';
+  const isStaff = currentUser.role === 'admin' || currentUser.role === 'teacher' || currentUser.role === 'supervisor';
   const viewGuards: Record<string, boolean> = {
     take_quiz: !!activeQuizId,
     quiz_review: !!activeSubmissionId,
@@ -93,7 +94,9 @@ const AppContent: React.FC = () => {
     quiz_results: isStaff,
     quiz_preview: isStaff,
   };
-  const viewAvailable = KNOWN_VIEWS.includes(currentView) && viewGuards[currentView] !== false;
+  // ولي الأمر: الرئيسية (متابعة الأبناء) وأوراق إجاباتهم والإشعارات فقط
+  const parentOk = currentUser.role !== 'parent' || ['dashboard', 'quiz_review', 'notifications'].includes(currentView);
+  const viewAvailable = KNOWN_VIEWS.includes(currentView) && viewGuards[currentView] !== false && parentOk;
 
   // Handle student starting a quiz
   const handleStartQuiz = (quizId: string) => {
@@ -155,18 +158,18 @@ const AppContent: React.FC = () => {
         )}
 
         {/* View 3: Create / Edit Quiz */}
-        {currentView === 'create_quiz' && <QuizEditor />}
+        {currentView === 'create_quiz' && isStaff && <QuizEditor />}
 
         {/* View 4: Admin / Teacher Users Management */}
-        {(currentView === 'users' || currentView === 'users_management' || currentView === 'students_management') && (
+        {isStaff && (currentView === 'users' || currentView === 'users_management' || currentView === 'students_management') && (
           <UsersManagement />
         )}
 
         {/* View 5: Custom Subjects & Classes Management */}
-        {currentView === 'subjects_classes' && <SubjectsClassesManagement />}
+        {currentView === 'subjects_classes' && isStaff && <SubjectsClassesManagement />}
 
         {/* View 6: General Analytics / School-Wide Reports View */}
-        {(currentView === 'analytics' || currentView === 'reports') && (
+        {(currentView === 'analytics' || currentView === 'reports') && currentUser.role !== 'parent' && (
           <div className="max-w-7xl mx-auto py-8 px-4 sm:px-6 lg:px-8 space-y-6">
             <PageHeader
               title={currentUser.role === 'student' ? 'نتائجي' : 'النتائج والتحليلات'}
@@ -187,16 +190,16 @@ const AppContent: React.FC = () => {
         {currentView === 'banners' && currentUser.role === 'admin' && <BannersPage />}
 
         {/* View 6b: نتائج وتحليلات اختبار واحد (زر التحليلات عند الآدمن/المعلم) */}
-        {currentView === 'quiz_results' && currentUser.role !== 'student' && <QuizResults />}
+        {currentView === 'quiz_results' && isStaff && <QuizResults />}
 
         {/* View 6c: معاينة اختبار للقراءة فقط (زر العرض) */}
-        {currentView === 'quiz_preview' && currentUser.role !== 'student' && <QuizPreview />}
+        {currentView === 'quiz_preview' && isStaff && <QuizPreview />}
 
         {/* حماية من الشاشة البيضاء: أي صفحة غير معروفة تعيد المستخدم للوحة التحكم */}
         {!viewAvailable && <UnknownViewRedirect />}
 
         {/* View 7: Quizzes Bank View */}
-        {currentView === 'quizzes' && (
+        {currentView === 'quizzes' && currentUser.role !== 'parent' && (
           <>
             {currentUser.role === 'student' ? (
               <StudentDashboard
@@ -217,10 +220,11 @@ const AppContent: React.FC = () => {
         {currentView === 'dashboard' && (
           <>
             {/* بانرات المدرسة (صور وتهاني) أعلى الصفحة الرئيسية للجميع */}
-            {currentUser.role !== 'student' && <BannerStrip />}
+            {isStaff && <BannerStrip />}
             {currentUser.role === 'admin' && <AdminDashboard />}
             {currentUser.role === 'teacher' && <TeacherDashboard />}
             {currentUser.role === 'supervisor' && <SupervisorDashboard />}
+            {currentUser.role === 'parent' && <ParentDashboard onViewReview={handleViewReview} />}
             {currentUser.role === 'student' && (
               <StudentDashboard
                 onStartQuiz={handleStartQuiz}

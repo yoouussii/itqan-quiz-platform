@@ -65,7 +65,7 @@ export function isBannerVisible(b: Banner, role: string, now = Date.now()): bool
   if (b.starts_at && new Date(b.starts_at).getTime() > now) return false;
   if (b.ends_at && new Date(b.ends_at).getTime() < now) return false;
   if (b.audience === 'students') return role === 'student';
-  if (b.audience === 'staff') return role !== 'student';
+  if (b.audience === 'staff') return role === 'admin' || role === 'teacher' || role === 'supervisor';
   return true;
 }
 

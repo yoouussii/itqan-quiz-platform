@@ -18,7 +18,7 @@ type NavGroup = { title?: string; items: NavItem[] };
 
 const roleText = (u: User) =>
   u.job_title?.trim() ||
-  ({ admin: 'مدير النظام', teacher: 'معلم', supervisor: 'مشرف', student: 'طالب' } as Record<string, string>)[u.role] ||
+  ({ admin: 'مدير النظام', teacher: 'معلم', supervisor: 'مشرف', student: u.gender === 'female' ? 'طالبة' : 'طالب', parent: 'ولي أمر' } as Record<string, string>)[u.role] ||
   '';
 
 const perms = (u: User): Record<string, boolean | undefined> =>
@@ -57,6 +57,11 @@ const staffGroups = (u: User, pendingApprovals: number, preparationsUrl: string)
     { title: 'النظام', items: system },
   ];
 };
+
+const PARENT_TABS: NavItem[] = [
+  { id: 'dashboard', label: 'أبنائي', icon: Users },
+  { id: 'notifications', label: 'الإشعارات', icon: Bell },
+];
 
 const STUDENT_TABS: NavItem[] = [
   { id: 'dashboard', label: 'الرئيسية', icon: Home },
@@ -240,6 +245,7 @@ const StudentShell: React.FC<{ children: React.ReactNode; banner?: React.ReactNo
   const { currentUser, currentView, setCurrentView, logout } = useApp();
   const [profile, setProfile] = useState(false);
   if (!currentUser) return null;
+  const tabs = currentUser.role === 'parent' ? PARENT_TABS : STUDENT_TABS;
   return (
     <div className="min-h-screen flex flex-col">
       <header className="sticky top-0 z-20 bg-white/95 dark:bg-slate-900/95 backdrop-blur border-b border-slate-200 dark:border-slate-800">
@@ -247,7 +253,7 @@ const StudentShell: React.FC<{ children: React.ReactNode; banner?: React.ReactNo
           <div className="flex items-center gap-8">
             <button type="button" onClick={() => setCurrentView('dashboard')} aria-label="الرئيسية"><Logo size="sm" /></button>
             <nav className="hidden md:flex items-center gap-1" aria-label="القائمة الرئيسية">
-              {STUDENT_TABS.filter((t) => t.id !== 'notifications').map((t) => (
+              {tabs.filter((t) => t.id !== 'notifications').map((t) => (
                 <button
                   key={t.id}
                   type="button"
@@ -280,7 +286,7 @@ const StudentShell: React.FC<{ children: React.ReactNode; banner?: React.ReactNo
       <div className="hidden md:block"><Footer /></div>
 
       <nav className="md:hidden fixed bottom-0 inset-x-0 z-30 bg-white dark:bg-slate-900 border-t border-slate-200 dark:border-slate-800 flex pb-[env(safe-area-inset-bottom)]" aria-label="التنقل">
-        {STUDENT_TABS.map((t) => {
+        {tabs.map((t) => {
           const Icon = t.icon;
           const on = currentView === t.id;
           return (
@@ -309,7 +315,7 @@ export const AppShell: React.FC<{ children: React.ReactNode; banner?: React.Reac
       </div>
     );
   }
-  return currentUser.role === 'student'
+  return currentUser.role === 'student' || currentUser.role === 'parent'
     ? <StudentShell banner={banner}>{children}</StudentShell>
     : <StaffShell banner={banner}>{children}</StaffShell>;
 };

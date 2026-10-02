@@ -18,6 +18,7 @@ import {
   SubmissionWithDetails,
   AnswerItem,
   SubAnswerItem,
+  Branch,
 } from '../types';
 import {
   StorageService,
@@ -37,6 +38,7 @@ import { logActivity } from '../services/activityService';
 import { Banner, loadBannerCache, syncBanners, saveBannerRemote, deleteBannerRemote } from '../services/bannerService';
 import { loadAwardsCache, makeAward, pushAward, pullAwards } from '../services/awardsService';
 import { AppSettings, loadSettings, syncSettings, saveSettings } from '../services/settingsService';
+import { loadBranchCache, syncBranches, saveBranchRemote, deleteBranchRemote, newBranch } from '../services/branchService';
 import { StudentAward } from '../utils/points';
 import { describeQuizTarget } from '../utils/quizTarget';
 import { targetStudents } from '../utils/quizAudience';
@@ -204,6 +206,12 @@ interface AppContextType {
   bulkDeleteUsers: (ids: string[]) => Promise<void>;
   /** نقل عدة طلاب إلى صف آخر دفعة واحدة */
   bulkMoveStudents: (ids: string[], classId: string) => Promise<void>;
+  /** فروع المدرسة (يديرها المدير) */
+  branches: Branch[];
+  saveBranch: (name: string, id?: string) => Promise<void>;
+  deleteBranch: (id: string) => Promise<void>;
+  /** نقل عدة مستخدمين إلى فرع (أو إزالة الفرع بتمرير null) */
+  bulkMoveToBranch: (ids: string[], branchId: string | null) => Promise<void>;
   addSubject: (data: Omit<Subject, 'id'>) => Promise<Subject>;
   updateSubjectData: (id: string, updates: Partial<Subject>) => Promise<void>;
   deleteSubjectItem: (id: string) => Promise<void>;
@@ -251,6 +259,9 @@ function normalizeUser(u: any): User {
     assigned_class_ids: classIds,
     teacher_permissions: normalizedPerms,
     permissions: normalizedPerms,
+    branch_id: u.branch_id || null,
+    gender: u.gender === 'male' || u.gender === 'female' ? u.gender : null,
+    child_ids: Array.isArray(u.child_ids) ? u.child_ids.map(String) : [],
   } as User;
 }
 
@@ -336,6 +347,7 @@ function allowedViews(u: User | null): string[] {
   const base = ['dashboard', 'quizzes', 'analytics', 'quiz_review', 'notifications'];
   // صفحة الاختبار تُستعاد بعد التحديث فقط إذا كانت هناك محاولة جارية محفوظة (المؤقت محفوظ معها)
   if (u.role === 'student') return [...base, 'my_points', 'take_quiz'];
+  if (u.role === 'parent') return ['dashboard', 'quiz_review', 'notifications'];
   const out = [...base];
   if (u.role === 'admin') {
     out.push('users', 'users_management', 'students_management', 'subjects_classes', 'reports', 'create_quiz', 'quiz_results', 'quiz_preview', 'settings', 'banners');
@@ -507,6 +519,7 @@ async function syncClassesFromSupabase(): Promise<void> {
       grade_level: r.grade_level || 'المرحلة الدراسية',
       student_count: r.student_count || 0,
       created_by: r.created_by,
+      branch_id: r.branch_id || null,
     })
   );
 
@@ -523,6 +536,7 @@ async function syncClassesFromSupabase(): Promise<void> {
           grade_level: c.grade_level,
           student_count: c.student_count || 0,
           created_by: c.created_by,
+          ...(c.branch_id ? { branch_id: c.branch_id } : {}),
         })
         .then(({ error: e }) => e && console.warn('[sync] class:', e.message));
     }
@@ -590,16 +604,26 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [awards, setAwards] = useState<StudentAward[]>(() => loadAwardsCache());
   const [banners, setBanners] = useState<Banner[]>(() => loadBannerCache());
   const [settings, setSettings] = useState<AppSettings>(() => loadSettings());
+  const [branches, setBranches] = useState<Branch[]>(() => loadBranchCache());
   const seenNotifRef = useRef<Set<string> | null>(null);
 
   const notifications = useMemo(
     () =>
       currentUser
         ? notifCache
-            .filter((n) => isForUser(n, currentUser) && !hidden.has(n.id))
+            .filter((n) => {
+              if (hidden.has(n.id)) return false;
+              if (isForUser(n, currentUser)) return true;
+              // ولي الأمر يستلم إشعارات أبنائه (اختبار جديد، تذكير، إعادة محاولة...)
+              if (currentUser.role !== 'parent') return false;
+              return (currentUser.child_ids || []).some((cid) => {
+                const child = users.find((u) => u.id === cid);
+                return !!child && isForUser(n, child);
+              });
+            })
             .map((n) => ({ ...n, read: reads.has(n.id) }))
         : [],
-    [notifCache, reads, hidden, currentUser]
+    [notifCache, reads, hidden, currentUser, users]
   );
   const unreadCount = notifications.filter((n) => !n.read).length;
   const pendingApprovalsCount = useMemo(
@@ -696,6 +720,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         }
         try {
           await syncSettings();
+          await syncBranches();
           await syncBanners();
           await pullAwards();
           await pullNotifications();
@@ -722,6 +747,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       setAwards(loadAwardsCache());
       setBanners(loadBannerCache());
       setSettings(loadSettings());
+      setBranches(loadBranchCache());
       if (me) {
         const rd = loadReads(me.id);
         setReads(rd);
@@ -1205,7 +1231,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const gradeEssay: AppContextType['gradeEssay'] = async (submissionId, questionId, subQuestionId, marks) => {
     const me = currentUserRef.current;
-    if (!me || me.role === 'student') return false;
+    if (!me || me.role === 'student' || me.role === 'parent') return false;
     const sub = StorageService.getSubmissionById(submissionId);
     if (!sub) return false;
     const q = StorageService.getQuestionsByQuizId(sub.quiz_id).find((x) => x.id === questionId);
@@ -1389,6 +1415,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           permissions: normalized.permissions,
           teacher_permissions: normalized.teacher_permissions,
           job_title: normalized.job_title ?? null,
+          branch_id: normalized.branch_id ?? null,
+          gender: normalized.gender ?? null,
+          child_ids: normalized.child_ids ?? [],
           updated_at: now,
         };
         if (updates.password && updates.password.trim()) payload.password = updates.password.trim();
@@ -1527,6 +1556,53 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     showToast(`تم نقل ${students.length} طالب إلى ${cls.name}`, 'success');
   };
 
+  // ---------------- الفروع ----------------
+  const saveBranch: AppContextType['saveBranch'] = async (name, id) => {
+    const clean = name.trim();
+    if (!clean) return;
+    const existing = id ? loadBranchCache().find((b) => b.id === id) : undefined;
+    const b = existing ? { ...existing, name: clean } : newBranch(clean);
+    const res = await saveBranchRemote(b);
+    setBranches(loadBranchCache());
+    log(existing ? 'branch_updated' : 'branch_added', { type: 'branch', id: b.id, name: b.name });
+    showToast(res.ok ? (existing ? 'تم تعديل الفرع' : `تمت إضافة الفرع: ${b.name}`) : `حُفظ على جهازك فقط (${res.error})`, res.ok ? 'success' : 'error');
+  };
+
+  const bulkMoveToBranch: AppContextType['bulkMoveToBranch'] = async (ids, branchId) => {
+    const list = ids.filter((id) => StorageService.getUserById(id));
+    if (!list.length) return;
+    const now = new Date().toISOString();
+    if (isSupabaseConfigured()) {
+      for (let i = 0; i < list.length; i += 100) {
+        const { error } = await supabase.from('users').update({ branch_id: branchId, updated_at: now }).in('id', list.slice(i, i + 100));
+        if (error) return void showToast(`تعذر نقل المستخدمين للفرع (${error.message})`, 'error');
+      }
+    }
+    list.forEach((id) => StorageService.updateUser(id, { branch_id: branchId, updated_at: now } as Partial<User>));
+    setUsers(StorageService.getUsers().map(normalizeUser));
+    recompute();
+    const name = branchId ? loadBranchCache().find((b) => b.id === branchId)?.name || 'الفرع' : 'بدون فرع';
+    log('user_updated', { type: 'branch', id: branchId || undefined, name }, `نقل ${list.length} مستخدم`);
+    showToast(branchId ? `تم نقل ${list.length} مستخدم إلى ${name}` : `أُزيل الفرع عن ${list.length} مستخدم`, 'success');
+  };
+
+  const deleteBranch: AppContextType['deleteBranch'] = async (id) => {
+    const b = loadBranchCache().find((x) => x.id === id);
+    // من كان في الفرع يصبح بلا فرع (حتى لا يبقى مستخدم مرتبطاً بفرع محذوف)
+    const members = StorageService.getUsers().filter((u) => u.branch_id === id).map((u) => u.id);
+    if (members.length) await bulkMoveToBranch(members, null);
+    const cls = StorageService.getClasses().filter((c) => c.branch_id === id);
+    for (const c of cls) {
+      StorageService.updateClass(c.id, { branch_id: null });
+      if (isSupabaseConfigured()) await supabase.from('classes').update({ branch_id: null }).eq('id', c.id);
+    }
+    const res = await deleteBranchRemote(id);
+    setBranches(loadBranchCache());
+    setClasses(StorageService.getClasses());
+    log('branch_deleted', { type: 'branch', id, name: b?.name });
+    showToast(res.ok ? 'تم حذف الفرع' : `تعذر الحذف من الخادم (${res.error})`, res.ok ? 'info' : 'error');
+  };
+
   // ---------------- المواد والفصول ----------------
   const addSubject = async (data: Omit<Subject, 'id'>): Promise<Subject> => {
     const me = currentUserRef.current;
@@ -1599,6 +1675,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       id: `class_${Date.now()}`,
       student_count: 0,
       created_by: me?.id,
+      // من له فرع: الشعبة في فرعه دائماً
+      branch_id: (me?.role !== 'admin' && me?.branch_id) || data.branch_id || null,
     };
     const list = [...(StorageService.getClasses() || []), cls];
     localStorage.setItem(LS_CLASSES, JSON.stringify(list));
@@ -1612,6 +1690,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           grade_level: cls.grade_level,
           student_count: cls.student_count || 0,
           created_by: cls.created_by,
+          ...(cls.branch_id ? { branch_id: cls.branch_id } : {}),
         });
         if (error) console.warn('[addClass] Supabase insert warning:', error.message);
       } catch (e) {
@@ -2011,6 +2090,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         deleteUserItem,
         bulkDeleteUsers,
         bulkMoveStudents,
+        branches,
+        saveBranch,
+        deleteBranch,
+        bulkMoveToBranch,
         addSubject,
         updateSubjectData,
         deleteSubjectItem,

@@ -44,7 +44,10 @@ export const SubmissionsTable: React.FC<SubmissionsTableProps> = ({
     allowStudentRetake,
     revokeStudentRetake,
     deleteSubmissions,
+    branches,
   } = useApp();
+  const [genderFilter, setGenderFilter] = useState('all');
+  const [branchFilter, setBranchFilter] = useState('all');
   const [picked, setPicked] = useState<string[]>([]);
   const [deleting, setDeleting] = useState(false);
 
@@ -125,6 +128,9 @@ export const SubmissionsTable: React.FC<SubmissionsTableProps> = ({
         selectedClassId === 'all' || sub.student?.class_id === selectedClassId;
 
       // Grade status filter
+      if (genderFilter !== 'all' && sub.student?.gender !== genderFilter) return false;
+      if (branchFilter !== 'all' && (sub.student?.branch_id || '') !== branchFilter) return false;
+
       let matchesGrade = true;
       if (selectedGradeFilter === 'excellent') {
         matchesGrade = sub.percentage >= 90;
@@ -138,7 +144,7 @@ export const SubmissionsTable: React.FC<SubmissionsTableProps> = ({
 
       return matchesSearch && matchesSubject && matchesClass && matchesGrade;
     });
-  }, [safeSubmissions, searchTerm, selectedSubjectId, selectedClassId, selectedGradeFilter, ungradedIds]);
+  }, [safeSubmissions, searchTerm, selectedSubjectId, selectedClassId, selectedGradeFilter, ungradedIds, genderFilter, branchFilter]);
 
   // Paginated slice
   const totalPages = Math.ceil(filteredSubmissions.length / pageSize) || 1;
@@ -343,6 +349,24 @@ export const SubmissionsTable: React.FC<SubmissionsTableProps> = ({
               {!isStudent && <option value="ungraded">يحتاج تصحيح مقالي ({ungradedIds.size})</option>}
             </select>
           </div>
+
+          {!isStudent && (
+            <div className="relative flex gap-2">
+              <select aria-label="تصفية حسب النوع" value={genderFilter} onChange={(e) => { setGenderFilter(e.target.value); setCurrentPage(1); }}
+                className="w-full px-3 py-2 text-xs rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-800 text-slate-700 dark:text-slate-200">
+                <option value="all">البنين والبنات</option>
+                <option value="male">البنين</option>
+                <option value="female">البنات</option>
+              </select>
+              {branches.length > 0 && currentUser?.role === 'admin' && (
+                <select aria-label="تصفية حسب الفرع" value={branchFilter} onChange={(e) => { setBranchFilter(e.target.value); setCurrentPage(1); }}
+                  className="w-full px-3 py-2 text-xs rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-800 text-slate-700 dark:text-slate-200">
+                  <option value="all">كل الفروع</option>
+                  {branches.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}
+                </select>
+              )}
+            </div>
+          )}
         </div>
       </div>
 

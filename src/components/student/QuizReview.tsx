@@ -63,9 +63,10 @@ export const QuizReview: React.FC<QuizReviewProps> = ({ submissionId, onBack }) 
   const earned = pointsForResult(pct, pass).total;
   const firstName = (currentUser?.role === 'student' ? currentUser.name : submission.student?.name || '').split(' ')[0];
   const ringColor = isPassed ? '#0f8a63' : pct >= pass * 0.8 ? '#d97706' : '#dc2626';
+  const female = (currentUser?.role === 'student' ? currentUser.gender : submission.student?.gender) === 'female';
   const headline = pendingCount > 0
     ? 'تم التسليم، وبعض الإجابات قيد التصحيح'
-    : pct >= 90 ? `ممتاز يا ${firstName}!` : isPassed ? `أحسنت يا ${firstName}!` : 'فرصة للمراجعة والتحسين';
+    : pct >= 90 ? `${female ? 'ممتازة' : 'ممتاز'} يا ${firstName}!` : isPassed ? `${female ? 'أحسنتِ' : 'أحسنت'} يا ${firstName}!` : 'فرصة للمراجعة والتحسين';
 
   return (
     <div className="max-w-2xl mx-auto py-6 sm:py-8 px-4 space-y-5" dir="rtl">
@@ -84,7 +85,7 @@ export const QuizReview: React.FC<QuizReviewProps> = ({ submissionId, onBack }) 
         <h1 className="text-2xl font-extrabold text-slate-900 dark:text-white">{headline}</h1>
         <div className="text-[15px] text-slate-500 dark:text-slate-400">{[submission.quiz?.title, submission.subject?.name].filter(Boolean).join(' · ')}</div>
         <div className="flex flex-wrap justify-center gap-2">
-          {pendingCount > 0 ? <Chip tone="info">قيد التصحيح</Chip> : <Chip tone={isPassed ? 'ok' : 'bad'}>{isPassed ? 'ناجح' : 'لم تجتز'}</Chip>}
+          {pendingCount > 0 ? <Chip tone="info">قيد التصحيح</Chip> : <Chip tone={isPassed ? 'ok' : 'bad'}>{isPassed ? (female ? 'ناجحة' : 'ناجح') : 'دون درجة النجاح'}</Chip>}
           {currentUser?.role === 'student' && <Chip tone="warn">+{earned} نقطة</Chip>}
         </div>
       </section>

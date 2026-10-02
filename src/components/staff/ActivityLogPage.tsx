@@ -3,7 +3,7 @@ import { ScrollText, RefreshCw } from 'lucide-react';
 import { ACTION_LABELS, ActivityEntry, fetchActivity } from '../../services/activityService';
 import { formatFullArabicDate } from '../../utils/dateUtils';
 
-const ROLE_TEXT: Record<string, string> = { admin: 'مدير', teacher: 'معلم', supervisor: 'مشرف', student: 'طالب' };
+const ROLE_TEXT: Record<string, string> = { admin: 'مدير', teacher: 'معلم', supervisor: 'مشرف', student: 'طالب', parent: 'ولي أمر' };
 
 /** سجل النشاط: من فعل ماذا ومتى */
 export const ActivityLogPage: React.FC = () => {

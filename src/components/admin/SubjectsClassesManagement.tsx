@@ -12,6 +12,7 @@ import {
   Palette,
   UserCheck,
   Users,
+  Building2,
 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 import { Subject, SchoolClass, User } from '../../types';
@@ -30,9 +31,17 @@ export const SubjectsClassesManagement: React.FC = () => {
     deleteClassItem,
     updateUserData,
     refreshData,
+    branches,
+    saveBranch,
+    deleteBranch,
   } = useApp();
+  const isAdmin = currentUser?.role === 'admin';
+  const [branchName, setBranchName] = useState('');
+  const [renaming, setRenaming] = useState<{ id: string; name: string } | null>(null);
+  const [classBranch, setClassBranch] = useState('');
+  const branchOf = (id?: string | null) => branches.find((b) => b.id === id)?.name;
 
-  const [activeTab, setActiveTab] = useState<'subjects' | 'classes'>('subjects');
+  const [activeTab, setActiveTab] = useState<'subjects' | 'classes' | 'branches'>('subjects');
 
   // Subject Modals
   const [showAddSubject, setShowAddSubject] = useState(false);
@@ -165,6 +174,7 @@ export const SubjectsClassesManagement: React.FC = () => {
   const handleOpenAddClass = () => {
     setClassName('');
     setGradeLevel('المرحلة الثانوية');
+    setClassBranch('');
     setShowAddClass(true);
   };
 
@@ -172,6 +182,7 @@ export const SubjectsClassesManagement: React.FC = () => {
     setEditingClass(c);
     setClassName(c.name);
     setGradeLevel(c.grade_level);
+    setClassBranch(c.branch_id || '');
   };
 
   const handleSaveClass = async (e: React.FormEvent) => {
@@ -182,12 +193,14 @@ export const SubjectsClassesManagement: React.FC = () => {
       await updateClassData(editingClass.id, {
         name: className.trim(),
         grade_level: gradeLevel.trim() || 'المرحلة الدراسية',
+        ...(isAdmin ? { branch_id: classBranch || null } : {}),
       });
       setEditingClass(null);
     } else {
       await addClass({
         name: className.trim(),
         grade_level: gradeLevel.trim() || 'المرحلة الدراسية',
+        branch_id: classBranch || null,
       });
       setShowAddClass(false);
     }
@@ -241,6 +254,20 @@ export const SubjectsClassesManagement: React.FC = () => {
             <School className="w-4 h-4" />
             <span>الفصول والشعب ({classes.length})</span>
           </button>
+
+          {isAdmin && (
+            <button
+              onClick={() => setActiveTab('branches')}
+              className={`flex items-center gap-2 px-4 py-2 rounded-xl transition-all ${
+                activeTab === 'branches'
+                  ? 'bg-white dark:bg-slate-900 text-indigo-700 dark:text-indigo-400 shadow-sm'
+                  : 'text-slate-600 dark:text-slate-400 hover:text-slate-900'
+              }`}
+            >
+              <Building2 className="w-4 h-4" />
+              <span>الفروع ({branches.length})</span>
+            </button>
+          )}
         </div>
       </div>
 
@@ -359,6 +386,11 @@ export const SubjectsClassesManagement: React.FC = () => {
                   <h4 className="font-bold text-base text-slate-900 dark:text-white mb-2">
                     {cls.name}
                   </h4>
+                  {branchOf(cls.branch_id) && (
+                    <span className="inline-flex items-center gap-1 text-xs font-semibold px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 mb-2">
+                      <Building2 className="w-3.5 h-3.5" />{branchOf(cls.branch_id)}
+                    </span>
+                  )}
                 </div>
 
                 {canManageClasses && (
@@ -395,6 +427,61 @@ export const SubjectsClassesManagement: React.FC = () => {
                 )}
               </div>
             ))}
+          </div>
+        </div>
+      )}
+
+      {/* Tab 3: الفروع (مدير النظام) */}
+      {activeTab === 'branches' && isAdmin && (
+        <div className="space-y-4 max-w-3xl">
+          <p className="text-[14.5px] text-slate-600 dark:text-slate-400 leading-relaxed">
+            المعلم أو المشرف المسند لفرع يرى طلاب وشعب واختبارات فرعه فقط، ومن بلا فرع يرى الكل.
+            يُسند الفرع للمستخدمين من صفحة «المستخدمون» (فردياً أو بالتحديد الجماعي)، وللشعب من تعديل الشعبة.
+          </p>
+          <form
+            onSubmit={async (e) => { e.preventDefault(); if (!branchName.trim()) return; await saveBranch(branchName); setBranchName(''); }}
+            className="flex gap-2"
+          >
+            <input value={branchName} onChange={(e) => setBranchName(e.target.value)} placeholder="اسم الفرع، مثل: فرع البنين" aria-label="اسم الفرع الجديد"
+              className="flex-1 h-11 px-3 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-[15px] text-slate-900 dark:text-white" />
+            <button type="submit" className="inline-flex items-center gap-1.5 h-11 px-5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-semibold">
+              <Plus className="w-4 h-4" />إضافة فرع
+            </button>
+          </form>
+          <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 divide-y divide-slate-100 dark:divide-slate-800">
+            {branches.length === 0 && <p className="p-6 text-center text-slate-500">لا توجد فروع بعد</p>}
+            {branches.map((b) => {
+              const members = users.filter((u) => u.branch_id === b.id);
+              const nStudents = members.filter((u) => u.role === 'student').length;
+              const nStaff = members.filter((u) => u.role === 'teacher' || u.role === 'supervisor').length;
+              const nClasses = classes.filter((c) => c.branch_id === b.id).length;
+              return (
+                <div key={b.id} className="flex items-center gap-3 p-4">
+                  <span className="w-10 h-10 rounded-xl bg-indigo-50 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-300 flex items-center justify-center shrink-0"><Building2 className="w-5 h-5" /></span>
+                  <div className="flex-1 min-w-0">
+                    {renaming?.id === b.id ? (
+                      <form onSubmit={async (e) => { e.preventDefault(); await saveBranch(renaming.name, b.id); setRenaming(null); }} className="flex gap-2">
+                        <input autoFocus value={renaming.name} onChange={(e) => setRenaming({ id: b.id, name: e.target.value })} aria-label="اسم الفرع"
+                          className="flex-1 h-10 px-3 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white" />
+                        <button type="submit" className="h-10 px-3 rounded-lg bg-indigo-600 text-white text-sm font-semibold" aria-label="حفظ"><Check className="w-4 h-4" /></button>
+                      </form>
+                    ) : (
+                      <>
+                        <div className="font-bold text-[15.5px] text-slate-900 dark:text-white">{b.name}</div>
+                        <div className="text-[13px] text-slate-500 dark:text-slate-400">{nStudents} طالب · {nStaff} من الطاقم · {nClasses} شعبة</div>
+                      </>
+                    )}
+                  </div>
+                  {renaming?.id !== b.id && (
+                    <>
+                      <button type="button" onClick={() => setRenaming({ id: b.id, name: b.name })} className="p-2 rounded-lg text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800" aria-label="تعديل الاسم"><Edit2 className="w-4 h-4" /></button>
+                      <button type="button" onClick={() => window.confirm(`حذف «${b.name}»؟ سيصبح ${members.length} مستخدم و${nClasses} شعبة بلا فرع.`) && void deleteBranch(b.id)}
+                        className="p-2 rounded-lg text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/50" aria-label="حذف الفرع"><Trash2 className="w-4 h-4" /></button>
+                    </>
+                  )}
+                </div>
+              );
+            })}
           </div>
         </div>
       )}
@@ -547,6 +634,17 @@ export const SubjectsClassesManagement: React.FC = () => {
                   className="w-full px-3 py-2 text-xs rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white"
                 />
               </div>
+
+              {isAdmin && branches.length > 0 && (
+                <div>
+                  <label htmlFor="class-branch" className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">الفرع</label>
+                  <select id="class-branch" value={classBranch} onChange={(e) => setClassBranch(e.target.value)}
+                    className="w-full px-3 py-2 text-xs rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white">
+                    <option value="">بدون فرع</option>
+                    {branches.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}
+                  </select>
+                </div>
+              )}
 
               <div className="pt-2 flex items-center justify-end gap-2">
                 <button

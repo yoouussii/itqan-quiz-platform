@@ -28,6 +28,7 @@ const roleGradients: Record<Role, string> = {
   teacher: 'from-emerald-600 to-teal-700 text-white shadow-emerald-500/20',
   student: 'from-amber-500 to-orange-600 text-white shadow-amber-500/20',
   supervisor: 'from-sky-600 to-cyan-700 text-white shadow-sky-500/20',
+  parent: 'from-rose-500 to-pink-600 text-white shadow-rose-500/20',
 };
 
 const badgeColors: Record<Role, string> = {
@@ -35,8 +36,9 @@ const badgeColors: Record<Role, string> = {
   teacher: 'bg-emerald-600 text-white',
   student: 'bg-amber-500 text-white',
   supervisor: 'bg-sky-600 text-white',
+  parent: 'bg-rose-500 text-white',
 };
-const badgeTitles: Record<Role, string> = { admin: 'مدير نظام', teacher: 'معلم', student: 'طالب', supervisor: 'مشرف' };
+const badgeTitles: Record<Role, string> = { admin: 'مدير نظام', teacher: 'معلم', student: 'طالب', supervisor: 'مشرف', parent: 'ولي أمر' };
 
 export const Avatar: React.FC<AvatarProps> = ({
   name,
