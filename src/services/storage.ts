@@ -845,6 +845,9 @@ public static getCurrentUser(): User | null {
     // STRICT PRIVACY: If student, strictly filter to their own submissions only!
     if (requestingUser.role === 'student') {
       submissions = submissions.filter((s) => s.student_id === requestingUserId);
+    } else if (requestingUser.role === 'supervisor') {
+      const ids = new Set(this.getSupervisorData(requestingUser).submissions.map((x) => x.id));
+      submissions = submissions.filter((x) => ids.has(x.id));
     } else if (requestingUser.role === 'teacher') {
       const canViewAll = requestingUser.teacher_permissions?.can_view_all_reports || (requestingUser as any).permissions?.can_view_all_reports;
       if (!canViewAll) {
@@ -883,8 +886,11 @@ public static getCurrentUser(): User | null {
   }
 
   // --- DYNAMIC KPI ANALYTICS CALCULATION ---
-  public static getDynamicKPIs(teacherId?: string) {
-    const students = this.getStudents();
+  public static getDynamicKPIs(
+    teacherId?: string,
+    scope?: { studentIds: Set<string>; quizIds: Set<string> }
+  ) {
+    let students = this.getStudents();
     let submissions = this.getSubmissions();
     let allQuizzes = this.getQuizzes();
 
@@ -897,6 +903,12 @@ public static getCurrentUser(): User | null {
       quizzes = quizzes.filter((q) => q.teacher_id === teacherId);
       const quizIds = new Set(quizzes.map((q) => q.id));
       submissions = submissions.filter((s) => quizIds.has(s.quiz_id));
+    }
+
+    if (scope) {
+      students = students.filter((st) => scope.studentIds.has(st.id));
+      quizzes = quizzes.filter((q) => scope.quizIds.has(q.id));
+      submissions = submissions.filter((sub) => scope.quizIds.has(sub.quiz_id) && scope.studentIds.has(sub.student_id));
     }
 
     const totalStudents = students.length;
@@ -1011,6 +1023,69 @@ public static getCurrentUser(): User | null {
       completionTimeline,
       subjectPerformance,
     };
+  }
+
+  // =====================================================================
+  // نطاق المشرف: لا يرى إلا الصفوف/المواد المسندة إليه (أو الكل بصلاحية التقارير العامة)
+  // =====================================================================
+  public static getSupervisorScope(user: User): { all: boolean; classIds: string[]; subjectIds: string[]; empty: boolean } {
+    const perms = user.teacher_permissions || (user as any).permissions || {};
+    const classIds = Array.from(new Set([...(user.assigned_class_ids || []), ...(user.class_id ? [user.class_id] : [])]));
+    const subjectIds = Array.from(
+      new Set([...(user.assigned_subject_ids || []), ...(user.specialty_id ? [user.specialty_id] : [])].map((id) => canonSubjectId(id) as string))
+    );
+    const all = !!perms.can_view_all_reports;
+    return { all, classIds, subjectIds, empty: !all && classIds.length === 0 && subjectIds.length === 0 };
+  }
+
+  public static getSupervisorData(user: User) {
+    const scope = this.getSupervisorScope(user);
+    const allStudents = this.getStudents();
+    const classOf = (st: User) => st.class_id || st.assigned_class_ids?.[0] || '';
+
+    const students = scope.empty
+      ? []
+      : scope.all || scope.classIds.length === 0
+      ? allStudents
+      : allStudents.filter((st) => scope.classIds.includes(classOf(st)));
+    const studentIds = new Set(students.map((st) => st.id));
+
+    const targetsScope = (quizId: string): boolean => {
+      const asg = this.getAssignmentsByQuizId(quizId).filter((a) => a.target_type !== 'assigned_teacher');
+      if (asg.some((a) => a.target_type === 'all')) return true;
+      if (asg.some((a) => a.target_type === 'class' && scope.classIds.includes(a.target_id || ''))) return true;
+      return asg
+        .filter((a) => a.target_type === 'specific_students' && a.target_id)
+        .some((a) => String(a.target_id).split(',').some((id) => studentIds.has(id.trim())));
+    };
+
+    const rawQuizzes = this.getQuizzes().filter((q) => !q.is_deleted);
+    const quizIdsList = scope.empty
+      ? []
+      : rawQuizzes
+          .filter(
+            (q) =>
+              scope.all ||
+              ((scope.subjectIds.length === 0 || scope.subjectIds.includes(q.subject_id)) &&
+                (scope.classIds.length === 0 || targetsScope(q.id)))
+          )
+          .map((q) => q.id);
+    const quizIds = new Set(quizIdsList);
+    const quizzes = quizIdsList.map((id) => this.getQuizWithDetails(id)!).filter(Boolean);
+    const submissions = this.getSubmissions().filter((sub) => quizIds.has(sub.quiz_id) && studentIds.has(sub.student_id));
+
+    const teacherIdsFromQuizzes = new Set(quizzes.map((q) => q.teacher_id));
+    const teachers = scope.empty
+      ? []
+      : this.getTeachers().filter(
+          (t) =>
+            scope.all ||
+            teacherIdsFromQuizzes.has(t.id) ||
+            (t.assigned_class_ids || []).some((c) => scope.classIds.includes(c)) ||
+            (t.assigned_subject_ids || []).some((sId) => scope.subjectIds.includes(canonSubjectId(sId) as string))
+        );
+
+    return { scope, students, teachers, quizzes, submissions, studentIds, quizIds };
   }
 
   // =====================================================================
@@ -1134,6 +1209,7 @@ export function cleanUserPayloadForSupabase(user: Partial<User>): Record<string,
     assigned_class_ids: user.assigned_class_ids || [],
     permissions: user.permissions || {},
     teacher_permissions: user.teacher_permissions || {},
+    job_title: user.job_title || null,
     created_by: user.created_by || null,
     created_at: user.created_at || now,
     updated_at: user.updated_at || now,

@@ -11,6 +11,8 @@ interface KPICardProps {
     value: string;
     isPositive: boolean;
   };
+  /** عند تمريرها تصبح البطاقة قابلة للضغط لعرض التفاصيل */
+  onClick?: () => void;
 }
 
 const colorMap = {
@@ -65,12 +67,18 @@ export const KPICard: React.FC<KPICardProps> = ({
   icon: Icon,
   colorScheme,
   trend,
+  onClick,
 }) => {
   const scheme = colorMap[colorScheme];
 
   return (
     <div
-      className={`relative overflow-hidden bg-white dark:bg-slate-900 p-5 rounded-2xl border ${scheme.border} shadow-sm hover:shadow-md transition-all duration-300 group`}
+      role={onClick ? 'button' : undefined}
+      tabIndex={onClick ? 0 : undefined}
+      aria-label={onClick ? `${title}: عرض التفاصيل` : undefined}
+      onClick={onClick}
+      onKeyDown={onClick ? (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onClick(); } } : undefined}
+      className={`relative overflow-hidden bg-white dark:bg-slate-900 p-5 rounded-2xl border ${scheme.border} shadow-sm hover:shadow-md transition-all duration-300 group ${onClick ? 'cursor-pointer hover:-translate-y-0.5 focus:outline-none focus:ring-2 focus:ring-indigo-400' : ''}`}
     >
       <div
         className={`absolute top-0 right-0 w-32 h-32 bg-gradient-to-br ${scheme.gradient} rounded-full blur-2xl -mr-10 -mt-10 pointer-events-none`}
@@ -98,6 +106,7 @@ export const KPICard: React.FC<KPICardProps> = ({
             )}
           </div>
           {subtitle && <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">{subtitle}</p>}
+          {onClick && <p className="text-[10px] font-bold text-indigo-500 dark:text-indigo-400 mt-1.5">اضغط لعرض التفاصيل ←</p>}
         </div>
 
         <div

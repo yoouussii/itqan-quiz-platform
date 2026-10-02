@@ -17,6 +17,7 @@ import {
   Download,
   FileSpreadsheet,
 } from 'lucide-react';
+import { UserCog } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 import { DEFAULT_PASSWORD } from '../../services/storage';
 import { resolveClass } from '../../utils/classMatch';
@@ -39,7 +40,7 @@ export const UsersManagement: React.FC = () => {
   // التحقق من صلاحية إضافة الطلاب
   const canAddStudent =
     currentUser?.role === 'admin' ||
-    (currentUser?.role === 'teacher' && currentUser?.teacher_permissions?.can_add_students);
+    ((currentUser?.role === 'teacher' || currentUser?.role === 'supervisor') && currentUser?.teacher_permissions?.can_add_students);
 
   const [searchTerm, setSearchTerm] = useState('');
   const [roleFilter, setRoleFilter] = useState<string>('all');
@@ -55,6 +56,7 @@ export const UsersManagement: React.FC = () => {
   const [name, setName] = useState('');
   const [nationalId, setNationalId] = useState('');
   const [password, setPassword] = useState('');
+  const [jobTitle, setJobTitle] = useState('');
   const [role, setRole] = useState<Role>('student');
   const [classId, setClassId] = useState(classes[0]?.id || '');
   const [assignedSubjectIds, setAssignedSubjectIds] = useState<string[]>([]);
@@ -76,7 +78,15 @@ export const UsersManagement: React.FC = () => {
   const [isImporting, setIsImporting] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const isTeacher = currentUser?.role === 'teacher';
+  // المعلم والمشرف: صلاحيات محدودة (يرون ويضيفون الطلاب الذين أضافوهم فقط)
+  const isTeacher = currentUser?.role === 'teacher' || currentUser?.role === 'supervisor';
+  const isStaffRole = (r?: string) => r === 'teacher' || r === 'supervisor';
+  const PERM_KEYS = [
+    'can_add_custom_subjects', 'can_manage_classes', 'can_view_all_reports', 'can_add_students', 'can_add_teachers',
+    'can_view_teachers_performance', 'can_export_reports', 'can_manage_retakes',
+  ] as const;
+  const pickPerms = (src: TeacherPermissions): TeacherPermissions =>
+    Object.fromEntries(PERM_KEYS.map((k) => [k, !!src[k]])) as TeacherPermissions;
 
   // المستخدمون ضمن صلاحية من يتصفح (المعلم يرى الطلاب الذين أضافهم فقط)
   const scopeUsers = users.filter((u) => !isTeacher || (u.role === 'student' && u.created_by === currentUser?.id));
@@ -120,6 +130,7 @@ export const UsersManagement: React.FC = () => {
     setName('');
     setNationalId('');
     setPassword('itqan123');
+    setJobTitle('');
     setRole(defaultRole);
     // لا نختار صفاً تلقائياً (إلا إذا كان الوحيد) حتى لا يُحفظ الطالب في أول صف دون قصد
     setClassId(classes.length === 1 ? classes[0].id : '');
@@ -234,13 +245,7 @@ export const UsersManagement: React.FC = () => {
       alert('يرجى اختيار الصف الدراسي للطالب');
       return;
     }
-    const permsObj: TeacherPermissions | undefined = effectiveRole === 'teacher' ? {
-      can_add_custom_subjects: !!teacherPermissions.can_add_custom_subjects,
-      can_manage_classes: !!teacherPermissions.can_manage_classes,
-      can_view_all_reports: !!teacherPermissions.can_view_all_reports,
-      can_add_students: !!teacherPermissions.can_add_students,
-      can_add_teachers: !!teacherPermissions.can_add_teachers,
-    } : undefined;
+    const permsObj: TeacherPermissions | undefined = isStaffRole(effectiveRole) ? pickPerms(teacherPermissions) : undefined;
 
     await addUser({
       name: name.trim(),
@@ -248,10 +253,11 @@ export const UsersManagement: React.FC = () => {
       username: nationalId.trim(),
       email: `${nationalId.trim()}@itqan.edu.sa`,
       password,
+      job_title: jobTitle.trim() || null,
       role: effectiveRole,
-      specialty_id: effectiveRole === 'teacher' ? (assignedSubjectIds[0] || null) : null,
-      assigned_subject_ids: effectiveRole === 'teacher' ? [...assignedSubjectIds] : [],
-      assigned_class_ids: effectiveRole === 'teacher' ? [...assignedClassIds] : (effectiveRole === 'student' ? [classId] : []),
+      specialty_id: isStaffRole(effectiveRole) ? (assignedSubjectIds[0] || null) : null,
+      assigned_subject_ids: isStaffRole(effectiveRole) ? [...assignedSubjectIds] : [],
+      assigned_class_ids: isStaffRole(effectiveRole) ? [...assignedClassIds] : (effectiveRole === 'student' ? [classId] : []),
       class_id: effectiveRole === 'student' ? classId : (assignedClassIds[0] || null),
       teacher_permissions: permsObj,
       permissions: permsObj,
@@ -266,13 +272,7 @@ export const UsersManagement: React.FC = () => {
 
     const effectiveRole: Role = isTeacher ? 'student' : (editingUser.role || role);
     const currentPerms = editingUser.teacher_permissions || teacherPermissions;
-    const permsObj: TeacherPermissions | undefined = effectiveRole === 'teacher' ? {
-      can_add_custom_subjects: !!currentPerms.can_add_custom_subjects,
-      can_manage_classes: !!currentPerms.can_manage_classes,
-      can_view_all_reports: !!currentPerms.can_view_all_reports,
-      can_add_students: !!currentPerms.can_add_students,
-      can_add_teachers: !!currentPerms.can_add_teachers,
-    } : undefined;
+    const permsObj: TeacherPermissions | undefined = isStaffRole(effectiveRole) ? pickPerms(currentPerms) : undefined;
 
     const studentClassId = editingUser.class_id || editingUser.assigned_class_ids?.[0] || classId || classes[0]?.id || null;
     const teacherSubs = editingUser.assigned_subject_ids || assignedSubjectIds || [];
@@ -289,8 +289,8 @@ export const UsersManagement: React.FC = () => {
       : [...teacherCls];
 
     // المواد: specialty_id و assigned_subject_ids
-    const unifiedSpecialtyId = effectiveRole === 'teacher' ? (teacherSubs[0] || null) : null;
-    const unifiedAssignedSubjectIds = effectiveRole === 'teacher' ? [...teacherSubs] : [];
+    const unifiedSpecialtyId = isStaffRole(effectiveRole) ? (teacherSubs[0] || null) : null;
+    const unifiedAssignedSubjectIds = isStaffRole(effectiveRole) ? [...teacherSubs] : [];
 
     const updates: Partial<User> & { password?: string } = {
       name: currentName,
@@ -298,6 +298,7 @@ export const UsersManagement: React.FC = () => {
       username: currentNationalId,
       email: editingUser.email || `${currentNationalId}@itqan.edu.sa`,
       role: effectiveRole,
+      job_title: (editingUser.job_title || '').trim() || null,
       specialty_id: unifiedSpecialtyId,
       assigned_subject_ids: unifiedAssignedSubjectIds,
       class_id: unifiedClassId,
@@ -537,6 +538,7 @@ export const UsersManagement: React.FC = () => {
               <option value="all">كافة الأدوار ({scopeUsers.length})</option>
               <option value="admin">مديرو النظام ({roleCount('admin')})</option>
               <option value="teacher">المعلمون ({roleCount('teacher')})</option>
+              <option value="supervisor">المشرفون ({roleCount('supervisor')})</option>
               <option value="student">الطلاب ({roleCount('student')})</option>
             </select>
           )}
@@ -615,7 +617,7 @@ export const UsersManagement: React.FC = () => {
                   >
                     <td className="py-3.5 px-4">
                       <div className="flex items-center gap-3">
-                        <Avatar name={u.name} role={u.role} size="sm" showBadge />
+                        <Avatar name={u.name} role={u.role} userId={u.id} size="sm" showBadge />
                         <div>
                           <div className="font-bold text-slate-900 dark:text-white">{u.name}</div>
                           <div className="text-[11px] text-slate-400">ID: {u.id}</div>
@@ -631,19 +633,28 @@ export const UsersManagement: React.FC = () => {
                       {u.role === 'admin' && (
                         <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-indigo-100 dark:bg-indigo-950 text-indigo-800 dark:text-indigo-300">
                           <ShieldCheck className="w-3.5 h-3.5" />
-                          <span>مدير نظام</span>
+                          <span>{u.job_title?.trim() || 'مدير نظام'}</span>
                         </span>
                       )}
                       {u.role === 'teacher' && (
                         <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-300">
                           <UserCheck className="w-3.5 h-3.5" />
-                          <span>معلم</span>
+                          <span>{u.job_title?.trim() || 'معلم'}</span>
+                        </span>
+                      )}
+                      {u.role === 'supervisor' && (
+                        <span
+                          title="الدور في النظام: مشرف"
+                          className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-sky-100 dark:bg-sky-950 text-sky-800 dark:text-sky-300"
+                        >
+                          <UserCog className="w-3.5 h-3.5" />
+                          <span>{u.job_title?.trim() || 'مشرف'}</span>
                         </span>
                       )}
                       {u.role === 'student' && (
                         <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-amber-100 dark:bg-amber-950 text-amber-800 dark:text-amber-300">
                           <GraduationCap className="w-3.5 h-3.5" />
-                          <span>طالب</span>
+                          <span>{u.job_title?.trim() || 'طالب'}</span>
                         </span>
                       )}
                     </td>
@@ -656,7 +667,7 @@ export const UsersManagement: React.FC = () => {
                             {creator.name}
                           </span>
                           <span className="text-[10px] text-slate-400">
-                            ({creator.role === 'admin' ? 'أدمن' : 'معلم'})
+                            ({creator.role === 'admin' ? 'أدمن' : creator.role === 'supervisor' ? 'مشرف' : 'معلم'})
                           </span>
                         </div>
                       ) : (
@@ -665,7 +676,7 @@ export const UsersManagement: React.FC = () => {
                     </td>
 
                     <td className="py-3.5 px-4 font-medium text-slate-700 dark:text-slate-300">
-                      {u.role === 'teacher' && (
+                      {isStaffRole(u.role) && (
                         <div className="space-y-1.5">
                           <div className="flex flex-wrap items-center gap-1">
                             <span className="text-[10px] font-bold text-slate-400 ml-1">المواد:</span>
@@ -704,7 +715,7 @@ export const UsersManagement: React.FC = () => {
                     </td>
 
                     <td className="py-3.5 px-4 text-xs">
-                      {u.role === 'teacher' ? (() => {
+                      {isStaffRole(u.role) ? (() => {
                         const perms = u.teacher_permissions || (u as any).permissions || {};
                         const hasAny = Object.values(perms).some(Boolean);
                         if (!hasAny) return <span className="text-slate-400">صلاحيات أساسية</span>;
@@ -733,6 +744,21 @@ export const UsersManagement: React.FC = () => {
                             {perms.can_view_all_reports && (
                               <span className="bg-purple-50 dark:bg-purple-950 text-purple-700 dark:text-purple-300 px-1.5 py-0.5 rounded">
                                 تقارير عامة ✓
+                              </span>
+                            )}
+                            {perms.can_view_teachers_performance && (
+                              <span className="bg-sky-50 dark:bg-sky-950 text-sky-700 dark:text-sky-300 px-1.5 py-0.5 rounded">
+                                أداء المعلمين ✓
+                              </span>
+                            )}
+                            {perms.can_export_reports && (
+                              <span className="bg-rose-50 dark:bg-rose-950 text-rose-700 dark:text-rose-300 px-1.5 py-0.5 rounded">
+                                تصدير ✓
+                              </span>
+                            )}
+                            {perms.can_manage_retakes && (
+                              <span className="bg-amber-50 dark:bg-amber-950 text-amber-700 dark:text-amber-300 px-1.5 py-0.5 rounded">
+                                إعادة محاولات ✓
                               </span>
                             )}
                           </div>
@@ -874,8 +900,28 @@ export const UsersManagement: React.FC = () => {
                   >
                     <option value="student">طالب (Student)</option>
                     <option value="teacher">معلم (Teacher)</option>
+                    <option value="supervisor">مشرف (Supervisor)</option>
                     <option value="admin">مدير نظام (Super Admin)</option>
                   </select>
+                </div>
+              )}
+
+              {!isTeacher && (
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
+                    المسمى الوظيفي (نص حر — للعرض فقط ولا يغيّر الصلاحيات)
+                  </label>
+                  <input
+                    type="text"
+                    aria-label="المسمى الوظيفي"
+                    value={editingUser ? (editingUser.job_title || '') : jobTitle}
+                    onChange={(e) => {
+                      setJobTitle(e.target.value);
+                      if (editingUser) setEditingUser((prev) => (prev ? { ...prev, job_title: e.target.value } : null));
+                    }}
+                    placeholder="مثال: معلم ومشرف، وكيل المدرسة، رائد النشاط..."
+                    className="w-full px-3 py-2 text-xs rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  />
                 </div>
               )}
 
@@ -914,12 +960,12 @@ export const UsersManagement: React.FC = () => {
                 </div>
               )}
 
-              {((editingUser ? editingUser.role : role) === 'teacher') && !isTeacher && (
+              {isStaffRole(editingUser ? editingUser.role : role) && !isTeacher && (
                 <>
                   {/* المواد المسندة */}
                   <div>
                     <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5">
-                      المواد المسندة للمعلم (اختر مادة أو أكثر):
+                      المواد المسندة (اختر مادة أو أكثر):
                     </label>
                     <div className="grid grid-cols-2 gap-2 max-h-36 overflow-y-auto p-1.5 border rounded-xl border-slate-200 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-800/30">
                       {subjects.map((s) => {
@@ -952,7 +998,7 @@ export const UsersManagement: React.FC = () => {
                   {/* الفصول والشعب المسندة */}
                   <div>
                     <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5">
-                      الفصول والشعب المسندة للمعلم (اختر فصل أو أكثر):
+                      الفصول والشعب المسندة (اختر فصل أو أكثر):
                     </label>
                     <div className="grid grid-cols-2 gap-2 max-h-36 overflow-y-auto p-1.5 border rounded-xl border-slate-200 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-800/30">
                       {classes.map((c) => {
@@ -986,8 +1032,13 @@ export const UsersManagement: React.FC = () => {
                   <div className="p-3.5 bg-slate-50 dark:bg-slate-800/60 rounded-2xl border border-slate-200 dark:border-slate-700 space-y-2">
                     <div className="flex items-center gap-1.5 text-xs font-bold text-slate-800 dark:text-white mb-2">
                       <Sliders className="w-4 h-4 text-indigo-600" />
-                      <span>الصلاحيات الإضافية للمعلم:</span>
+                      <span>الصلاحيات الإضافية:</span>
                     </div>
+                    {(editingUser ? editingUser.role : role) === 'supervisor' && (
+                      <p className="text-[11px] text-slate-500 dark:text-slate-400 leading-relaxed">
+                        نطاق المشرف هو الصفوف والمواد المحددة أعلاه (بدونها لا يرى أي بيانات). صلاحية «عرض جميع التقارير» تفتح له كل البيانات.
+                      </p>
+                    )}
 
                     {[
                       { key: 'can_add_students' as const, label: 'صلاحية إضافة طلاب جدد (can_add_students)' },
@@ -995,6 +1046,13 @@ export const UsersManagement: React.FC = () => {
                       { key: 'can_add_custom_subjects' as const, label: 'صلاحية إضافة مواد دراسية (can_add_custom_subjects)' },
                       { key: 'can_manage_classes' as const, label: 'صلاحية إدارة الفصول والشعب (can_manage_classes)' },
                       { key: 'can_view_all_reports' as const, label: 'صلاحية عرض جميع التقارير (can_view_all_reports)' },
+                      ...((editingUser ? editingUser.role : role) === 'supervisor'
+                        ? [
+                            { key: 'can_view_teachers_performance' as const, label: 'عرض أداء المعلمين ضمن نطاقه (can_view_teachers_performance)' },
+                            { key: 'can_export_reports' as const, label: 'تصدير التقارير CSV / PDF (can_export_reports)' },
+                            { key: 'can_manage_retakes' as const, label: 'منح الطلاب إعادة محاولة (can_manage_retakes)' },
+                          ]
+                        : []),
                     ].map((perm) => {
                       const curPerms = editingUser?.teacher_permissions || teacherPermissions;
                       return (

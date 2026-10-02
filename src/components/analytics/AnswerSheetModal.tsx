@@ -90,7 +90,7 @@ export const AnswerSheetModal: React.FC<AnswerSheetModalProps> = ({ submission, 
           <div className="bg-gradient-to-br from-slate-50 to-indigo-50/30 dark:from-slate-800 dark:to-indigo-950/20 p-5 rounded-2xl border border-slate-200/80 dark:border-slate-700">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
               <div className="flex items-center gap-3">
-                <Avatar name={submission.student?.name || ''} role={submission.student?.role} size="lg" />
+                <Avatar name={submission.student?.name || ''} role={submission.student?.role} userId={submission.student_id} size="lg" />
                 <div>
                   <h3 className="font-bold text-slate-900 dark:text-white text-base">{submission.student?.name}</h3>
                   <div className="flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400 mt-0.5">

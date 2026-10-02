@@ -18,6 +18,7 @@ import {
 import { useApp } from '../../context/AppContext';
 import { Avatar } from './Avatar';
 import { Logo } from './Logo';
+import { ProfileModal } from './ProfileModal';
 
 export const Navbar: React.FC = () => {
   const {
@@ -53,12 +54,17 @@ export const Navbar: React.FC = () => {
         return { text: 'معلم / مدرب', color: 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800' };
       case 'student':
         return { text: 'طالب', color: 'bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300 border-amber-200 dark:border-amber-800' };
+      case 'supervisor':
+        return { text: 'مشرف', color: 'bg-sky-100 text-sky-800 dark:bg-sky-950 dark:text-sky-300 border-sky-200 dark:border-sky-800' };
       default:
         return { text: 'زائر', color: 'bg-slate-100 text-slate-800 dark:bg-slate-800 dark:text-slate-300 border-slate-200 dark:border-slate-700' };
     }
   };
 
-  const roleInfo = getRoleLabel(currentUser?.role);
+  const baseRole = getRoleLabel(currentUser?.role);
+  // المسمى الوظيفي النصي (إن وُجد) يظهر بدل اسم الدور
+  const roleInfo = { ...baseRole, text: currentUser?.job_title?.trim() || baseRole.text };
+  const [showProfile, setShowProfile] = useState(false);
 
   // Navigation items based on role & permissions
   const navItems = () => {
@@ -92,6 +98,21 @@ export const Navbar: React.FC = () => {
         items.push({ id: 'subjects_classes', label: 'المواد والشعب', icon: Layers });
       }
       if (perms.can_add_students || perms.can_add_teachers) {
+        items.push({ id: 'users_management', label: 'إدارة المستخدمين', icon: Users });
+      }
+      return items;
+    }
+
+    if (currentUser.role === 'supervisor') {
+      const sp = currentUser.teacher_permissions || (currentUser as any)?.permissions || {};
+      const items = [
+        { id: 'dashboard', label: 'لوحة المشرف', icon: LayoutDashboard },
+        { id: 'analytics', label: 'التحليلات', icon: BarChart2 },
+      ];
+      if (sp.can_add_custom_subjects || sp.can_manage_classes) {
+        items.push({ id: 'subjects_classes', label: 'المواد والشعب', icon: Layers });
+      }
+      if (sp.can_add_students || sp.can_add_teachers) {
         items.push({ id: 'users_management', label: 'إدارة المستخدمين', icon: Users });
       }
       return items;
@@ -179,14 +200,14 @@ export const Navbar: React.FC = () => {
                               }`}
                             >
                               <div className="flex items-center gap-2">
-                                <Avatar name={u.name} role={u.role} size="sm" />
+                                <Avatar name={u.name} role={u.role} userId={u.id} size="sm" />
                                 <div>
                                   <div className="font-bold text-slate-800 dark:text-white">{u.name}</div>
                                   <div className="text-[10px] text-slate-500 dark:text-slate-400">{u.national_id}</div>
                                 </div>
                               </div>
                               <span className="text-[10px] px-2 py-0.5 rounded-full font-bold bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300">
-                                {u.role === 'admin' ? 'مدير' : u.role === 'teacher' ? 'معلم' : 'طالب'}
+                                {u.role === 'admin' ? 'مدير' : u.role === 'teacher' ? 'معلم' : u.role === 'supervisor' ? 'مشرف' : 'طالب'}
                               </span>
                             </button>
                           );
@@ -215,8 +236,14 @@ export const Navbar: React.FC = () => {
               {/* Current User Badge & Dropdown */}
               {currentUser ? (
                 <div className="flex items-center gap-2.5 pl-1 border-r border-slate-200 dark:border-slate-800 pr-2.5">
-                  <div className="flex items-center gap-2">
-                    <Avatar name={currentUser.name} role={currentUser.role} size="sm" showBadge />
+                  <button
+                    type="button"
+                    onClick={() => setShowProfile(true)}
+                    title="الملف الشخصي وتغيير الصورة"
+                    aria-label="الملف الشخصي"
+                    className="flex items-center gap-2 rounded-xl px-1 py-0.5 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+                  >
+                    <Avatar name={currentUser.name} role={currentUser.role} userId={currentUser.id} size="sm" showBadge />
                     <div className="hidden lg:block text-right">
                       <div className="text-xs font-bold text-slate-800 dark:text-white leading-tight">
                         {currentUser.name}
@@ -227,7 +254,7 @@ export const Navbar: React.FC = () => {
                         {roleInfo.text}
                       </span>
                     </div>
-                  </div>
+                  </button>
 
                   <button
                     onClick={logout}
@@ -255,7 +282,7 @@ export const Navbar: React.FC = () => {
           <div className="md:hidden border-t border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-4 pt-3 pb-5 space-y-2">
             <div className="mb-3 p-3 rounded-xl bg-slate-50 dark:bg-slate-800 flex items-center justify-between">
               <div className="flex items-center gap-2">
-                <Avatar name={currentUser?.name || ''} role={currentUser?.role} size="sm" />
+                <Avatar name={currentUser?.name || ''} role={currentUser?.role} userId={currentUser?.id} size="sm" />
                 <div>
                   <div className="text-xs font-bold text-slate-800 dark:text-white">{currentUser?.name}</div>
                   <div className="text-[10px] text-slate-500 dark:text-slate-400">{roleInfo.text}</div>
@@ -313,7 +340,7 @@ export const Navbar: React.FC = () => {
                     >
                       <span className="font-medium">{u.name}</span>
                       <span className="text-[10px] px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-500">
-                        {u.role === 'admin' ? 'مدير' : u.role === 'teacher' ? 'معلم' : 'طالب'}
+                        {u.role === 'admin' ? 'مدير' : u.role === 'teacher' ? 'معلم' : u.role === 'supervisor' ? 'مشرف' : 'طالب'}
                       </span>
                     </button>
                   ))}
@@ -323,6 +350,7 @@ export const Navbar: React.FC = () => {
           </div>
         )}
       </header>
+      {showProfile && <ProfileModal onClose={() => setShowProfile(false)} />}
     </>
   );
 };

@@ -22,6 +22,9 @@ import { KPICard } from '../common/KPICard';
 import { Avatar } from '../common/Avatar';
 import { formatArabicQuizDate } from '../../utils/dateUtils';
 import { parseWindowStart, parseWindowEnd, formatQuizDateTime } from '../../utils/quizWindow';
+import { PencilLine } from 'lucide-react';
+import { KpiDetailModal } from '../common/KpiDetailModal';
+import { KpiSection, studentQuizzesSection, studentResultsSection, studentSubjectsSection, topResultsSection } from '../../utils/kpiSections';
 
 interface StudentDashboardProps {
   onStartQuiz: (quizId: string) => void;
@@ -35,6 +38,7 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({
   const { currentUser, quizzes, submissions, classes } = useApp();
 
   const [activeFilter, setActiveFilter] = useState<'all' | 'available' | 'completed'>('all');
+  const [kpiModal, setKpiModal] = useState<'available' | 'completed' | 'avg' | 'best' | null>(null);
 
   const studentClass = classes.find((c) => c.id === currentUser?.class_id);
 
@@ -88,7 +92,7 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({
 
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-6 relative z-10">
           <div className="flex items-center gap-4">
-            <Avatar name={currentUser?.name || ''} role={currentUser?.role} size="xl" showBadge />
+            <Avatar name={currentUser?.name || ''} role={currentUser?.role} userId={currentUser?.id} size="xl" showBadge />
             <div>
               <div className="flex items-center gap-2 mb-1">
                 <span className="text-xs px-2.5 py-0.5 rounded-full bg-white/20 backdrop-blur-sm font-bold text-amber-300">
@@ -135,8 +139,9 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({
           title="اختبارات متاحة للحل"
           value={availableQuizzesCount}
           subtitle="بانتظار أدائك الآن"
-          icon={FileQuestion}
+          icon={PencilLine}
           colorScheme="indigo"
+          onClick={() => setKpiModal('available')}
         />
         <KPICard
           title="اختبارات مكتملة معتمدة"
@@ -144,6 +149,7 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({
           subtitle="محسوبة في المعدل الرسمي"
           icon={CheckCircle2}
           colorScheme="emerald"
+          onClick={() => setKpiModal('completed')}
         />
         <KPICard
           title="المعدل التراكمي العام"
@@ -152,6 +158,7 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({
           icon={Award}
           colorScheme="amber"
           trend={{ value: `${averageScore >= 60 ? 'ناجح' : 'بحاجة لتحسين'}`, isPositive: averageScore >= 60 }}
+          onClick={() => setKpiModal('avg')}
         />
         <KPICard
           title="أعلى نسبة محققة"
@@ -159,6 +166,7 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({
           subtitle="أفضل نتيجة في المواد"
           icon={TrendingUp}
           colorScheme="purple"
+          onClick={() => setKpiModal('best')}
         />
       </div>
 
@@ -412,6 +420,20 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({
           </div>
         )}
       </div>
+
+      {kpiModal && (() => {
+        const mine = validActiveSubmissions as any[];
+        const sections: KpiSection[] =
+          kpiModal === 'available'
+            ? [studentQuizzesSection('اختباراتك المتاحة للحل', quizzes.filter((q) => !q.user_submission || q.allowed_retake_student_ids?.includes(currentUser?.id || '')) as any)]
+            : kpiModal === 'completed'
+            ? [studentResultsSection('اختباراتك المكتملة', mine)]
+            : kpiModal === 'avg'
+            ? [studentSubjectsSection('معدلك حسب المادة', mine)]
+            : [topResultsSection('أعلى نتائجك', mine)];
+        const titles = { available: 'اختبارات متاحة للحل', completed: 'اختبارات مكتملة معتمدة', avg: 'المعدل التراكمي العام', best: 'أعلى نسبة محققة' } as const;
+        return <KpiDetailModal title={titles[kpiModal]} sections={sections} onClose={() => setKpiModal(null)} />;
+      })()}
 
       {/* Historical Submissions Table for this student ONLY */}
       {mySubmissions.length > 0 && (

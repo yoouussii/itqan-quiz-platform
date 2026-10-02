@@ -64,12 +64,33 @@ export const AnalyticsView: React.FC = () => {
       const subj = subjects.find((s) => s.id === selectedQuiz.subject_id);
       return buildQuizChartData(filteredSubs, subj ? { id: subj.id, name: subj.name, color: subj.color } : undefined);
     }
+    if (currentUser?.role === 'supervisor') {
+      // المشرف: كل الرسوم تُحسب من بيانات نطاقه فقط
+      const base = buildQuizChartData(filteredSubs, undefined);
+      const bySubject = new Map<string, { name: string; color: string; vals: number[] }>();
+      filteredSubs.forEach((x) => {
+        if (!x.subject) return;
+        const e = bySubject.get(x.subject.id) || { name: x.subject.name, color: x.subject.color, vals: [] };
+        e.vals.push(Number(x.percentage) || 0);
+        bySubject.set(x.subject.id, e);
+      });
+      return {
+        ...base,
+        subjectPerformance: Array.from(bySubject.entries()).map(([id, e]) => ({
+          subjectId: id,
+          subjectName: e.name,
+          averageScore: Math.round(e.vals.reduce((a, b) => a + b, 0) / e.vals.length),
+          submissionsCount: e.vals.length,
+          color: e.color,
+        })),
+      };
+    }
     return {
       scoreDistribution: kpis?.scoreDistribution || [],
       completionTimeline: kpis?.completionTimeline || [],
       subjectPerformance: kpis?.subjectPerformance || [],
     };
-  }, [selectedQuiz, filteredSubs, kpis, subjects]);
+  }, [selectedQuiz, filteredSubs, kpis, subjects, currentUser?.role]);
 
   const total = filteredSubs.length;
   const avg = total > 0 ? Math.round(filteredSubs.reduce((a, s) => a + (Number(s.percentage) || 0), 0) / total) : 0;

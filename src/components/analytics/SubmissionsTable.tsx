@@ -54,13 +54,18 @@ export const SubmissionsTable: React.FC<SubmissionsTableProps> = ({
 
   // STRICT PRIVACY: If current user is a student, enforce privacy strictly
   const isStudent = currentUser?.role === 'student';
+  // المشرف لا يصدّر ولا يمنح إعادة محاولة إلا بصلاحية صريحة (المعلم والمدير بلا قيود)
+  const myPerms = currentUser?.teacher_permissions || currentUser?.permissions || {};
+  const isSupervisor = currentUser?.role === 'supervisor';
+  const canExport = !isStudent && (!isSupervisor || !!myPerms.can_export_reports);
+  const canManageRetakes = !isStudent && (!isSupervisor || !!myPerms.can_manage_retakes);
 
   // المعلم (بدون صلاحية التقارير العامة) يرى في الفلتر المواد المسندة إليه فقط
   const visibleSubjects = useMemo(() => {
     const u = currentUser;
     const mine = u?.assigned_subject_ids || [];
     const canAll = !!(u?.teacher_permissions?.can_view_all_reports || u?.permissions?.can_view_all_reports);
-    if (u?.role === 'teacher' && !canAll && mine.length > 0) {
+    if ((u?.role === 'teacher' || u?.role === 'supervisor') && !canAll && mine.length > 0) {
       return subjects.filter((s) => mine.includes(s.id));
     }
     return subjects;
@@ -218,7 +223,7 @@ export const SubmissionsTable: React.FC<SubmissionsTableProps> = ({
             </p>
           </div>
           <div className="flex items-center gap-2">
-            {!isStudent && (
+            {canExport && (
               <button
                 onClick={exportCSV}
                 className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-semibold bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
@@ -227,7 +232,7 @@ export const SubmissionsTable: React.FC<SubmissionsTableProps> = ({
                 <span>تصدير إلى CSV</span>
               </button>
             )}
-            {!isStudent && extraActions}
+            {canExport && extraActions}
             <span className="text-xs bg-indigo-50 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-300 font-bold px-3 py-2 rounded-xl border border-indigo-100 dark:border-indigo-900">
               {filteredSubmissions.length} نتيجة مطابقة
             </span>
@@ -345,7 +350,7 @@ export const SubmissionsTable: React.FC<SubmissionsTableProps> = ({
                   {!isStudent && (
                     <td className="py-3 px-4">
                       <div className="flex items-center gap-2.5">
-                        <Avatar name={sub.student?.name || 'ط'} role={sub.student?.role} size="sm" />
+                        <Avatar name={sub.student?.name || 'ط'} role={sub.student?.role} userId={sub.student_id} size="sm" />
                         <div>
                           <div className="font-bold text-slate-900 dark:text-white group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors">
                             {sub.student?.name || 'طالب مسجل'}
@@ -430,7 +435,7 @@ export const SubmissionsTable: React.FC<SubmissionsTableProps> = ({
                         <span>عرض الإجابة</span>
                       </button>
 
-                      {!isStudent && !sub.quiz?.is_deleted && (
+                      {canManageRetakes && !sub.quiz?.is_deleted && (
                         <>
                           {sub.quiz?.allowed_retake_student_ids?.includes(sub.student_id) ? (
                             <button

@@ -1,4 +1,4 @@
-export type Role = 'admin' | 'teacher' | 'student';
+export type Role = 'admin' | 'teacher' | 'student' | 'supervisor';
 
 export interface TeacherPermissions {
   can_add_custom_subjects?: boolean;
@@ -6,6 +6,12 @@ export interface TeacherPermissions {
   can_view_all_reports?: boolean;
   can_add_students?: boolean;
   can_add_teachers?: boolean;
+  /** للمشرف: عرض أداء المعلمين */
+  can_view_teachers_performance?: boolean;
+  /** للمشرف: تصدير التقارير (CSV / PDF) */
+  can_export_reports?: boolean;
+  /** للمشرف: منح الطلاب إعادة محاولة الاختبار */
+  can_manage_retakes?: boolean;
   [key: string]: boolean | undefined;
 }
 
@@ -13,7 +19,9 @@ export interface User {
   id: string;
   national_id: string;
   name: string;
-  role: 'admin' | 'teacher' | 'student';
+  role: Role;
+  /** مسمى وظيفي نصي حر للعرض فقط (لا يغيّر الصلاحيات) */
+  job_title?: string | null;
   password?: string;
   created_at?: string;
   updated_at?: string;

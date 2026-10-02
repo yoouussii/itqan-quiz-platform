@@ -16,7 +16,10 @@ import {
   BookOpen,
   Copy,
   Trash2,
+  ClipboardList,
 } from 'lucide-react';
+import { KpiDetailModal } from '../common/KpiDetailModal';
+import { KpiSection, quizzesSection, perQuizSection, submissionsSection } from '../../utils/kpiSections';
 import { formatQuizDateTime, getWindowState } from '../../utils/quizWindow';
 import { describeQuizTarget } from '../../utils/quizTarget';
 
@@ -28,12 +31,15 @@ export const TeacherDashboard: React.FC = () => {
     subjects,
     kpis,
     classes,
+    users,
     setCurrentView,
     setEditingQuizId,
     setDuplicateQuizId,
     deleteQuizItem,
   } = useApp();
 
+
+  const [kpiModal, setKpiModal] = useState<'quizzes' | 'active' | 'subs' | 'avg' | null>(null);
 
   // تصفية الاختبارات الخاصة بالمعلم
   const teacherQuizzes =
@@ -109,26 +115,30 @@ export const TeacherDashboard: React.FC = () => {
         <KPICard
           title="إجمالي الاختبارات"
           value={totalQuizzes}
-          icon={FileText}
+          icon={ClipboardList}
           colorScheme="indigo"
+          onClick={() => setKpiModal('quizzes')}
         />
         <KPICard
           title="الاختبارات النشطة"
           value={activeQuizzes}
           icon={Clock}
           colorScheme="emerald"
+          onClick={() => setKpiModal('active')}
         />
         <KPICard
           title="إجمالي التسليمات"
           value={totalSubmissions}
           icon={Users}
           colorScheme="purple"
+          onClick={() => setKpiModal('subs')}
         />
         <KPICard
           title="متوسط الدرجات"
           value={`${avgScore}%`}
           icon={CheckCircle}
           colorScheme="amber"
+          onClick={() => setKpiModal('avg')}
         />
       </div>
 
@@ -263,6 +273,21 @@ export const TeacherDashboard: React.FC = () => {
         <SubmissionsTable submissions={teacherSubmissions} />
       </div>
 
+
+      {kpiModal && (() => {
+        const tq = teacherQuizzes as any[];
+        const ts = teacherSubmissions as any[];
+        const sections: KpiSection[] =
+          kpiModal === 'quizzes'
+            ? [quizzesSection('اختباراتي', tq, ts, subjects, users, classes)]
+            : kpiModal === 'active'
+            ? [quizzesSection('الاختبارات النشطة', tq.filter((q) => q.is_active && getWindowState(q.start_date, q.end_date) !== 'ended'), ts, subjects, users, classes)]
+            : kpiModal === 'subs'
+            ? [submissionsSection('تسليمات الطلاب', ts)]
+            : [perQuizSection('متوسط الدرجات حسب الاختبار', tq, ts)];
+        const titles = { quizzes: 'إجمالي اختباراتي', active: 'الاختبارات النشطة', subs: 'إجمالي التسليمات', avg: 'متوسط الدرجات' } as const;
+        return <KpiDetailModal title={titles[kpiModal]} sections={sections} onClose={() => setKpiModal(null)} />;
+      })()}
     </div>
   );
 };

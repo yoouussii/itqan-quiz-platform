@@ -23,6 +23,7 @@ import {
   DEFAULT_PASSWORD,
 } from '../services/storage';
 import { canonSubjectId, isRetiredSubject } from '../utils/subjectAliases';
+import { loadAvatarCache, avatarMapFromCache, saveMyAvatar, syncAvatars } from '../services/avatarService';
 import { supabase, isSupabaseConfigured } from '../services/supabase';
 import {
   pushQuiz,
@@ -67,6 +68,9 @@ interface AppContextType {
   quizzes: QuizWithDetails[];
   submissions: SubmissionWithDetails[];
   kpis: Kpis;
+  /** الصور الرمزية: معرّف المستخدم ← (صورة مصغّرة | preset:اسم) */
+  avatars: Record<string, string>;
+  setMyAvatar: (data: string | null) => Promise<{ ok: boolean; error?: string }>;
 
   currentView: string;
   setCurrentView: (view: string) => void;
@@ -142,6 +146,9 @@ function normalizeUser(u: any): User {
     can_view_all_reports: !!perms.can_view_all_reports,
     can_add_students: !!perms.can_add_students,
     can_add_teachers: !!perms.can_add_teachers,
+    can_view_teachers_performance: !!perms.can_view_teachers_performance,
+    can_export_reports: !!perms.can_export_reports,
+    can_manage_retakes: !!perms.can_manage_retakes,
   };
 
   let subjectIds: string[] = [];
@@ -181,6 +188,7 @@ const canViewAllReports = (u: User | null): boolean =>
 function computeQuizzes(u: User | null): QuizWithDetails[] {
   if (!u) return [];
   if (u.role === 'admin') return StorageService.getAllQuizzesWithDetails();
+  if (u.role === 'supervisor') return StorageService.getSupervisorData(u).quizzes;
   if (u.role === 'teacher') {
     return canViewAllReports(u)
       ? StorageService.getAllQuizzesWithDetails()
@@ -191,6 +199,14 @@ function computeQuizzes(u: User | null): QuizWithDetails[] {
 }
 
 function computeKpis(u: User | null): Kpis {
+  if (u?.role === 'supervisor') {
+    const d = StorageService.getSupervisorData(u);
+    const k = StorageService.getDynamicKPIs(undefined, { studentIds: d.studentIds, quizIds: d.quizIds });
+    if (!d.scope.all && d.scope.subjectIds.length > 0) {
+      return { ...k, subjectPerformance: k.subjectPerformance.filter((x) => d.scope.subjectIds.includes(x.subjectId)) };
+    }
+    return k;
+  }
   const teacherScope = u?.role === 'teacher' && !canViewAllReports(u) ? u.id : undefined;
   const kpis = StorageService.getDynamicKPIs(teacherScope);
   if (teacherScope && u) {
@@ -233,6 +249,49 @@ function isSessionExpired(): boolean {
   const started = Number(localStorage.getItem(SESSION_KEY) || 0);
   if (!started) return false;
   return Date.now() - started > SESSION_MAX_HOURS * 60 * 60 * 1000;
+}
+
+// ---------------------------------------------------------------------
+// حفظ الصفحة الحالية عند التحديث (Refresh): لكل تبويب على حدة (sessionStorage)
+// ---------------------------------------------------------------------
+const VIEW_KEY = 'itqan_view_state_v1';
+
+function allowedViews(u: User | null): string[] {
+  if (!u) return [];
+  const perms = u.teacher_permissions || u.permissions || {};
+  const base = ['dashboard', 'quizzes', 'analytics', 'quiz_review'];
+  if (u.role === 'admin') {
+    return [...base, 'users', 'users_management', 'students_management', 'subjects_classes', 'reports', 'create_quiz', 'quiz_results', 'quiz_preview'];
+  }
+  const extra: string[] = [];
+  if (perms.can_view_all_reports) extra.push('reports');
+  if (perms.can_add_custom_subjects || perms.can_manage_classes) extra.push('subjects_classes');
+  if (perms.can_add_students || perms.can_add_teachers) extra.push('users_management', 'students_management');
+  if (u.role === 'teacher') return [...base, ...extra, 'create_quiz', 'quiz_results', 'quiz_preview'];
+  if (u.role === 'supervisor') return [...base, ...extra, 'quiz_results', 'quiz_preview'];
+  // الطالب: لا نعيده لصفحة أداء الاختبار (take_quiz) بعد التحديث حتى لا يُعاد المؤقت
+  return base;
+}
+
+function restoreViewState(u: User | null) {
+  const fallback = { view: u ? 'dashboard' : 'login', activeQuizId: null as string | null, activeSubmissionId: null as string | null, editingQuizId: null as string | null };
+  if (!u) return fallback;
+  try {
+    const raw = sessionStorage.getItem(VIEW_KEY);
+    if (!raw) return fallback;
+    const st = JSON.parse(raw);
+    if (st.userId !== u.id || !allowedViews(u).includes(st.view)) return fallback;
+    if ((st.view === 'quiz_results' || st.view === 'quiz_preview') && !st.activeQuizId) return fallback;
+    if (st.view === 'quiz_review' && !st.activeSubmissionId) return fallback;
+    return {
+      view: st.view as string,
+      activeQuizId: (st.activeQuizId || null) as string | null,
+      activeSubmissionId: (st.activeSubmissionId || null) as string | null,
+      editingQuizId: (st.editingQuizId || null) as string | null,
+    };
+  } catch {
+    return fallback;
+  }
 }
 
 // ---------------------------------------------------------------------
@@ -414,14 +473,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [users, setUsers] = useState<User[]>(() => StorageService.getUsers().map(normalizeUser));
   const [subjects, setSubjects] = useState<Subject[]>(() => StorageService.getSubjects());
   const [classes, setClasses] = useState<SchoolClass[]>(() => StorageService.getClasses());
-  const [currentView, setCurrentView] = useState<string>(() =>
-    StorageService.getCurrentUser() && !isSessionExpired() ? 'dashboard' : 'login'
-  );
-  const [activeQuizId, setActiveQuizId] = useState<string | null>(null);
-  const [editingQuizId, setEditingQuizId] = useState<string | null>(null);
+  const [restored] = useState(() => restoreViewState(currentUser));
+  const [currentView, setCurrentView] = useState<string>(restored.view);
+  const [activeQuizId, setActiveQuizId] = useState<string | null>(restored.activeQuizId);
+  const [editingQuizId, setEditingQuizId] = useState<string | null>(restored.editingQuizId);
   const [duplicateQuizId, setDuplicateQuizId] = useState<string | null>(null);
-  const [activeSubmissionId, setActiveSubmissionId] = useState<string | null>(null);
+  const [activeSubmissionId, setActiveSubmissionId] = useState<string | null>(restored.activeSubmissionId);
   const [toastMessage, setToastMessage] = useState<ToastMessage | null>(null);
+  const [avatars, setAvatars] = useState<Record<string, string>>(() => avatarMapFromCache(loadAvatarCache()));
 
   const [quizzes, setQuizzes] = useState<QuizWithDetails[]>(() => computeQuizzes(currentUser));
   const [submissions, setSubmissions] = useState<SubmissionWithDetails[]>(() =>
@@ -439,6 +498,18 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   useEffect(() => {
     currentViewRef.current = currentView;
   }, [currentView]);
+  useEffect(() => {
+    if (!currentUser) return;
+    try {
+      sessionStorage.setItem(
+        VIEW_KEY,
+        JSON.stringify({ userId: currentUser.id, view: currentView, activeQuizId, activeSubmissionId, editingQuizId })
+      );
+    } catch {
+      /* ignore */
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentUser?.id, currentView, activeQuizId, activeSubmissionId, editingQuizId]);
 
   const showToast = useCallback((text: string, type: ToastType = 'success') => {
     setToastMessage({ text, type });
@@ -477,6 +548,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         } catch (e) {
           console.warn('[refreshData] quizzes/submissions sync failed:', e);
         }
+        try {
+          await syncAvatars();
+        } catch (e) {
+          console.warn('[refreshData] avatars sync failed:', e);
+        }
       }
 
       // تحديث بيانات المستخدم الحالي (قد يكون الأدمن غيّر دوره/صلاحياته)
@@ -491,6 +567,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         }
       }
       recompute(me);
+      setAvatars(avatarMapFromCache(loadAvatarCache()));
     } finally {
       refreshingRef.current = false;
     }
@@ -879,6 +956,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           assigned_class_ids: normalized.assigned_class_ids,
           permissions: normalized.permissions,
           teacher_permissions: normalized.teacher_permissions,
+          job_title: normalized.job_title ?? null,
           updated_at: now,
         };
         if (updates.password && updates.password.trim()) payload.password = updates.password.trim();
@@ -1087,6 +1165,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     showToast('تم حذف الشعبة بنجاح', 'info');
   };
 
+  const setMyAvatar = async (data: string | null) => {
+    const me = currentUserRef.current;
+    if (!me) return { ok: false, error: 'لا يوجد مستخدم مسجل' };
+    const res = await saveMyAvatar(me.id, data);
+    setAvatars(avatarMapFromCache(loadAvatarCache()));
+    return res;
+  };
+
   const resetSystemData = () => {
     StorageService.resetToSeedData();
     localStorage.removeItem(LS_SUBJECTS);
@@ -1105,6 +1191,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         quizzes,
         submissions,
         kpis,
+        avatars,
+        setMyAvatar,
         currentView,
         setCurrentView,
         activeQuizId,

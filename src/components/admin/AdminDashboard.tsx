@@ -24,6 +24,12 @@ import { ReassignQuizModal } from '../common/ReassignQuizModal';
 import { QuizWithDetails } from '../../types';
 import { Avatar } from '../common/Avatar';
 import { Copy as CopyIcon } from 'lucide-react';
+import { ClipboardList } from 'lucide-react';
+import { KpiDetailModal } from '../common/KpiDetailModal';
+import {
+  KpiSection, studentsSection, quizzesSection, perQuizSection, perSubjectSection,
+  activeStudentsSection, inactiveStudentsSection,
+} from '../../utils/kpiSections';
 import { describeQuizTarget } from '../../utils/quizTarget';
 
 export const AdminDashboard: React.FC = () => {
@@ -39,11 +45,14 @@ export const AdminDashboard: React.FC = () => {
     setEditingQuizId,
     setDuplicateQuizId,
     classes = [],
+    subjects = [],
   } = useApp();
 
   const [selectedQuizForReassign, setSelectedQuizForReassign] = useState<QuizWithDetails | null>(
     null
   );
+
+  const [kpiModal, setKpiModal] = useState<'students' | 'quizzes' | 'avg' | 'active' | null>(null);
 
   const handleDeleteQuiz = async (quizId: string, title: string) => {
     if (
@@ -77,6 +86,32 @@ export const AdminDashboard: React.FC = () => {
     subjectPerformance: kpis?.subjectPerformance || [],
   };
 
+  const studentUsers = safeUsers.filter((u) => u.role === 'student');
+  const kpiModalContent = ((): { title: string; subtitle?: string; sections: KpiSection[] } | null => {
+    switch (kpiModal) {
+      case 'students':
+        return { title: 'الطلاب المسجلون', sections: [studentsSection('قائمة الطلاب (حسب الصف)', studentUsers, safeSubmissions, classes)] };
+      case 'quizzes':
+        return { title: 'إجمالي الاختبارات', sections: [quizzesSection('قائمة الاختبارات', safeQuizzes as any, safeSubmissions, subjects, safeUsers, classes)] };
+      case 'avg':
+        return {
+          title: 'متوسط النتائج العام',
+          subtitle: `المتوسط ${safeKpis.averageScore}% • نسبة النجاح ${safeKpis.passRate}%`,
+          sections: [perQuizSection('حسب الاختبار', safeQuizzes as any, safeSubmissions), perSubjectSection('حسب المادة', safeQuizzes as any, safeSubmissions, subjects)],
+        };
+      case 'active':
+        return {
+          title: 'نشاط الطلاب (آخر 7 أيام)',
+          sections: [
+            activeStudentsSection('الطلاب النشطون', studentUsers, safeSubmissions, classes),
+            inactiveStudentsSection('لم يؤدوا اختباراً خلال هذه الفترة', studentUsers, safeSubmissions, classes),
+          ],
+        };
+      default:
+        return null;
+    }
+  })();
+
   return (
     <div className="max-w-7xl mx-auto py-8 px-4 sm:px-6 lg:px-8 space-y-8" dir="rtl">
       {/* Super Admin Welcome Banner */}
@@ -85,7 +120,7 @@ export const AdminDashboard: React.FC = () => {
 
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-6 relative z-10">
           <div className="flex items-center gap-4">
-            <Avatar name={currentUser?.name || 'مدير النظام'} role={currentUser?.role} size="xl" showBadge />
+            <Avatar name={currentUser?.name || 'مدير النظام'} role={currentUser?.role} userId={currentUser?.id} size="xl" showBadge />
             <div>
               <div className="flex items-center gap-2 mb-1">
                 <span className="text-xs px-2.5 py-0.5 rounded-full bg-indigo-500/30 border border-indigo-400/30 font-bold text-indigo-300">
@@ -130,14 +165,16 @@ export const AdminDashboard: React.FC = () => {
           subtitle="في كافة الفصول والشعب"
           icon={Users}
           colorScheme="indigo"
+          onClick={() => setKpiModal('students')}
         />
 
         <KPICard
           title="إجمالي الاختبارات"
           value={totalQuizzesCount}
           subtitle="بمختلف المواد والتخصصات"
-          icon={FileQuestion}
+          icon={ClipboardList}
           colorScheme="cyan"
+          onClick={() => setKpiModal('quizzes')}
         />
 
         <KPICard
@@ -147,6 +184,7 @@ export const AdminDashboard: React.FC = () => {
           icon={Award}
           colorScheme="emerald"
           trend={{ value: `${safeKpis.passRate}% نجاح`, isPositive: safeKpis.averageScore >= 60 }}
+          onClick={() => setKpiModal('avg')}
         />
 
         <KPICard
@@ -155,6 +193,7 @@ export const AdminDashboard: React.FC = () => {
           subtitle="أكملوا اختباراً واحداً على الأقل"
           icon={TrendingUp}
           colorScheme="purple"
+          onClick={() => setKpiModal('active')}
         />
       </div>
 
@@ -216,7 +255,7 @@ export const AdminDashboard: React.FC = () => {
                     </td>
                     <td className="py-3.5 px-4">
                       <div className="flex items-center gap-2">
-                        <Avatar name={teacher?.name || 'م'} role={teacher?.role} size="xs" />
+                        <Avatar name={teacher?.name || 'م'} role={teacher?.role} userId={teacher?.id} size="xs" />
                         <span className="font-semibold text-slate-700 dark:text-slate-300">
                           {teacher?.name || 'غير معروف'}
                         </span>
@@ -319,6 +358,15 @@ export const AdminDashboard: React.FC = () => {
 
       {/* Comprehensive Submissions Results Table */}
       <SubmissionsTable submissions={safeSubmissions} />
+
+      {kpiModalContent && (
+        <KpiDetailModal
+          title={kpiModalContent.title}
+          subtitle={kpiModalContent.subtitle}
+          sections={kpiModalContent.sections}
+          onClose={() => setKpiModal(null)}
+        />
+      )}
 
       {/* Reassign Modal */}
       {selectedQuizForReassign && (

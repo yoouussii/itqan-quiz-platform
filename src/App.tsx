@@ -16,6 +16,7 @@ import { AnalyticsCharts } from './components/analytics/AnalyticsCharts';
 import { SubmissionsTable } from './components/analytics/SubmissionsTable';
 import { QuizResults } from './components/analytics/QuizResults';
 import { AnalyticsView } from './components/analytics/AnalyticsView';
+import { SupervisorDashboard } from './components/supervisor/SupervisorDashboard';
 import { QuizPreview } from './components/common/QuizPreview';
 
 const KNOWN_VIEWS = [
@@ -154,6 +155,8 @@ const AppContent: React.FC = () => {
               />
             ) : currentUser.role === 'teacher' ? (
               <TeacherDashboard />
+            ) : currentUser.role === 'supervisor' ? (
+              <SupervisorDashboard />
             ) : (
               <AdminDashboard />
             )}
@@ -165,6 +168,7 @@ const AppContent: React.FC = () => {
           <>
             {currentUser.role === 'admin' && <AdminDashboard />}
             {currentUser.role === 'teacher' && <TeacherDashboard />}
+            {currentUser.role === 'supervisor' && <SupervisorDashboard />}
             {currentUser.role === 'student' && (
               <StudentDashboard
                 onStartQuiz={handleStartQuiz}
