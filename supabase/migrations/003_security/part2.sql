@@ -8,6 +8,9 @@
 -- تشفير كلمات المرور: أي كلمة مرور تُكتب في users.password تتحول فوراً
 -- إلى hash في itqan.credentials ويُمسح النص الصريح
 -- ---------------------------------------------------------------------
+-- عمود كلمة المرور يصبح فارغاً بعد التشفير، فلا يجوز أن يكون إلزامياً
+alter table public.users alter column password drop not null;
+
 create or replace function itqan.users_password_trigger()
 returns trigger language plpgsql security definer set search_path = '' as $$
 begin

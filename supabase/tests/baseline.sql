@@ -1,6 +1,6 @@
 -- نسخة تقريبية من قاعدة البيانات قبل الحماية (للاختبار المحلي فقط — لا تُشغَّل على Supabase)
 create table public.users (
-  id text primary key, name text, email text, password text, role text check (role in ('admin','teacher','student')),
+  id text primary key, name text, email text, password text not null, role text check (role in ('admin','teacher','student')),
   username text, national_id text unique, specialty_id text, class_id text,
   assigned_subject_ids jsonb default '[]', assigned_class_ids jsonb default '[]',
   permissions jsonb default '{}', teacher_permissions jsonb default '{}',
