@@ -10,7 +10,7 @@ const TABLES = [
 ];
 const PAGE = 1000;
 
-const url = (process.env.SUPABASE_URL || '').replace(/\/$/, '');
+const url = (process.env.SUPABASE_URL || '').trim().replace(/\/+$/, '').replace(/\/rest\/v1$/, '');
 const key = process.env.SUPABASE_KEY || '';
 const outDir = process.argv[2] || 'backup';
 if (!url || !key) {
