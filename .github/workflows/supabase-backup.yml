@@ -19,7 +19,8 @@ jobs:
       - name: Export tables
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-          SUPABASE_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+          # مفتاح service_role (يتجاوز سياسات الحماية) — من Supabase: Project Settings ← API
+          SUPABASE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
         run: node scripts/backup-supabase.mjs backup
       - name: Compress and encrypt
         env:

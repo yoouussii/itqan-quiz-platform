@@ -38,13 +38,24 @@ import { AppSettings, loadSettings, syncSettings, saveSettings } from '../servic
 import { StudentAward } from '../utils/points';
 import { describeQuizTarget } from '../utils/quizTarget';
 import { formatQuizDateTime } from '../utils/quizWindow';
-import { supabase, isSupabaseConfigured } from '../services/supabase';
+import {
+  supabase,
+  isSupabaseConfigured,
+  getSessionToken,
+  getSessionInfo,
+  setServerSession,
+  updateSessionInfo,
+  isMissingRpc,
+} from '../services/supabase';
 import {
   pushQuiz,
   pullQuizzes,
   pushSubmission,
   pullSubmissions,
   flushPending,
+  submitAttemptRemote,
+  queueAttempt,
+  QuizAttempt,
 } from '../services/quizSync';
 
 // ---------------------------------------------------------------------
@@ -106,6 +117,8 @@ interface AppContextType {
   settings: AppSettings;
   updateSettings: (patch: Partial<AppSettings>) => Promise<void>;
   changeMyPassword: (current: string, next: string) => Promise<{ ok: boolean; error?: string }>;
+  /** المستخدم الحالي ما زال يستخدم كلمة المرور الافتراضية (يُطلب منه تغييرها) */
+  passwordIsDefault: boolean;
   approveQuiz: (id: string) => Promise<void>;
   rejectQuiz: (id: string, reason: string) => Promise<void>;
   pendingApprovalsCount: number;
@@ -148,11 +161,12 @@ interface AppContextType {
   allowStudentRetake: (quizId: string, studentId: string) => void;
   revokeStudentRetake: (quizId: string, studentId: string) => void;
   reassignQuizToTeacher: (quizId: string, newTeacherId: string) => boolean;
+  /** يُرجع التسليم المصحَّح، أو null إذا لم يكتمل (حُفظ للإرسال لاحقاً أو رُفض) */
   submitQuizAttempt: (
     quizId: string,
     answers: QuizAttemptAnswer[],
     timeSpentSeconds: number
-  ) => Submission;
+  ) => Promise<Submission | null>;
 
   addUser: (userData: any) => Promise<User>;
   updateUserData: (id: string, updates: Partial<User>) => Promise<void>;
@@ -330,9 +344,23 @@ function restoreViewState(u: User | null) {
 // مزامنة المستخدمين والمواد والفصول (نفس المنطق السابق)
 // ---------------------------------------------------------------------
 async function syncUsersFromSupabase(): Promise<void> {
-  const local = StorageService.getUsers().map(normalizeUser);
   const { data, error } = await supabase.from('users').select('*');
   if (error || !Array.isArray(data)) return;
+
+  const secure = !!getSessionToken();
+  if (secure) {
+    // الوضع الآمن: الخادم هو المرجع، ولا نحتفظ بكلمات مرور على الجهاز.
+    // نستبدل النسخة المحلية كاملة: الطالب يستلم حسابه فقط فتُحذف بيانات زملائه القديمة،
+    // والمحذوفون من جهاز آخر لا يعودون للظهور.
+    const remote = (data as any[]).map((r) => {
+      const { password: _pw, ...rest } = normalizeUser(r) as any;
+      return rest as User;
+    });
+    localStorage.setItem(LS_USERS, JSON.stringify(remote));
+    return;
+  }
+
+  const local = StorageService.getUsers().map(normalizeUser);
 
   const deleted = StorageService.getDeletedUserIds();
   const findRemote = (u: User) =>
@@ -512,6 +540,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [duplicateQuizId, setDuplicateQuizId] = useState<string | null>(null);
   const [activeSubmissionId, setActiveSubmissionId] = useState<string | null>(restored.activeSubmissionId);
   const [toastMessage, setToastMessage] = useState<ToastMessage | null>(null);
+  const [passwordIsDefault, setPasswordIsDefault] = useState<boolean>(() => !!getSessionInfo()?.password_is_default);
   const [avatars, setAvatars] = useState<Record<string, string>>(() => avatarMapFromCache(loadAvatarCache()));
 
   const [quizzes, setQuizzes] = useState<QuizWithDetails[]>(() => computeQuizzes(currentUser));
@@ -586,7 +615,23 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const refreshData = useCallback(async () => {
     if (refreshingRef.current) return;
     refreshingRef.current = true;
+    // دور صاحب الجلسة على الخادم (قد يختلف عن المستخدم المعروض عند «تبديل الحساب» للمعاينة)
+    let serverRole: string | undefined;
     try {
+      if (isSupabaseConfigured() && currentUserRef.current) {
+        // التحقق من الجلسة على الخادم: انتهت أو أُلغيت (تغيير كلمة المرور / حذف الحساب)
+        // أو جلسة قديمة من قبل تفعيل الحماية ← إعادة تسجيل الدخول
+        try {
+          const { data, error } = await supabase.rpc('itqan_session_user');
+          if (!error && !data) {
+            logoutRef.current('انتهت الجلسة، يرجى تسجيل الدخول من جديد');
+            return;
+          }
+          if (!error && data) serverRole = data.role;
+        } catch {
+          /* انقطاع الشبكة: نكمل بالنسخة المحلية */
+        }
+      }
       if (isSupabaseConfigured()) {
         try {
           await syncUsersFromSupabase();
@@ -597,8 +642,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         }
         const me = currentUserRef.current;
         try {
-          await flushPending();
-          await pullQuizzes(me);
+          await flushPending(me);
+          await pullQuizzes(me, serverRole);
           await pullSubmissions(me);
         } catch (e) {
           console.warn('[refreshData] quizzes/submissions sync failed:', e);
@@ -652,6 +697,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   }, [recompute, showToast]);
 
+  const logoutRef = useRef<(message?: string) => void>(() => undefined);
+
   // تحديث فوري عند تسجيل الدخول أو تغيّر المستخدم
   useEffect(() => {
     void refreshData();
@@ -662,11 +709,20 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     (message = 'تم تسجيل الخروج بنجاح') => {
       localStorage.removeItem('itqan_current_user_id_v2');
       localStorage.removeItem(SESSION_KEY);
+      const oldToken = getSessionToken();
+      if (oldToken) {
+        StorageService.clearCachedDataForLogout();
+        // إنهاء الجلسة على الخادم ثم حذف الرمز من الجهاز (إلا إذا سجّل مستخدم آخر الدخول في الأثناء)
+        void Promise.resolve(supabase.rpc('itqan_logout')).finally(() => {
+          if (getSessionToken() === oldToken) setServerSession(null);
+        });
+      }
       clearBrowserSession();
       void supabase.auth.signOut().catch(() => undefined);
 
       seenNotifRef.current = null;
       currentUserRef.current = null;
+      setPasswordIsDefault(false);
       setCurrentUserState(null);
       setActiveQuizId(null);
       setActiveSubmissionId(null);
@@ -678,6 +734,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     },
     [showToast]
   );
+
+  logoutRef.current = logout;
 
   // تحديث تلقائي دوري + عند العودة للتبويب + فحص انتهاء الجلسة
   useEffect(() => {
@@ -723,10 +781,52 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     showToast(`مرحباً بك يا ${user.name}`, 'success');
   };
 
+  /** حفظ بيانات المستخدم القادمة من الخادم في النسخة المحلية */
+  const cacheUser = (user: User) => {
+    const all = StorageService.getUsers();
+    const idx = all.findIndex((u) => u.id === user.id || (!!user.national_id && u.national_id === user.national_id));
+    if (idx >= 0) all[idx] = { ...all[idx], ...user };
+    else all.push(user);
+    localStorage.setItem(LS_USERS, JSON.stringify(all));
+  };
+
   const login = async (nationalId: string, password: string): Promise<boolean> => {
     const id = nationalId.trim();
+
+    // الدخول الآمن: التحقق على الخادم (كلمات المرور مشفّرة ولا تصل للمتصفح)
+    if (isSupabaseConfigured()) {
+      try {
+        const { data, error } = await supabase.rpc('itqan_login', { p_national_id: id, p_password: password });
+        if (!error && data) {
+          if (data.ok) {
+            setServerSession(data.token, { expires_at: data.expires_at, password_is_default: !!data.password_is_default });
+            setPasswordIsDefault(!!data.password_is_default);
+            const user = normalizeUser(data.user);
+            cacheUser(user);
+            startSession(user);
+            return true;
+          }
+          showToast(
+            data.error === 'locked'
+              ? `تم إيقاف الدخول مؤقتاً بسبب محاولات خاطئة متكررة. حاول بعد ${Math.ceil((data.retry_after_seconds || 600) / 60)} دقائق`
+              : 'رقم الهوية / الرقم الأكاديمي أو كلمة المرور غير صحيحة',
+            'error'
+          );
+          return false;
+        }
+        if (error && !isMissingRpc(error)) {
+          showToast(`تعذر الاتصال بالخادم (${error.message})`, 'error');
+          return false;
+        }
+        // دوال الحماية غير موجودة بعد (لم يُشغَّل 003_security.sql): نكمل بالطريقة القديمة
+      } catch (e: any) {
+        showToast('تعذر الاتصال بالخادم، تحقق من الإنترنت', 'error');
+        return false;
+      }
+    }
+
     const local = StorageService.authenticate(id, password);
-    if (local) {
+    if (local && local.password) {
       startSession(normalizeUser(local));
       return true;
     }
@@ -741,15 +841,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           .maybeSingle();
         if (data && !error) {
           const user = normalizeUser(data);
-          const all = StorageService.getUsers();
-          const idx = all.findIndex(
-            (u) =>
-              (data.id && u.id === data.id) ||
-              (data.national_id && u.national_id === data.national_id)
-          );
-          if (idx >= 0) all[idx] = { ...all[idx], ...user };
-          else all.push(user);
-          localStorage.setItem(LS_USERS, JSON.stringify(all));
+          cacheUser(user);
           startSession(user);
           return true;
         }
@@ -898,13 +990,54 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   /** تسليم اختبار الطالب: يُحفظ محلياً فوراً ثم يُرسل للخادم في الخلفية */
-  const submitQuizAttempt: AppContextType['submitQuizAttempt'] = (
+  const submitQuizAttempt: AppContextType['submitQuizAttempt'] = async (
     quizId,
     answers,
     timeSpentSeconds
   ) => {
     const me = currentUserRef.current;
     if (!me) throw new Error('لا يوجد مستخدم مسجل');
+
+    // الوضع الآمن: الخادم يصحّح (لا يمكن للطالب إرسال درجة جاهزة)
+    if (getSessionToken()) {
+      const attempt: QuizAttempt = {
+        client_id: `sub-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+        student_id: me.id,
+        quiz_id: quizId,
+        answers,
+        time_spent: timeSpentSeconds,
+      };
+      const res = await submitAttemptRemote(attempt);
+      if (res.kind === 'ok') {
+        recompute();
+        const pct = res.submission.percentage;
+        showToast(`تم تسليم الاختبار! حصلت على ${pct}%`, pct >= 60 ? 'success' : 'info');
+        return res.submission;
+      }
+      if (res.kind === 'offline') {
+        queueAttempt(attempt);
+        showToast('حُفظت إجاباتك على جهازك وستُرسل للتصحيح تلقائياً عند عودة الاتصال. لا تحذف بيانات المتصفح.', 'info');
+        return null;
+      }
+      if (res.kind === 'rejected') {
+        recompute();
+        if (res.error === 'already_submitted' && res.submission) {
+          showToast('سبق أن سلّمت هذا الاختبار، هذه نتيجتك المسجلة', 'info');
+          return res.submission;
+        }
+        const msg: Record<string, string> = {
+          ended: 'انتهى وقت إتاحة الاختبار، لم يُقبل التسليم',
+          not_started: 'لم يبدأ وقت الاختبار بعد',
+          quiz_not_available: 'الاختبار لم يعد متاحاً لك',
+          quiz_not_found: 'الاختبار غير موجود',
+          no_session: 'انتهت الجلسة، سجّل الدخول من جديد ثم أعد المحاولة',
+        };
+        if (res.error === 'no_session') queueAttempt(attempt);
+        showToast(msg[res.error] || `تعذر تسليم الاختبار (${res.error})`, 'error');
+        return null;
+      }
+      // kind === 'legacy': دوال الحماية غير موجودة بعد، نكمل بالطريقة القديمة
+    }
 
     const quiz = StorageService.getQuizById(quizId);
     const questions: Question[] = StorageService.getQuestionsByQuizId(quizId);
@@ -1490,6 +1623,29 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     if (!me) return { ok: false, error: 'لا يوجد مستخدم مسجل' };
     if (next.length < 6) return { ok: false, error: 'كلمة المرور الجديدة يجب ألا تقل عن 6 أحرف' };
     if (next === current) return { ok: false, error: 'كلمة المرور الجديدة مطابقة للحالية' };
+
+    if (getSessionToken()) {
+      // الوضع الآمن: الخادم يتحقق من الكلمة الحالية ويشفّر الجديدة
+      try {
+        const { data, error } = await supabase.rpc('itqan_change_password', { p_current: current, p_new: next });
+        if (error) return { ok: false, error: `تعذر الاتصال بالخادم (${error.message})` };
+        if (!data?.ok) {
+          const msg: Record<string, string> = {
+            wrong_password: 'كلمة المرور الحالية غير صحيحة',
+            too_short: 'كلمة المرور الجديدة يجب ألا تقل عن 6 أحرف',
+            no_session: 'انتهت الجلسة، يرجى تسجيل الدخول من جديد',
+          };
+          return { ok: false, error: msg[data?.error] || 'تعذر تغيير كلمة المرور' };
+        }
+        updateSessionInfo({ password_is_default: false });
+        setPasswordIsDefault(false);
+        log('password_changed', { type: 'user', id: me.id, name: me.name });
+        return { ok: true };
+      } catch {
+        return { ok: false, error: 'تعذر الاتصال بالخادم، حاول لاحقاً' };
+      }
+    }
+
     const localOk = (StorageService.getUserById(me.id)?.password || '') === current;
     let valid = localOk;
     if (isSupabaseConfigured()) {
@@ -1544,6 +1700,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         settings,
         updateSettings,
         changeMyPassword,
+        passwordIsDefault,
         approveQuiz,
         rejectQuiz,
         pendingApprovalsCount,

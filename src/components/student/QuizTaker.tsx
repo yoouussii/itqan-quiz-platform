@@ -37,6 +37,7 @@ export const QuizTaker: React.FC<QuizTakerProps> = ({ quizId, onFinish, onCancel
     (quiz?.duration_minutes || 20) * 60
   );
   const [showConfirmModal, setShowConfirmModal] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
   const [startTime, setStartTime] = useState<number>(Date.now());
   const submittedRef = useRef(false);
 
@@ -108,9 +109,10 @@ export const QuizTaker: React.FC<QuizTakerProps> = ({ quizId, onFinish, onCancel
     });
   };
 
-  const handleFinalSubmit = () => {
+  const handleFinalSubmit = async () => {
     if (submittedRef.current) return; // منع التسليم المزدوج (زر + انتهاء الوقت)
     submittedRef.current = true;
+    setSubmitting(true);
     const timeSpent = Math.round((Date.now() - startTime) / 1000);
     const answersArray: QuizAttemptAnswer[] = questions.map((q) => ({
       question_id: q.id,
@@ -127,14 +129,17 @@ export const QuizTaker: React.FC<QuizTakerProps> = ({ quizId, onFinish, onCancel
     }));
 
     try {
-      const submission = submitQuizAttempt(quiz.id, answersArray, timeSpent);
-      onFinish(submission.id);
+      const submission = await submitQuizAttempt(quiz.id, answersArray, timeSpent);
+      // null: حُفظت المحاولة للإرسال لاحقاً أو رفضها الخادم (رسالة السبب ظاهرة)
+      if (submission) onFinish(submission.id);
+      else onCancel();
     } catch (e) {
       submittedRef.current = false;
+      setSubmitting(false);
       throw e;
     }
   };
-  finalSubmitRef.current = handleFinalSubmit;
+  finalSubmitRef.current = () => void handleFinalSubmit();
 
   const optionLetters = ['أ', 'ب', 'ج', 'د'];
 
@@ -501,6 +506,14 @@ export const QuizTaker: React.FC<QuizTakerProps> = ({ quizId, onFinish, onCancel
         </div>
       </div>
 
+      {submitting && !showConfirmModal && (
+        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-white dark:bg-slate-900 rounded-3xl px-8 py-6 text-sm font-bold text-slate-800 dark:text-white shadow-2xl">
+            جارٍ تسليم الاختبار وتصحيحه...
+          </div>
+        </div>
+      )}
+
       {/* Confirmation Modal */}
       {showConfirmModal && (
         <div className="fixed inset-0 z-50 overflow-y-auto bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4">
@@ -529,10 +542,11 @@ export const QuizTaker: React.FC<QuizTakerProps> = ({ quizId, onFinish, onCancel
                 العودة للأسئلة
               </button>
               <button
-                onClick={handleFinalSubmit}
-                className="px-6 py-2.5 rounded-xl text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white shadow-md shadow-emerald-600/30 transition-all"
+                onClick={() => void handleFinalSubmit()}
+                disabled={submitting}
+                className="px-6 py-2.5 rounded-xl text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white shadow-md shadow-emerald-600/30 transition-all disabled:opacity-60"
               >
-                نعم، اعتمد التسليم فوراً
+                {submitting ? 'جارٍ التسليم والتصحيح...' : 'نعم، اعتمد التسليم فوراً'}
               </button>
             </div>
           </div>

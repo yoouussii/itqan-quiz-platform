@@ -10,7 +10,7 @@ const ROLE_TEXT: Record<string, string> = { admin: 'مدير النظام', teac
 const inputCls = 'w-full px-3 py-2 text-xs rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500';
 
 export const ProfileModal: React.FC<{ onClose: () => void }> = ({ onClose }) => {
-  const { currentUser, avatars, setMyAvatar, changeMyPassword, showToast } = useApp();
+  const { currentUser, avatars, setMyAvatar, changeMyPassword, showToast, passwordIsDefault } = useApp();
   const fileRef = useRef<HTMLInputElement>(null);
   const [busy, setBusy] = useState(false);
   const [cur, setCur] = useState('');
@@ -19,7 +19,7 @@ export const ProfileModal: React.FC<{ onClose: () => void }> = ({ onClose }) => 
   const [pwdMsg, setPwdMsg] = useState<{ ok: boolean; text: string } | null>(null);
   if (!currentUser) return null;
   const current = avatars[currentUser.id] || '';
-  const usingDefault = (currentUser.password || '') === DEFAULT_PASSWORD;
+  const usingDefault = passwordIsDefault || (currentUser.password || '') === DEFAULT_PASSWORD;
 
   const apply = async (data: string | null) => {
     setBusy(true);

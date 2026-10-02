@@ -61,9 +61,17 @@
    - `supabase/migrations/002_users_columns.sql`: **مطلوب** لحفظ إسنادات وصلاحيات المشرف والمعلم على الخادم (يضيف الأعمدة الناقصة ويسمح بدور `supervisor`).
    - `supabase/migrations/001_v8_tables.sql`: للتثبيت الجديد فقط (جداول الإشعارات والسجل والجوائز والإعدادات والصور). إن كانت موجودة عندك فلا حاجة له.
 
+### تفعيل الحماية (003_security.sql)
+1. انشر نسخة الموقع الجديدة أولاً (تعمل قبل الملف وبعده).
+2. شغّل `supabase/migrations/003_security.sql` من SQL Editor.
+3. سيُطلب من الجميع تسجيل الدخول مرة واحدة من جديد، بنفس كلمات المرور.
+4. تأكد من الدخول بحساب مدير وطالب. عند أي مشكلة: شغّل `003_rollback.sql` (يوقف سياسات الحماية فقط).
+
+بعد التفعيل: كلمات المرور مشفّرة، والطالب لا يرى إلا بياناته، والتصحيح على الخادم، والإجابات النموذجية مخفية حتى التسليم.
+
 ### تشغيل مجاني بدون باقة Pro (GitHub Actions)
 أضف من **Settings ← Secrets and variables ← Actions** في GitHub:
-`SUPABASE_URL` و`SUPABASE_ANON_KEY` و`BACKUP_PASSPHRASE` (كلمة سر طويلة تحفظها عندك لفك النسخ).
+`SUPABASE_URL` و`SUPABASE_ANON_KEY` و`SUPABASE_SERVICE_ROLE_KEY` (من Supabase: Project Settings ← API؛ سرّي جداً ولا يوضع في الموقع) و`BACKUP_PASSPHRASE` (كلمة سر طويلة تحفظها عندك لفك النسخ).
 - **Supabase keep-alive**: يتصل بالمشروع كل 3 أيام فلا تُوقفه الخطة المجانية في الإجازات.
 - **Supabase backup**: نسخة احتياطية مشفّرة كل جمعة تُحفظ 90 يوماً في صفحة Actions. فك التشفير:
   `gpg -d itqan-backup.tar.gz.gpg > backup.tar.gz && tar xzf backup.tar.gz`

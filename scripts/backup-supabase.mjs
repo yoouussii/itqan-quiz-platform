@@ -43,5 +43,7 @@ for (const t of TABLES) {
     console.error(`✗ ${e.message}`);
   }
 }
+// ملاحظة: كلمات المرور المشفّرة في المخطط الخاص itqan لا تُصدَّر عبر REST.
+// للاستعادة الكاملة يحتفظ Supabase بها، ويمكن لكل مستخدم إعادة تعيين كلمته من المدير.
 await writeFile(join(outDir, 'meta.json'), JSON.stringify({ created_at: new Date().toISOString(), tables: TABLES }, null, 1));
 if (failed === TABLES.length) process.exit(1);

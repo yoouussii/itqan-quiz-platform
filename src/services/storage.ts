@@ -1161,6 +1161,36 @@ public static getCurrentUser(): User | null {
     ]);
   }
 
+  /** حذف الاختبارات المحلية غير الموجودة في القائمة (للطالب: لا تبقى نسخ قديمة فيها الإجابات) */
+  public static pruneQuizzesExcept(keepIds: Set<string>): void {
+    setLocalItem(STORAGE_KEYS.QUIZZES, getLocalItem<Quiz[]>(STORAGE_KEYS.QUIZZES, []).filter((q) => keepIds.has(q.id)));
+    setLocalItem(
+      STORAGE_KEYS.QUESTIONS,
+      getLocalItem<Question[]>(STORAGE_KEYS.QUESTIONS, []).filter((q) => !!q.quiz_id && keepIds.has(q.quiz_id))
+    );
+    setLocalItem(
+      STORAGE_KEYS.ASSIGNMENTS,
+      getLocalItem<QuizAssignment[]>(STORAGE_KEYS.ASSIGNMENTS, []).filter((a) => keepIds.has(a.quiz_id))
+    );
+  }
+
+  /**
+   * عند تسجيل الخروج (الوضع الآمن): حذف البيانات المنزّلة من هذا المتصفح حتى لا يراها
+   * المستخدم التالي على جهاز مشترك (معمل الحاسب). نُبقي فقط ما لم يُرفع للخادم بعد.
+   */
+  public static clearCachedDataForLogout(): void {
+    const pendingQuizzes = new Set(this.getPendingSync('quiz'));
+    const pendingSubs = new Set(this.getPendingSync('submission'));
+    this.pruneQuizzesExcept(pendingQuizzes);
+    setLocalItem(STORAGE_KEYS.SUBMISSIONS, this.getSubmissions().filter((x) => pendingSubs.has(x.id)));
+    setLocalItem(STORAGE_KEYS.USERS, []);
+    ['itqan_activity_local_v1', 'itqan_awards_v1', 'itqan_notifs_v1'].forEach((k) => localStorage.removeItem(k));
+  }
+
+  public static removeSubmissionLocal(id: string): void {
+    setLocalItem(STORAGE_KEYS.SUBMISSIONS, getLocalItem<Submission[]>(STORAGE_KEYS.SUBMISSIONS, []).filter((s) => s.id !== id));
+  }
+
   /** إدراج/استبدال تسليم قادم من الخادم */
   public static saveSubmissionFromRemote(sub: Submission): void {
     const list = getLocalItem<Submission[]>(STORAGE_KEYS.SUBMISSIONS, []);
