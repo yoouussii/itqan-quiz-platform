@@ -25,6 +25,7 @@ on:
           - supabase/migrations/008_quiz_approval.sql
           - supabase/migrations/009_branches_parents.sql
           - supabase/migrations/010_unassigned_classes_visible.sql
+          - supabase/migrations/011_shared_classes.sql
           - supabase/migrations/003_rollback.sql
 
 jobs:
@@ -61,6 +62,7 @@ jobs:
           select 'quiz timer function (004): ' || (to_regproc('public.itqan_start_quiz') is not null);
           select 'banners (006): ' || (to_regclass('public.banners') is not null);
           select 'branches & parents (009): ' || (to_regclass('public.branches') is not null);
+          select 'classes tied to a branch (0 after 011): ' || count(*) filter (where nullif(branch_id, '') is not null) from public.classes;
           select 'quiz approval enforced (008): ' || (to_regproc('itqan.approval_required') is not null);
           select 'delete submissions (007): ' || exists(select 1 from pg_policies where schemaname = 'public' and tablename = 'submissions' and policyname = 'submissions_delete');
           select 'notification delete (005): ' || exists(select 1 from information_schema.columns where table_schema = 'public' and table_name = 'notification_reads' and column_name = 'deleted_at');

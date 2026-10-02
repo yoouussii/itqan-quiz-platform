@@ -79,6 +79,14 @@ const s1b = await login('4040', 'itqan123');
 ok(ids(await rpc('itqan_student_quizzes', {}, s1b)).includes('qall'), 'طالب نفس الفرع يراه');
 ok(!ids(await rpc('itqan_student_quizzes', {}, s2)).includes('qall'), 'طالبة الفرع الآخر لا تراه');
 
+console.log('— الشعبة المشتركة بين الفرعين');
+await req('PATCH', `/users?id=eq.${CHILD}`, { token: admin, body: { class_id: 'c-shared' } });
+await req('PATCH', '/users?id=eq.u-st2', { token: admin, body: { class_id: 'c-shared' } });
+await req('POST', '/quizzes', { token: admin, body: { id: 'qsh', title: 'شعبة مشتركة', teacher_id: 'u-teach', created_by: 'u-teach', status: 'published', duration_minutes: 5,
+  questions: [{ id: 'q1', type: 'mcq', question_text: 'x', options: ['a', 'b'], correct_option_index: 1, marks: 1 }], assignments: [{ target_type: 'class', target_id: 'c-shared' }] } });
+ok(ids(await rpc('itqan_student_quizzes', {}, s1b)).includes('qsh'), 'اختبار معلم فرع البنين للشعبة المشتركة يصل لطالب فرعه');
+ok(!ids(await rpc('itqan_student_quizzes', {}, s2)).includes('qsh'), 'ولا يصل لطالبة فرع البنات في نفس الشعبة');
+
 console.log('— ولي الأمر');
 r = await req('POST', '/users', { token: admin, body: { id: 'u-par', name: 'والد الطالب طالب أ', role: 'parent', national_id: '6060', password: 'parent123', child_ids: [CHILD] } });
 ok(r.status < 300, 'المدير ينشئ حساب ولي أمر مرتبطاً بابنه');
