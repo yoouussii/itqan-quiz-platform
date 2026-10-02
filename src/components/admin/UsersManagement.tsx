@@ -19,14 +19,15 @@ import {
 } from 'lucide-react';
 import { UserCog } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
-import { DEFAULT_PASSWORD } from '../../services/storage';
+import { DEFAULT_PASSWORD, StorageService } from '../../services/storage';
 import { resolveClass } from '../../utils/classMatch';
 import { PERMISSION_DEFS, PERM_GROUPS, TEACHER_ALWAYS, normalizePerms, hasPerm } from '../../utils/permissions';
 import { exportStudentReport } from '../../utils/studentReport';
 import { computePointEvents, earnedBadges, totalPoints } from '../../utils/points';
 import { formatFullArabicDate } from '../../utils/dateUtils';
 import { FileText as FileTextIcon } from 'lucide-react';
-import { Role, User, TeacherPermissions } from '../../types';
+import { Role, User, TeacherPermissions, Gender } from '../../types';
+import { normalizeClassName } from '../../utils/classMatch';
 import { Avatar } from '../common/Avatar';
 
 export const UsersManagement: React.FC = () => {
@@ -45,7 +46,19 @@ export const UsersManagement: React.FC = () => {
     refreshData,
     bulkDeleteUsers,
     bulkMoveStudents,
+    branches,
+    bulkMoveToBranch,
   } = useApp();
+  const isAdminUser = currentUser?.role === 'admin';
+  const branchName = (id?: string | null) => branches.find((b) => b.id === id)?.name;
+  const [moveBranchId, setMoveBranchId] = useState('');
+  const [branchFilter, setBranchFilter] = useState('all'); // all | none | معرّف فرع
+  const [genderFilter, setGenderFilter] = useState('all');
+  // حقول إضافية في نموذج المستخدم
+  const [gender, setGender] = useState<Gender | ''>('');
+  const [branchId, setBranchId] = useState('');
+  const [childIds, setChildIds] = useState<string[]>([]);
+  const [childSearch, setChildSearch] = useState('');
   // التحديد الجماعي (حذف / نقل إلى صف)
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [moveClassId, setMoveClassId] = useState('');
@@ -84,7 +97,10 @@ export const UsersManagement: React.FC = () => {
   });
 
   const [showImportModal, setShowImportModal] = useState(false);
-  const [importPreview, setImportPreview] = useState<Array<{ name: string; national_id: string; password: string; class_name: string }>>([]);
+  const [importPreview, setImportPreview] = useState<Array<{
+    name: string; national_id: string; password: string; class_name: string;
+    gender: Gender | null; branch_name: string; parent_id: string; parent_password: string;
+  }>>([]);
   const [importError, setImportError] = useState('');
   // اختيار الصف يدوياً لكل صف في الملف + صف افتراضي لغير المطابقين
   const [importClassOverrides, setImportClassOverrides] = useState<Record<number, string>>({});
@@ -139,7 +155,9 @@ export const UsersManagement: React.FC = () => {
     const matchesRole = isTeacher ? true : (roleFilter === 'all' || u.role === roleFilter);
     const matchesClass =
       classFilter === 'all' ? true : classFilter === 'none' ? hasNoClass(u) : inClass(u, classFilter);
-    return matchesSearch && matchesRole && matchesClass;
+    const matchesBranch = branchFilter === 'all' ? true : branchFilter === 'none' ? !u.branch_id : u.branch_id === branchFilter;
+    const matchesGender = genderFilter === 'all' ? true : u.gender === genderFilter;
+    return matchesSearch && matchesRole && matchesClass && matchesBranch && matchesGender;
   });
 
   /** الصف النهائي لكل طالب في الملف: اختيار المستخدم ← مطابقة واضحة ← الصف الافتراضي ← (لا شيء) */
@@ -163,6 +181,10 @@ export const UsersManagement: React.FC = () => {
     setAssignedSubjectIds([]);
     setAssignedClassIds([]);
     setTeacherPermissions(pickPerms({}));
+    setGender('');
+    setBranchId(isAdminUser ? '' : currentUser?.branch_id || '');
+    setChildIds([]);
+    setChildSearch('');
     setShowAddModal(true);
   };
 
@@ -196,6 +218,10 @@ export const UsersManagement: React.FC = () => {
     setAssignedSubjectIds(subIds);
     setAssignedClassIds(clsIds);
     setTeacherPermissions(perms);
+    setGender(u.gender || '');
+    setBranchId(u.branch_id || '');
+    setChildIds(u.child_ids || []);
+    setChildSearch('');
   };
 
   const toggleSubjectAssignment = (subjId: string) => {
@@ -259,6 +285,10 @@ export const UsersManagement: React.FC = () => {
       alert('يرجى اختيار الصف الدراسي للطالب');
       return;
     }
+    if (effectiveRole === 'parent' && childIds.length === 0) {
+      alert('اختر ابناً واحداً على الأقل لربطه بحساب ولي الأمر');
+      return;
+    }
     const permsObj: TeacherPermissions | undefined = isStaffRole(effectiveRole) ? pickPerms(teacherPermissions) : undefined;
 
     await addUser({
@@ -275,6 +305,9 @@ export const UsersManagement: React.FC = () => {
       class_id: effectiveRole === 'student' ? classId : (assignedClassIds[0] || null),
       teacher_permissions: permsObj,
       permissions: permsObj,
+      gender: gender || null,
+      branch_id: isAdminUser ? branchId || null : currentUser?.branch_id || null,
+      child_ids: effectiveRole === 'parent' ? [...childIds] : [],
       created_by: currentUser?.id,
     });
     setShowAddModal(false);
@@ -319,6 +352,8 @@ export const UsersManagement: React.FC = () => {
       assigned_class_ids: unifiedAssignedClassIds,
       teacher_permissions: permsObj,
       permissions: permsObj,
+      gender: gender || null,
+      ...(isAdminUser ? { branch_id: branchId || null, child_ids: effectiveRole === 'parent' ? [...childIds] : [] } : {}),
     };
 
     // لا نرسل كلمة المرور إلا إذا غيّرها المدير فعلاً (حتى لا تُكتب نسخة قديمة فوق الحالية)
@@ -348,16 +383,34 @@ export const UsersManagement: React.FC = () => {
     }
   };
 
+  /** النوع من خلية Excel: ذكر/أنثى، ولد/بنت، م/ف، male/female */
+  function parseGender(v: any): Gender | null {
+    const t = String(v ?? '').trim().toLowerCase();
+    if (/^(ذكر|ولد|م|male|m|boy|بنين)$/.test(t)) return 'male';
+    if (/^(أنثى|انثى|انثي|بنت|ف|female|f|girl|بنات)$/.test(t)) return 'female';
+    return null;
+  }
+  /** الفرع من اسمه في الملف (تطابق تام ثم جزئي واضح) */
+  function resolveBranch(name: string): string | null {
+    const q = normalizeClassName(name);
+    if (!q) return null;
+    const norm = branches.map((b) => ({ id: b.id, n: normalizeClassName(b.name) }));
+    const exact = norm.filter((b) => b.n === q);
+    if (exact.length === 1) return exact[0].id;
+    const part = norm.filter((b) => b.n && (b.n.includes(q) || q.includes(b.n)));
+    return part.length === 1 ? part[0].id : null;
+  }
+
   // === Excel Import Functions ===
   const downloadExcelTemplate = () => {
     const templateData = [
-      { 'الاسم': 'أحمد محمد', 'رقم الهوية': '1234567890', 'كلمة السر': '123456', 'الصف / الشعبة': 'الصف الأول أ' },
-      { 'الاسم': 'سارة علي', 'رقم الهوية': '0987654321', 'كلمة السر': '123456', 'الصف / الشعبة': 'الصف الثاني ب' },
+      { 'الاسم': 'أحمد محمد', 'رقم الهوية': '1234567890', 'كلمة السر': '123456', 'الصف / الشعبة': 'الصف الأول أ', 'النوع': 'ذكر', 'الفرع': 'فرع البنين', 'هوية ولي الأمر': '1098765432', 'كلمة سر ولي الأمر': '654321' },
+      { 'الاسم': 'سارة علي', 'رقم الهوية': '0987654321', 'كلمة السر': '123456', 'الصف / الشعبة': 'الصف الثاني ب', 'النوع': 'أنثى', 'الفرع': 'فرع البنات', 'هوية ولي الأمر': '1098765432', 'كلمة سر ولي الأمر': '654321' },
     ];
     const ws = XLSX.utils.json_to_sheet(templateData);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, 'طلاب');
-    ws['!cols'] = [{ wch: 20 }, { wch: 15 }, { wch: 12 }, { wch: 20 }];
+    ws['!cols'] = [{ wch: 20 }, { wch: 15 }, { wch: 12 }, { wch: 20 }, { wch: 8 }, { wch: 14 }, { wch: 16 }, { wch: 16 }];
     XLSX.writeFile(wb, 'نموذج_استيراد_طلاب.xlsx');
   };
 
@@ -386,6 +439,10 @@ export const UsersManagement: React.FC = () => {
           national_id: String(row['رقم الهوية'] || row['اسم المستخدم'] || row['national_id'] || row['username'] || row['ID'] || '').trim(),
           password: String(row['كلمة السر'] || row['password'] || row['Password'] || DEFAULT_PASSWORD).trim(),
           class_name: String(row['الصف / الشعبة'] || row['الصف'] || row['class'] || row['Class'] || '').trim(),
+          gender: parseGender(row['النوع'] || row['الجنس'] || row['gender'] || row['Gender']),
+          branch_name: String(row['الفرع'] || row['branch'] || row['Branch'] || '').trim(),
+          parent_id: String(row['هوية ولي الأمر'] || row['رقم هوية ولي الأمر'] || row['parent_id'] || '').trim(),
+          parent_password: String(row['كلمة سر ولي الأمر'] || row['كلمة مرور ولي الأمر'] || row['parent_password'] || '').trim(),
         })).filter((s) => s.name && s.national_id);
 
         if (parsed.length === 0) {
@@ -413,11 +470,16 @@ export const UsersManagement: React.FC = () => {
     try {
       let importedCount = 0;
       let skippedCount = 0;
+      // الطلاب (الجدد والمسجلون مسبقاً) مع هوية ولي الأمر لربطهم بحسابه
+      const linked: Array<{ id: string; name: string; gender: Gender | null; parentId: string; parentPassword: string }> = [];
 
       for (let idx = 0; idx < importPreview.length; idx++) {
         const student = importPreview[idx];
-        const exists = users.some((u) => u.national_id === student.national_id);
-        if (exists) {
+        const existing = users.find((u) => u.national_id === student.national_id);
+        if (existing) {
+          if (student.parent_id && existing.role === 'student') {
+            linked.push({ id: existing.id, name: existing.name, gender: existing.gender || student.gender, parentId: student.parent_id, parentPassword: student.parent_password });
+          }
           skippedCount++;
           continue;
         }
@@ -429,7 +491,7 @@ export const UsersManagement: React.FC = () => {
           continue;
         }
 
-        await addUser({
+        const created = await addUser({
           name: student.name,
           national_id: student.national_id,
           username: student.national_id,
@@ -440,18 +502,69 @@ export const UsersManagement: React.FC = () => {
           assigned_subject_ids: [],
           assigned_class_ids: classId ? [classId] : [],
           class_id: classId || null,
+          gender: student.gender,
+          branch_id: isAdminUser ? resolveBranch(student.branch_name) : currentUser?.branch_id || null,
           created_by: currentUser?.id,
         });
+        if (student.parent_id && created?.id) {
+          linked.push({ id: created.id, name: student.name, gender: student.gender, parentId: student.parent_id, parentPassword: student.parent_password });
+        }
         importedCount++;
+      }
+
+      // حسابات أولياء الأمور: حساب واحد لكل هوية، مرتبط بكل أبنائه في الملف (للمدير فقط)
+      let parentsCreated = 0;
+      let parentsLinked = 0;
+      let parentConflicts = 0;
+      if (isAdminUser) {
+        const byParent = new Map<string, typeof linked>();
+        linked.forEach((l) => byParent.set(l.parentId, [...(byParent.get(l.parentId) || []), l]));
+        for (const [pid, kids] of byParent) {
+          const known = StorageService.getUsers().find((u) => u.national_id === pid);
+          if (known && known.role !== 'parent') {
+            parentConflicts++;
+            continue;
+          }
+          if (known) {
+            const merged = Array.from(new Set([...(known.child_ids || []), ...kids.map((k) => k.id)]));
+            if (merged.length !== (known.child_ids || []).length) {
+              await updateUserData(known.id, { child_ids: merged });
+              parentsLinked++;
+            }
+            continue;
+          }
+          const first = kids[0];
+          await addUser({
+            name: `والد ${first.gender === 'female' ? 'الطالبة' : 'الطالب'} ${first.name}`,
+            national_id: pid,
+            username: pid,
+            email: `${pid}@itqan.edu.sa`,
+            password: kids.find((k) => k.parentPassword)?.parentPassword || DEFAULT_PASSWORD,
+            role: 'parent' as const,
+            gender: 'male',
+            child_ids: kids.map((k) => k.id),
+            assigned_subject_ids: [],
+            assigned_class_ids: [],
+            class_id: null,
+            created_by: currentUser?.id,
+          });
+          parentsCreated++;
+        }
       }
 
       setShowImportModal(false);
       setImportPreview([]);
 
-      const msg = skippedCount > 0
-        ? `تم استيراد ${importedCount} طالب بنجاح، وتم تخطي ${skippedCount} (مسجل مسبقاً أو بدون صف محدد)`
-        : `تم استيراد ${importedCount} طالب بنجاح`;
-      alert(msg);
+      const lines = [
+        skippedCount > 0
+          ? `تم استيراد ${importedCount} طالب، وتخطي ${skippedCount} (مسجل مسبقاً أو بدون صف محدد).`
+          : `تم استيراد ${importedCount} طالب بنجاح.`,
+      ];
+      if (parentsCreated) lines.push(`أُنشئ ${parentsCreated} حساب ولي أمر.`);
+      if (parentsLinked) lines.push(`رُبط أبناء جدد بـ ${parentsLinked} حساب ولي أمر موجود.`);
+      if (parentConflicts) lines.push(`${parentConflicts} هوية ولي أمر مستخدمة لحساب آخر (ليس ولي أمر) فلم تُربط.`);
+      if (!isAdminUser && linked.length) lines.push('حسابات أولياء الأمور يُنشئها مدير النظام فقط.');
+      alert(lines.join('\n'));
     } catch (err) {
       console.error('Bulk import error:', err);
       alert('حدث خطأ أثناء الاستيراد. تحقق من البيانات وأعد المحاولة.');
@@ -534,6 +647,7 @@ export const UsersManagement: React.FC = () => {
               { id: 'teacher', label: 'المعلمون', n: roleCount('teacher') },
               { id: 'supervisor', label: 'المشرفون', n: roleCount('supervisor') },
               { id: 'admin', label: 'المدراء', n: roleCount('admin') },
+              { id: 'parent', label: 'أولياء الأمور', n: roleCount('parent') },
             ].filter((t) => t.id === 'all' || t.n > 0).map((t) => (
               <button key={t.id} type="button" role="tab" aria-selected={roleFilter === t.id} onClick={() => setRoleFilter(t.id)}
                 className={`h-10 px-4 rounded-lg text-[14.5px] font-semibold whitespace-nowrap ${roleFilter === t.id ? 'bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-sm' : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'}`}>
@@ -569,12 +683,28 @@ export const UsersManagement: React.FC = () => {
             ))}
             {noClassCount > 0 && <option value="none">بدون صف ({noClassCount})</option>}
           </select>
-          {(roleFilter !== 'all' || classFilter !== 'all' || searchTerm.trim()) && (
+          {isAdminUser && branches.length > 0 && (
+            <select aria-label="تصفية حسب الفرع" value={branchFilter} onChange={(e) => setBranchFilter(e.target.value)}
+              className="h-11 px-3 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-[15px] text-slate-800 dark:text-slate-100 max-w-[14rem]">
+              <option value="all">كل الفروع</option>
+              {branches.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}
+              <option value="none">بدون فرع</option>
+            </select>
+          )}
+          <select aria-label="تصفية حسب النوع" value={genderFilter} onChange={(e) => setGenderFilter(e.target.value)}
+            className="h-11 px-3 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-[15px] text-slate-800 dark:text-slate-100">
+            <option value="all">ذكور وإناث</option>
+            <option value="male">ذكور</option>
+            <option value="female">إناث</option>
+          </select>
+          {(roleFilter !== 'all' || classFilter !== 'all' || branchFilter !== 'all' || genderFilter !== 'all' || searchTerm.trim()) && (
             <button
               type="button"
               onClick={() => {
                 setRoleFilter('all');
                 setClassFilter('all');
+                setBranchFilter('all');
+                setGenderFilter('all');
                 setSearchTerm('');
               }}
               className="h-11 px-2 text-sm font-semibold text-indigo-700 dark:text-indigo-400 hover:underline"
@@ -609,6 +739,29 @@ export const UsersManagement: React.FC = () => {
               className="h-10 px-4 rounded-xl text-sm font-semibold bg-white/15 hover:bg-white/25 text-white disabled:opacity-40">
               نقل{selectedStudents.length ? ` (${selectedStudents.length} طالب)` : ''}
             </button>
+            {isAdminUser && branches.length > 0 && (
+              <>
+                <select aria-label="نقل إلى فرع" value={moveBranchId} onChange={(e) => setMoveBranchId(e.target.value)}
+                  className="h-10 px-3 text-sm rounded-xl border-0 bg-white/10 text-white [&>option]:text-slate-900">
+                  <option value="">نقل إلى فرع…</option>
+                  {branches.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}
+                  <option value="__none">إزالة الفرع</option>
+                </select>
+                <button type="button" disabled={bulkBusy || !moveBranchId}
+                  onClick={async () => {
+                    const target = moveBranchId === '__none' ? null : moveBranchId;
+                    if (!window.confirm(target ? `نقل ${selectedIds.length} مستخدم إلى ${branchName(target)}؟` : `إزالة الفرع عن ${selectedIds.length} مستخدم؟`)) return;
+                    setBulkBusy(true);
+                    await bulkMoveToBranch(selectedIds, target);
+                    setBulkBusy(false);
+                    setSelectedIds([]);
+                    setMoveBranchId('');
+                  }}
+                  className="h-10 px-4 rounded-xl text-sm font-semibold bg-white/15 hover:bg-white/25 text-white disabled:opacity-40">
+                  نقل للفرع
+                </button>
+              </>
+            )}
             <button type="button" disabled={bulkBusy}
               onClick={async () => {
                 if (!window.confirm(`حذف ${selectedIds.length} مستخدم نهائياً من المنصة؟ لا يمكن التراجع.`)) return;
@@ -723,8 +876,17 @@ export const UsersManagement: React.FC = () => {
                       {u.role === 'student' && (
                         <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-amber-100 dark:bg-amber-950 text-amber-800 dark:text-amber-300">
                           <GraduationCap className="w-3.5 h-3.5" />
-                          <span>{u.job_title?.trim() || 'طالب'}</span>
+                          <span>{u.job_title?.trim() || (u.gender === 'female' ? 'طالبة' : 'طالب')}</span>
                         </span>
+                      )}
+                      {u.role === 'parent' && (
+                        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-rose-100 dark:bg-rose-950 text-rose-800 dark:text-rose-300">
+                          <UserCircle2 className="w-3.5 h-3.5" />
+                          <span>ولي أمر</span>
+                        </span>
+                      )}
+                      {branchName(u.branch_id) && (
+                        <div className="text-[12px] text-slate-500 dark:text-slate-400 mt-1">{branchName(u.branch_id)}</div>
                       )}
                     </td>
 
@@ -780,6 +942,11 @@ export const UsersManagement: React.FC = () => {
                         </div>
                       )}
                       {u.role === 'student' && (userClass?.name || 'غير مسكن في شعبة')}
+                      {u.role === 'parent' && (
+                        <span className="text-[13px]">
+                          {(u.child_ids || []).map((id) => users.find((x) => x.id === id)?.name).filter(Boolean).join('، ') || 'لا يوجد أبناء مرتبطون'}
+                        </span>
+                      )}
                       {u.role === 'admin' && <span className="text-slate-400">صلاحيات كاملة</span>}
                     </td>
 
@@ -945,7 +1112,57 @@ export const UsersManagement: React.FC = () => {
                     <option value="teacher">معلم (Teacher)</option>
                     <option value="supervisor">مشرف (Supervisor)</option>
                     <option value="admin">مدير نظام (Super Admin)</option>
+                    <option value="parent">ولي أمر (Parent)</option>
                   </select>
+                </div>
+              )}
+
+              <div className={`grid gap-3 ${isAdminUser && branches.length > 0 ? 'grid-cols-2' : 'grid-cols-1'}`}>
+                <div>
+                  <label htmlFor="user-gender" className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">النوع</label>
+                  <select id="user-gender" value={gender} onChange={(e) => setGender(e.target.value as Gender | '')}
+                    className="w-full px-3 py-2 text-xs rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white">
+                    <option value="">غير محدد</option>
+                    <option value="male">ذكر</option>
+                    <option value="female">أنثى</option>
+                  </select>
+                </div>
+                {isAdminUser && branches.length > 0 && (
+                  <div>
+                    <label htmlFor="user-branch" className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">الفرع</label>
+                    <select id="user-branch" value={branchId} onChange={(e) => setBranchId(e.target.value)}
+                      className="w-full px-3 py-2 text-xs rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white">
+                      <option value="">بدون فرع (يرى كل الفروع)</option>
+                      {branches.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}
+                    </select>
+                  </div>
+                )}
+              </div>
+
+              {isAdminUser && (editingUser ? editingUser.role : role) === 'parent' && (
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5">
+                    الأبناء المرتبطون ({childIds.length})
+                  </label>
+                  <input value={childSearch} onChange={(e) => setChildSearch(e.target.value)} placeholder="ابحث عن طالب بالاسم أو الهوية" aria-label="بحث عن طالب"
+                    className="w-full px-3 py-2 mb-1.5 text-xs rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white" />
+                  <div className="max-h-40 overflow-y-auto p-1.5 border rounded-xl border-slate-200 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-800/30 space-y-1">
+                    {users
+                      .filter((x) => x.role === 'student')
+                      .filter((x) => childIds.includes(x.id) || (childSearch.trim() && (x.name.includes(childSearch.trim()) || x.national_id.includes(childSearch.trim()))))
+                      .slice(0, 30)
+                      .map((x) => {
+                        const on = childIds.includes(x.id);
+                        return (
+                          <label key={x.id} className={`flex items-center justify-between gap-2 p-2 rounded-lg text-xs cursor-pointer ${on ? 'bg-indigo-50 dark:bg-indigo-950/60 font-bold text-indigo-900 dark:text-indigo-200' : 'hover:bg-white dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300'}`}>
+                            <span>{x.name} <span className="font-mono text-slate-400">{x.national_id}</span></span>
+                            <input type="checkbox" className="accent-indigo-600 w-4 h-4" checked={on}
+                              onChange={() => setChildIds((prev) => (on ? prev.filter((id) => id !== x.id) : [...prev, x.id]))} />
+                          </label>
+                        );
+                      })}
+                    {childIds.length === 0 && !childSearch.trim() && <p className="p-2 text-[12px] text-slate-500">اكتب اسم الطالب أو هويته لإضافته</p>}
+                  </div>
                 </div>
               )}
 
@@ -1261,6 +1478,8 @@ export const UsersManagement: React.FC = () => {
                       <th className="py-2 px-3">رقم الهوية</th>
                       <th className="py-2 px-3">كلمة السر</th>
                       <th className="py-2 px-3">الصف / الشعبة</th>
+                      <th className="py-2 px-3">النوع / الفرع</th>
+                      <th className="py-2 px-3">ولي الأمر</th>
                       <th className="py-2 px-3">الحالة</th>
                     </tr>
                   </thead>
@@ -1316,6 +1535,15 @@ export const UsersManagement: React.FC = () => {
                               </span>
                             )}
                           </td>
+                          <td className="py-2 px-3 text-slate-600 dark:text-slate-300">
+                            {s.gender === 'female' ? 'أنثى' : s.gender === 'male' ? 'ذكر' : '—'}
+                            {s.branch_name && (
+                              <span className={`block text-[10px] ${isAdminUser && !resolveBranch(s.branch_name) ? 'text-rose-600' : 'text-slate-400'}`}>
+                                {s.branch_name}{isAdminUser && !resolveBranch(s.branch_name) ? ' (فرع غير موجود)' : ''}
+                              </span>
+                            )}
+                          </td>
+                          <td className="py-2 px-3 font-mono text-slate-600 dark:text-slate-300">{s.parent_id || '—'}</td>
                           <td className="py-2 px-3">
                             {alreadyExists ? (
                               <span className="text-amber-600 text-[10px] font-bold">مسجل مسبقاً</span>
