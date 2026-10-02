@@ -694,6 +694,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const reassignQuizToTeacher = (quizId: string, newTeacherId: string): boolean => {
     const me = currentUserRef.current;
     if (!me) return false;
+    if (me.role !== 'admin') {
+      showToast('إسناد الاختبار لمعلم آخر متاح لمدير النظام فقط', 'error');
+      return false;
+    }
     const res = StorageService.reassignQuiz(quizId, newTeacherId, me.id);
     if (res.success) {
       recompute();
@@ -831,7 +835,16 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       }
     }
 
-    showToast(`تمت إضافة المستخدم (${created.name}) بنجاح`, 'success');
+    const clsName =
+      created.role === 'student' && created.class_id
+        ? StorageService.getClassById(created.class_id)?.name
+        : undefined;
+    showToast(
+      clsName
+        ? `تمت إضافة الطالب (${created.name}) إلى: ${clsName}`
+        : `تمت إضافة المستخدم (${created.name}) بنجاح`,
+      'success'
+    );
     return normalized;
   };
 

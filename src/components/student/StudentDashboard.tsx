@@ -21,6 +21,7 @@ import { useApp } from '../../context/AppContext';
 import { KPICard } from '../common/KPICard';
 import { Avatar } from '../common/Avatar';
 import { formatArabicQuizDate } from '../../utils/dateUtils';
+import { parseWindowStart, parseWindowEnd, formatQuizDateTime } from '../../utils/quizWindow';
 
 interface StudentDashboardProps {
   onStartQuiz: (quizId: string) => void;
@@ -232,11 +233,16 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({
               const isRetakeAllowed = quiz.allowed_retake_student_ids?.includes(currentUser?.id || '');
 
               // Date & Active availability check
+              // مقارنة بالوقت الفعلي (وليس بنصوص التواريخ) حتى يعمل يوم البدء ووقته بدقة
+              const nowTs = new Date();
+              const startAt = parseWindowStart(quiz.start_date);
+              const endAt = parseWindowEnd(quiz.end_date);
               const isManualActive = quiz.is_active !== false;
-              const isAfterStart = !quiz.start_date || todayStr >= quiz.start_date;
-              const isBeforeEnd = !quiz.end_date || todayStr <= quiz.end_date;
+              const isAfterStart = !startAt || nowTs >= startAt;
+              const isBeforeEnd = !endAt || nowTs <= endAt;
               const isDateAvailable = isAfterStart && isBeforeEnd;
               const isAvailableToTake = isManualActive && isDateAvailable;
+              const closedReason = !isManualActive ? 'manual' : !isAfterStart ? 'upcoming' : 'ended';
 
               const assignment = quiz.assignments?.[0];
               let targetLabel = 'موجه للجميع';
@@ -274,7 +280,7 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({
                         </span>
                         {!isAvailableToTake && (
                           <span className="text-[10px] font-bold text-rose-700 dark:text-rose-400 bg-rose-50 dark:bg-rose-950 px-2 py-0.5 rounded-full border border-rose-200 dark:border-rose-900">
-                            مغلق حالياً
+                            {closedReason === 'upcoming' ? 'لم يبدأ بعد' : closedReason === 'ended' ? 'انتهى' : 'مغلق حالياً'}
                           </span>
                         )}
                       </div>
@@ -303,6 +309,13 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({
                       <div className="flex items-center gap-1.5">
                         <Award className="w-3.5 h-3.5 text-indigo-500" />
                         <span>{quiz.total_marks} درجة كليّة</span>
+                      </div>
+                      <div className="flex items-start gap-1.5 col-span-2 text-[11px] text-slate-600 dark:text-slate-300">
+                        <Calendar className="w-3.5 h-3.5 text-slate-400 shrink-0 mt-0.5" />
+                        <span>
+                          الإتاحة: من <b>{formatQuizDateTime(quiz.start_date, 'start')}</b> إلى{' '}
+                          <b>{formatQuizDateTime(quiz.end_date, 'end')}</b>
+                        </span>
                       </div>
                       <div className="flex items-center gap-1.5 col-span-2 text-[11px] text-slate-500 dark:text-slate-400">
                         <UserIcon className="w-3.5 h-3.5 text-slate-400" />
@@ -374,7 +387,13 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({
                           <>
                             <span className="inline-flex items-center gap-1 text-xs font-bold text-slate-500 dark:text-slate-400 bg-slate-100 dark:bg-slate-800 px-2.5 py-1 rounded-xl">
                               <Lock className="w-3 h-3 text-slate-400" />
-                              <span>مغلق حالياً من قِبل المعلم</span>
+                              <span>
+                                {closedReason === 'upcoming'
+                                  ? `يبدأ في ${formatQuizDateTime(quiz.start_date, 'start')}`
+                                  : closedReason === 'ended'
+                                  ? 'انتهى وقت الاختبار'
+                                  : 'مغلق حالياً من قِبل المعلم'}
+                              </span>
                             </span>
                             <button
                               disabled
@@ -503,7 +522,7 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({
                       </td>
 
                       <td className="py-3.5 px-4 text-slate-500 dark:text-slate-400">
-                        {new Date(s.completed_at).toLocaleDateString('ar-SA')}
+                        {new Date(s.completed_at).toLocaleDateString('ar-EG-u-ca-gregory-nu-latn')}
                       </td>
 
                       <td className="py-3.5 px-4 text-center">

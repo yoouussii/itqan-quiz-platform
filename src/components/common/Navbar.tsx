@@ -76,7 +76,6 @@ export const Navbar: React.FC = () => {
     if (currentUser.role === 'teacher') {
       const items = [
         { id: 'dashboard', label: 'لوحة المعلم', icon: LayoutDashboard },
-        { id: 'quizzes', label: 'اختباراتي', icon: FileQuestion },
         { id: 'create_quiz', label: 'إنشاء اختبار', icon: PlusCircle },
         { id: 'analytics', label: 'نتائج طلابي', icon: BarChart2 },
       ];
@@ -101,7 +100,6 @@ export const Navbar: React.FC = () => {
     // student: STRICT PRIVACY ONLY
     return [
       { id: 'dashboard', label: 'لوحة الطالب', icon: LayoutDashboard },
-      { id: 'quizzes', label: 'اختباراتي المخصصة', icon: BookOpen },
       { id: 'analytics', label: 'سجل درجاتي وإنجازاتي', icon: BarChart2 },
     ];
   };

@@ -19,6 +19,7 @@ import {
 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 import { DEFAULT_PASSWORD } from '../../services/storage';
+import { resolveClass } from '../../utils/classMatch';
 import { Role, User, TeacherPermissions } from '../../types';
 import { Avatar } from '../common/Avatar';
 
@@ -42,6 +43,7 @@ export const UsersManagement: React.FC = () => {
 
   const [searchTerm, setSearchTerm] = useState('');
   const [roleFilter, setRoleFilter] = useState<string>('all');
+  const [classFilter, setClassFilter] = useState<string>('all'); // all | none | معرّف صف
 
   // Modals state
   const [showAddModal, setShowAddModal] = useState(false);
@@ -68,10 +70,24 @@ export const UsersManagement: React.FC = () => {
   const [showImportModal, setShowImportModal] = useState(false);
   const [importPreview, setImportPreview] = useState<Array<{ name: string; national_id: string; password: string; class_name: string }>>([]);
   const [importError, setImportError] = useState('');
+  // اختيار الصف يدوياً لكل صف في الملف + صف افتراضي لغير المطابقين
+  const [importClassOverrides, setImportClassOverrides] = useState<Record<number, string>>({});
+  const [importDefaultClassId, setImportDefaultClassId] = useState('');
   const [isImporting, setIsImporting] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const isTeacher = currentUser?.role === 'teacher';
+
+  // المستخدمون ضمن صلاحية من يتصفح (المعلم يرى الطلاب الذين أضافهم فقط)
+  const scopeUsers = users.filter((u) => !isTeacher || (u.role === 'student' && u.created_by === currentUser?.id));
+  const inClass = (u: User, id: string) => u.class_id === id || !!u.assigned_class_ids?.includes(id);
+  const hasNoClass = (u: User) => u.role !== 'admin' && !u.class_id && !(u.assigned_class_ids && u.assigned_class_ids.length > 0);
+  const roleMatches = (u: User) => isTeacher || roleFilter === 'all' || u.role === roleFilter;
+  const classCount = (id: string) => scopeUsers.filter((u) => roleMatches(u) && inClass(u, id)).length;
+  const noClassCount = scopeUsers.filter((u) => roleMatches(u) && hasNoClass(u)).length;
+  const roleCount = (r: string) => scopeUsers.filter((u) => u.role === r).length;
+  // المعلم يرى في الفلتر الصفوف التي فيها طلابه فقط، والمدير كل الصفوف
+  const classFilterOptions = isTeacher ? classes.filter((c) => classCount(c.id) > 0) : classes;
 
   const filteredUsers = users.filter((u) => {
     // المعلم لا يرى سوى الطلاب الذين أضافهم هو فقط
@@ -85,15 +101,28 @@ export const UsersManagement: React.FC = () => {
       u.national_id.includes(searchTerm) ||
       (u.email && u.email.toLowerCase().includes(searchTerm.toLowerCase()));
     const matchesRole = isTeacher ? true : (roleFilter === 'all' || u.role === roleFilter);
-    return matchesSearch && matchesRole;
+    const matchesClass =
+      classFilter === 'all' ? true : classFilter === 'none' ? hasNoClass(u) : inClass(u, classFilter);
+    return matchesSearch && matchesRole && matchesClass;
   });
+
+  /** الصف النهائي لكل طالب في الملف: اختيار المستخدم ← مطابقة واضحة ← الصف الافتراضي ← (لا شيء) */
+  const resolveImportRow = (i: number, className: string) => {
+    const override = importClassOverrides[i];
+    if (override) return { id: override, status: 'manual' as const };
+    const m = resolveClass(classes, className);
+    if (m.id) return { id: m.id, status: m.status };
+    if (importDefaultClassId) return { id: importDefaultClassId, status: 'default' as const };
+    return { id: null as string | null, status: m.status };
+  };
 
   const handleOpenAddModal = (defaultRole: Role = 'student') => {
     setName('');
     setNationalId('');
     setPassword('itqan123');
     setRole(defaultRole);
-    setClassId(classes[0]?.id || '');
+    // لا نختار صفاً تلقائياً (إلا إذا كان الوحيد) حتى لا يُحفظ الطالب في أول صف دون قصد
+    setClassId(classes.length === 1 ? classes[0].id : '');
     setAssignedSubjectIds([]);
     setAssignedClassIds([]);
     setTeacherPermissions({
@@ -200,6 +229,11 @@ export const UsersManagement: React.FC = () => {
 
     // المعلم يضيف طلاباً فقط دائماً
     const effectiveRole: Role = isTeacher ? 'student' : role;
+
+    if (effectiveRole === 'student' && !classId) {
+      alert('يرجى اختيار الصف الدراسي للطالب');
+      return;
+    }
     const permsObj: TeacherPermissions | undefined = effectiveRole === 'teacher' ? {
       can_add_custom_subjects: !!teacherPermissions.can_add_custom_subjects,
       can_manage_classes: !!teacherPermissions.can_manage_classes,
@@ -345,6 +379,8 @@ export const UsersManagement: React.FC = () => {
         }
 
         setImportPreview(parsed);
+        setImportClassOverrides({});
+        setImportDefaultClassId('');
         setShowImportModal(true);
       } catch (err) {
         console.error('Excel parse error:', err);
@@ -363,17 +399,20 @@ export const UsersManagement: React.FC = () => {
       let importedCount = 0;
       let skippedCount = 0;
 
-      for (const student of importPreview) {
+      for (let idx = 0; idx < importPreview.length; idx++) {
+        const student = importPreview[idx];
         const exists = users.some((u) => u.national_id === student.national_id);
         if (exists) {
           skippedCount++;
           continue;
         }
 
-        const matchedClass = classes.find(
-          (c) => c.name === student.class_name || c.name.includes(student.class_name) || student.class_name.includes(c.name)
-        );
-        const classId = matchedClass?.id || classes[0]?.id || '';
+        const classId = resolveImportRow(idx, student.class_name).id;
+        if (!classId) {
+          // لا نضع الطالب في صف عشوائي: يُتخطى (الزر معطّل أصلاً حتى تُحسم كل الصفوف)
+          skippedCount++;
+          continue;
+        }
 
         await addUser({
           name: student.name,
@@ -395,7 +434,7 @@ export const UsersManagement: React.FC = () => {
       setImportPreview([]);
 
       const msg = skippedCount > 0
-        ? `تم استيراد ${importedCount} طالب بنجاح، وتم تخطي ${skippedCount} (مسجلين مسبقاً)`
+        ? `تم استيراد ${importedCount} طالب بنجاح، وتم تخطي ${skippedCount} (مسجل مسبقاً أو بدون صف محدد)`
         : `تم استيراد ${importedCount} طالب بنجاح`;
       alert(msg);
     } catch (err) {
@@ -405,6 +444,10 @@ export const UsersManagement: React.FC = () => {
       setIsImporting(false);
     }
   };
+
+  const importUnresolvedCount = importPreview.filter(
+    (s, i) => !users.some((u) => u.national_id === s.national_id) && !resolveImportRow(i, s.class_name).id
+  ).length;
 
   return (
     <div className="max-w-7xl mx-auto py-8 px-4 sm:px-6 lg:px-8 space-y-6" dir="rtl">
@@ -420,7 +463,7 @@ export const UsersManagement: React.FC = () => {
         </div>
 
         <div className="flex items-center gap-2 flex-wrap">
-          {canAddStudent && (
+          {isTeacher && canAddStudent && (
             <button
               onClick={() => handleOpenAddModal('student')}
               className="inline-flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold shadow-md shadow-indigo-600/20 transition-all hover:scale-105"
@@ -460,7 +503,7 @@ export const UsersManagement: React.FC = () => {
 
           {!isTeacher && (
             <button
-              onClick={() => handleOpenAddModal('teacher')}
+              onClick={() => handleOpenAddModal('student')}
               className="inline-flex items-center gap-2 px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-2xl text-xs font-bold shadow-md shadow-indigo-600/20 transition-all hover:scale-105"
             >
               <UserPlus className="w-4 h-4" />
@@ -483,20 +526,51 @@ export const UsersManagement: React.FC = () => {
           />
         </div>
 
-        {!isTeacher && (
-          <div className="flex items-center gap-2 w-full sm:w-auto">
+        <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
+          {!isTeacher && (
             <select
+              aria-label="تصفية حسب الدور"
               value={roleFilter}
               onChange={(e) => setRoleFilter(e.target.value)}
               className="px-4 py-2 text-xs rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-700 dark:text-slate-200 font-semibold"
             >
-              <option value="all">كافة الأدوار ({users.length})</option>
-              <option value="admin">مديرو النظام</option>
-              <option value="teacher">المعلمون</option>
-              <option value="student">الطلاب</option>
+              <option value="all">كافة الأدوار ({scopeUsers.length})</option>
+              <option value="admin">مديرو النظام ({roleCount('admin')})</option>
+              <option value="teacher">المعلمون ({roleCount('teacher')})</option>
+              <option value="student">الطلاب ({roleCount('student')})</option>
             </select>
-          </div>
-        )}
+          )}
+
+          <select
+            aria-label="تصفية حسب الصف"
+            value={classFilter}
+            onChange={(e) => setClassFilter(e.target.value)}
+            className="px-4 py-2 text-xs rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-700 dark:text-slate-200 font-semibold max-w-[18rem]"
+          >
+            <option value="all">كل الصفوف</option>
+            {classFilterOptions.map((c) => (
+              <option key={c.id} value={c.id}>
+                {c.name} ({classCount(c.id)})
+              </option>
+            ))}
+            {noClassCount > 0 && <option value="none">بدون صف ({noClassCount})</option>}
+          </select>
+
+          {(roleFilter !== 'all' || classFilter !== 'all' || searchTerm.trim()) && (
+            <button
+              type="button"
+              onClick={() => {
+                setRoleFilter('all');
+                setClassFilter('all');
+                setSearchTerm('');
+              }}
+              className="text-[11px] font-bold text-indigo-600 dark:text-indigo-400 hover:underline"
+            >
+              مسح الفلاتر
+            </button>
+          )}
+          <span className="text-[11px] text-slate-400 font-semibold">{filteredUsers.length} نتيجة</span>
+        </div>
       </div>
 
       {/* Users Table */}
@@ -826,6 +900,11 @@ export const UsersManagement: React.FC = () => {
                     }}
                     className="w-full px-3 py-2 text-xs rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white"
                   >
+                    {!editingUser && (
+                      <option value="" disabled>
+                        — اختر الصف الدراسي —
+                      </option>
+                    )}
                     {classes.map((c) => (
                       <option key={c.id} value={c.id}>
                         {c.name}
@@ -1057,6 +1136,27 @@ export const UsersManagement: React.FC = () => {
             </div>
 
             {importPreview.length > 0 && (
+              <div className="mb-3 p-3 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 flex flex-wrap items-center gap-3">
+                <label className="text-xs font-bold text-slate-700 dark:text-slate-300">
+                  صف افتراضي للطلاب الذين لم يُطابق صفهم في الملف:
+                </label>
+                <select
+                  aria-label="الصف الافتراضي للاستيراد"
+                  value={importDefaultClassId}
+                  onChange={(e) => setImportDefaultClassId(e.target.value)}
+                  className="px-3 py-1.5 text-xs rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white"
+                >
+                  <option value="">— بدون (أختار لكل طالب) —</option>
+                  {classes.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
+
+            {importPreview.length > 0 && (
               <div className="overflow-x-auto mb-4">
                 <table className="w-full text-right text-xs">
                   <thead>
@@ -1072,9 +1172,7 @@ export const UsersManagement: React.FC = () => {
                   <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                     {importPreview.map((s, i) => {
                       const alreadyExists = users.some((u) => u.national_id === s.national_id);
-                      const matchedClass = classes.find(
-                        (c) => c.name === s.class_name || c.name.includes(s.class_name) || s.class_name.includes(c.name)
-                      );
+                      const rc = resolveImportRow(i, s.class_name);
                       return (
                         <tr key={i} className={alreadyExists ? 'bg-amber-50 dark:bg-amber-950/30' : ''}>
                           <td className="py-2 px-3 text-slate-400">{i + 1}</td>
@@ -1082,10 +1180,45 @@ export const UsersManagement: React.FC = () => {
                           <td className="py-2 px-3 font-mono text-indigo-600 dark:text-indigo-400">{s.national_id}</td>
                           <td className="py-2 px-3 text-slate-500">{'•'.repeat(s.password.length)}</td>
                           <td className="py-2 px-3">
-                            {matchedClass ? (
-                              <span className="text-emerald-600 dark:text-emerald-400">{matchedClass.name}</span>
-                            ) : (
-                              <span className="text-slate-400">{s.class_name || 'غير محدد'}</span>
+                            <select
+                              aria-label={`صف الطالب ${s.name}`}
+                              value={rc.id || ''}
+                              onChange={(e) =>
+                                setImportClassOverrides((prev) => {
+                                  const next = { ...prev };
+                                  if (e.target.value) next[i] = e.target.value;
+                                  else delete next[i];
+                                  return next;
+                                })
+                              }
+                              className={`w-full max-w-[16rem] px-2 py-1 text-[11px] rounded-lg border bg-white dark:bg-slate-800 text-slate-900 dark:text-white ${
+                                rc.id
+                                  ? rc.status === 'exact' || rc.status === 'manual'
+                                    ? 'border-emerald-300 dark:border-emerald-800'
+                                    : 'border-amber-300 dark:border-amber-700'
+                                  : 'border-rose-400 dark:border-rose-700'
+                              }`}
+                            >
+                              <option value="">— اختر الصف —</option>
+                              {classes.map((c) => (
+                                <option key={c.id} value={c.id}>
+                                  {c.name}
+                                </option>
+                              ))}
+                            </select>
+                            {rc.status === 'partial' && (
+                              <span className="block text-[10px] text-amber-600 mt-0.5">تطابق جزئي مع: {s.class_name}</span>
+                            )}
+                            {rc.status === 'default' && (
+                              <span className="block text-[10px] text-slate-400 mt-0.5">
+                                صف افتراضي (في الملف: {s.class_name || 'فارغ'})
+                              </span>
+                            )}
+                            {!rc.id && (
+                              <span className="block text-[10px] text-rose-600 mt-0.5">
+                                {rc.status === 'ambiguous' ? 'الاسم ينطبق على أكثر من صف' : 'لم يُطابق أي صف'}
+                                {s.class_name ? ` (في الملف: ${s.class_name})` : ''}
+                              </span>
                             )}
                           </td>
                           <td className="py-2 px-3">
@@ -1106,6 +1239,11 @@ export const UsersManagement: React.FC = () => {
             <div className="flex items-center justify-between pt-3 border-t border-slate-100 dark:border-slate-800">
               <p className="text-[10px] text-slate-400">
                 {importPreview.filter((s) => !users.some((u) => u.national_id === s.national_id)).length} طالب جديد سيتم إضافته
+                {importUnresolvedCount > 0 && (
+                  <span className="block text-rose-600 font-bold text-[11px]">
+                    {importUnresolvedCount} طالب بدون صف — اختر لهم صفاً قبل الاستيراد
+                  </span>
+                )}
               </p>
               <div className="flex gap-2">
                 <button
@@ -1116,7 +1254,7 @@ export const UsersManagement: React.FC = () => {
                 </button>
                 <button
                   onClick={handleBulkImport}
-                  disabled={isImporting || importPreview.filter((s) => !users.some((u) => u.national_id === s.national_id)).length === 0}
+                  disabled={isImporting || importUnresolvedCount > 0 || importPreview.filter((s) => !users.some((u) => u.national_id === s.national_id)).length === 0}
                   className="px-6 py-2 text-xs rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold shadow-md disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
                 >
                   {isImporting ? (

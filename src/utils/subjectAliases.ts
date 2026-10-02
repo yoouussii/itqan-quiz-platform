@@ -6,6 +6,7 @@
 export const RETIRED_SUBJECT_ALIASES: Record<string, string> = {
   'SUBJ-984': 'subj-1790785709984', // الرياضيات
   'SUBJ-930': 'subj-1790785731650', // اللغة العربية
+  'subj-1790835370930': 'subj-1790785731650', // نسخة قديمة محذوفة من اللغة العربية
 };
 
 export const isRetiredSubject = (id?: string | null): boolean =>

@@ -3,7 +3,6 @@ import { useApp } from '../../context/AppContext';
 import { KPICard } from '../common/KPICard';
 import { AnalyticsCharts } from '../analytics/AnalyticsCharts';
 import { SubmissionsTable } from '../analytics/SubmissionsTable';
-import { ReassignQuizModal } from '../common/ReassignQuizModal';
 import { Quiz, Submission, Subject } from '../../types';
 import {
   FileText,
@@ -16,7 +15,9 @@ import {
   RotateCcw,
   BookOpen,
   Copy,
+  Trash2,
 } from 'lucide-react';
+import { formatQuizDateTime, getWindowState } from '../../utils/quizWindow';
 import { describeQuizTarget } from '../../utils/quizTarget';
 
 export const TeacherDashboard: React.FC = () => {
@@ -30,9 +31,9 @@ export const TeacherDashboard: React.FC = () => {
     setCurrentView,
     setEditingQuizId,
     setDuplicateQuizId,
+    deleteQuizItem,
   } = useApp();
 
-  const [selectedQuizForReassign, setSelectedQuizForReassign] = useState<Quiz | null>(null);
 
   // تصفية الاختبارات الخاصة بالمعلم
   const teacherQuizzes =
@@ -57,6 +58,16 @@ export const TeacherDashboard: React.FC = () => {
         )
       : 0;
 
+  const handleDeleteQuiz = async (quiz: Quiz) => {
+    if (
+      window.confirm(
+        `هل أنت متأكد من حذف الاختبار "${quiz.title}"؟\nسيختفي من قوائم الطلاب، وتبقى درجات الطلاب السابقة محفوظة ومستبعدة من المعدل.`
+      )
+    ) {
+      await deleteQuizItem(quiz.id);
+    }
+  };
+
   const handleDuplicateQuiz = (quizId: string) => {
     setEditingQuizId(null);
     setDuplicateQuizId(quizId);
@@ -69,7 +80,7 @@ export const TeacherDashboard: React.FC = () => {
   };
 
   return (
-    <div className="space-y-8" dir="rtl">
+    <div className="max-w-7xl mx-auto py-8 px-4 sm:px-6 lg:px-8 space-y-8" dir="rtl">
       {/* الترويسة */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
@@ -182,6 +193,28 @@ export const TeacherDashboard: React.FC = () => {
                   </span>
                 </div>
 
+                <div className="text-[11px] text-slate-500 dark:text-slate-400 flex flex-wrap items-start gap-x-1.5 gap-y-1">
+                  <span className="font-bold shrink-0">فترة الإتاحة:</span>
+                  <span className="font-semibold text-slate-700 dark:text-slate-200">
+                    من {formatQuizDateTime(quiz.start_date, 'start')} إلى {formatQuizDateTime(quiz.end_date, 'end')}
+                  </span>
+                  <span
+                    className={`px-1.5 py-0.5 rounded-md text-[10px] font-bold ${
+                      getWindowState(quiz.start_date, quiz.end_date) === 'open'
+                        ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300'
+                        : getWindowState(quiz.start_date, quiz.end_date) === 'upcoming'
+                        ? 'bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-300'
+                        : 'bg-slate-200 text-slate-600 dark:bg-slate-700 dark:text-slate-300'
+                    }`}
+                  >
+                    {getWindowState(quiz.start_date, quiz.end_date) === 'open'
+                      ? 'جارية الآن'
+                      : getWindowState(quiz.start_date, quiz.end_date) === 'upcoming'
+                      ? 'لم تبدأ بعد'
+                      : 'انتهت'}
+                  </span>
+                </div>
+
                 <div className="grid grid-cols-2 gap-2 text-xs text-slate-500 dark:text-slate-400">
                   <div>الدرجة: <span className="font-bold text-slate-700 dark:text-slate-200">{quiz.total_marks}</span></div>
                   <div>المدة: <span className="font-bold text-slate-700 dark:text-slate-200">{quiz.duration_minutes} دقيقة</span></div>
@@ -208,11 +241,12 @@ export const TeacherDashboard: React.FC = () => {
                   </button>
 
                   <button
-                    onClick={() => setSelectedQuizForReassign(quiz)}
-                    className="flex-1 inline-flex items-center justify-center gap-1.5 px-3 py-2 bg-indigo-50 dark:bg-indigo-950/60 border border-indigo-100 dark:border-indigo-900 text-indigo-700 dark:text-indigo-300 rounded-xl text-xs font-bold hover:bg-indigo-100 dark:hover:bg-indigo-900/60 transition-colors"
+                    onClick={() => handleDeleteQuiz(quiz)}
+                    title="حذف الاختبار"
+                    className="inline-flex items-center justify-center gap-1.5 px-3 py-2 bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-900 text-rose-700 dark:text-rose-300 rounded-xl text-xs font-bold hover:bg-rose-100 dark:hover:bg-rose-900/50 transition-colors"
                   >
-                    <RotateCcw className="w-3.5 h-3.5" />
-                    <span>إعادة تعيين</span>
+                    <Trash2 className="w-3.5 h-3.5" />
+                    <span>حذف</span>
                   </button>
                 </div>
               </div>
@@ -229,13 +263,6 @@ export const TeacherDashboard: React.FC = () => {
         <SubmissionsTable submissions={teacherSubmissions} />
       </div>
 
-      {/* النافذة المنبثقة لإعادة التعيين */}
-      {selectedQuizForReassign && (
-        <ReassignQuizModal
-          quiz={selectedQuizForReassign}
-          onClose={() => setSelectedQuizForReassign(null)}
-        />
-      )}
     </div>
   );
 };

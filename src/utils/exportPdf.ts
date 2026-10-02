@@ -63,7 +63,7 @@ export function buildPdfHtml(opts: PdfExportOptions): string {
 </style></head>
 <body class="font-cairo"><div class="pdf-wrap">
   <div class="pdf-head"><div><h1>${esc(opts.title)}</h1>${opts.subtitle ? `<p>${esc(opts.subtitle)}</p>` : ''}</div>
-  <div style="font-size:11px;opacity:.75">منصة إتقان التعليمية • ${esc(new Date().toLocaleDateString('ar-SA'))}</div></div>
+  <div style="font-size:11px;opacity:.75">منصة إتقان التعليمية • ${esc(new Date().toLocaleDateString('ar-EG-u-ca-gregory-nu-latn'))}</div></div>
   <div class="pdf-block">${clone.outerHTML}</div>
   ${table}
 </div></body></html>`;

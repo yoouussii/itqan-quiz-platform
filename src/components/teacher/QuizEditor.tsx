@@ -14,6 +14,7 @@ import { TargetType } from '../../types';
 import { useApp } from '../../context/AppContext';
 import { StorageService } from '../../services/storage';
 import { RichTextEditor } from '../common/RichTextEditor';
+import { toLocalInputValue, toInputValue, inputToIso, defaultEndInput } from '../../utils/quizWindow';
 import { stripHtml } from '../common/RichText';
 
 export type QuestionType = 'mcq' | 'true_false' | 'essay' | 'passage';
@@ -94,17 +95,19 @@ export const QuizEditor: React.FC = () => {
   );
   const [durationMinutes, setDurationMinutes] = useState(25);
   const [passPercentage, setPassPercentage] = useState(60);
-  const [startDate, setStartDate] = useState(() => new Date().toISOString().split('T')[0]);
-  const [endDate, setEndDate] = useState(() => {
-    const d = new Date();
-    d.setDate(d.getDate() + 30);
-    return d.toISOString().split('T')[0];
-  });
+  const [startDate, setStartDate] = useState(() => toLocalInputValue(new Date()));
+  const [endDate, setEndDate] = useState(() => defaultEndInput());
   const [isActive, setIsActive] = useState(true);
 
   // Target assignment
   const [targetType, setTargetType] = useState<TargetType>('class');
   const [targetClassIds, setTargetClassIds] = useState<string[]>([]);
+
+  // الصفوف المحددة التي ما زالت متاحة لهذا المستخدم (غير المتاحة تُستبعد من العدّ ومن الحفظ)
+  const validClassIds = targetClassIds.filter((id) => availableClasses.some((c) => c.id === id));
+  const hiddenClassNames = targetClassIds
+    .filter((id) => !availableClasses.some((c) => c.id === id))
+    .map((id) => classes.find((c) => c.id === id)?.name || 'صف غير متاح');
   const [selectedStudentIds, setSelectedStudentIds] = useState<string[]>([]);
 
   // Questions State
@@ -152,14 +155,12 @@ export const QuizEditor: React.FC = () => {
     setDurationMinutes(quiz.duration_minutes);
     setPassPercentage(quiz.pass_percentage);
     if (asCopy) {
-      setStartDate(new Date().toISOString().split('T')[0]);
-      const d = new Date();
-      d.setDate(d.getDate() + 30);
-      setEndDate(d.toISOString().split('T')[0]);
+      setStartDate(toLocalInputValue(new Date()));
+      setEndDate(defaultEndInput());
       setIsActive(true);
     } else {
-      setStartDate(quiz.start_date ? quiz.start_date.split('T')[0] : '');
-      setEndDate(quiz.end_date ? quiz.end_date.split('T')[0] : '');
+      setStartDate(toInputValue(quiz.start_date, 'start'));
+      setEndDate(toInputValue(quiz.end_date, 'end'));
       setIsActive(quiz.is_active ?? true);
     }
 
@@ -462,6 +463,11 @@ export const QuizEditor: React.FC = () => {
       }
     }
 
+    if (startDate && endDate && new Date(endDate).getTime() <= new Date(startDate).getTime()) {
+      alert('وقت انتهاء الإتاحة يجب أن يكون بعد وقت البدء');
+      return;
+    }
+
     if (!subjectId) {
       alert('يرجى اختيار المادة');
       return;
@@ -477,7 +483,7 @@ export const QuizEditor: React.FC = () => {
       return;
     }
 
-    if (targetType === 'class' && targetClassIds.length === 0) {
+    if (targetType === 'class' && validClassIds.length === 0) {
       alert('يرجى اختيار صف واحد على الأقل');
       return;
     }
@@ -497,7 +503,7 @@ export const QuizEditor: React.FC = () => {
     // صف أو أكثر: تعيين مستقل لكل صف (يظهر الاختبار لطلاب كل الصفوف المحددة)
     const assignments =
       targetType === 'class'
-        ? targetClassIds.map((id) => ({
+        ? validClassIds.map((id) => ({
             target_type: 'class' as const,
             target_id: id,
             target_name: classes.find((c) => c.id === id)?.name,
@@ -522,8 +528,8 @@ export const QuizEditor: React.FC = () => {
             total_marks: totalCalculatedMarks,
             duration_minutes: Number(durationMinutes),
             pass_percentage: Number(passPercentage),
-            start_date: startDate,
-            end_date: endDate,
+            start_date: inputToIso(startDate),
+            end_date: inputToIso(endDate),
             is_active: isActive,
           },
           formattedQuestions as any,
@@ -543,8 +549,8 @@ export const QuizEditor: React.FC = () => {
             duration_minutes: Number(durationMinutes),
             pass_percentage: Number(passPercentage),
             status: 'published',
-            start_date: startDate,
-            end_date: endDate,
+            start_date: inputToIso(startDate),
+            end_date: inputToIso(endDate),
             is_active: isActive,
           },
           formattedQuestions as any,
@@ -561,7 +567,7 @@ export const QuizEditor: React.FC = () => {
             (outcome.error || 'غير معروف')
         );
       }
-      setCurrentView('quizzes');
+      setCurrentView('dashboard');
     } catch (err: any) {
       console.error(err);
       alert('حدث خطأ أثناء حفظ الاختبار: ' + (err.message || 'خطأ غير معروف'));
@@ -577,7 +583,7 @@ export const QuizEditor: React.FC = () => {
             type="button"
             onClick={() => {
               setEditingQuizId(null);
-              setCurrentView('quizzes');
+              setCurrentView('dashboard');
             }}
             className="inline-flex items-center gap-1.5 text-xs text-slate-500 dark:text-slate-400 hover:text-indigo-600 mb-2 font-bold transition-colors"
           >
@@ -720,10 +726,10 @@ export const QuizEditor: React.FC = () => {
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2">
                 <div>
                   <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
-                    تاريخ بدء إتاحة الاختبار *
+                    بدء إتاحة الاختبار (التاريخ والوقت) *
                   </label>
                   <input
-                    type="date"
+                    type="datetime-local"
                     required
                     value={startDate}
                     onChange={(e) => setStartDate(e.target.value)}
@@ -732,10 +738,10 @@ export const QuizEditor: React.FC = () => {
                 </div>
                 <div>
                   <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
-                    تاريخ انتهاء إتاحة الاختبار *
+                    انتهاء إتاحة الاختبار (التاريخ والوقت) *
                   </label>
                   <input
-                    type="date"
+                    type="datetime-local"
                     required
                     value={endDate}
                     onChange={(e) => setEndDate(e.target.value)}
@@ -848,24 +854,29 @@ export const QuizEditor: React.FC = () => {
             <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700">
               <div className="flex items-center justify-between mb-2 gap-3">
                 <label className="block text-xs font-bold text-slate-700 dark:text-slate-300">
-                  اختر الصف أو الصفوف المستهدفة ({targetClassIds.length} محدد):
+                  اختر الصف أو الصفوف المستهدفة ({validClassIds.length} محدد):
                 </label>
                 <button
                   type="button"
                   onClick={() =>
                     setTargetClassIds(
-                      targetClassIds.length === availableClasses.length ? [] : availableClasses.map((c) => c.id)
+                      validClassIds.length === availableClasses.length ? [] : availableClasses.map((c) => c.id)
                     )
                   }
                   className="text-[11px] font-bold text-indigo-600 dark:text-indigo-400 hover:underline"
                 >
-                  {targetClassIds.length === availableClasses.length && availableClasses.length > 0
+                  {validClassIds.length === availableClasses.length && availableClasses.length > 0
                     ? 'إلغاء تحديد الكل'
                     : 'تحديد الكل'}
                 </button>
               </div>
               {availableClasses.length === 0 && (
                 <p className="text-xs text-slate-400">لا توجد صفوف متاحة لك</p>
+              )}
+              {hiddenClassNames.length > 0 && (
+                <div className="mb-2 p-2.5 rounded-xl bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800 text-[11px] text-amber-800 dark:text-amber-300 font-semibold">
+                  هذا الاختبار موجَّه أيضاً لصفوف غير مسندة لك ({hiddenClassNames.join(' ، ')}) وسيتم استبعادها عند الحفظ.
+                </div>
               )}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                 {availableClasses.map((cls) => {
@@ -1154,7 +1165,7 @@ export const QuizEditor: React.FC = () => {
             type="button"
             onClick={() => {
               setEditingQuizId(null);
-              setCurrentView('quizzes');
+              setCurrentView('dashboard');
             }}
             className="px-6 py-2.5 rounded-xl border border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-300 text-xs font-bold hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
           >

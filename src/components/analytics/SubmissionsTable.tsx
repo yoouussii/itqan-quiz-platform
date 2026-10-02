@@ -114,7 +114,7 @@ export const SubmissionsTable: React.FC<SubmissionsTableProps> = ({
 
   const formatDate = (dateString: string) => {
     const d = new Date(dateString);
-    return d.toLocaleDateString('ar-SA', {
+    return d.toLocaleDateString('ar-EG-u-ca-gregory-nu-latn', {
       year: 'numeric',
       month: 'short',
       day: 'numeric',

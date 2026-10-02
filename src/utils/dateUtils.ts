@@ -1,30 +1,16 @@
 /**
- * Arabic Date Utilities (Hijri & Gregorian)
+ * Arabic date utilities — التقويم الميلادي دائماً (بأرقام لاتينية وأسماء الأشهر بالعربية)
  */
+import { parseWindowStart } from './quizWindow';
+
+const GREG = 'ar-EG-u-ca-gregory-nu-latn';
 
 export function formatArabicQuizDate(dateStr?: string): string {
   if (!dateStr) return 'بتاريخ حديث';
   try {
-    const d = new Date(dateStr);
-    if (isNaN(d.getTime())) return 'بتاريخ حديث';
-
-    // Try formatting in Hijri (Umm al-Qura)
-    try {
-      const hijriFormatter = new Intl.DateTimeFormat('ar-SA-u-ca-islamic-umalqura', {
-        day: 'numeric',
-        month: 'long',
-        year: 'numeric',
-      });
-      return `بتاريخ: ${hijriFormatter.format(d)}`;
-    } catch {
-      // Fallback to standard Arabic Gregorian
-      const gregFormatter = new Intl.DateTimeFormat('ar-SA', {
-        day: 'numeric',
-        month: 'long',
-        year: 'numeric',
-      });
-      return `بتاريخ: ${gregFormatter.format(d)}`;
-    }
+    const d = parseWindowStart(dateStr);
+    if (!d) return 'بتاريخ حديث';
+    return `بتاريخ: ${new Intl.DateTimeFormat(GREG, { day: 'numeric', month: 'long', year: 'numeric' }).format(d)}`;
   } catch {
     return 'بتاريخ حديث';
   }
@@ -35,15 +21,9 @@ export function formatFullArabicDate(dateStr?: string): string {
   try {
     const d = new Date(dateStr);
     if (isNaN(d.getTime())) return '—';
-
-    const gregFormatter = new Intl.DateTimeFormat('ar-SA', {
-      day: 'numeric',
-      month: 'short',
-      year: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
-    });
-    return gregFormatter.format(d);
+    return new Intl.DateTimeFormat(GREG, {
+      day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit',
+    }).format(d);
   } catch {
     return dateStr;
   }
