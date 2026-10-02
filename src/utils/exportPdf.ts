@@ -10,7 +10,9 @@ export interface PdfTableData {
 }
 
 export interface PdfExportOptions {
-  element: HTMLElement;
+  element?: HTMLElement;
+  /** بديل عن element: محتوى HTML جاهز (يجب تهريب النصوص الديناميكية فيه) */
+  bodyHtml?: string;
   title: string;
   subtitle?: string;
   table?: PdfTableData;
@@ -31,8 +33,12 @@ export function buildPdfHtml(opts: PdfExportOptions): string {
     .map((n) => n.outerHTML)
     .join('\n');
 
-  const clone = opts.element.cloneNode(true) as HTMLElement;
-  clone.querySelectorAll('[data-pdf-hide]').forEach((n) => n.remove());
+  let bodyContent = opts.bodyHtml || '';
+  if (!bodyContent && opts.element) {
+    const clone = opts.element.cloneNode(true) as HTMLElement;
+    clone.querySelectorAll('[data-pdf-hide]').forEach((n) => n.remove());
+    bodyContent = clone.outerHTML;
+  }
 
   const table = opts.table
     ? `<div style="margin-top:20px">
@@ -64,7 +70,7 @@ export function buildPdfHtml(opts: PdfExportOptions): string {
 <body class="font-cairo"><div class="pdf-wrap">
   <div class="pdf-head"><div><h1>${esc(opts.title)}</h1>${opts.subtitle ? `<p>${esc(opts.subtitle)}</p>` : ''}</div>
   <div style="font-size:11px;opacity:.75">منصة إتقان التعليمية • ${esc(new Date().toLocaleDateString('ar-EG-u-ca-gregory-nu-latn'))}</div></div>
-  <div class="pdf-block">${clone.outerHTML}</div>
+  <div class="pdf-block">${bodyContent}</div>
   ${table}
 </div></body></html>`;
 }

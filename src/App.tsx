@@ -17,12 +17,19 @@ import { SubmissionsTable } from './components/analytics/SubmissionsTable';
 import { QuizResults } from './components/analytics/QuizResults';
 import { AnalyticsView } from './components/analytics/AnalyticsView';
 import { SupervisorDashboard } from './components/supervisor/SupervisorDashboard';
+import { MyPoints } from './components/student/MyPoints';
+import { Leaderboard } from './components/staff/Leaderboard';
+import { ApprovalsPage } from './components/staff/ApprovalsPage';
+import { ActivityLogPage } from './components/staff/ActivityLogPage';
+import { SettingsPage } from './components/staff/SettingsPage';
+import { hasPerm } from './utils/permissions';
 import { QuizPreview } from './components/common/QuizPreview';
 
 const KNOWN_VIEWS = [
   'take_quiz', 'quiz_review', 'create_quiz', 'users', 'users_management',
   'students_management', 'subjects_classes', 'analytics', 'reports',
   'quiz_results', 'quiz_preview', 'quizzes', 'dashboard',
+  'my_points', 'leaderboard', 'approvals', 'activity_log', 'settings',
 ];
 
 /** يُعيد المستخدم للوحة التحكم إذا وصل لصفحة غير موجودة بدلاً من إظهار شاشة فارغة */
@@ -135,6 +142,13 @@ const AppContent: React.FC = () => {
             <AnalyticsView />
           </div>
         )}
+
+        {/* الصفحات الجديدة: كل صفحة محمية بالصلاحية المناسبة */}
+        {currentView === 'my_points' && currentUser.role === 'student' && <MyPoints />}
+        {currentView === 'leaderboard' && hasPerm(currentUser, 'can_view_leaderboard') && <Leaderboard />}
+        {currentView === 'approvals' && hasPerm(currentUser, 'can_approve_quizzes') && <ApprovalsPage />}
+        {currentView === 'activity_log' && hasPerm(currentUser, 'can_view_activity_log') && <ActivityLogPage />}
+        {currentView === 'settings' && currentUser.role === 'admin' && <SettingsPage />}
 
         {/* View 6b: نتائج وتحليلات اختبار واحد (زر التحليلات عند الآدمن/المعلم) */}
         {currentView === 'quiz_results' && currentUser.role !== 'student' && <QuizResults />}

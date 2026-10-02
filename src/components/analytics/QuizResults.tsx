@@ -4,6 +4,8 @@ import { useApp } from '../../context/AppContext';
 import { StorageService } from '../../services/storage';
 import { SubmissionsTable } from './SubmissionsTable';
 import { PdfExportButton } from './PdfExportButton';
+import { QuestionAnalysis } from '../staff/QuestionAnalysis';
+import { hasPerm } from '../../utils/permissions';
 import { exportElementToPdf } from '../../utils/exportPdf';
 
 /**
@@ -12,7 +14,7 @@ import { exportElementToPdf } from '../../utils/exportPdf';
  * هذه الصفحة آمنة ضد البيانات الناقصة (null / undefined) وتعرض حالة فارغة واضحة.
  */
 export const QuizResults: React.FC = () => {
-  const { activeQuizId, setActiveQuizId, setCurrentView, quizzes, submissions } = useApp();
+  const { activeQuizId, setActiveQuizId, setCurrentView, quizzes, submissions, currentUser } = useApp();
 
   const exportRef = useRef<HTMLDivElement>(null);
 
@@ -158,6 +160,8 @@ export const QuizResults: React.FC = () => {
       </div>
 
       </div>
+
+      {hasPerm(currentUser, 'can_view_question_analysis') && activeQuizId && <QuestionAnalysis quizId={activeQuizId} />}
 
       <SubmissionsTable
         extraActions={<PdfExportButton onClick={handleExportPdf} />}

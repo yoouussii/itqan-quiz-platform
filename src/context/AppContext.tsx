@@ -5,6 +5,7 @@ import React, {
   useEffect,
   useCallback,
   useRef,
+  useMemo,
 } from 'react';
 import {
   User,
@@ -24,6 +25,17 @@ import {
 } from '../services/storage';
 import { canonSubjectId, isRetiredSubject } from '../utils/subjectAliases';
 import { loadAvatarCache, avatarMapFromCache, saveMyAvatar, syncAvatars } from '../services/avatarService';
+import { hasPerm, normalizePerms, PERM_KEYS } from '../utils/permissions';
+import {
+  AppNotification, NotifAudience, loadNotifCache, loadReads, isForUser, makeNotification,
+  pushNotification, pullNotifications, pullReads, markRead,
+} from '../services/notificationService';
+import { logActivity } from '../services/activityService';
+import { loadAwardsCache, makeAward, pushAward, pullAwards } from '../services/awardsService';
+import { AppSettings, loadSettings, syncSettings, saveSettings } from '../services/settingsService';
+import { StudentAward } from '../utils/points';
+import { describeQuizTarget } from '../utils/quizTarget';
+import { formatQuizDateTime } from '../utils/quizWindow';
 import { supabase, isSupabaseConfigured } from '../services/supabase';
 import {
   pushQuiz,
@@ -72,6 +84,20 @@ interface AppContextType {
   avatars: Record<string, string>;
   setMyAvatar: (data: string | null) => Promise<{ ok: boolean; error?: string }>;
 
+  /** الإشعارات الخاصة بالمستخدم الحالي فقط */
+  notifications: Array<AppNotification & { read: boolean }>;
+  unreadCount: number;
+  markNotificationsRead: (ids: string[] | 'all') => Promise<void>;
+  sendAnnouncement: (p: { title: string; body: string; audience: NotifAudience }) => Promise<{ ok: boolean; error?: string }>;
+  awards: StudentAward[];
+  giveAward: (p: { student: User; title: string; note?: string; points: number }) => Promise<{ ok: boolean; error?: string }>;
+  settings: AppSettings;
+  updateSettings: (patch: Partial<AppSettings>) => Promise<void>;
+  changeMyPassword: (current: string, next: string) => Promise<{ ok: boolean; error?: string }>;
+  approveQuiz: (id: string) => Promise<void>;
+  rejectQuiz: (id: string, reason: string) => Promise<void>;
+  pendingApprovalsCount: number;
+
   currentView: string;
   setCurrentView: (view: string) => void;
   activeQuizId: string | null;
@@ -97,13 +123,13 @@ interface AppContextType {
     quizData: Partial<Quiz>,
     questions: any[],
     assignments: any[]
-  ) => Promise<SyncOutcome & { id: string }>;
+  ) => Promise<SyncOutcome & { id: string; status?: string }>;
   updateFullQuiz: (
     id: string,
     quizData: Partial<Quiz>,
     questions: any[],
     assignments: any[]
-  ) => Promise<SyncOutcome>;
+  ) => Promise<SyncOutcome & { status?: string }>;
   updateQuizInfo: (id: string, updates: Partial<Quiz>) => Promise<void>;
   deleteQuizItem: (id: string) => Promise<void>;
   toggleQuizActive: (id: string) => void;
@@ -140,16 +166,7 @@ const time = (v?: string | null): number => (v ? new Date(v).getTime() || 0 : 0)
 /** توحيد شكل المستخدم (الصلاحيات، المواد، الفصول) */
 function normalizeUser(u: any): User {
   const perms = u.teacher_permissions || u.permissions || {};
-  const normalizedPerms = {
-    can_add_custom_subjects: !!perms.can_add_custom_subjects,
-    can_manage_classes: !!perms.can_manage_classes,
-    can_view_all_reports: !!perms.can_view_all_reports,
-    can_add_students: !!perms.can_add_students,
-    can_add_teachers: !!perms.can_add_teachers,
-    can_view_teachers_performance: !!perms.can_view_teachers_performance,
-    can_export_reports: !!perms.can_export_reports,
-    can_manage_retakes: !!perms.can_manage_retakes,
-  };
+  const normalizedPerms = normalizePerms(perms);
 
   let subjectIds: string[] = [];
   if (Array.isArray(u.assigned_subject_ids) && u.assigned_subject_ids.length > 0) {
@@ -190,7 +207,7 @@ function computeQuizzes(u: User | null): QuizWithDetails[] {
   if (u.role === 'admin') return StorageService.getAllQuizzesWithDetails();
   if (u.role === 'supervisor') return StorageService.getSupervisorData(u).quizzes;
   if (u.role === 'teacher') {
-    return canViewAllReports(u)
+    return canViewAllReports(u) || hasPerm(u, 'can_approve_quizzes')
       ? StorageService.getAllQuizzesWithDetails()
       : StorageService.getQuizzesForTeacher(u.id);
   }
@@ -258,19 +275,22 @@ const VIEW_KEY = 'itqan_view_state_v1';
 
 function allowedViews(u: User | null): string[] {
   if (!u) return [];
-  const perms = u.teacher_permissions || u.permissions || {};
   const base = ['dashboard', 'quizzes', 'analytics', 'quiz_review'];
+  if (u.role === 'student') return [...base, 'my_points']; // لا نعيد الطالب لصفحة الاختبار (take_quiz) بعد التحديث حتى لا يُعاد المؤقت
+  const out = [...base];
   if (u.role === 'admin') {
-    return [...base, 'users', 'users_management', 'students_management', 'subjects_classes', 'reports', 'create_quiz', 'quiz_results', 'quiz_preview'];
+    out.push('users', 'users_management', 'students_management', 'subjects_classes', 'reports', 'create_quiz', 'quiz_results', 'quiz_preview', 'settings');
+  } else {
+    out.push('quiz_results', 'quiz_preview');
+    if (u.role === 'teacher') out.push('create_quiz');
+    if (hasPerm(u, 'can_view_all_reports')) out.push('reports');
+    if (hasPerm(u, 'can_add_custom_subjects') || hasPerm(u, 'can_manage_classes')) out.push('subjects_classes');
+    if (hasPerm(u, 'can_add_students') || hasPerm(u, 'can_add_teachers')) out.push('users_management', 'students_management');
   }
-  const extra: string[] = [];
-  if (perms.can_view_all_reports) extra.push('reports');
-  if (perms.can_add_custom_subjects || perms.can_manage_classes) extra.push('subjects_classes');
-  if (perms.can_add_students || perms.can_add_teachers) extra.push('users_management', 'students_management');
-  if (u.role === 'teacher') return [...base, ...extra, 'create_quiz', 'quiz_results', 'quiz_preview'];
-  if (u.role === 'supervisor') return [...base, ...extra, 'quiz_results', 'quiz_preview'];
-  // الطالب: لا نعيده لصفحة أداء الاختبار (take_quiz) بعد التحديث حتى لا يُعاد المؤقت
-  return base;
+  if (hasPerm(u, 'can_approve_quizzes')) out.push('approvals');
+  if (hasPerm(u, 'can_view_leaderboard')) out.push('leaderboard');
+  if (hasPerm(u, 'can_view_activity_log')) out.push('activity_log');
+  return out;
 }
 
 function restoreViewState(u: User | null) {
@@ -488,6 +508,26 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   );
   const [kpis, setKpis] = useState<Kpis>(() => computeKpis(currentUser));
 
+  // الإشعارات والجوائز والإعدادات
+  const [notifCache, setNotifCache] = useState<AppNotification[]>(() => loadNotifCache());
+  const [reads, setReads] = useState<Set<string>>(() => (currentUser ? loadReads(currentUser.id) : new Set<string>()));
+  const [awards, setAwards] = useState<StudentAward[]>(() => loadAwardsCache());
+  const [settings, setSettings] = useState<AppSettings>(() => loadSettings());
+  const seenNotifRef = useRef<Set<string> | null>(null);
+
+  const notifications = useMemo(
+    () =>
+      currentUser
+        ? notifCache.filter((n) => isForUser(n, currentUser)).map((n) => ({ ...n, read: reads.has(n.id) }))
+        : [],
+    [notifCache, reads, currentUser]
+  );
+  const unreadCount = notifications.filter((n) => !n.read).length;
+  const pendingApprovalsCount = useMemo(
+    () => (hasPerm(currentUser, 'can_approve_quizzes') ? (quizzes || []).filter((q) => q.status === 'pending_approval').length : 0),
+    [quizzes, currentUser]
+  );
+
   // مراجع لتفادي القيم القديمة داخل المؤقتات
   const currentUserRef = useRef<User | null>(currentUser);
   const currentViewRef = useRef<string>(currentView);
@@ -553,6 +593,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         } catch (e) {
           console.warn('[refreshData] avatars sync failed:', e);
         }
+        try {
+          await syncSettings();
+          await pullAwards();
+          await pullNotifications();
+          if (me) await pullReads(me.id);
+        } catch (e) {
+          console.warn('[refreshData] notifications/settings sync failed:', e);
+        }
       }
 
       // تحديث بيانات المستخدم الحالي (قد يكون الأدمن غيّر دوره/صلاحياته)
@@ -568,10 +616,26 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       }
       recompute(me);
       setAvatars(avatarMapFromCache(loadAvatarCache()));
+      setNotifCache(loadNotifCache());
+      setAwards(loadAwardsCache());
+      setSettings(loadSettings());
+      if (me) {
+        const rd = loadReads(me.id);
+        setReads(rd);
+        // تنبيه منبثق عند وصول إشعار جديد (لا نُنبّه بالقديم عند أول تحميل)
+        const relevant = loadNotifCache().filter((n) => isForUser(n, me));
+        if (seenNotifRef.current === null) {
+          seenNotifRef.current = new Set(relevant.map((n) => n.id));
+        } else {
+          const fresh = relevant.filter((n) => !rd.has(n.id) && !seenNotifRef.current!.has(n.id));
+          fresh.forEach((n) => seenNotifRef.current!.add(n.id));
+          if (fresh.length) showToast(`🔔 ${fresh[0].title}${fresh.length > 1 ? ` (+${fresh.length - 1})` : ''}`, 'info');
+        }
+      }
     } finally {
       refreshingRef.current = false;
     }
-  }, [recompute]);
+  }, [recompute, showToast]);
 
   // تحديث فوري عند تسجيل الدخول أو تغيّر المستخدم
   useEffect(() => {
@@ -586,6 +650,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       clearBrowserSession();
       void supabase.auth.signOut().catch(() => undefined);
 
+      seenNotifRef.current = null;
       currentUserRef.current = null;
       setCurrentUserState(null);
       setActiveQuizId(null);
@@ -632,6 +697,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const startSession = (user: User) => {
     StorageService.setCurrentUserId(user.id);
     localStorage.setItem(SESSION_KEY, String(Date.now()));
+    seenNotifRef.current = null;
     currentUserRef.current = user;
     setCurrentUserState(user);
     setCurrentView('dashboard');
@@ -703,29 +769,46 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return { synced: res.ok, error: res.error };
   };
 
-  const createNewQuiz: AppContextType['createNewQuiz'] = async (
-    quizData,
-    questions,
-    assignments
-  ) => {
-    const created = StorageService.createQuiz(quizData as any, questions as any, assignments as any);
+  const createNewQuiz: AppContextType['createNewQuiz'] = async (quizData, questions, assignments) => {
+    const me = currentUserRef.current;
+    // اشتراط الاعتماد: اختبار المعلم لا ينشر مباشرة إلا لمن يملك صلاحية الاعتماد (والمدير)
+    const needsApproval = settings.require_quiz_approval && !hasPerm(me, 'can_approve_quizzes');
+    const status = needsApproval ? 'pending_approval' : 'published';
+    const created = StorageService.createQuiz({ ...(quizData as any), status } as any, questions as any, assignments as any);
     const outcome = await syncQuiz(created.id);
     recompute();
-    if (outcome.synced) showToast(`تم إنشاء الاختبار بنجاح: ${created.title}`, 'success');
-    return { id: created.id, ...outcome };
+    if (status === 'published') {
+      void notifyQuizPublished(created.id);
+      if (outcome.synced) showToast(`تم إنشاء الاختبار بنجاح: ${created.title}`, 'success');
+    } else {
+      void notifyApprovers(created.id);
+      showToast('تم إرسال الاختبار للاعتماد، وسيظهر للطلاب بعد الموافقة', 'info');
+    }
+    log('quiz_created', { type: 'quiz', id: created.id, name: created.title }, needsApproval ? 'بانتظار الاعتماد' : undefined);
+    return { id: created.id, status, ...outcome };
   };
 
-  const updateFullQuiz: AppContextType['updateFullQuiz'] = async (
-    id,
-    quizData,
-    questions,
-    assignments
-  ) => {
-    StorageService.updateFullQuiz(id, quizData, questions as any, assignments as any);
+  const updateFullQuiz: AppContextType['updateFullQuiz'] = async (id, quizData, questions, assignments) => {
+    const me = currentUserRef.current;
+    const existing = StorageService.getQuizById(id);
+    let patch: Partial<Quiz> = { ...quizData };
+    let resubmitted = false;
+    if (
+      existing &&
+      (existing.status === 'pending_approval' || existing.status === 'rejected') &&
+      settings.require_quiz_approval &&
+      !hasPerm(me, 'can_approve_quizzes')
+    ) {
+      patch = { ...patch, status: 'pending_approval', review_note: '' };
+      resubmitted = existing.status === 'rejected';
+    }
+    StorageService.updateFullQuiz(id, patch, questions as any, assignments as any);
     const outcome = await syncQuiz(id);
     recompute();
+    if (resubmitted) void notifyApprovers(id);
     if (outcome.synced) showToast('تم حفظ وتحديث بيانات الاختبار بنجاح', 'success');
-    return outcome;
+    log('quiz_updated', { type: 'quiz', id, name: (patch.title as string) || existing?.title }, resubmitted ? 'أُعيد إرساله للاعتماد' : undefined);
+    return { ...outcome, status: (patch.status as string) || existing?.status };
   };
 
   const updateQuizInfo = async (id: string, updates: Partial<Quiz>) => {
@@ -736,10 +819,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const deleteQuizItem = async (id: string) => {
+    const qd = StorageService.getQuizById(id);
     StorageService.deleteQuiz(id);
     recompute();
     const outcome = await syncQuiz(id);
     if (outcome.synced) showToast('تم حذف الاختبار واستبعاد درجاته', 'info');
+    log('quiz_deleted', { type: 'quiz', id, name: qd?.title });
   };
 
   const toggleQuizActive = (id: string) => {
@@ -757,7 +842,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const allowStudentRetake = (quizId: string, studentId: string) => {
     const res = StorageService.allowStudentRetake(quizId, studentId);
     recompute();
-    if (res.success) void syncQuiz(quizId);
+    if (res.success) {
+      void syncQuiz(quizId);
+      const qz = StorageService.getQuizById(quizId);
+      const st = StorageService.getUserById(studentId);
+      void notify({ type: 'retake_granted', title: 'تم السماح لك بإعادة اختبار', body: qz?.title || '', audience: { user_ids: [studentId] }, ref_type: 'quiz', ref_id: quizId });
+      log('retake_granted', { type: 'quiz', id: quizId, name: qz?.title }, st?.name);
+    }
     showToast(res.message, res.success ? 'success' : 'error');
   };
 
@@ -780,6 +871,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       recompute();
       void syncQuiz(quizId);
       showToast(res.message, 'success');
+      log('quiz_reassigned', { type: 'quiz', id: quizId, name: StorageService.getQuizById(quizId)?.title }, `إلى: ${StorageService.getUserById(newTeacherId)?.name || newTeacherId}`);
       return true;
     }
     showToast(res.message, 'error');
@@ -912,6 +1004,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       }
     }
 
+    log('user_added', { type: 'user', id: created.id, name: created.name }, `الدور: ${created.role}`);
     const clsName =
       created.role === 'student' && created.class_id
         ? StorageService.getClassById(created.class_id)?.name
@@ -928,6 +1021,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const updateUserData = async (id: string, updates: Partial<User>) => {
     try {
       const now = new Date().toISOString();
+      const before = StorageService.getUserById(id);
       const updated = StorageService.updateUser(id, { ...updates, updated_at: now });
       if (!updated) {
         showToast('لم يتم العثور على المستخدم المطلوب تعديله', 'error');
@@ -935,6 +1029,19 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       }
       const normalized = normalizeUser(updated);
       setUsers((prev) => prev.map((u) => (u.id === id ? normalized : u)));
+
+      // سجل النشاط: نسجّل فقط تغيّر الدور أو الصلاحيات أو الصف أو المسمى
+      const changes: string[] = [];
+      if (before && updates.role && updates.role !== before.role) changes.push(`الدور: ${before.role} ← ${updates.role}`);
+      if (updates.teacher_permissions) {
+        const b = normalizePerms(before?.teacher_permissions || before?.permissions);
+        const a2 = normalizePerms(updates.teacher_permissions);
+        const diff = PERM_KEYS.filter((k) => a2[k] !== b[k]);
+        if (diff.length) changes.push(`الصلاحيات: ${diff.map((k) => `${a2[k] ? '+' : '-'}${k}`).join('، ')}`);
+      }
+      if (before && updates.class_id !== undefined && (updates.class_id || null) !== (before.class_id || null)) changes.push('تغيير الصف');
+      if (updates.job_title !== undefined && (updates.job_title || '') !== (before?.job_title || '')) changes.push('المسمى الوظيفي');
+      if (changes.length) log('user_updated', { type: 'user', id, name: normalized.name }, changes.join(' | '));
 
       const me = currentUserRef.current;
       if (me && (me.id === id || (me.national_id && me.national_id === normalized.national_id))) {
@@ -1010,6 +1117,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         }
       }
       void refreshData();
+      if (currentUserRef.current?.id !== id) log('password_reset', { type: 'user', id, name: StorageService.getUserById(id)?.name });
       showToast('تمت إعادة تعيين كلمة المرور بنجاح', 'success');
       return true;
     } catch (e) {
@@ -1020,7 +1128,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const deleteUserItem = async (id: string) => {
+    const gone = StorageService.getUserById(id);
     StorageService.deleteUser(id);
+    log('user_deleted', { type: 'user', id, name: gone?.name });
     setUsers((prev) => prev.filter((u) => u.id !== id));
     if (isSupabaseConfigured()) {
       try {
@@ -1165,6 +1275,157 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     showToast('تم حذف الشعبة بنجاح', 'info');
   };
 
+  // ---------------- سجل النشاط + الإشعارات (دوال داخلية) ----------------
+  const log = (action: string, target?: { type?: string; id?: string; name?: string | null }, details?: string) => {
+    const me = currentUserRef.current;
+    void logActivity({
+      actor_id: me?.id || null, actor_name: me?.name || null, actor_role: me?.role || null,
+      action, target_type: target?.type || null, target_id: target?.id || null, target_name: target?.name || null, details: details || null,
+    });
+  };
+
+  const notify = async (p: { type: AppNotification['type']; title: string; body: string; audience: NotifAudience; ref_type?: string; ref_id?: string }) => {
+    const me = currentUserRef.current;
+    const n = makeNotification({ ...p, created_by: me?.id || null, created_by_name: me?.name || null });
+    await pushNotification(n);
+    setNotifCache(loadNotifCache());
+  };
+
+  /** إشعار الطلاب المرتبطين بالاختبار (حسب الصف أو الأسماء المحددة أو الجميع) مع المادة والصف */
+  const notifyQuizPublished = async (quizId: string) => {
+    const quiz = StorageService.getQuizById(quizId);
+    if (!quiz) return;
+    const asg = StorageService.getAssignmentsByQuizId(quizId).filter((a) => a.target_type !== 'assigned_teacher');
+    const audience: NotifAudience = {};
+    if (asg.some((a) => a.target_type === 'all')) { audience.all = true; audience.roles = ['student']; }
+    const classIds = asg.filter((a) => a.target_type === 'class' && a.target_id).map((a) => a.target_id as string);
+    if (classIds.length) audience.class_ids = classIds;
+    const studentIds = asg
+      .filter((a) => a.target_type === 'specific_students' && a.target_id)
+      .flatMap((a) => String(a.target_id).split(',').map((x) => x.trim()).filter(Boolean));
+    if (studentIds.length) audience.student_ids = studentIds;
+    if (!audience.all && !audience.class_ids && !audience.student_ids) return;
+    const subject = StorageService.getSubjectById(quiz.subject_id)?.name || 'مادة عامة';
+    const target = describeQuizTarget(asg, StorageService.getClasses());
+    await notify({
+      type: 'quiz_published',
+      title: `اختبار جديد: ${quiz.title}`,
+      body: `المادة: ${subject} • الفئة: ${target} • من ${formatQuizDateTime(quiz.start_date, 'start')} إلى ${formatQuizDateTime(quiz.end_date, 'end')}`,
+      audience, ref_type: 'quiz', ref_id: quizId,
+    });
+  };
+
+  const notifyApprovers = async (quizId: string) => {
+    const quiz = StorageService.getQuizById(quizId);
+    if (!quiz) return;
+    const approvers = StorageService.getUsers().filter((u) => u.role !== 'student' && u.role !== 'admin' && hasPerm(u, 'can_approve_quizzes')).map((u) => u.id);
+    await notify({
+      type: 'quiz_pending',
+      title: `اختبار بانتظار الاعتماد: ${quiz.title}`,
+      body: `أرسله ${StorageService.getUserById(quiz.teacher_id)?.name || 'معلم'} • المادة: ${StorageService.getSubjectById(quiz.subject_id)?.name || '—'}`,
+      audience: { roles: ['admin'], user_ids: approvers }, ref_type: 'quiz', ref_id: quizId,
+    });
+  };
+
+  const approveQuiz = async (id: string) => {
+    const me = currentUserRef.current;
+    if (!hasPerm(me, 'can_approve_quizzes')) return void showToast('لا تملك صلاحية اعتماد الاختبارات', 'error');
+    const q = StorageService.getQuizById(id);
+    if (!q) return;
+    StorageService.updateQuiz(id, { status: 'published', review_note: '' });
+    await syncQuiz(id);
+    recompute();
+    void notifyQuizPublished(id);
+    void notify({ type: 'quiz_approved', title: `تم اعتماد اختبارك: ${q.title}`, body: 'أصبح الاختبار ظاهراً للطلاب.', audience: { user_ids: [q.teacher_id] }, ref_type: 'quiz', ref_id: id });
+    log('quiz_approved', { type: 'quiz', id, name: q.title });
+    showToast('تم اعتماد الاختبار ونشره للطلاب', 'success');
+  };
+
+  const rejectQuiz = async (id: string, reason: string) => {
+    const me = currentUserRef.current;
+    if (!hasPerm(me, 'can_approve_quizzes')) return void showToast('لا تملك صلاحية اعتماد الاختبارات', 'error');
+    const q = StorageService.getQuizById(id);
+    if (!q) return;
+    StorageService.updateQuiz(id, { status: 'rejected', review_note: reason });
+    await syncQuiz(id);
+    recompute();
+    void notify({ type: 'quiz_rejected', title: `تم رفض اختبارك: ${q.title}`, body: `السبب: ${reason}`, audience: { user_ids: [q.teacher_id] }, ref_type: 'quiz', ref_id: id });
+    log('quiz_rejected', { type: 'quiz', id, name: q.title }, reason);
+    showToast('تم رفض الاختبار وإبلاغ المعلم', 'info');
+  };
+
+  const markNotificationsRead = async (ids: string[] | 'all') => {
+    const me = currentUserRef.current;
+    if (!me) return;
+    const list = ids === 'all' ? notifications.filter((n) => !n.read).map((n) => n.id) : ids;
+    if (!list.length) return;
+    setReads((prev) => new Set([...Array.from(prev), ...list]));
+    await markRead(me.id, list);
+  };
+
+  const sendAnnouncement: AppContextType['sendAnnouncement'] = async ({ title, body, audience }) => {
+    const me = currentUserRef.current;
+    if (!me || !hasPerm(me, 'can_send_announcements')) {
+      showToast('لا تملك صلاحية إرسال الإعلانات', 'error');
+      return { ok: false, error: 'no-permission' };
+    }
+    const n = makeNotification({ type: 'announcement', title, body, audience, created_by: me.id, created_by_name: me.name });
+    const res = await pushNotification(n);
+    setNotifCache(loadNotifCache());
+    log('announcement_sent', { type: 'announcement', id: n.id, name: title });
+    showToast(res.ok ? 'تم إرسال الإعلان' : `حُفظ الإعلان على جهازك وسيُرسل عند توفر الاتصال (${res.error})`, res.ok ? 'success' : 'info');
+    return { ok: true };
+  };
+
+  const giveAward: AppContextType['giveAward'] = async ({ student, title, note, points }) => {
+    const me = currentUserRef.current;
+    if (!me || !hasPerm(me, 'can_award_badges')) {
+      showToast('لا تملك صلاحية منح الجوائز', 'error');
+      return { ok: false, error: 'no-permission' };
+    }
+    const clsName = StorageService.getClassById(student.class_id || student.assigned_class_ids?.[0] || '')?.name;
+    const a = makeAward({
+      student_id: student.id, student_name: student.name, class_name: clsName || null, title, note: note || null,
+      points, awarded_by: me.id, awarded_by_name: me.name,
+    });
+    const res = await pushAward(a);
+    setAwards(loadAwardsCache());
+    void notify({ type: 'award', title: `🏆 حصلت على جائزة: ${title}`, body: note || (points ? `+${points} نقطة` : ''), audience: { user_ids: [student.id] }, ref_type: 'award', ref_id: a.id });
+    log('award_given', { type: 'user', id: student.id, name: student.name }, `${title} (+${points})`);
+    showToast(res.ok ? `تم منح الجائزة للطالب ${student.name}` : `حُفظت الجائزة على جهازك وسترفع عند توفر الاتصال (${res.error})`, res.ok ? 'success' : 'info');
+    return { ok: true };
+  };
+
+  const updateSettings = async (patch: Partial<AppSettings>) => {
+    if (currentUserRef.current?.role !== 'admin') return void showToast('الإعدادات لمدير النظام فقط', 'error');
+    const res = await saveSettings(patch);
+    setSettings(loadSettings());
+    log('settings_changed', { type: 'settings', name: 'إعدادات النظام' }, Object.keys(patch).join('، '));
+    showToast(res.ok ? 'تم حفظ الإعدادات' : `حُفظت الإعدادات على هذا الجهاز فقط (${res.error})`, res.ok ? 'success' : 'info');
+  };
+
+  const changeMyPassword: AppContextType['changeMyPassword'] = async (current, next) => {
+    const me = currentUserRef.current;
+    if (!me) return { ok: false, error: 'لا يوجد مستخدم مسجل' };
+    if (next.length < 6) return { ok: false, error: 'كلمة المرور الجديدة يجب ألا تقل عن 6 أحرف' };
+    if (next === current) return { ok: false, error: 'كلمة المرور الجديدة مطابقة للحالية' };
+    const localOk = (StorageService.getUserById(me.id)?.password || '') === current;
+    let valid = localOk;
+    if (isSupabaseConfigured()) {
+      try {
+        const { data, error } = await supabase.from('users').select('id').eq('id', me.id).eq('password', current).maybeSingle();
+        if (!error) valid = !!data; // الخادم هو المرجع
+      } catch {
+        valid = localOk;
+      }
+    }
+    if (!valid) return { ok: false, error: 'كلمة المرور الحالية غير صحيحة' };
+    const ok = await resetUserPassword(me.id, next);
+    if (!ok) return { ok: false, error: 'تعذر حفظ كلمة المرور الجديدة على الخادم، حاول لاحقاً' };
+    log('password_changed', { type: 'user', id: me.id, name: me.name });
+    return { ok: true };
+  };
+
   const setMyAvatar = async (data: string | null) => {
     const me = currentUserRef.current;
     if (!me) return { ok: false, error: 'لا يوجد مستخدم مسجل' };
@@ -1193,6 +1454,18 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         kpis,
         avatars,
         setMyAvatar,
+        notifications,
+        unreadCount,
+        markNotificationsRead,
+        sendAnnouncement,
+        awards,
+        giveAward,
+        settings,
+        updateSettings,
+        changeMyPassword,
+        approveQuiz,
+        rejectQuiz,
+        pendingApprovalsCount,
         currentView,
         setCurrentView,
         activeQuizId,

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import {
   Users,
   FileQuestion,
@@ -24,7 +24,9 @@ import { ReassignQuizModal } from '../common/ReassignQuizModal';
 import { QuizWithDetails } from '../../types';
 import { Avatar } from '../common/Avatar';
 import { Copy as CopyIcon } from 'lucide-react';
-import { ClipboardList } from 'lucide-react';
+import { ClipboardList, ExternalLink } from 'lucide-react';
+import { StorageService } from '../../services/storage';
+import { InsightsPanels } from '../staff/InsightsPanels';
 import { KpiDetailModal } from '../common/KpiDetailModal';
 import {
   KpiSection, studentsSection, quizzesSection, perQuizSection, perSubjectSection,
@@ -46,12 +48,19 @@ export const AdminDashboard: React.FC = () => {
     setDuplicateQuizId,
     classes = [],
     subjects = [],
+    settings,
+    pendingApprovalsCount,
   } = useApp();
 
   const [selectedQuizForReassign, setSelectedQuizForReassign] = useState<QuizWithDetails | null>(
     null
   );
 
+  const staffData = useMemo(
+    () => (currentUser ? StorageService.getStaffData(currentUser) : null),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [currentUser, quizzes, submissions, users]
+  );
   const [kpiModal, setKpiModal] = useState<'students' | 'quizzes' | 'avg' | 'active' | null>(null);
 
   const handleDeleteQuiz = async (quizId: string, title: string) => {
@@ -146,6 +155,15 @@ export const AdminDashboard: React.FC = () => {
               <Layers className="w-4 h-4 text-indigo-300" />
               <span>المواد والشعب</span>
             </button>
+            <a
+              href={settings.preparations_url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-2 px-4 py-2.5 bg-emerald-600/90 hover:bg-emerald-600 text-white rounded-2xl text-xs font-bold shadow-md transition-all"
+            >
+              <ExternalLink className="w-4 h-4" />
+              <span>متابعة التحضيرات</span>
+            </a>
             <button
               onClick={() => setCurrentView?.('users')}
               className="inline-flex items-center gap-2 px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-2xl text-xs font-bold shadow-md transition-all hover:scale-105"
@@ -196,6 +214,26 @@ export const AdminDashboard: React.FC = () => {
           onClick={() => setKpiModal('active')}
         />
       </div>
+
+      {pendingApprovalsCount > 0 && (
+        <button
+          onClick={() => setCurrentView?.('approvals')}
+          className="w-full text-right px-5 py-3 rounded-2xl bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800 text-xs font-bold text-amber-800 dark:text-amber-300 hover:bg-amber-100"
+        >
+          🕓 {pendingApprovalsCount} اختبار بانتظار اعتمادك — اضغط للمراجعة
+        </button>
+      )}
+
+      {staffData && (
+        <InsightsPanels
+          mode="extra"
+          students={staffData.students}
+          teachers={staffData.teachers}
+          quizzes={staffData.quizzes}
+          submissions={staffData.submissions}
+          showTeacherPerformance
+        />
+      )}
 
       {/* Interactive Charts */}
       <AnalyticsCharts

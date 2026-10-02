@@ -1088,6 +1088,33 @@ public static getCurrentUser(): User | null {
     return { scope, students, teachers, quizzes, submissions, studentIds, quizIds };
   }
 
+  /** بيانات لوحات الرؤى حسب الدور: المدير = الكل، المشرف = نطاقه، المعلم = اختباراته وطلاب صفوفه (أو الكل بصلاحية التقارير العامة) */
+  public static getStaffData(user: User) {
+    if (user.role === 'supervisor') {
+      const d = this.getSupervisorData(user);
+      return { students: d.students, teachers: d.teachers, quizzes: d.quizzes, submissions: d.submissions };
+    }
+    const perms: any = user.teacher_permissions || (user as any).permissions || {};
+    let quizList = this.getQuizzes().filter((q) => !q.is_deleted);
+    let students = this.getStudents();
+    let teachers = this.getTeachers();
+
+    if (user.role === 'teacher' && !perms.can_view_all_reports) {
+      quizList = quizList.filter((q) => q.teacher_id === user.id || q.created_by === user.id);
+      const classIds = new Set([...(user.assigned_class_ids || []), ...(user.class_id ? [user.class_id] : [])]);
+      const ownIds = new Set(quizList.map((q) => q.id));
+      const seen = new Set(this.getSubmissions().filter((x) => ownIds.has(x.quiz_id)).map((x) => x.student_id));
+      students = students.filter((st) => classIds.has(st.class_id || '') || seen.has(st.id));
+      teachers = teachers.filter((t) => t.id === user.id);
+    }
+
+    const quizIds = new Set(quizList.map((q) => q.id));
+    const studentIds = new Set(students.map((st) => st.id));
+    const submissions = this.getSubmissions().filter((x) => quizIds.has(x.quiz_id) && studentIds.has(x.student_id));
+    const quizzes = quizList.map((q) => this.getQuizWithDetails(q.id)!).filter(Boolean);
+    return { students, teachers, quizzes, submissions };
+  }
+
   // =====================================================================
   // دوال المزامنة مع Supabase (تُستخدم من services/quizSync.ts)
   // =====================================================================

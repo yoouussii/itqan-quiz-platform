@@ -21,6 +21,11 @@ import { UserCog } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 import { DEFAULT_PASSWORD } from '../../services/storage';
 import { resolveClass } from '../../utils/classMatch';
+import { PERMISSION_DEFS, PERM_GROUPS, TEACHER_ALWAYS, normalizePerms, hasPerm } from '../../utils/permissions';
+import { exportStudentReport } from '../../utils/studentReport';
+import { computePointEvents, earnedBadges, totalPoints } from '../../utils/points';
+import { formatFullArabicDate } from '../../utils/dateUtils';
+import { FileText as FileTextIcon } from 'lucide-react';
 import { Role, User, TeacherPermissions } from '../../types';
 import { Avatar } from '../common/Avatar';
 
@@ -30,6 +35,9 @@ export const UsersManagement: React.FC = () => {
     users,
     classes,
     subjects,
+    submissions,
+    quizzes,
+    awards,
     addUser,
     updateUserData,
     resetUserPassword,
@@ -81,12 +89,7 @@ export const UsersManagement: React.FC = () => {
   // المعلم والمشرف: صلاحيات محدودة (يرون ويضيفون الطلاب الذين أضافوهم فقط)
   const isTeacher = currentUser?.role === 'teacher' || currentUser?.role === 'supervisor';
   const isStaffRole = (r?: string) => r === 'teacher' || r === 'supervisor';
-  const PERM_KEYS = [
-    'can_add_custom_subjects', 'can_manage_classes', 'can_view_all_reports', 'can_add_students', 'can_add_teachers',
-    'can_view_teachers_performance', 'can_export_reports', 'can_manage_retakes',
-  ] as const;
-  const pickPerms = (src: TeacherPermissions): TeacherPermissions =>
-    Object.fromEntries(PERM_KEYS.map((k) => [k, !!src[k]])) as TeacherPermissions;
+  const pickPerms = (src: TeacherPermissions): TeacherPermissions => normalizePerms(src) as TeacherPermissions;
 
   // المستخدمون ضمن صلاحية من يتصفح (المعلم يرى الطلاب الذين أضافهم فقط)
   const scopeUsers = users.filter((u) => !isTeacher || (u.role === 'student' && u.created_by === currentUser?.id));
@@ -98,6 +101,23 @@ export const UsersManagement: React.FC = () => {
   const roleCount = (r: string) => scopeUsers.filter((u) => u.role === r).length;
   // المعلم يرى في الفلتر الصفوف التي فيها طلابه فقط، والمدير كل الصفوف
   const classFilterOptions = isTeacher ? classes.filter((c) => classCount(c.id) > 0) : classes;
+
+  const reportFor = async (u: User) => {
+    const subs = (submissions || []).filter((x) => x.student_id === u.id);
+    const myAwards = (awards || []).filter((a) => a.student_id === u.id);
+    await exportStudentReport({
+      name: u.name,
+      nationalId: u.national_id,
+      className: classes.find((c) => c.id === (u.class_id || u.assigned_class_ids?.[0]))?.name,
+      results: subs.map((x) => ({
+        quiz: x.quiz?.title || '—', subject: x.subject?.name || '—', score: `${x.score}/${x.total_possible_score}`,
+        pct: Number(x.percentage) || 0, date: formatFullArabicDate(x.completed_at),
+      })),
+      points: totalPoints(computePointEvents(subs, quizzes || [], myAwards)),
+      badgeKeys: earnedBadges(subs, quizzes || []),
+      awards: myAwards,
+    });
+  };
 
   const filteredUsers = users.filter((u) => {
     // المعلم لا يرى سوى الطلاب الذين أضافهم هو فقط
@@ -716,51 +736,16 @@ export const UsersManagement: React.FC = () => {
 
                     <td className="py-3.5 px-4 text-xs">
                       {isStaffRole(u.role) ? (() => {
-                        const perms = u.teacher_permissions || (u as any).permissions || {};
-                        const hasAny = Object.values(perms).some(Boolean);
-                        if (!hasAny) return <span className="text-slate-400">صلاحيات أساسية</span>;
+                        const perms: any = u.teacher_permissions || (u as any).permissions || {};
+                        const on = PERMISSION_DEFS.filter((d) => perms[d.key]);
+                        if (on.length === 0) return <span className="text-slate-400">صلاحيات أساسية</span>;
                         return (
                           <div className="flex flex-wrap gap-1 text-[10px]">
-                            {perms.can_add_students && (
-                              <span className="bg-emerald-50 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300 px-1.5 py-0.5 rounded">
-                                إضافة طلاب ✓
+                            {on.map((d) => (
+                              <span key={d.key} className="bg-indigo-50 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-300 px-1.5 py-0.5 rounded">
+                                {d.short} ✓
                               </span>
-                            )}
-                            {perms.can_add_teachers && (
-                              <span className="bg-indigo-50 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-300 px-1.5 py-0.5 rounded">
-                                إضافة معلمين ✓
-                              </span>
-                            )}
-                            {perms.can_add_custom_subjects && (
-                              <span className="bg-teal-50 dark:bg-teal-950 text-teal-700 dark:text-teal-300 px-1.5 py-0.5 rounded">
-                                إضافة مواد ✓
-                              </span>
-                            )}
-                            {perms.can_manage_classes && (
-                              <span className="bg-blue-50 dark:bg-blue-950 text-blue-700 dark:text-blue-300 px-1.5 py-0.5 rounded">
-                                إدارة شعب ✓
-                              </span>
-                            )}
-                            {perms.can_view_all_reports && (
-                              <span className="bg-purple-50 dark:bg-purple-950 text-purple-700 dark:text-purple-300 px-1.5 py-0.5 rounded">
-                                تقارير عامة ✓
-                              </span>
-                            )}
-                            {perms.can_view_teachers_performance && (
-                              <span className="bg-sky-50 dark:bg-sky-950 text-sky-700 dark:text-sky-300 px-1.5 py-0.5 rounded">
-                                أداء المعلمين ✓
-                              </span>
-                            )}
-                            {perms.can_export_reports && (
-                              <span className="bg-rose-50 dark:bg-rose-950 text-rose-700 dark:text-rose-300 px-1.5 py-0.5 rounded">
-                                تصدير ✓
-                              </span>
-                            )}
-                            {perms.can_manage_retakes && (
-                              <span className="bg-amber-50 dark:bg-amber-950 text-amber-700 dark:text-amber-300 px-1.5 py-0.5 rounded">
-                                إعادة محاولات ✓
-                              </span>
-                            )}
+                            ))}
                           </div>
                         );
                       })() : (
@@ -770,6 +755,15 @@ export const UsersManagement: React.FC = () => {
 
                     <td className="py-3.5 px-4 text-center">
                       <div className="flex items-center justify-center gap-1.5">
+                        {u.role === 'student' && hasPerm(currentUser, 'can_export_reports') && (
+                          <button
+                            onClick={() => reportFor(u)}
+                            className="p-1.5 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors"
+                            title="كشف درجات الطالب PDF"
+                          >
+                            <FileTextIcon className="w-4 h-4" />
+                          </button>
+                        )}
                         <button
                           onClick={() => handleOpenEditModal(u)}
                           className="p-1.5 text-indigo-600 hover:bg-indigo-50 dark:hover:bg-indigo-950 rounded-lg transition-colors"
@@ -1040,39 +1034,33 @@ export const UsersManagement: React.FC = () => {
                       </p>
                     )}
 
-                    {[
-                      { key: 'can_add_students' as const, label: 'صلاحية إضافة طلاب جدد (can_add_students)' },
-                      { key: 'can_add_teachers' as const, label: 'صلاحية إضافة معلمين (can_add_teachers)' },
-                      { key: 'can_add_custom_subjects' as const, label: 'صلاحية إضافة مواد دراسية (can_add_custom_subjects)' },
-                      { key: 'can_manage_classes' as const, label: 'صلاحية إدارة الفصول والشعب (can_manage_classes)' },
-                      { key: 'can_view_all_reports' as const, label: 'صلاحية عرض جميع التقارير (can_view_all_reports)' },
-                      ...((editingUser ? editingUser.role : role) === 'supervisor'
-                        ? [
-                            { key: 'can_view_teachers_performance' as const, label: 'عرض أداء المعلمين ضمن نطاقه (can_view_teachers_performance)' },
-                            { key: 'can_export_reports' as const, label: 'تصدير التقارير CSV / PDF (can_export_reports)' },
-                            { key: 'can_manage_retakes' as const, label: 'منح الطلاب إعادة محاولة (can_manage_retakes)' },
-                          ]
-                        : []),
-                    ].map((perm) => {
-                      const curPerms = editingUser?.teacher_permissions || teacherPermissions;
-                      return (
-                        <div
-                          key={perm.key}
-                          onClick={() => togglePermissionKey(perm.key)}
-                          className="flex items-center justify-between p-2 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-700/50 cursor-pointer transition-colors select-none"
-                        >
-                          <span className="text-xs text-slate-700 dark:text-slate-300 font-medium">
-                            {perm.label}
-                          </span>
-                          <input
-                            type="checkbox"
-                            checked={!!curPerms[perm.key]}
-                            onChange={() => {}} // Controlled by container click
-                            className="accent-indigo-600 w-4 h-4 rounded cursor-pointer pointer-events-none"
-                          />
-                        </div>
-                      );
-                    })}
+                    {PERM_GROUPS.map((group) => (
+                      <div key={group} className="space-y-1">
+                        <p className="text-[11px] font-black text-indigo-600 dark:text-indigo-400 pt-1.5">{group}</p>
+                        {PERMISSION_DEFS.filter((d) => d.group === group).map((perm) => {
+                          const curPerms: any = editingUser?.teacher_permissions || teacherPermissions;
+                          const roleNow = editingUser ? editingUser.role : role;
+                          const locked = roleNow === 'teacher' && TEACHER_ALWAYS.has(perm.key);
+                          return (
+                            <div
+                              key={perm.key}
+                              onClick={() => !locked && togglePermissionKey(perm.key as keyof TeacherPermissions)}
+                              className={`flex items-center justify-between p-2 rounded-xl transition-colors select-none ${locked ? 'opacity-70' : 'hover:bg-slate-100 dark:hover:bg-slate-700/50 cursor-pointer'}`}
+                            >
+                              <span className="text-xs text-slate-700 dark:text-slate-300 font-medium">
+                                {perm.label} ({perm.key}){locked ? ' — مفعّلة افتراضياً للمعلم' : ''}
+                              </span>
+                              <input
+                                type="checkbox"
+                                checked={!!curPerms[perm.key] || locked}
+                                readOnly
+                                className="accent-indigo-600 w-4 h-4 rounded cursor-pointer pointer-events-none"
+                              />
+                            </div>
+                          );
+                        })}
+                      </div>
+                    ))}
                   </div>
                 </>
               )}

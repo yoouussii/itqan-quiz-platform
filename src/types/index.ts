@@ -56,7 +56,7 @@ export interface SchoolClass {
   created_by?: string;
 }
 
-export type QuizStatus = 'published' | 'draft' | 'archived';
+export type QuizStatus = 'published' | 'draft' | 'archived' | 'pending_approval' | 'rejected';
 
 export interface Quiz {
   id: string;
@@ -69,6 +69,8 @@ export interface Quiz {
   duration_minutes: number;
   pass_percentage: number;
   status: QuizStatus;
+  /** سبب الرفض عند اعتماد الاختبارات */
+  review_note?: string;
   created_at: string;
   updated_at?: string;
   start_date?: string;

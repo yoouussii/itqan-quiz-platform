@@ -16,6 +16,7 @@ import {
 import { SubmissionWithDetails } from '../../types';
 import { useApp } from '../../context/AppContext';
 import { AnswerSheetModal } from './AnswerSheetModal';
+import { hasPerm } from '../../utils/permissions';
 import { Avatar } from '../common/Avatar';
 import { formatArabicQuizDate } from '../../utils/dateUtils';
 
@@ -54,11 +55,9 @@ export const SubmissionsTable: React.FC<SubmissionsTableProps> = ({
 
   // STRICT PRIVACY: If current user is a student, enforce privacy strictly
   const isStudent = currentUser?.role === 'student';
-  // المشرف لا يصدّر ولا يمنح إعادة محاولة إلا بصلاحية صريحة (المعلم والمدير بلا قيود)
-  const myPerms = currentUser?.teacher_permissions || currentUser?.permissions || {};
-  const isSupervisor = currentUser?.role === 'supervisor';
-  const canExport = !isStudent && (!isSupervisor || !!myPerms.can_export_reports);
-  const canManageRetakes = !isStudent && (!isSupervisor || !!myPerms.can_manage_retakes);
+  // التصدير ومنح إعادة المحاولة بحسب الصلاحيات (المدير: تلقائي، المعلم: كما كان، المشرف: بصلاحية صريحة)
+  const canExport = !isStudent && hasPerm(currentUser, 'can_export_reports');
+  const canManageRetakes = !isStudent && hasPerm(currentUser, 'can_manage_retakes');
 
   // المعلم (بدون صلاحية التقارير العامة) يرى في الفلتر المواد المسندة إليه فقط
   const visibleSubjects = useMemo(() => {

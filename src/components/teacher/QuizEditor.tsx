@@ -516,7 +516,7 @@ export const QuizEditor: React.FC = () => {
           ];
 
     try {
-      let outcome: { synced: boolean; error?: string };
+      let outcome: { synced: boolean; error?: string; status?: string };
 
       if (isEditing && editingQuizId) {
         outcome = await updateFullQuiz(
@@ -559,7 +559,11 @@ export const QuizEditor: React.FC = () => {
       }
 
       if (outcome.synced) {
-        alert('تم حفظ ونشر الاختبار بنجاح!');
+        alert(
+          outcome.status === 'pending_approval'
+            ? 'تم حفظ الاختبار وإرساله للاعتماد. سيظهر للطلاب بعد موافقة المسؤول.'
+            : 'تم حفظ ونشر الاختبار بنجاح!'
+        );
       } else {
         alert(
           'تم حفظ الاختبار على جهازك، لكنه لم يصل إلى الخادم بعد، ولن يراه الآدمن أو الطلاب قبل ذلك.\n' +

@@ -19,6 +19,9 @@ import {
   ClipboardList,
 } from 'lucide-react';
 import { KpiDetailModal } from '../common/KpiDetailModal';
+import { StorageService } from '../../services/storage';
+import { InsightsPanels } from '../staff/InsightsPanels';
+import { hasPerm } from '../../utils/permissions';
 import { KpiSection, quizzesSection, perQuizSection, submissionsSection } from '../../utils/kpiSections';
 import { formatQuizDateTime, getWindowState } from '../../utils/quizWindow';
 import { describeQuizTarget } from '../../utils/quizTarget';
@@ -36,9 +39,15 @@ export const TeacherDashboard: React.FC = () => {
     setEditingQuizId,
     setDuplicateQuizId,
     deleteQuizItem,
+    setActiveQuizId,
   } = useApp();
 
 
+  const staffData = React.useMemo(
+    () => (currentUser ? StorageService.getStaffData(currentUser) : null),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [currentUser, quizzes, submissions, users]
+  );
   const [kpiModal, setKpiModal] = useState<'quizzes' | 'active' | 'subs' | 'avg' | null>(null);
 
   // تصفية الاختبارات الخاصة بالمعلم
@@ -157,6 +166,17 @@ export const TeacherDashboard: React.FC = () => {
         />
       </div>
 
+      {hasPerm(currentUser, 'can_view_insights') && staffData && (
+        <InsightsPanels
+          mode="extra"
+          students={staffData.students}
+          teachers={staffData.teachers}
+          quizzes={staffData.quizzes}
+          submissions={staffData.submissions}
+          showTeacherPerformance={hasPerm(currentUser, 'can_view_teachers_performance')}
+        />
+      )}
+
       {/* قائمة الاختبارات */}
       <div className="bg-white dark:bg-slate-900 p-6 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-soft space-y-4">
         <div className="flex items-center justify-between pb-4 border-b border-slate-100 dark:border-slate-800">
@@ -203,6 +223,17 @@ export const TeacherDashboard: React.FC = () => {
                   </span>
                 </div>
 
+                {quiz.status === 'pending_approval' && (
+                  <div className="text-[11px] font-bold px-2.5 py-1.5 rounded-lg bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300">
+                    🕓 بانتظار اعتماد المسؤول — لن يظهر للطلاب قبل الموافقة
+                  </div>
+                )}
+                {quiz.status === 'rejected' && (
+                  <div className="text-[11px] font-bold px-2.5 py-1.5 rounded-lg bg-rose-100 text-rose-800 dark:bg-rose-950 dark:text-rose-300">
+                    ❌ مرفوض{quiz.review_note ? `: ${quiz.review_note}` : ''} — عدّله لإعادة الإرسال
+                  </div>
+                )}
+
                 <div className="text-[11px] text-slate-500 dark:text-slate-400 flex flex-wrap items-start gap-x-1.5 gap-y-1">
                   <span className="font-bold shrink-0">فترة الإتاحة:</span>
                   <span className="font-semibold text-slate-700 dark:text-slate-200">
@@ -239,6 +270,15 @@ export const TeacherDashboard: React.FC = () => {
                   >
                     <Edit className="w-3.5 h-3.5" />
                     <span>تعديل</span>
+                  </button>
+
+                  <button
+                    onClick={() => { setActiveQuizId(quiz.id); setCurrentView('quiz_results'); }}
+                    title="نتائج الاختبار وتحليله"
+                    className="flex-1 inline-flex items-center justify-center gap-1.5 px-3 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 rounded-xl text-xs font-bold hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors"
+                  >
+                    <BarChart2 className="w-3.5 h-3.5" />
+                    <span>النتائج</span>
                   </button>
 
                   <button

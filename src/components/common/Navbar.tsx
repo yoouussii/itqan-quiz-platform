@@ -19,6 +19,9 @@ import { useApp } from '../../context/AppContext';
 import { Avatar } from './Avatar';
 import { Logo } from './Logo';
 import { ProfileModal } from './ProfileModal';
+import { NotificationBell } from './NotificationBell';
+import { hasPerm } from '../../utils/permissions';
+import { ClipboardCheck, Trophy, ScrollText, Settings as SettingsIcon, ExternalLink, MoreHorizontal, Sparkles } from 'lucide-react';
 
 export const Navbar: React.FC = () => {
   const {
@@ -28,6 +31,8 @@ export const Navbar: React.FC = () => {
     currentView,
     setCurrentView,
     logout,
+    settings,
+    pendingApprovalsCount,
     theme,
     toggleTheme,
   } = useApp();
@@ -65,6 +70,15 @@ export const Navbar: React.FC = () => {
   // المسمى الوظيفي النصي (إن وُجد) يظهر بدل اسم الدور
   const roleInfo = { ...baseRole, text: currentUser?.job_title?.trim() || baseRole.text };
   const [showProfile, setShowProfile] = useState(false);
+  const [moreOpen, setMoreOpen] = useState(false);
+  const moreRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const onDown = (e: MouseEvent) => {
+      if (moreRef.current && !moreRef.current.contains(e.target as Node)) setMoreOpen(false);
+    };
+    document.addEventListener('mousedown', onDown);
+    return () => document.removeEventListener('mousedown', onDown);
+  }, []);
 
   // Navigation items based on role & permissions
   const navItems = () => {
@@ -122,7 +136,21 @@ export const Navbar: React.FC = () => {
     return [
       { id: 'dashboard', label: 'لوحة الطالب', icon: LayoutDashboard },
       { id: 'analytics', label: 'سجل درجاتي وإنجازاتي', icon: BarChart2 },
+      { id: 'my_points', label: 'نقاطي', icon: Sparkles },
     ];
+  };
+
+  /** عناصر ثانوية تظهر في قائمة "المزيد" حسب الصلاحيات (المدير يملكها كلها تلقائياً) */
+  type MoreItem = { id: string; label: string; icon: any; href?: string; badge?: number };
+  const moreItems = (): MoreItem[] => {
+    if (!currentUser || currentUser.role === 'student') return [];
+    const out: MoreItem[] = [];
+    if (hasPerm(currentUser, 'can_approve_quizzes')) out.push({ id: 'approvals', label: 'اعتماد الاختبارات', icon: ClipboardCheck, badge: pendingApprovalsCount });
+    if (hasPerm(currentUser, 'can_view_leaderboard')) out.push({ id: 'leaderboard', label: 'لوحة المتصدرين', icon: Trophy });
+    if (hasPerm(currentUser, 'can_view_activity_log')) out.push({ id: 'activity_log', label: 'سجل النشاط', icon: ScrollText });
+    if (currentUser.role === 'admin') out.push({ id: 'settings', label: 'إعدادات النظام', icon: SettingsIcon });
+    if (hasPerm(currentUser, 'can_access_preparations')) out.push({ id: 'preparations', label: 'متابعة التحضيرات', icon: ExternalLink, href: settings.preparations_url });
+    return out;
   };
 
   return (
@@ -149,7 +177,7 @@ export const Navbar: React.FC = () => {
                   <button
                     key={item.id}
                     onClick={() => setCurrentView(item.id)}
-                    className={`flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-bold transition-all ${
+                    className={`flex items-center gap-2 px-2.5 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition-all ${
                       isActive
                         ? 'bg-indigo-600 text-white shadow-sm shadow-indigo-600/30'
                         : 'text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800'
@@ -160,6 +188,45 @@ export const Navbar: React.FC = () => {
                   </button>
                 );
               })}
+
+              {moreItems().length > 0 && (
+                <div className="relative" ref={moreRef}>
+                  <button
+                    type="button"
+                    aria-label="المزيد"
+                    onClick={() => setMoreOpen(!moreOpen)}
+                    className={`flex items-center gap-2 px-2.5 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition-all ${
+                      moreItems().some((m) => m.id === currentView)
+                        ? 'bg-indigo-600 text-white shadow-sm shadow-indigo-600/30'
+                        : 'text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800'
+                    }`}
+                  >
+                    <MoreHorizontal className="w-4 h-4" />
+                    <span>المزيد</span>
+                    {pendingApprovalsCount > 0 && <span className="min-w-[16px] h-4 px-1 rounded-full bg-rose-600 text-white text-[10px] flex items-center justify-center">{pendingApprovalsCount}</span>}
+                  </button>
+                  {moreOpen && (
+                    <div className="absolute left-0 mt-2 w-60 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-xl z-50 p-1.5 text-right">
+                      {moreItems().map((item) => {
+                        const Icon = item.icon;
+                        const cls = 'w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-xs font-bold text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800';
+                        const inner = (
+                          <>
+                            <Icon className="w-4 h-4" />
+                            <span className="flex-1">{item.label}</span>
+                            {!!item.badge && <span className="min-w-[16px] h-4 px-1 rounded-full bg-rose-600 text-white text-[10px] flex items-center justify-center">{item.badge}</span>}
+                          </>
+                        );
+                        return item.href ? (
+                          <a key={item.id} href={item.href} target="_blank" rel="noopener noreferrer" onClick={() => setMoreOpen(false)} className={cls}>{inner}</a>
+                        ) : (
+                          <button key={item.id} type="button" onClick={() => { setCurrentView(item.id); setMoreOpen(false); }} className={`${cls} ${currentView === item.id ? 'bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300' : ''}`}>{inner}</button>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              )}
             </nav>
 
             {/* Right Controls: Theme Toggle, Quick Switcher, Reset & User Profile */}
@@ -173,7 +240,7 @@ export const Navbar: React.FC = () => {
                     title="معاينة وتبديل الحسابات (مخصص لمدير النظام فقط)"
                   >
                     <UserCheck className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400" />
-                    <span className="hidden sm:inline">تبديل الحساب (معاينة)</span>
+                    <span className="hidden 2xl:inline whitespace-nowrap">تبديل الحساب (معاينة)</span>
                     <ChevronDown className="w-3.5 h-3.5 opacity-70" />
                   </button>
 
@@ -218,6 +285,8 @@ export const Navbar: React.FC = () => {
                 </div>
               )}
 
+              <NotificationBell />
+
               {/* Dark Mode Toggle */}
               {/* Dark Mode Toggle - Visible and accessible to all users */}
               <button
@@ -244,7 +313,7 @@ export const Navbar: React.FC = () => {
                     className="flex items-center gap-2 rounded-xl px-1 py-0.5 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
                   >
                     <Avatar name={currentUser.name} role={currentUser.role} userId={currentUser.id} size="sm" showBadge />
-                    <div className="hidden lg:block text-right">
+                    <div className="hidden 2xl:block text-right">
                       <div className="text-xs font-bold text-slate-800 dark:text-white leading-tight">
                         {currentUser.name}
                       </div>
@@ -315,6 +384,17 @@ export const Navbar: React.FC = () => {
                   <Icon className="w-4 h-4" />
                   <span>{item.label}</span>
                 </button>
+              );
+            })}
+
+            {moreItems().map((item) => {
+              const Icon = item.icon;
+              const cls = 'w-full flex items-center gap-3 px-4 py-2.5 rounded-xl text-xs font-bold text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800';
+              const inner = (<><Icon className="w-4 h-4" /><span>{item.label}</span>{!!item.badge && <span className="mr-auto min-w-[16px] h-4 px-1 rounded-full bg-rose-600 text-white text-[10px] flex items-center justify-center">{item.badge}</span>}</>);
+              return item.href ? (
+                <a key={item.id} href={item.href} target="_blank" rel="noopener noreferrer" className={cls}>{inner}</a>
+              ) : (
+                <button key={item.id} onClick={() => { setCurrentView(item.id); setIsMobileMenuOpen(false); }} className={cls}>{inner}</button>
               );
             })}
 

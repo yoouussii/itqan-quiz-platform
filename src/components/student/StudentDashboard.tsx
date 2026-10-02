@@ -35,7 +35,7 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({
   onStartQuiz,
   onViewReview,
 }) => {
-  const { currentUser, quizzes, submissions, classes } = useApp();
+  const { currentUser, quizzes, submissions, classes, awards, setCurrentView } = useApp();
 
   const [activeFilter, setActiveFilter] = useState<'all' | 'available' | 'completed'>('all');
   const [kpiModal, setKpiModal] = useState<'available' | 'completed' | 'avg' | 'best' | null>(null);
@@ -168,6 +168,29 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({
           colorScheme="purple"
           onClick={() => setKpiModal('best')}
         />
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+        <button
+          onClick={() => setCurrentView('my_points')}
+          className="text-right p-5 rounded-2xl bg-gradient-to-br from-amber-500 to-rose-500 text-white shadow-lg hover:scale-[1.01] transition-transform"
+        >
+          <p className="text-xs font-bold text-white/80">نقاطي وأوسمتي</p>
+          <p className="text-lg font-black mt-1">⭐ شاهد مستواك وأوسمتك ←</p>
+        </button>
+        {(awards || []).length > 0 && (
+          <div className="lg:col-span-2 p-5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800">
+            <p className="text-sm font-black text-slate-900 dark:text-white mb-2">🏆 لوحة الشرف</p>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
+              {(awards || []).slice(0, 4).map((a) => (
+                <div key={a.id} className="text-xs flex items-center justify-between rounded-xl bg-slate-50 dark:bg-slate-800/60 px-3 py-2">
+                  <b className="text-slate-900 dark:text-white">{a.student_name || 'طالب'}</b>
+                  <span className="text-amber-600 font-bold">{a.title}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Assigned Quizzes Section (Strict Visibility Logic) */}
