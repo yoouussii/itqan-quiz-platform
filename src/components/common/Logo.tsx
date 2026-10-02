@@ -53,7 +53,7 @@ export const Logo: React.FC<LogoProps> = ({
           <p
             className={`text-slate-500 dark:text-slate-400 leading-tight whitespace-nowrap hidden sm:block ${sizeClasses.sub}`}
           >
-            اختبارات وتقييم إلكتروني
+            منظومة الاختبارات والتقييم الذكي
           </p>
         </div>
       )}

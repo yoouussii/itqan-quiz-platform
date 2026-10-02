@@ -44,5 +44,5 @@ export async function exportStudentReport(i: StudentReportInput): Promise<void> 
     <h2 style="font-size:14px;font-weight:800;margin:14px 0 4px">الأوسمة</h2><div>${badges}</div>
     <h2 style="font-size:14px;font-weight:800;margin:14px 0 4px">الجوائز</h2><div>${awards}</div>`;
 
-  await exportElementToPdf({ bodyHtml, title: `كشف درجات: ${i.name}`, subtitle: i.className || undefined });
+  await exportElementToPdf({ bodyHtml, title: `كشف درجات: ${i.name}`, subtitle: i.className || undefined, orientation: 'portrait' });
 }

@@ -37,6 +37,7 @@ import { loadAwardsCache, makeAward, pushAward, pullAwards } from '../services/a
 import { AppSettings, loadSettings, syncSettings, saveSettings } from '../services/settingsService';
 import { StudentAward } from '../utils/points';
 import { describeQuizTarget } from '../utils/quizTarget';
+import { loadAttempt } from '../utils/activeAttempt';
 import { formatQuizDateTime } from '../utils/quizWindow';
 import {
   supabase,
@@ -167,6 +168,9 @@ interface AppContextType {
     answers: QuizAttemptAnswer[],
     timeSpentSeconds: number
   ) => Promise<Submission | null>;
+
+  /** تصحيح سؤال مقالي يدوياً (subQuestionId للسؤال الفرعي داخل القطعة) */
+  gradeEssay: (submissionId: string, questionId: string, subQuestionId: string | null, marks: number) => Promise<boolean>;
 
   addUser: (userData: any) => Promise<User>;
   updateUserData: (id: string, updates: Partial<User>) => Promise<void>;
@@ -301,8 +305,9 @@ const VIEW_KEY = 'itqan_view_state_v1';
 
 function allowedViews(u: User | null): string[] {
   if (!u) return [];
-  const base = ['dashboard', 'quizzes', 'analytics', 'quiz_review'];
-  if (u.role === 'student') return [...base, 'my_points']; // لا نعيد الطالب لصفحة الاختبار (take_quiz) بعد التحديث حتى لا يُعاد المؤقت
+  const base = ['dashboard', 'quizzes', 'analytics', 'quiz_review', 'notifications'];
+  // صفحة الاختبار تُستعاد بعد التحديث فقط إذا كانت هناك محاولة جارية محفوظة (المؤقت محفوظ معها)
+  if (u.role === 'student') return [...base, 'my_points', 'take_quiz'];
   const out = [...base];
   if (u.role === 'admin') {
     out.push('users', 'users_management', 'students_management', 'subjects_classes', 'reports', 'create_quiz', 'quiz_results', 'quiz_preview', 'settings');
@@ -329,6 +334,7 @@ function restoreViewState(u: User | null) {
     if (st.userId !== u.id || !allowedViews(u).includes(st.view)) return fallback;
     if ((st.view === 'quiz_results' || st.view === 'quiz_preview') && !st.activeQuizId) return fallback;
     if (st.view === 'quiz_review' && !st.activeSubmissionId) return fallback;
+    if (st.view === 'take_quiz' && !(st.activeQuizId && loadAttempt(u.id, st.activeQuizId))) return fallback;
     return {
       view: st.view as string,
       activeQuizId: (st.activeQuizId || null) as string | null,
@@ -957,7 +963,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       void syncQuiz(quizId);
       const qz = StorageService.getQuizById(quizId);
       const st = StorageService.getUserById(studentId);
-      void notify({ type: 'retake_granted', title: 'تم السماح لك بإعادة اختبار', body: qz?.title || '', audience: { user_ids: [studentId] }, ref_type: 'quiz', ref_id: quizId });
+      void notify({ type: 'retake_granted', title: 'تم السماح لك بإعادة اختبار', body: `الاختبار: ${qz?.title || ''}`, audience: { user_ids: [studentId] }, ref_type: 'quiz', ref_id: quizId });
       log('retake_granted', { type: 'quiz', id: quizId, name: qz?.title }, st?.name);
     }
     showToast(res.message, res.success ? 'success' : 'error');
@@ -1125,6 +1131,53 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     showToast(`تم تسليم الاختبار! حصلت على ${percentage}%`, percentage >= 60 ? 'success' : 'info');
     return submission;
+  };
+
+  const gradeEssay: AppContextType['gradeEssay'] = async (submissionId, questionId, subQuestionId, marks) => {
+    const me = currentUserRef.current;
+    if (!me || me.role === 'student') return false;
+    const sub = StorageService.getSubmissionById(submissionId);
+    if (!sub) return false;
+    const q = StorageService.getQuestionsByQuizId(sub.quiz_id).find((x) => x.id === questionId);
+    if (!q) return false;
+    const sq = subQuestionId ? (q.sub_questions || []).find((x) => x.id === subQuestionId) : undefined;
+    const max = Number((sq || q).marks) || 0;
+    const value = Math.max(0, Math.min(max, Math.round((Number(marks) || 0) * 2) / 2));
+
+    const answers = [...(sub.answers_json || [])];
+    let idx = answers.findIndex((a) => a.question_id === questionId);
+    if (idx < 0) {
+      answers.push({ question_id: questionId, selected_option: null, is_correct: false, marks_awarded: 0 });
+      idx = answers.length - 1;
+    }
+    const item = { ...answers[idx] };
+    if (subQuestionId) {
+      const subs = [...(item.sub_answers || [])];
+      let si = subs.findIndex((x) => x.sub_question_id === subQuestionId);
+      if (si < 0) {
+        subs.push({ sub_question_id: subQuestionId, selected_option: null });
+        si = subs.length - 1;
+      }
+      subs[si] = { ...subs[si], marks_awarded: value, is_correct: value === max && max > 0, graded: true };
+      item.sub_answers = subs;
+      item.marks_awarded = subs.reduce((t, x) => t + (Number(x.marks_awarded) || 0), 0);
+      const possible = (q.sub_questions || []).reduce((t, x) => t + (Number(x.marks) || 0), 0);
+      item.is_correct = possible > 0 && item.marks_awarded === possible;
+    } else {
+      item.marks_awarded = value;
+      item.is_correct = value === max && max > 0;
+      item.graded = true;
+    }
+    answers[idx] = item;
+
+    const score = answers.reduce((t, a) => t + (Number(a.marks_awarded) || 0), 0);
+    const total = Number(sub.total_possible_score) || 0;
+    const updated = { ...sub, answers_json: answers, score, percentage: total > 0 ? Math.round((score / total) * 100) : 0 };
+    StorageService.saveSubmissionFromRemote(updated);
+    recompute();
+    const res = await pushSubmission(submissionId);
+    showToast(res.ok ? 'تم حفظ درجة السؤال المقالي' : `حُفظت الدرجة على جهازك فقط (${res.error})`, res.ok ? 'success' : 'error');
+    return res.ok;
   };
 
   // ---------------- المستخدمون ----------------
@@ -1524,7 +1577,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     await notify({
       type: 'quiz_published',
       title: `اختبار جديد: ${quiz.title}`,
-      body: `المادة: ${subject} • الفئة: ${target} • من ${formatQuizDateTime(quiz.start_date, 'start')} إلى ${formatQuizDateTime(quiz.end_date, 'end')}`,
+      // سطر لكل معلومة (تُعرض كجدول مرتب في الإشعارات)
+      body: [
+        `المادة: ${subject}`,
+        `الفئة: ${target}`,
+        `يبدأ: ${formatQuizDateTime(quiz.start_date, 'start')}`,
+        `ينتهي: ${formatQuizDateTime(quiz.end_date, 'end')}`,
+        `المدة: ${quiz.duration_minutes} دقيقة`,
+      ].join('\n'),
       audience, ref_type: 'quiz', ref_id: quizId,
     });
   };
@@ -1536,7 +1596,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     await notify({
       type: 'quiz_pending',
       title: `اختبار بانتظار الاعتماد: ${quiz.title}`,
-      body: `أرسله ${StorageService.getUserById(quiz.teacher_id)?.name || 'معلم'} • المادة: ${StorageService.getSubjectById(quiz.subject_id)?.name || '—'}`,
+      body: [
+        `المعلم: ${StorageService.getUserById(quiz.teacher_id)?.name || 'معلم'}`,
+        `المادة: ${StorageService.getSubjectById(quiz.subject_id)?.name || '—'}`,
+      ].join('\n'),
       audience: { roles: ['admin'], user_ids: approvers }, ref_type: 'quiz', ref_id: quizId,
     });
   };
@@ -1730,6 +1793,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         revokeStudentRetake,
         reassignQuizToTeacher,
         submitQuizAttempt,
+        gradeEssay,
         addUser,
         updateUserData,
         resetUserPassword,

@@ -2,9 +2,10 @@ import React, { useEffect, useRef, useState } from 'react';
 import { Bell, Megaphone, X } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 import { hasPerm } from '../../utils/permissions';
-import { NotifAudience } from '../../services/notificationService';
+import { AppNotification, NotifAudience } from '../../services/notificationService';
+import { notifAction, notifLines } from './notificationActions';
 
-const ICONS: Record<string, string> = {
+export const NOTIF_ICONS: Record<string, string> = {
   quiz_published: '📝', quiz_pending: '🕓', quiz_approved: '✅', quiz_rejected: '❌',
   retake_granted: '🔁', award: '🏆', announcement: '📣',
 };
@@ -21,7 +22,7 @@ export function timeAgo(iso: string): string {
   return new Date(iso).toLocaleDateString('ar-EG-u-ca-gregory-nu-latn');
 }
 
-const AnnouncementModal: React.FC<{ onClose: () => void }> = ({ onClose }) => {
+export const AnnouncementModal: React.FC<{ onClose: () => void }> = ({ onClose }) => {
   const { currentUser, classes, sendAnnouncement } = useApp();
   const isAdmin = currentUser?.role === 'admin';
   const myClassIds = currentUser?.assigned_class_ids || [];
@@ -31,17 +32,21 @@ const AnnouncementModal: React.FC<{ onClose: () => void }> = ({ onClose }) => {
   const [mode, setMode] = useState<'students' | 'staff' | 'everyone' | 'classes'>(isAdmin ? 'students' : 'classes');
   const [picked, setPicked] = useState<string[]>([]);
   const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
 
   const send = async () => {
-    if (!title.trim() || !body.trim()) return alert('اكتب عنوان الإعلان ونصه');
-    if (mode === 'classes' && picked.length === 0) return alert('اختر صفاً واحداً على الأقل');
+    setError('');
+    if (!body.trim()) return setError('اكتب نص الإعلان');
+    if (mode === 'classes' && picked.length === 0) return setError('اختر صفاً واحداً على الأقل من القائمة');
+    // العنوان اختياري: إن تُرك فارغاً نأخذ أول سطر من النص
+    const finalTitle = title.trim() || body.trim().split('\n')[0].slice(0, 60);
     const audience: NotifAudience =
       mode === 'students' ? { all: true, roles: ['student'] }
       : mode === 'staff' ? { all: true, roles: ['teacher', 'supervisor'] }
       : mode === 'everyone' ? { all: true }
       : { class_ids: picked };
     setBusy(true);
-    const res = await sendAnnouncement({ title: title.trim(), body: body.trim(), audience });
+    const res = await sendAnnouncement({ title: finalTitle, body: body.trim(), audience });
     setBusy(false);
     if (res.ok) onClose();
   };
@@ -54,7 +59,7 @@ const AnnouncementModal: React.FC<{ onClose: () => void }> = ({ onClose }) => {
           <h3 className="font-black text-base text-slate-900 dark:text-white flex items-center gap-2"><Megaphone className="w-5 h-5 text-indigo-600" /> إعلان جديد</h3>
           <button onClick={onClose} aria-label="إغلاق" className="p-1 text-slate-400 hover:text-slate-700"><X className="w-5 h-5" /></button>
         </div>
-        <input aria-label="عنوان الإعلان" value={title} onChange={(e) => setTitle(e.target.value)} placeholder="عنوان الإعلان"
+        <input aria-label="عنوان الإعلان" value={title} onChange={(e) => setTitle(e.target.value)} placeholder="عنوان الإعلان (اختياري)"
           className="w-full px-3 py-2 text-xs rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white" />
         <textarea aria-label="نص الإعلان" value={body} onChange={(e) => setBody(e.target.value)} rows={3} placeholder="نص الإعلان..."
           className="w-full px-3 py-2 text-xs rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white" />
@@ -79,6 +84,11 @@ const AnnouncementModal: React.FC<{ onClose: () => void }> = ({ onClose }) => {
             ))}
           </div>
         )}
+        {error && (
+          <p role="alert" className="text-xs font-bold text-rose-600 dark:text-rose-400 bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-800 rounded-xl p-2">
+            {error}
+          </p>
+        )}
         <div className="flex justify-end gap-2 pt-2">
           <button onClick={onClose} className="px-4 py-2 text-xs font-bold text-slate-600 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800">إلغاء</button>
           <button onClick={send} disabled={busy} className="px-5 py-2 text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-700 rounded-xl shadow-md disabled:opacity-60">إرسال الإعلان</button>
@@ -88,12 +98,51 @@ const AnnouncementModal: React.FC<{ onClose: () => void }> = ({ onClose }) => {
   );
 };
 
+/** نص الإشعار مرتباً: «العنوان: القيمة» في صفوف بدلاً من سطر واحد طويل */
+export const NotifBody: React.FC<{ body: string; compact?: boolean }> = ({ body, compact }) => {
+  const lines = notifLines(body);
+  if (!lines.length) return null;
+  const shown = compact ? lines.slice(0, 3) : lines;
+  return (
+    <dl className="mt-1 space-y-0.5 text-[11px] leading-relaxed">
+      {shown.map((l, i) =>
+        l.label ? (
+          <div key={i} className="flex gap-1.5">
+            <dt className="shrink-0 font-bold text-slate-500 dark:text-slate-400">{l.label}:</dt>
+            <dd className="text-slate-700 dark:text-slate-200 min-w-0">{l.value}</dd>
+          </div>
+        ) : (
+          <dd key={i} className="text-slate-700 dark:text-slate-200 whitespace-pre-line">{l.value}</dd>
+        )
+      )}
+      {compact && lines.length > shown.length && <dd className="text-slate-400">…</dd>}
+    </dl>
+  );
+};
+
+/** تنفيذ إجراء الإشعار: فتح الاختبار / النتيجة / صفحة الاعتماد... */
+export function useOpenNotification() {
+  const { currentUser, quizzes, submissions, markNotificationsRead, setCurrentView, setActiveQuizId, setActiveSubmissionId, showToast } = useApp();
+  const actionFor = (n: AppNotification) => (currentUser ? notifAction(n, currentUser, quizzes, submissions) : null);
+  const open = (n: AppNotification & { read?: boolean }, fallbackView = 'notifications') => {
+    if (!n.read) void markNotificationsRead([n.id]);
+    const a = actionFor(n);
+    if (!a) return setCurrentView(fallbackView);
+    if (a.notice) showToast(a.notice, 'info');
+    setActiveQuizId(a.quizId ?? null);
+    setActiveSubmissionId(a.submissionId ?? null);
+    setCurrentView(a.view);
+  };
+  return { actionFor, open };
+}
+
 export const NotificationBell: React.FC = () => {
   const { currentUser, notifications, unreadCount, markNotificationsRead, setCurrentView } = useApp();
   const [open, setOpen] = useState(false);
   const [composer, setComposer] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
   const canAnnounce = hasPerm(currentUser, 'can_send_announcements');
+  const { open: openNotification } = useOpenNotification();
 
   useEffect(() => {
     const onDown = (e: MouseEvent) => {
@@ -106,10 +155,7 @@ export const NotificationBell: React.FC = () => {
   if (!currentUser) return null;
 
   const go = (n: (typeof notifications)[number]) => {
-    if (!n.read) markNotificationsRead([n.id]);
-    if (n.type === 'quiz_pending') setCurrentView('approvals');
-    else if (n.type === 'award') setCurrentView(currentUser.role === 'student' ? 'my_points' : 'dashboard');
-    else if (n.type === 'quiz_published' || n.type === 'retake_granted') setCurrentView('dashboard');
+    openNotification(n);
     setOpen(false);
   };
 
@@ -146,26 +192,30 @@ export const NotificationBell: React.FC = () => {
                 notifications.slice(0, 40).map((n) => (
                   <button key={n.id} onClick={() => go(n)} data-unread={!n.read}
                     className={`w-full text-right px-4 py-3 flex gap-3 hover:bg-slate-50 dark:hover:bg-slate-800/60 ${n.read ? '' : 'bg-indigo-50/60 dark:bg-indigo-950/30'}`}>
-                    <span className="text-lg shrink-0">{ICONS[n.type] || '🔔'}</span>
+                    <span className="text-lg shrink-0">{NOTIF_ICONS[n.type] || '🔔'}</span>
                     <span className="min-w-0 flex-1">
                       <span className="flex items-center justify-between gap-2">
                         <span className="text-xs font-bold text-slate-900 dark:text-white truncate">{n.title}</span>
                         {!n.read && <span className="w-2 h-2 rounded-full bg-rose-500 shrink-0" />}
                       </span>
-                      <span className="block text-[11px] text-slate-600 dark:text-slate-300 leading-relaxed">{n.body}</span>
+                      <NotifBody body={n.body} compact />
                       <span className="block text-[10px] text-slate-400 mt-1">{timeAgo(n.created_at)}</span>
                     </span>
                   </button>
                 ))
               )}
             </div>
-            {canAnnounce && (
-              <div className="p-3 border-t border-slate-100 dark:border-slate-800">
-                <button onClick={() => { setComposer(true); setOpen(false); }} className="w-full inline-flex items-center justify-center gap-2 px-3 py-2 rounded-xl text-xs font-bold bg-indigo-600 hover:bg-indigo-700 text-white">
+            <div className="p-3 border-t border-slate-100 dark:border-slate-800 flex gap-2">
+              <button onClick={() => { setCurrentView('notifications'); setOpen(false); }}
+                className="flex-1 px-3 py-2 rounded-xl text-xs font-bold bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 hover:bg-slate-200 dark:hover:bg-slate-700">
+                عرض كل الإشعارات
+              </button>
+              {canAnnounce && (
+                <button onClick={() => { setComposer(true); setOpen(false); }} className="flex-1 inline-flex items-center justify-center gap-2 px-3 py-2 rounded-xl text-xs font-bold bg-indigo-600 hover:bg-indigo-700 text-white">
                   <Megaphone className="w-4 h-4" /> إعلان جديد
                 </button>
-              </div>
-            )}
+              )}
+            </div>
           </div>
         )}
       </div>

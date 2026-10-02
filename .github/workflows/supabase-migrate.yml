@@ -18,6 +18,7 @@ on:
         options:
           - supabase/migrations/002_users_columns.sql
           - supabase/migrations/003_security_all.sql
+          - supabase/migrations/004_timer_answers_permissions.sql
           - supabase/migrations/003_rollback.sql
 
 jobs:
@@ -42,7 +43,7 @@ jobs:
             psql "$DATABASE_URL" -v ON_ERROR_STOP=1 --single-transaction -f "${{ inputs.file }}"
           fi
       - name: Verify
-        if: inputs.file == 'supabase/migrations/003_security_all.sql'
+        if: inputs.file == 'supabase/migrations/003_security_all.sql' || inputs.file == 'supabase/migrations/004_timer_answers_permissions.sql'
         env:
           DATABASE_URL: ${{ secrets.SUPABASE_DB_URL }}
         run: |
@@ -51,4 +52,5 @@ jobs:
           select 'hashed passwords: ' || count(*) from itqan.credentials;
           select 'policies: ' || count(*) from pg_policies where schemaname = 'public';
           select 'login function: ' || (to_regproc('public.itqan_login') is not null);
+          select 'quiz timer function (004): ' || (to_regproc('public.itqan_start_quiz') is not null);
           SQL
