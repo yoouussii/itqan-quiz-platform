@@ -39,6 +39,7 @@ import { loadAwardsCache, makeAward, pushAward, pullAwards } from '../services/a
 import { AppSettings, loadSettings, syncSettings, saveSettings } from '../services/settingsService';
 import { StudentAward } from '../utils/points';
 import { describeQuizTarget } from '../utils/quizTarget';
+import { targetStudents } from '../utils/quizAudience';
 import { loadAttempt } from '../utils/activeAttempt';
 import { formatQuizDateTime } from '../utils/quizWindow';
 import {
@@ -116,6 +117,8 @@ interface AppContextType {
   unreadCount: number;
   markNotificationsRead: (ids: string[] | 'all') => Promise<void>;
   sendAnnouncement: (p: { title: string; body: string; audience: NotifAudience }) => Promise<{ ok: boolean; error?: string }>;
+  /** إشعار تذكير للطلاب الموجّه إليهم الاختبار ولم يسلّموه بعد. يُرجع عدد الطلاب المُذكَّرين */
+  remindLateStudents: (quizId: string) => Promise<number>;
   /** بانرات الصفحة الرئيسية (كلها؛ الظاهر منها يُحدد حسب الدور والتاريخ) */
   banners: Banner[];
   saveBanner: (b: Banner) => Promise<boolean>;
@@ -1703,6 +1706,26 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     });
   };
 
+  const remindLateStudents: AppContextType['remindLateStudents'] = async (quizId) => {
+    const quiz = StorageService.getQuizById(quizId);
+    if (!quiz) return 0;
+    const done = new Set(StorageService.getSubmissions().filter((x) => x.quiz_id === quizId).map((x) => x.student_id));
+    const late = targetStudents(StorageService.getAssignmentsByQuizId(quizId), StorageService.getStudents()).filter((st) => !done.has(st.id));
+    if (!late.length) {
+      showToast('كل الطلاب سلّموا هذا الاختبار', 'success');
+      return 0;
+    }
+    await notify({
+      type: 'quiz_reminder',
+      title: `تذكير: لم تسلّم اختبار ${quiz.title}`,
+      body: [`ينتهي: ${formatQuizDateTime(quiz.end_date, 'end')}`, `المدة: ${quiz.duration_minutes} دقيقة`].join('\n'),
+      audience: { student_ids: late.map((st) => st.id) }, ref_type: 'quiz', ref_id: quizId,
+    });
+    log('quiz_reminder', { type: 'quiz', id: quizId, name: quiz.title }, `${late.length} طالب`);
+    showToast(`أُرسل تذكير إلى ${late.length} ${late.length === 1 ? 'طالب' : 'طلاب'}`, 'success');
+    return late.length;
+  };
+
   const notifyApprovers = async (quizId: string) => {
     const quiz = StorageService.getQuizById(quizId);
     if (!quiz) return;
@@ -1935,6 +1958,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         unreadCount,
         markNotificationsRead,
         sendAnnouncement,
+        remindLateStudents,
         banners,
         saveBanner,
         deleteBanner,

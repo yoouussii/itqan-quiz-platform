@@ -40,7 +40,7 @@ export const Button: React.FC<
 > = ({ variant = 'primary', icon: Icon, size = 'md', className = '', children, type = 'button', ...rest }) => (
   <button
     type={type}
-    className={`inline-flex items-center justify-center gap-2 rounded-xl font-semibold transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
+    className={`inline-flex items-center justify-center gap-2 rounded-xl font-semibold whitespace-nowrap transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
       size === 'sm' ? 'h-9 px-3.5 text-sm' : 'h-11 px-5 text-[15px]'
     } ${BTN[variant]} ${className}`}
     {...rest}
