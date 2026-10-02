@@ -63,7 +63,8 @@
 
 ### تفعيل الحماية (supabase/migrations/003_security)
 1. انشر نسخة الموقع الجديدة أولاً (تعمل قبل الملف وبعده).
-2. شغّل الملف الكامل `supabase/migrations/003_security_all.sql` في استعلام واحد، أو بدلاً منه الأجزاء `part1.sql` ← `part5.sql` من مجلد `supabase/migrations/003_security` بالترتيب، كل جزء في استعلام جديد (New query) في SQL Editor:
+2. **الطريقة الموصى بها:** من GitHub ← Actions ← **Supabase migrate** ← Run workflow ← اختر `003_security_all.sql` (يتطلب السر `SUPABASE_DB_URL`: رابط Session pooler من زر Connect في Supabase). يعمل في معاملة واحدة: ينجح كاملاً أو لا يتغير شيء.
+   أو يدوياً: شغّل الملف الكامل `supabase/migrations/003_security_all.sql` في استعلام واحد، أو بدلاً منه الأجزاء `part1.sql` ← `part5.sql` من مجلد `supabase/migrations/003_security` بالترتيب، كل جزء في استعلام جديد (New query) في SQL Editor:
    - افتح الملف على GitHub ← زر **Raw** ← `Ctrl+A` ثم `Ctrl+C`، والصقه في استعلام فارغ ثم **Run** دون تحديد أي جزء من النص.
    - يجب أن تظهر في النتيجة «✓ تم الجزء N من 5». إن ظهر خطأ فالنص لم يُنسخ كاملاً: أعد نسخ نفس الجزء وشغّله (آمن لإعادة التشغيل).
 3. سيُطلب من الجميع تسجيل الدخول مرة واحدة من جديد، بنفس كلمات المرور.

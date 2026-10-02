@@ -1,0 +1,54 @@
+# تشغيل ملفات SQL على Supabase بزر واحد (بدلاً من نسخها في SQL Editor)
+# Actions ← Supabase migrate ← Run workflow ← اختر الملف ← Run
+#
+# يتطلب سرّاً واحداً: SUPABASE_DB_URL
+#   Supabase ← زر Connect ← Session pooler ← انسخ الرابط وضع كلمة مرور قاعدة البيانات مكان [YOUR-PASSWORD]
+#   (رابط Session pooler وليس Direct connection، لأن خوادم GitHub لا تدعم IPv6)
+#
+# كل ملف يُنفَّذ في معاملة واحدة: إما ينجح كاملاً أو لا يتغير شيء.
+name: Supabase migrate
+
+on:
+  workflow_dispatch:
+    inputs:
+      file:
+        description: 'الملف المطلوب تشغيله'
+        required: true
+        type: choice
+        options:
+          - supabase/migrations/002_users_columns.sql
+          - supabase/migrations/003_security_all.sql
+          - supabase/migrations/003_rollback.sql
+
+jobs:
+  migrate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check connection
+        env:
+          DATABASE_URL: ${{ secrets.SUPABASE_DB_URL }}
+        run: |
+          test -n "$DATABASE_URL" || { echo "::error::السر SUPABASE_DB_URL غير موجود"; exit 1; }
+          psql "$DATABASE_URL" -tAc "select 'connected as ' || current_user"
+      - name: Run ${{ inputs.file }}
+        env:
+          DATABASE_URL: ${{ secrets.SUPABASE_DB_URL }}
+        run: |
+          # 002 فيه ALTER TYPE الذي لا يعمل داخل معاملة، فيُشغَّل بدونها (وهو آمن لإعادة التشغيل)
+          if [ "${{ inputs.file }}" = "supabase/migrations/002_users_columns.sql" ]; then
+            psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f "${{ inputs.file }}"
+          else
+            psql "$DATABASE_URL" -v ON_ERROR_STOP=1 --single-transaction -f "${{ inputs.file }}"
+          fi
+      - name: Verify
+        if: inputs.file == 'supabase/migrations/003_security_all.sql'
+        env:
+          DATABASE_URL: ${{ secrets.SUPABASE_DB_URL }}
+        run: |
+          psql "$DATABASE_URL" -tA <<'SQL'
+          select 'users with plaintext password: ' || count(*) filter (where password is not null) || ' / ' || count(*) from public.users;
+          select 'hashed passwords: ' || count(*) from itqan.credentials;
+          select 'policies: ' || count(*) from pg_policies where schemaname = 'public';
+          select 'login function: ' || (to_regproc('public.itqan_login') is not null);
+          SQL
