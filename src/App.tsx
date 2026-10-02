@@ -68,6 +68,21 @@ const AppContent: React.FC = () => {
     );
   }
 
+  // صفحات تتطلب صلاحية أو بيانات مسبقة: إن لم تتوفر نعيد المستخدم للوحة التحكم بدل شاشة فارغة
+  const isStaff = currentUser.role !== 'student';
+  const viewGuards: Record<string, boolean> = {
+    take_quiz: !!activeQuizId,
+    quiz_review: !!activeSubmissionId,
+    my_points: currentUser.role === 'student',
+    leaderboard: hasPerm(currentUser, 'can_view_leaderboard'),
+    approvals: hasPerm(currentUser, 'can_approve_quizzes'),
+    activity_log: hasPerm(currentUser, 'can_view_activity_log'),
+    settings: currentUser.role === 'admin',
+    quiz_results: isStaff,
+    quiz_preview: isStaff,
+  };
+  const viewAvailable = KNOWN_VIEWS.includes(currentView) && viewGuards[currentView] !== false;
+
   // Handle student starting a quiz
   const handleStartQuiz = (quizId: string) => {
     setActiveQuizId(quizId);
@@ -157,7 +172,7 @@ const AppContent: React.FC = () => {
         {currentView === 'quiz_preview' && currentUser.role !== 'student' && <QuizPreview />}
 
         {/* حماية من الشاشة البيضاء: أي صفحة غير معروفة تعيد المستخدم للوحة التحكم */}
-        {!KNOWN_VIEWS.includes(currentView) && <UnknownViewRedirect />}
+        {!viewAvailable && <UnknownViewRedirect />}
 
         {/* View 7: Quizzes Bank View */}
         {currentView === 'quizzes' && (

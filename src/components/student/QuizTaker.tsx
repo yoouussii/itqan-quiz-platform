@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   Clock,
   ArrowRight,
@@ -10,8 +10,11 @@ import {
   BookOpen,
 } from 'lucide-react';
 import { StorageService } from '../../services/storage';
-import { useApp } from '../../context/AppContext';
+import { useApp, QuizAttemptAnswer } from '../../context/AppContext';
 import { RichText } from '../common/RichText';
+import { Question } from '../../types';
+
+const subKey = (questionId: string, subId: string) => `${questionId}::${subId}`;
 
 interface QuizTakerProps {
   quizId: string;
@@ -26,31 +29,32 @@ export const QuizTaker: React.FC<QuizTakerProps> = ({ quizId, onFinish, onCancel
 
   const [hasStarted, setHasStarted] = useState(false);
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
+  // الاختيارات والإجابات النصية؛ مفتاح السؤال الفرعي: subKey(معرّف القطعة، معرّف السؤال الفرعي)
   const [userAnswers, setUserAnswers] = useState<Record<string, number | null>>({});
+  const [textAnswers, setTextAnswers] = useState<Record<string, string>>({});
   const [flaggedQuestions, setFlaggedQuestions] = useState<Record<string, boolean>>({});
   const [secondsRemaining, setSecondsRemaining] = useState(
     (quiz?.duration_minutes || 20) * 60
   );
   const [showConfirmModal, setShowConfirmModal] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
   const [startTime, setStartTime] = useState<number>(Date.now());
+  const submittedRef = useRef(false);
 
   // Countdown timer
   useEffect(() => {
     if (!hasStarted) return;
-
     const timer = setInterval(() => {
-      setSecondsRemaining((prev) => {
-        if (prev <= 1) {
-          clearInterval(timer);
-          handleFinalSubmit();
-          return 0;
-        }
-        return prev - 1;
-      });
+      setSecondsRemaining((prev) => Math.max(0, prev - 1));
     }, 1000);
-
     return () => clearInterval(timer);
   }, [hasStarted]);
+
+  // التسليم التلقائي عند انتهاء الوقت (يستخدم أحدث الإجابات عبر المرجع)
+  const finalSubmitRef = useRef<() => void>(() => undefined);
+  useEffect(() => {
+    if (hasStarted && secondsRemaining === 0) finalSubmitRef.current();
+  }, [hasStarted, secondsRemaining]);
 
   if (!quiz || questions.length === 0) {
     return (
@@ -67,7 +71,19 @@ export const QuizTaker: React.FC<QuizTakerProps> = ({ quizId, onFinish, onCancel
   }
 
   const currentQ = questions[currentQuestionIndex];
-  const answeredCount = Object.values(userAnswers).filter((v) => v !== null).length;
+
+  const hasAnswer = (key: string, type?: string) =>
+    type === 'essay'
+      ? !!(textAnswers[key] || '').trim()
+      : userAnswers[key] !== undefined && userAnswers[key] !== null;
+
+  const isQuestionAnswered = (q: Question) =>
+    q.type === 'passage'
+      ? (q.sub_questions || []).length > 0 &&
+        (q.sub_questions || []).every((sq) => hasAnswer(subKey(q.id, sq.id), sq.type))
+      : hasAnswer(q.id, q.type);
+
+  const answeredCount = questions.filter(isQuestionAnswered).length;
   const progressPercentage = Math.round((answeredCount / questions.length) * 100);
 
   const formatTimer = (totalSeconds: number) => {
@@ -78,11 +94,12 @@ export const QuizTaker: React.FC<QuizTakerProps> = ({ quizId, onFinish, onCancel
 
   const isLowTime = secondsRemaining < 120;
 
-  const handleSelectOption = (optIdx: number) => {
-    setUserAnswers({
-      ...userAnswers,
-      [currentQ.id]: optIdx,
-    });
+  const handleSelectOption = (key: string, optIdx: number) => {
+    setUserAnswers((prev) => ({ ...prev, [key]: optIdx }));
+  };
+
+  const handleTextChange = (key: string, text: string) => {
+    setTextAnswers((prev) => ({ ...prev, [key]: text }));
   };
 
   const toggleFlag = (qId: string) => {
@@ -92,16 +109,100 @@ export const QuizTaker: React.FC<QuizTakerProps> = ({ quizId, onFinish, onCancel
     });
   };
 
-  const handleFinalSubmit = () => {
+  const handleFinalSubmit = async () => {
+    if (submittedRef.current) return; // منع التسليم المزدوج (زر + انتهاء الوقت)
+    submittedRef.current = true;
+    setSubmitting(true);
     const timeSpent = Math.round((Date.now() - startTime) / 1000);
-    const answersArray = questions.map((q) => ({
+    const answersArray: QuizAttemptAnswer[] = questions.map((q) => ({
       question_id: q.id,
-      selected_option: userAnswers[q.id] !== undefined ? userAnswers[q.id] : null,
+      selected_option: userAnswers[q.id] ?? null,
+      text_answer: textAnswers[q.id]?.trim() || undefined,
+      sub_answers:
+        q.type === 'passage'
+          ? (q.sub_questions || []).map((sq) => ({
+              sub_question_id: sq.id,
+              selected_option: userAnswers[subKey(q.id, sq.id)] ?? null,
+              text_answer: textAnswers[subKey(q.id, sq.id)]?.trim() || undefined,
+            }))
+          : undefined,
     }));
 
-    const submission = submitQuizAttempt(quiz.id, answersArray, timeSpent);
-    onFinish(submission.id);
+    try {
+      const submission = await submitQuizAttempt(quiz.id, answersArray, timeSpent);
+      // null: حُفظت المحاولة للإرسال لاحقاً أو رفضها الخادم (رسالة السبب ظاهرة)
+      if (submission) onFinish(submission.id);
+      else onCancel();
+    } catch (e) {
+      submittedRef.current = false;
+      setSubmitting(false);
+      throw e;
+    }
   };
+  finalSubmitRef.current = () => void handleFinalSubmit();
+
+  const optionLetters = ['أ', 'ب', 'ج', 'د'];
+
+  const renderOptions = (key: string, options: string[], compact = false) => (
+    <div className={compact ? 'space-y-2' : 'space-y-3 mb-8'}>
+      {options.map((optionText, optIdx) => {
+        const isSelected = userAnswers[key] === optIdx;
+        return (
+          <div
+            key={optIdx}
+            onClick={() => handleSelectOption(key, optIdx)}
+            className={`${compact ? 'p-3 rounded-xl' : 'p-4 rounded-2xl'} border-2 cursor-pointer transition-all flex items-center justify-between group ${
+              isSelected
+                ? 'border-indigo-600 bg-indigo-50/70 dark:bg-indigo-950/70 shadow-sm ring-1 ring-indigo-500'
+                : 'border-slate-200 dark:border-slate-700 hover:border-indigo-200 hover:bg-slate-50/60 dark:hover:bg-slate-800/60'
+            }`}
+          >
+            <div className="flex items-center gap-3.5">
+              <span
+                className={`w-8 h-8 rounded-xl text-xs font-bold flex items-center justify-center transition-colors ${
+                  isSelected
+                    ? 'bg-indigo-600 text-white shadow-sm'
+                    : 'bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-300 group-hover:bg-indigo-100 group-hover:text-indigo-700'
+                }`}
+              >
+                {optionLetters[optIdx] || optIdx + 1}
+              </span>
+              <span
+                className={`text-sm ${
+                  isSelected ? 'font-bold text-indigo-950 dark:text-indigo-200' : 'text-slate-800 dark:text-slate-200 font-medium'
+                }`}
+              >
+                <RichText html={optionText} inline />
+              </span>
+            </div>
+
+            <div
+              className={`w-5 h-5 rounded-full border-2 flex items-center justify-center ${
+                isSelected
+                  ? 'border-indigo-600 bg-indigo-600'
+                  : 'border-slate-300 dark:border-slate-600 group-hover:border-indigo-400'
+              }`}
+            >
+              {isSelected && <div className="w-2 h-2 rounded-full bg-white" />}
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+
+  const renderEssay = (key: string, compact = false) => (
+    <div className={compact ? '' : 'mb-8'}>
+      <textarea
+        value={textAnswers[key] || ''}
+        onChange={(e) => handleTextChange(key, e.target.value)}
+        rows={compact ? 3 : 6}
+        placeholder="اكتب إجابتك هنا..."
+        className="w-full p-4 rounded-2xl border-2 border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm text-slate-800 dark:text-slate-200 focus:border-indigo-500 focus:outline-none transition-colors"
+      />
+      <p className="text-[11px] text-slate-400 mt-1">سؤال مقالي: يصحّحه المعلم يدوياً بعد التسليم.</p>
+    </div>
+  );
 
   // Pre-test Briefing Screen
   if (!hasStarted) {
@@ -283,54 +384,35 @@ export const QuizTaker: React.FC<QuizTakerProps> = ({ quizId, onFinish, onCancel
             </h3>
           </div>
 
-          {/* Options */}
-          <div className="space-y-3 mb-8">
-            {(currentQ.options || []).map((optionText, optIdx) => {
-              const isSelected = userAnswers[currentQ.id] === optIdx;
-              const optionLetters = ['أ', 'ب', 'ج', 'د'];
-
-              return (
-                <div
-                  key={optIdx}
-                  onClick={() => handleSelectOption(optIdx)}
-                  className={`p-4 rounded-2xl border-2 cursor-pointer transition-all flex items-center justify-between group ${
-                    isSelected
-                      ? 'border-indigo-600 bg-indigo-50/70 dark:bg-indigo-950/70 shadow-sm ring-1 ring-indigo-500'
-                      : 'border-slate-200 dark:border-slate-700 hover:border-indigo-200 hover:bg-slate-50/60 dark:hover:bg-slate-800/60'
-                  }`}
-                >
-                  <div className="flex items-center gap-3.5">
-                    <span
-                      className={`w-8 h-8 rounded-xl text-xs font-bold flex items-center justify-center transition-colors ${
-                        isSelected
-                          ? 'bg-indigo-600 text-white shadow-sm'
-                          : 'bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-300 group-hover:bg-indigo-100 group-hover:text-indigo-700'
-                      }`}
-                    >
-                      {optionLetters[optIdx] || optIdx + 1}
-                    </span>
-                    <span
-                      className={`text-sm ${
-                        isSelected ? 'font-bold text-indigo-950 dark:text-indigo-200' : 'text-slate-800 dark:text-slate-200 font-medium'
-                      }`}
-                    >
-                      <RichText html={optionText} inline />
-                    </span>
-                  </div>
-
+          {/* Answer area: options / essay / passage sub-questions */}
+          {currentQ.type === 'passage' ? (
+            <div className="space-y-5 mb-8">
+              {(currentQ.sub_questions || []).map((sq, sqIdx) => {
+                const key = subKey(currentQ.id, sq.id);
+                return (
                   <div
-                    className={`w-5 h-5 rounded-full border-2 flex items-center justify-center ${
-                      isSelected
-                        ? 'border-indigo-600 bg-indigo-600'
-                        : 'border-slate-300 dark:border-slate-600 group-hover:border-indigo-400'
-                    }`}
+                    key={sq.id}
+                    className="p-4 rounded-2xl border border-slate-200 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-800/40"
                   >
-                    {isSelected && <div className="w-2 h-2 rounded-full bg-white" />}
+                    <div className="flex items-start justify-between gap-3 mb-3">
+                      <div className="flex items-start gap-2 text-sm font-bold text-slate-800 dark:text-slate-200">
+                        <span className="text-indigo-600 dark:text-indigo-400">{sqIdx + 1}.</span>
+                        <RichText html={sq.question_text} />
+                      </div>
+                      <span className="shrink-0 text-[11px] font-bold text-indigo-700 dark:text-indigo-300">
+                        +{sq.marks}
+                      </span>
+                    </div>
+                    {sq.type === 'essay' ? renderEssay(key, true) : renderOptions(key, sq.options || [], true)}
                   </div>
-                </div>
-              );
-            })}
-          </div>
+                );
+              })}
+            </div>
+          ) : currentQ.type === 'essay' ? (
+            renderEssay(currentQ.id)
+          ) : (
+            renderOptions(currentQ.id, currentQ.options || [])
+          )}
 
           {/* Stepper Navigation Buttons */}
           <div className="flex items-center justify-between pt-6 border-t border-slate-100 dark:border-slate-800">
@@ -373,7 +455,7 @@ export const QuizTaker: React.FC<QuizTakerProps> = ({ quizId, onFinish, onCancel
 
           <div className="grid grid-cols-4 sm:grid-cols-5 lg:grid-cols-4 gap-2 mb-6">
             {questions.map((q, idx) => {
-              const isAnswered = userAnswers[q.id] !== undefined && userAnswers[q.id] !== null;
+              const isAnswered = isQuestionAnswered(q);
               const isCurrent = currentQuestionIndex === idx;
               const isFlagged = flaggedQuestions[q.id];
 
@@ -424,6 +506,14 @@ export const QuizTaker: React.FC<QuizTakerProps> = ({ quizId, onFinish, onCancel
         </div>
       </div>
 
+      {submitting && !showConfirmModal && (
+        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-white dark:bg-slate-900 rounded-3xl px-8 py-6 text-sm font-bold text-slate-800 dark:text-white shadow-2xl">
+            جارٍ تسليم الاختبار وتصحيحه...
+          </div>
+        </div>
+      )}
+
       {/* Confirmation Modal */}
       {showConfirmModal && (
         <div className="fixed inset-0 z-50 overflow-y-auto bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4">
@@ -452,10 +542,11 @@ export const QuizTaker: React.FC<QuizTakerProps> = ({ quizId, onFinish, onCancel
                 العودة للأسئلة
               </button>
               <button
-                onClick={handleFinalSubmit}
-                className="px-6 py-2.5 rounded-xl text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white shadow-md shadow-emerald-600/30 transition-all"
+                onClick={() => void handleFinalSubmit()}
+                disabled={submitting}
+                className="px-6 py-2.5 rounded-xl text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white shadow-md shadow-emerald-600/30 transition-all disabled:opacity-60"
               >
-                نعم، اعتمد التسليم فوراً
+                {submitting ? 'جارٍ التسليم والتصحيح...' : 'نعم، اعتمد التسليم فوراً'}
               </button>
             </div>
           </div>

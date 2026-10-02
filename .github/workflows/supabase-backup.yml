@@ -1,0 +1,38 @@
+# نسخة احتياطية أسبوعية مشفّرة لبيانات Supabase (مجانية عبر GitHub Actions)
+# الملف المشفّر يُحفظ 90 يوماً في صفحة التشغيل (Actions ← Supabase backup ← Artifacts)
+# فك التشفير: gpg -d itqan-backup.tar.gz.gpg > backup.tar.gz && tar xzf backup.tar.gz
+name: Supabase backup
+
+on:
+  schedule:
+    - cron: '43 1 * * 5' # كل جمعة
+  workflow_dispatch:
+
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Export tables
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          # مفتاح service_role (يتجاوز سياسات الحماية) — من Supabase: Project Settings ← API
+          SUPABASE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        run: node scripts/backup-supabase.mjs backup
+      - name: Compress and encrypt
+        env:
+          BACKUP_PASSPHRASE: ${{ secrets.BACKUP_PASSPHRASE }}
+        run: |
+          test -n "$BACKUP_PASSPHRASE" || { echo "BACKUP_PASSPHRASE secret is missing"; exit 1; }
+          tar czf itqan-backup.tar.gz backup
+          gpg --batch --yes --pinentry-mode loopback --passphrase "$BACKUP_PASSPHRASE" \
+            --symmetric --cipher-algo AES256 -o itqan-backup.tar.gz.gpg itqan-backup.tar.gz
+          rm -rf backup itqan-backup.tar.gz
+      - uses: actions/upload-artifact@v4
+        with:
+          name: itqan-backup-${{ github.run_number }}
+          path: itqan-backup.tar.gz.gpg
+          retention-days: 90

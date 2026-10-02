@@ -55,6 +55,32 @@
 
 ## 💻 التشغيل والتطوير المحلي
 
+### ربط Supabase
+1. انسخ `.env.example` إلى `.env` وضع فيه `VITE_SUPABASE_URL` و`VITE_SUPABASE_ANON_KEY`.
+2. من **SQL Editor** في لوحة Supabase شغّل:
+   - `supabase/migrations/002_users_columns.sql`: **مطلوب** لحفظ إسنادات وصلاحيات المشرف والمعلم على الخادم (يضيف الأعمدة الناقصة ويسمح بدور `supervisor`).
+   - `supabase/migrations/001_v8_tables.sql`: للتثبيت الجديد فقط (جداول الإشعارات والسجل والجوائز والإعدادات والصور). إن كانت موجودة عندك فلا حاجة له.
+
+### تفعيل الحماية (supabase/migrations/003_security)
+1. انشر نسخة الموقع الجديدة أولاً (تعمل قبل الملف وبعده).
+2. **الطريقة الموصى بها:** من GitHub ← Actions ← **Supabase migrate** ← Run workflow ← اختر `003_security_all.sql` (يتطلب السر `SUPABASE_DB_URL`: رابط Session pooler من زر Connect في Supabase). يعمل في معاملة واحدة: ينجح كاملاً أو لا يتغير شيء.
+   أو يدوياً: شغّل الملف الكامل `supabase/migrations/003_security_all.sql` في استعلام واحد، أو بدلاً منه الأجزاء `part1.sql` ← `part5.sql` من مجلد `supabase/migrations/003_security` بالترتيب، كل جزء في استعلام جديد (New query) في SQL Editor:
+   - افتح الملف على GitHub ← زر **Raw** ← `Ctrl+A` ثم `Ctrl+C`، والصقه في استعلام فارغ ثم **Run** دون تحديد أي جزء من النص.
+   - يجب أن تظهر في النتيجة «✓ تم الجزء N من 5». إن ظهر خطأ فالنص لم يُنسخ كاملاً: أعد نسخ نفس الجزء وشغّله (آمن لإعادة التشغيل).
+3. سيُطلب من الجميع تسجيل الدخول مرة واحدة من جديد، بنفس كلمات المرور.
+4. تأكد من الدخول بحساب مدير وطالب. عند أي مشكلة: شغّل `003_rollback.sql` (يوقف سياسات الحماية فقط).
+
+بعد التفعيل: كلمات المرور مشفّرة، والطالب لا يرى إلا بياناته، والتصحيح على الخادم، والإجابات النموذجية مخفية حتى التسليم.
+
+### تشغيل مجاني بدون باقة Pro (GitHub Actions)
+أضف من **Settings ← Secrets and variables ← Actions** في GitHub:
+`SUPABASE_URL` و`SUPABASE_ANON_KEY` و`SUPABASE_SERVICE_ROLE_KEY` (من Supabase: Project Settings ← API؛ سرّي جداً ولا يوضع في الموقع) و`BACKUP_PASSPHRASE` (كلمة سر طويلة تحفظها عندك لفك النسخ).
+- **Supabase keep-alive**: يتصل بالمشروع كل 3 أيام فلا تُوقفه الخطة المجانية في الإجازات.
+- **Supabase backup**: نسخة احتياطية مشفّرة كل جمعة تُحفظ 90 يوماً في صفحة Actions. فك التشفير:
+  `gpg -d itqan-backup.tar.gz.gpg > backup.tar.gz && tar xzf backup.tar.gz`
+
+ملاحظة: المهام المجدولة تعمل من الفرع الرئيسي فقط، ويُوقفها GitHub إن مرّ 60 يوماً بلا أي تعديل على المستودع (يُعاد تفعيلها بزر من صفحة Actions).
+
 ```bash
 # تثبيت الاعتماديات
 npm install

@@ -16,6 +16,8 @@ import {
   QuizWithDetails,
   Submission,
   SubmissionWithDetails,
+  AnswerItem,
+  SubAnswerItem,
 } from '../types';
 import {
   StorageService,
@@ -36,13 +38,24 @@ import { AppSettings, loadSettings, syncSettings, saveSettings } from '../servic
 import { StudentAward } from '../utils/points';
 import { describeQuizTarget } from '../utils/quizTarget';
 import { formatQuizDateTime } from '../utils/quizWindow';
-import { supabase, isSupabaseConfigured } from '../services/supabase';
+import {
+  supabase,
+  isSupabaseConfigured,
+  getSessionToken,
+  getSessionInfo,
+  setServerSession,
+  updateSessionInfo,
+  isMissingRpc,
+} from '../services/supabase';
 import {
   pushQuiz,
   pullQuizzes,
   pushSubmission,
   pullSubmissions,
   flushPending,
+  submitAttemptRemote,
+  queueAttempt,
+  QuizAttempt,
 } from '../services/quizSync';
 
 // ---------------------------------------------------------------------
@@ -51,8 +64,10 @@ import {
 /** مدة الجلسة القصوى بالساعات؛ بعدها يُطلب من المستخدم تسجيل الدخول من جديد */
 const SESSION_MAX_HOURS = 12;
 const SESSION_KEY = 'itqan_session_started_at';
-/** كل كم ثانية يُحدَّث المحتوى تلقائياً من Supabase */
+/** كل كم ثانية يُحدَّث المحتوى تلقائياً من Supabase.
+ *  الطلاب كل 3 دقائق لتقليل استهلاك حد التنزيل في الخطة المجانية (الطاقم كل 30 ثانية) */
 const AUTO_REFRESH_SECONDS = 30;
+const STUDENT_REFRESH_SECONDS = 180;
 
 const LS_USERS = 'itqan_users_v2';
 const LS_SUBJECTS = 'itqan_subjects_v2';
@@ -65,6 +80,14 @@ export interface ToastMessage {
 }
 
 type Kpis = ReturnType<typeof StorageService.getDynamicKPIs>;
+
+/** إجابة الطالب كما تُرسل من شاشة الاختبار قبل التصحيح */
+export interface QuizAttemptAnswer {
+  question_id: string;
+  selected_option: number | null;
+  text_answer?: string;
+  sub_answers?: Array<{ sub_question_id: string; selected_option: number | null; text_answer?: string }>;
+}
 
 export interface SyncOutcome {
   /** هل وصل الحفظ إلى Supabase فعلاً؟ */
@@ -94,6 +117,8 @@ interface AppContextType {
   settings: AppSettings;
   updateSettings: (patch: Partial<AppSettings>) => Promise<void>;
   changeMyPassword: (current: string, next: string) => Promise<{ ok: boolean; error?: string }>;
+  /** المستخدم الحالي ما زال يستخدم كلمة المرور الافتراضية (يُطلب منه تغييرها) */
+  passwordIsDefault: boolean;
   approveQuiz: (id: string) => Promise<void>;
   rejectQuiz: (id: string, reason: string) => Promise<void>;
   pendingApprovalsCount: number;
@@ -136,11 +161,12 @@ interface AppContextType {
   allowStudentRetake: (quizId: string, studentId: string) => void;
   revokeStudentRetake: (quizId: string, studentId: string) => void;
   reassignQuizToTeacher: (quizId: string, newTeacherId: string) => boolean;
+  /** يُرجع التسليم المصحَّح، أو null إذا لم يكتمل (حُفظ للإرسال لاحقاً أو رُفض) */
   submitQuizAttempt: (
     quizId: string,
-    answers: Array<{ question_id: string; selected_option: number | null }>,
+    answers: QuizAttemptAnswer[],
     timeSpentSeconds: number
-  ) => Submission;
+  ) => Promise<Submission | null>;
 
   addUser: (userData: any) => Promise<User>;
   updateUserData: (id: string, updates: Partial<User>) => Promise<void>;
@@ -318,9 +344,23 @@ function restoreViewState(u: User | null) {
 // مزامنة المستخدمين والمواد والفصول (نفس المنطق السابق)
 // ---------------------------------------------------------------------
 async function syncUsersFromSupabase(): Promise<void> {
-  const local = StorageService.getUsers().map(normalizeUser);
   const { data, error } = await supabase.from('users').select('*');
   if (error || !Array.isArray(data)) return;
+
+  const secure = !!getSessionToken();
+  if (secure) {
+    // الوضع الآمن: الخادم هو المرجع، ولا نحتفظ بكلمات مرور على الجهاز.
+    // نستبدل النسخة المحلية كاملة: الطالب يستلم حسابه فقط فتُحذف بيانات زملائه القديمة،
+    // والمحذوفون من جهاز آخر لا يعودون للظهور.
+    const remote = (data as any[]).map((r) => {
+      const { password: _pw, ...rest } = normalizeUser(r) as any;
+      return rest as User;
+    });
+    localStorage.setItem(LS_USERS, JSON.stringify(remote));
+    return;
+  }
+
+  const local = StorageService.getUsers().map(normalizeUser);
 
   const deleted = StorageService.getDeletedUserIds();
   const findRemote = (u: User) =>
@@ -500,6 +540,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [duplicateQuizId, setDuplicateQuizId] = useState<string | null>(null);
   const [activeSubmissionId, setActiveSubmissionId] = useState<string | null>(restored.activeSubmissionId);
   const [toastMessage, setToastMessage] = useState<ToastMessage | null>(null);
+  const [passwordIsDefault, setPasswordIsDefault] = useState<boolean>(() => !!getSessionInfo()?.password_is_default);
   const [avatars, setAvatars] = useState<Record<string, string>>(() => avatarMapFromCache(loadAvatarCache()));
 
   const [quizzes, setQuizzes] = useState<QuizWithDetails[]>(() => computeQuizzes(currentUser));
@@ -551,9 +592,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentUser?.id, currentView, activeQuizId, activeSubmissionId, editingQuizId]);
 
+  const toastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const showToast = useCallback((text: string, type: ToastType = 'success') => {
     setToastMessage({ text, type });
-    setTimeout(() => setToastMessage(null), 4000);
+    // إلغاء مؤقت التنبيه السابق حتى لا يُخفي التنبيه الجديد قبل أوانه
+    if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
+    toastTimerRef.current = setTimeout(() => setToastMessage(null), 4000);
   }, []);
 
   /** إعادة حساب القوائم من النسخة المحلية فوراً (بدون شبكة) */
@@ -571,7 +615,23 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const refreshData = useCallback(async () => {
     if (refreshingRef.current) return;
     refreshingRef.current = true;
+    // دور صاحب الجلسة على الخادم (قد يختلف عن المستخدم المعروض عند «تبديل الحساب» للمعاينة)
+    let serverRole: string | undefined;
     try {
+      if (isSupabaseConfigured() && currentUserRef.current) {
+        // التحقق من الجلسة على الخادم: انتهت أو أُلغيت (تغيير كلمة المرور / حذف الحساب)
+        // أو جلسة قديمة من قبل تفعيل الحماية ← إعادة تسجيل الدخول
+        try {
+          const { data, error } = await supabase.rpc('itqan_session_user');
+          if (!error && !data) {
+            logoutRef.current('انتهت الجلسة، يرجى تسجيل الدخول من جديد');
+            return;
+          }
+          if (!error && data) serverRole = data.role;
+        } catch {
+          /* انقطاع الشبكة: نكمل بالنسخة المحلية */
+        }
+      }
       if (isSupabaseConfigured()) {
         try {
           await syncUsersFromSupabase();
@@ -582,8 +642,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         }
         const me = currentUserRef.current;
         try {
-          await flushPending();
-          await pullQuizzes(me);
+          await flushPending(me);
+          await pullQuizzes(me, serverRole);
           await pullSubmissions(me);
         } catch (e) {
           console.warn('[refreshData] quizzes/submissions sync failed:', e);
@@ -637,6 +697,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   }, [recompute, showToast]);
 
+  const logoutRef = useRef<(message?: string) => void>(() => undefined);
+
   // تحديث فوري عند تسجيل الدخول أو تغيّر المستخدم
   useEffect(() => {
     void refreshData();
@@ -647,11 +709,20 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     (message = 'تم تسجيل الخروج بنجاح') => {
       localStorage.removeItem('itqan_current_user_id_v2');
       localStorage.removeItem(SESSION_KEY);
+      const oldToken = getSessionToken();
+      if (oldToken) {
+        StorageService.clearCachedDataForLogout();
+        // إنهاء الجلسة على الخادم ثم حذف الرمز من الجهاز (إلا إذا سجّل مستخدم آخر الدخول في الأثناء)
+        void Promise.resolve(supabase.rpc('itqan_logout')).finally(() => {
+          if (getSessionToken() === oldToken) setServerSession(null);
+        });
+      }
       clearBrowserSession();
       void supabase.auth.signOut().catch(() => undefined);
 
       seenNotifRef.current = null;
       currentUserRef.current = null;
+      setPasswordIsDefault(false);
       setCurrentUserState(null);
       setActiveQuizId(null);
       setActiveSubmissionId(null);
@@ -664,11 +735,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     [showToast]
   );
 
+  logoutRef.current = logout;
+
   // تحديث تلقائي دوري + عند العودة للتبويب + فحص انتهاء الجلسة
   useEffect(() => {
     if (!currentUser) return;
 
+    let lastTick = Date.now();
     const tick = () => {
+      lastTick = Date.now();
       if (isSessionExpired() && currentViewRef.current !== 'take_quiz') {
         logout('انتهت الجلسة، يرجى تسجيل الدخول من جديد');
         return;
@@ -679,9 +754,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       }
     };
 
-    const interval = setInterval(tick, AUTO_REFRESH_SECONDS * 1000);
+    const everySeconds = currentUser.role === 'student' ? STUDENT_REFRESH_SECONDS : AUTO_REFRESH_SECONDS;
+    const interval = setInterval(tick, everySeconds * 1000);
     const onVisible = () => {
-      if (document.visibilityState === 'visible') tick();
+      // العودة للتبويب تُحدّث البيانات، لكن مرة واحدة كل 30 ثانية على الأكثر
+      if (document.visibilityState === 'visible' && Date.now() - lastTick > 30_000) tick();
     };
     document.addEventListener('visibilitychange', onVisible);
     window.addEventListener('focus', onVisible);
@@ -691,7 +768,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       document.removeEventListener('visibilitychange', onVisible);
       window.removeEventListener('focus', onVisible);
     };
-  }, [currentUser?.id, logout, refreshData]);
+  }, [currentUser?.id, currentUser?.role, logout, refreshData]);
 
   // ---------------- تسجيل الدخول ----------------
   const startSession = (user: User) => {
@@ -704,10 +781,52 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     showToast(`مرحباً بك يا ${user.name}`, 'success');
   };
 
+  /** حفظ بيانات المستخدم القادمة من الخادم في النسخة المحلية */
+  const cacheUser = (user: User) => {
+    const all = StorageService.getUsers();
+    const idx = all.findIndex((u) => u.id === user.id || (!!user.national_id && u.national_id === user.national_id));
+    if (idx >= 0) all[idx] = { ...all[idx], ...user };
+    else all.push(user);
+    localStorage.setItem(LS_USERS, JSON.stringify(all));
+  };
+
   const login = async (nationalId: string, password: string): Promise<boolean> => {
     const id = nationalId.trim();
+
+    // الدخول الآمن: التحقق على الخادم (كلمات المرور مشفّرة ولا تصل للمتصفح)
+    if (isSupabaseConfigured()) {
+      try {
+        const { data, error } = await supabase.rpc('itqan_login', { p_national_id: id, p_password: password });
+        if (!error && data) {
+          if (data.ok) {
+            setServerSession(data.token, { expires_at: data.expires_at, password_is_default: !!data.password_is_default });
+            setPasswordIsDefault(!!data.password_is_default);
+            const user = normalizeUser(data.user);
+            cacheUser(user);
+            startSession(user);
+            return true;
+          }
+          showToast(
+            data.error === 'locked'
+              ? `تم إيقاف الدخول مؤقتاً بسبب محاولات خاطئة متكررة. حاول بعد ${Math.ceil((data.retry_after_seconds || 600) / 60)} دقائق`
+              : 'رقم الهوية / الرقم الأكاديمي أو كلمة المرور غير صحيحة',
+            'error'
+          );
+          return false;
+        }
+        if (error && !isMissingRpc(error)) {
+          showToast(`تعذر الاتصال بالخادم (${error.message})`, 'error');
+          return false;
+        }
+        // دوال الحماية غير موجودة بعد (لم يُشغَّل ملفات 003_security): نكمل بالطريقة القديمة
+      } catch (e: any) {
+        showToast('تعذر الاتصال بالخادم، تحقق من الإنترنت', 'error');
+        return false;
+      }
+    }
+
     const local = StorageService.authenticate(id, password);
-    if (local) {
+    if (local && local.password) {
       startSession(normalizeUser(local));
       return true;
     }
@@ -722,15 +841,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           .maybeSingle();
         if (data && !error) {
           const user = normalizeUser(data);
-          const all = StorageService.getUsers();
-          const idx = all.findIndex(
-            (u) =>
-              (data.id && u.id === data.id) ||
-              (data.national_id && u.national_id === data.national_id)
-          );
-          if (idx >= 0) all[idx] = { ...all[idx], ...user };
-          else all.push(user);
-          localStorage.setItem(LS_USERS, JSON.stringify(all));
+          cacheUser(user);
           startSession(user);
           return true;
         }
@@ -879,7 +990,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   /** تسليم اختبار الطالب: يُحفظ محلياً فوراً ثم يُرسل للخادم في الخلفية */
-  const submitQuizAttempt: AppContextType['submitQuizAttempt'] = (
+  const submitQuizAttempt: AppContextType['submitQuizAttempt'] = async (
     quizId,
     answers,
     timeSpentSeconds
@@ -887,27 +998,106 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const me = currentUserRef.current;
     if (!me) throw new Error('لا يوجد مستخدم مسجل');
 
+    // الوضع الآمن: الخادم يصحّح (لا يمكن للطالب إرسال درجة جاهزة)
+    if (getSessionToken()) {
+      const attempt: QuizAttempt = {
+        client_id: `sub-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+        student_id: me.id,
+        quiz_id: quizId,
+        answers,
+        time_spent: timeSpentSeconds,
+      };
+      const res = await submitAttemptRemote(attempt);
+      if (res.kind === 'ok') {
+        recompute();
+        const pct = res.submission.percentage;
+        showToast(`تم تسليم الاختبار! حصلت على ${pct}%`, pct >= 60 ? 'success' : 'info');
+        return res.submission;
+      }
+      if (res.kind === 'offline') {
+        queueAttempt(attempt);
+        showToast('حُفظت إجاباتك على جهازك وستُرسل للتصحيح تلقائياً عند عودة الاتصال. لا تحذف بيانات المتصفح.', 'info');
+        return null;
+      }
+      if (res.kind === 'rejected') {
+        recompute();
+        if (res.error === 'already_submitted' && res.submission) {
+          showToast('سبق أن سلّمت هذا الاختبار، هذه نتيجتك المسجلة', 'info');
+          return res.submission;
+        }
+        const msg: Record<string, string> = {
+          ended: 'انتهى وقت إتاحة الاختبار، لم يُقبل التسليم',
+          not_started: 'لم يبدأ وقت الاختبار بعد',
+          quiz_not_available: 'الاختبار لم يعد متاحاً لك',
+          quiz_not_found: 'الاختبار غير موجود',
+          no_session: 'انتهت الجلسة، سجّل الدخول من جديد ثم أعد المحاولة',
+        };
+        if (res.error === 'no_session') queueAttempt(attempt);
+        showToast(msg[res.error] || `تعذر تسليم الاختبار (${res.error})`, 'error');
+        return null;
+      }
+      // kind === 'legacy': دوال الحماية غير موجودة بعد، نكمل بالطريقة القديمة
+    }
+
     const quiz = StorageService.getQuizById(quizId);
     const questions: Question[] = StorageService.getQuestionsByQuizId(quizId);
     if (!quiz) throw new Error('الاختبار غير موجود');
 
     const isRetake = quiz.allowed_retake_student_ids?.includes(me.id) || false;
 
+    // الأسئلة المقالية لا تُصحَّح آلياً: تُحفظ الإجابة النصية بدرجة 0 لحين التصحيح اليدوي
+    const gradeChoice = (
+      item: { type?: string; correct_option_index?: number; marks: number },
+      selected: number | null | undefined
+    ) => {
+      const marks = Number(item.marks) || 0;
+      const isCorrect = item.type !== 'essay' && selected != null && selected === item.correct_option_index;
+      return { is_correct: isCorrect, marks_awarded: isCorrect ? marks : 0 };
+    };
+
     let totalScore = 0;
-    const graded = answers.map((a) => {
+    const graded: AnswerItem[] = answers.map((a) => {
       const q = questions.find((x) => x.id === a.question_id);
-      const isCorrect = q !== undefined && a.selected_option === q.correct_option_index;
-      const awarded = (isCorrect && q?.marks) || 0;
-      totalScore += awarded;
+      if (q?.type === 'passage') {
+        const subs = q.sub_questions || [];
+        const sub_answers: SubAnswerItem[] = subs.map((sq) => {
+          const sa = a.sub_answers?.find((x) => x.sub_question_id === sq.id);
+          return {
+            sub_question_id: sq.id,
+            selected_option: sa?.selected_option ?? null,
+            text_answer: sa?.text_answer || undefined,
+            ...gradeChoice(sq, sa?.selected_option),
+          };
+        });
+        const awarded = sub_answers.reduce((s, x) => s + (x.marks_awarded || 0), 0);
+        const possible = subs.reduce((s, sq) => s + (Number(sq.marks) || 0), 0);
+        totalScore += awarded;
+        return {
+          question_id: a.question_id,
+          selected_option: null,
+          is_correct: possible > 0 && awarded === possible,
+          marks_awarded: awarded,
+          sub_answers,
+        };
+      }
+      const res = q ? gradeChoice(q, a.selected_option) : { is_correct: false, marks_awarded: 0 };
+      totalScore += res.marks_awarded;
       return {
         question_id: a.question_id,
         selected_option: a.selected_option,
-        is_correct: isCorrect,
-        marks_awarded: awarded,
+        text_answer: a.text_answer || undefined,
+        ...res,
       };
     });
 
-    const totalPossible = questions.reduce((sum, q) => sum + q.marks, 0);
+    const totalPossible = questions.reduce(
+      (sum, q) =>
+        sum +
+        (q.type === 'passage'
+          ? (q.sub_questions || []).reduce((s, sq) => s + (Number(sq.marks) || 0), 0)
+          : Number(q.marks) || 0),
+      0
+    );
     const percentage = totalPossible > 0 ? Math.round((totalScore / totalPossible) * 100) : 0;
 
     const submission = StorageService.createSubmission({
@@ -968,6 +1158,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         : [...prev, normalized]
     );
 
+    let remoteFailure: string | null = null;
+    const droppedCols: string[] = [];
     if (isSupabaseConfigured()) {
       let payload: Record<string, any> = cleanUserPayloadForSupabase(created);
       for (let attempt = 0; attempt < 10; attempt++) {
@@ -982,9 +1174,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           const missing = extractMissingColumn(error.message || '');
           if (missing && missing in payload && !['id', 'name', 'role'].includes(missing)) {
             delete payload[missing];
+            droppedCols.push(missing);
             continue;
           }
           if (error.message?.includes('column') || error.code === 'PGRST204') {
+            droppedCols.push('الصلاحيات والإسنادات');
             payload = {
               id: created.id,
               name: created.name,
@@ -995,13 +1189,21 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             };
             continue;
           }
-          console.warn('[addUser] Supabase insert warning:', error.message);
+          remoteFailure = error.message;
           break;
         } catch (e: any) {
-          console.warn('[addUser] network warning:', e?.message);
+          remoteFailure = e?.message || 'تعذر الاتصال بالخادم';
           break;
         }
       }
+    }
+    if (!remoteFailure && droppedCols.length) {
+      remoteFailure = `أعمدة غير موجودة في جدول users: ${droppedCols.join('، ')}`;
+    }
+    if (remoteFailure) {
+      showToast(`أُضيف المستخدم على هذا الجهاز فقط ولم يصل للخادم (${remoteFailure}). شغّل ملف supabase/migrations/002_users_columns.sql`, 'error');
+      log('user_added', { type: 'user', id: created.id, name: created.name }, `الدور: ${created.role} (لم يصل للخادم)`);
+      return normalized;
     }
 
     log('user_added', { type: 'user', id: created.id, name: created.name }, `الدور: ${created.role}`);
@@ -1069,6 +1271,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         if (updates.password && updates.password.trim()) payload.password = updates.password.trim();
         Object.keys(payload).forEach((k) => payload[k] === undefined && delete payload[k]);
 
+        const dropped: string[] = [];
+        let failure: string | null = null;
         for (let attempt = 0; attempt < 8; attempt++) {
           try {
             const { error } = await supabase.from('users').update(payload).eq('id', id);
@@ -1076,14 +1280,24 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             const missing = extractMissingColumn(error.message || '');
             if (missing && missing in payload) {
               delete payload[missing];
+              dropped.push(missing);
               continue;
             }
-            console.warn('[updateUserData] Supabase update warning:', error.message);
+            failure = error.message;
             break;
           } catch (e: any) {
-            console.warn('[updateUserData] network error:', e?.message);
+            failure = e?.message || 'تعذر الاتصال بالخادم';
             break;
           }
+        }
+        // لا نُخفي فشل الحفظ: كان التعديل يظهر محفوظاً على هذا الجهاز فقط ثم يختفي عند الآخرين
+        if (failure) {
+          showToast(`لم يُحفظ التعديل على الخادم (${failure}). شغّل ملف supabase/migrations/002_users_columns.sql`, 'error');
+          return;
+        }
+        if (dropped.length) {
+          showToast(`حُفظ التعديل جزئياً: الأعمدة (${dropped.join('، ')}) غير موجودة في جدول users. شغّل ملف supabase/migrations/002_users_columns.sql`, 'error');
+          return;
         }
       }
       await refreshData();
@@ -1409,6 +1623,29 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     if (!me) return { ok: false, error: 'لا يوجد مستخدم مسجل' };
     if (next.length < 6) return { ok: false, error: 'كلمة المرور الجديدة يجب ألا تقل عن 6 أحرف' };
     if (next === current) return { ok: false, error: 'كلمة المرور الجديدة مطابقة للحالية' };
+
+    if (getSessionToken()) {
+      // الوضع الآمن: الخادم يتحقق من الكلمة الحالية ويشفّر الجديدة
+      try {
+        const { data, error } = await supabase.rpc('itqan_change_password', { p_current: current, p_new: next });
+        if (error) return { ok: false, error: `تعذر الاتصال بالخادم (${error.message})` };
+        if (!data?.ok) {
+          const msg: Record<string, string> = {
+            wrong_password: 'كلمة المرور الحالية غير صحيحة',
+            too_short: 'كلمة المرور الجديدة يجب ألا تقل عن 6 أحرف',
+            no_session: 'انتهت الجلسة، يرجى تسجيل الدخول من جديد',
+          };
+          return { ok: false, error: msg[data?.error] || 'تعذر تغيير كلمة المرور' };
+        }
+        updateSessionInfo({ password_is_default: false });
+        setPasswordIsDefault(false);
+        log('password_changed', { type: 'user', id: me.id, name: me.name });
+        return { ok: true };
+      } catch {
+        return { ok: false, error: 'تعذر الاتصال بالخادم، حاول لاحقاً' };
+      }
+    }
+
     const localOk = (StorageService.getUserById(me.id)?.password || '') === current;
     let valid = localOk;
     if (isSupabaseConfigured()) {
@@ -1463,6 +1700,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         settings,
         updateSettings,
         changeMyPassword,
+        passwordIsDefault,
         approveQuiz,
         rejectQuiz,
         pendingApprovalsCount,

@@ -5,7 +5,7 @@
  * localStorage داخل متصفح كل مستخدم فقط، فلا يراها الآدمن ولا أي جهاز آخر.
  * الآن Supabase هو المصدر الرئيسي، و localStorage مجرد نسخة سريعة (كاش).
  */
-import { supabase, isSupabaseConfigured } from './supabase';
+import { supabase, isSupabaseConfigured, getSessionToken, isMissingRpc } from './supabase';
 import { canonSubjectId } from '../utils/subjectAliases';
 import { StorageService, extractMissingColumn } from './storage';
 import {
@@ -92,16 +92,21 @@ function quizToRow(
   };
 }
 
+/** توحيد أسئلة صف الاختبار (معرّفات ثابتة + رقم الاختبار) */
+export function normalizeQuestions(quizId: string, raw: any): Question[] {
+  return asArray<Question>(raw).map((q, i) => ({
+    ...q,
+    id: q.id || `q-${quizId}-${i + 1}`,
+    quiz_id: quizId,
+  }));
+}
+
 function rowToBundle(row: any): {
   quiz: Quiz;
   questions: Question[];
   assignments: QuizAssignment[];
 } {
-  const questions: Question[] = asArray<Question>(row.questions).map((q, i) => ({
-    ...q,
-    id: q.id || `q-${row.id}-${i + 1}`,
-    quiz_id: row.id,
-  }));
+  const questions: Question[] = normalizeQuestions(row.id, row.questions);
 
   let assignments: QuizAssignment[] = asArray<QuizAssignment>(row.assignments).map((a, i) => ({
     ...a,
@@ -182,8 +187,34 @@ export async function pushQuiz(quizId: string): Promise<SyncResult> {
  * - الأحدث (حسب updated_at) هو الذي يفوز.
  * - الاختبارات الموجودة محلياً فقط (قديمة) تُرفع للخادم إذا كانت تخص المستخدم الحالي.
  */
-export async function pullQuizzes(currentUser: User | null): Promise<void> {
+export async function pullQuizzes(currentUser: User | null, serverRole?: string): Promise<void> {
   if (!isSupabaseConfigured() || !currentUser) return;
+
+  // الطالب في الوضع الآمن: اختباراته فقط، والإجابات النموذجية محذوفة حتى يسلّم
+  // (serverRole يمنع هذا المسار عند معاينة المدير لحساب طالب)
+  if ((serverRole ?? currentUser.role) === 'student' && getSessionToken()) {
+    const { data, error } = await supabase.rpc('itqan_student_quizzes');
+    if (!error) {
+      const rows = asArray<any>(data);
+      StorageService.pruneQuizzesExcept(new Set(rows.map((r) => r.id)));
+      const users = StorageService.getUsers();
+      for (const row of rows) {
+        const b = rowToBundle(row);
+        StorageService.saveQuizBundleFromRemote(b.quiz, b.questions, b.assignments);
+        // اسم المعلم فقط لعرضه على الطالب
+        if (row.teacher?.id && !users.some((u) => u.id === row.teacher.id)) {
+          users.push({ id: row.teacher.id, name: row.teacher.name, role: row.teacher.role, national_id: '', job_title: row.teacher.job_title ?? null } as User);
+        }
+      }
+      localStorage.setItem('itqan_users_v2', JSON.stringify(users));
+      return;
+    }
+    if (!isMissingRpc(error)) {
+      console.warn('[sync] تعذر جلب اختبارات الطالب:', error.message);
+      return;
+    }
+    // دوال الحماية غير موجودة بعد: نكمل بالطريقة القديمة
+  }
 
   const { data, error } = await supabase.from('quizzes').select('*');
   if (error || !Array.isArray(data)) {
@@ -249,7 +280,7 @@ function submissionToRow(s: Submission): Record<string, any> {
   };
 }
 
-function rowToSubmission(row: any): Submission {
+export function rowToSubmission(row: any): Submission {
   return {
     id: row.id,
     quiz_id: row.quiz_id,
@@ -263,6 +294,84 @@ function rowToSubmission(row: any): Submission {
     time_spent_seconds: row.time_spent_seconds ?? undefined,
     is_retake: row.is_retake ?? false,
   };
+}
+
+// ---------------------------------------------------------------------
+// التسليم الآمن: يُرسل الطالب إجاباته فقط ويصحّحها الخادم (itqan_submit_quiz)
+// ---------------------------------------------------------------------
+export interface QuizAttempt {
+  client_id: string;
+  student_id: string;
+  quiz_id: string;
+  answers: any[];
+  time_spent: number;
+}
+
+export type AttemptResult =
+  | { kind: 'ok'; submission: Submission; questions: Question[] }
+  | { kind: 'rejected'; error: string; submission?: Submission; questions?: Question[] }
+  | { kind: 'offline'; error: string }
+  | { kind: 'legacy' };
+
+const ATTEMPTS_KEY = 'itqan_pending_attempts_v1';
+const readAttempts = (): QuizAttempt[] => {
+  try {
+    return JSON.parse(localStorage.getItem(ATTEMPTS_KEY) || '[]');
+  } catch {
+    return [];
+  }
+};
+const writeAttempts = (list: QuizAttempt[]) => localStorage.setItem(ATTEMPTS_KEY, JSON.stringify(list));
+export const queueAttempt = (a: QuizAttempt) =>
+  writeAttempts([...readAttempts().filter((x) => x.client_id !== a.client_id), a]);
+export const hasPendingAttempt = (quizId: string) => readAttempts().some((a) => a.quiz_id === quizId);
+
+/** حفظ نتيجة الخادم محلياً مع الأسئلة الكاملة (لصفحة المراجعة) */
+function storeGraded(submission: Submission, questions: Question[]) {
+  StorageService.saveSubmissionFromRemote(submission);
+  const bundle = StorageService.getQuizBundle(submission.quiz_id);
+  if (bundle && questions.length) {
+    StorageService.saveQuizBundleFromRemote(bundle.quiz, questions, bundle.assignments);
+  }
+}
+
+export async function submitAttemptRemote(a: QuizAttempt): Promise<AttemptResult> {
+  try {
+    const { data, error } = await supabase.rpc('itqan_submit_quiz', {
+      p_quiz_id: a.quiz_id,
+      p_answers: a.answers,
+      p_time_spent: a.time_spent,
+      p_client_id: a.client_id,
+    });
+    if (error) {
+      if (isMissingRpc(error)) return { kind: 'legacy' };
+      return { kind: 'offline', error: error.message };
+    }
+    const questions = normalizeQuestions(a.quiz_id, data?.questions);
+    const submission = data?.submission ? rowToSubmission(data.submission) : undefined;
+    if (data?.ok && submission) {
+      storeGraded(submission, questions);
+      return { kind: 'ok', submission, questions };
+    }
+    if (submission) storeGraded(submission, questions);
+    return { kind: 'rejected', error: data?.error || 'unknown', submission, questions };
+  } catch (e: any) {
+    return { kind: 'offline', error: e?.message || 'تعذر الاتصال بالخادم' };
+  }
+}
+
+/** إعادة إرسال المحاولات التي لم تصل للخادم (انقطاع الإنترنت لحظة التسليم) */
+export async function flushAttempts(me: User | null): Promise<number> {
+  if (!getSessionToken() || me?.role !== 'student') return 0;
+  let sent = 0;
+  // محاولات هذا الطالب فقط (الجهاز قد يكون مشتركاً)
+  for (const a of readAttempts().filter((x) => x.student_id === me.id)) {
+    const res = await submitAttemptRemote(a);
+    if (res.kind === 'offline' || res.kind === 'legacy') continue;
+    writeAttempts(readAttempts().filter((x) => x.client_id !== a.client_id));
+    if (res.kind === 'ok') sent++;
+  }
+  return sent;
 }
 
 export async function pushSubmission(submissionId: string): Promise<SyncResult> {
@@ -311,15 +420,42 @@ export async function pullSubmissions(currentUser: User | null): Promise<void> {
 
   // تسليمات محلية لهذا الطالب لم تصل للخادم: نرفعها
   if (currentUser.role === 'student') {
+    const secure = !!getSessionToken();
     for (const s of StorageService.getSubmissionsByStudentId(currentUser.id)) {
-      if (!remoteIds.has(s.id)) void pushSubmission(s.id);
+      if (remoteIds.has(s.id) || pending.has(s.id)) continue;
+      if (secure) {
+        // الوضع الآمن: يُعاد تصحيحها على الخادم من إجاباتها (نفس المعرّف فلا تتكرر)
+        queueAttempt({ client_id: s.id, student_id: s.student_id, quiz_id: s.quiz_id, answers: s.answers_json || [], time_spent: s.time_spent_seconds || 0 });
+        StorageService.removeSubmissionLocal(s.id);
+      } else {
+        void pushSubmission(s.id);
+      }
     }
   }
 }
 
 /** إعادة محاولة إرسال كل ما بقي في قائمة الانتظار */
-export async function flushPending(): Promise<void> {
+export async function flushPending(me: User | null = null): Promise<void> {
   if (!isSupabaseConfigured()) return;
+  if (getSessionToken()) {
+    // التسليمات القديمة المعلّقة لهذا الطالب تتحول لمحاولات يصحّحها الخادم
+    if (me?.role === 'student') {
+      for (const id of StorageService.getPendingSync('submission')) {
+        const s = StorageService.getSubmissionById(id);
+        if (s && s.student_id !== me.id) continue;
+        StorageService.removePendingSync('submission', id);
+        if (!s) continue;
+        queueAttempt({ client_id: s.id, student_id: s.student_id, quiz_id: s.quiz_id, answers: s.answers_json || [], time_spent: s.time_spent_seconds || 0 });
+        StorageService.removeSubmissionLocal(s.id);
+      }
+    }
+    await flushAttempts(me);
+    // في الوضع الآمن لا يُرفع إلا ما يملكه الطاقم (الاختبارات)
+    if (me?.role !== 'student') {
+      for (const id of StorageService.getPendingSync('quiz')) await pushQuiz(id);
+    }
+    return;
+  }
   for (const id of StorageService.getPendingSync('quiz')) {
     await pushQuiz(id);
   }

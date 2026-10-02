@@ -4,6 +4,7 @@ import { SubmissionWithDetails, Question } from '../../types';
 import { StorageService } from '../../services/storage';
 import { Avatar } from '../common/Avatar';
 import { RichText } from '../common/RichText';
+import { AnswerExtras, answerStatus, STATUS_LABEL } from '../common/AnswerExtras';
 
 interface AnswerSheetModalProps {
   submission: SubmissionWithDetails | null;
@@ -153,7 +154,9 @@ export const AnswerSheetModal: React.FC<AnswerSheetModalProps> = ({ submission, 
               const studentAnswer = submission.answers_json?.find(
                 (a) => a.question_id === question.id
               );
-              const isCorrect = studentAnswer?.is_correct ?? false;
+              const status = answerStatus(question, studentAnswer);
+              const isCorrect = status === 'correct';
+              const isNeutral = status === 'partial' || status === 'pending';
               const selectedIdx = studentAnswer?.selected_option;
 
               return (
@@ -162,6 +165,8 @@ export const AnswerSheetModal: React.FC<AnswerSheetModalProps> = ({ submission, 
                   className={`p-5 rounded-2xl border transition-all ${
                     isCorrect
                       ? 'border-emerald-200 dark:border-emerald-800/80 bg-white dark:bg-slate-900 shadow-sm'
+                      : isNeutral
+                      ? 'border-amber-200 dark:border-amber-800/80 bg-amber-50/20 dark:bg-amber-950/20'
                       : 'border-rose-200 dark:border-rose-800/80 bg-rose-50/20 dark:bg-rose-950/20'
                   }`}
                 >
@@ -186,6 +191,8 @@ export const AnswerSheetModal: React.FC<AnswerSheetModalProps> = ({ submission, 
                         className={`text-xs font-semibold px-2 py-0.5 rounded-lg flex items-center gap-1 ${
                           isCorrect
                             ? 'bg-emerald-50 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800'
+                            : isNeutral
+                            ? 'bg-amber-50 dark:bg-amber-950 text-amber-700 dark:text-amber-300 border border-amber-200 dark:border-amber-800'
                             : 'bg-rose-50 dark:bg-rose-950 text-rose-700 dark:text-rose-300 border border-rose-200 dark:border-rose-800'
                         }`}
                       >
@@ -193,6 +200,11 @@ export const AnswerSheetModal: React.FC<AnswerSheetModalProps> = ({ submission, 
                           <>
                             <CheckCircle className="w-3.5 h-3.5 text-emerald-600" />
                             <span>+{question.marks} درجات</span>
+                          </>
+                        ) : isNeutral ? (
+                          <>
+                            <Clock className="w-3.5 h-3.5 text-amber-600" />
+                            <span>{STATUS_LABEL[status](studentAnswer?.marks_awarded || 0, question.marks)}</span>
                           </>
                         ) : (
                           <>
@@ -255,6 +267,8 @@ export const AnswerSheetModal: React.FC<AnswerSheetModalProps> = ({ submission, 
                       );
                     })}
                   </div>
+
+                  <AnswerExtras question={question} answer={studentAnswer} />
 
                   {/* Explanation Note */}
                   {question.explanation && (
