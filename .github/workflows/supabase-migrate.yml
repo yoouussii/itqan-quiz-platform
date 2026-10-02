@@ -24,6 +24,7 @@ on:
           - supabase/migrations/007_delete_submissions.sql
           - supabase/migrations/008_quiz_approval.sql
           - supabase/migrations/009_branches_parents.sql
+          - supabase/migrations/010_unassigned_classes_visible.sql
           - supabase/migrations/003_rollback.sql
 
 jobs:

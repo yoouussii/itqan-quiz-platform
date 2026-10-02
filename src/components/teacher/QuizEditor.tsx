@@ -97,12 +97,11 @@ export const QuizEditor: React.FC = () => {
       ? [currentUser.class_id]
       : [];
 
+  // شعب المعلم المسندة. إن لم يصل منها شيء (حُذفت أو خارج فرعه) نعرض كل الشعب المتاحة له
+  // بدل قائمة فارغة، والخادم يحصر ما يراه في فرعه أصلاً
+  const assignedVisible = classes.filter((c) => teacherClassIds.includes(c.id));
   const availableClasses =
-    currentUser?.role === 'admin'
-      ? classes
-      : teacherClassIds.length > 0
-      ? classes.filter((c) => teacherClassIds.includes(c.id))
-      : classes;
+    currentUser?.role === 'admin' || assignedVisible.length === 0 ? classes : assignedVisible;
 
   const teacherSubIds =
     currentUser?.assigned_subject_ids && currentUser.assigned_subject_ids.length > 0
@@ -206,6 +205,12 @@ export const QuizEditor: React.FC = () => {
     const asgs: any[] = (quiz.assignments || []).filter((a: any) => a.target_type !== 'assigned_teacher');
     if (asgs.length > 0) {
       const first = asgs[0];
+      // خيار «جميع الطلاب» أُلغي: الاختبار القديم الموجّه للجميع يُعرض كل الشعب المتاحة محددة
+      if (first.target_type === 'all') {
+        setTargetType('class');
+        setTargetClassIds(availableClasses.map((c) => c.id));
+        return;
+      }
       setTargetType(first.target_type);
       if (first.target_type === 'class') {
         setTargetClassIds(
@@ -840,29 +845,7 @@ export const QuizEditor: React.FC = () => {
             </div>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-6">
-            <label
-              className={`p-4 rounded-2xl border cursor-pointer transition-all flex flex-col justify-between ${
-                targetType === 'all'
-                  ? 'border-indigo-600 bg-indigo-50/60 dark:bg-indigo-950/60 ring-2 ring-indigo-500/20'
-                  : 'border-slate-200 dark:border-slate-700 hover:border-slate-300'
-              }`}
-            >
-              <div className="flex items-center justify-between mb-2">
-                <span className="font-bold text-xs text-slate-900 dark:text-white">جميع الطلاب (شامل)</span>
-                <input
-                  type="radio"
-                  name="targetType"
-                  checked={targetType === 'all'}
-                  onChange={() => setTargetType('all')}
-                  className="accent-indigo-600"
-                />
-              </div>
-              <p className="text-[11px] text-slate-500 dark:text-slate-400">
-                يظهر الاختبار لكافة الطلاب في المدرسة دون استثناء
-              </p>
-            </label>
-
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-6">
             <label
               className={`p-4 rounded-2xl border cursor-pointer transition-all flex flex-col justify-between ${
                 targetType === 'class'
@@ -929,7 +912,9 @@ export const QuizEditor: React.FC = () => {
                 </button>
               </div>
               {availableClasses.length === 0 && (
-                <p className="text-xs text-slate-400">لا توجد صفوف متاحة لك</p>
+                <p className="text-[13px] leading-relaxed text-amber-800 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/40 rounded-xl p-3">
+                  لا توجد شعب متاحة لك. إن كنت مسنداً لفرع، اطلب من مدير النظام ربط الشعب بفرعك من «المواد والشعب» ← تعديل الشعبة، أو إضافة شعب لك.
+                </p>
               )}
               {hiddenClassNames.length > 0 && (
                 <div className="mb-2 p-2.5 rounded-xl bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800 text-[11px] text-amber-800 dark:text-amber-300 font-semibold">

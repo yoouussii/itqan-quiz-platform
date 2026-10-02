@@ -48,6 +48,9 @@ ok(u.includes('u-admin'), 'ويرى المدير (لأسماء الإشعارا�
 u = ids(await req('GET', '/users?select=id', { token: t2 }));
 ok(u.includes('u-st2') && !u.includes(CHILD), 'معلمة فرع البنات ترى فرعها فقط');
 ok(ids(await req('GET', '/classes?select=id', { token: t1 })).join() === 'c1', 'الشعب: شعب فرعه فقط');
+await req('POST', '/classes', { token: admin, body: { id: 'c-shared', name: 'شعبة مشتركة', grade_level: 'x' } });
+const cl = ids(await req('GET', '/classes?select=id', { token: t1 }));
+ok(cl.includes('c-shared') && !cl.includes('c2'), 'الشعبة بلا فرع يراها الجميع (010)، وشعبة الفرع الآخر لا');
 const q1 = ids(await req('GET', '/quizzes?select=id', { token: t1 }));
 const q2 = ids(await req('GET', '/quizzes?select=id', { token: t2 }));
 ok(q1.includes('qz1') && q2.length === 0, 'الاختبارات: اختبارات معلمي فرعه فقط');
