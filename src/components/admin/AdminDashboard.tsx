@@ -23,6 +23,8 @@ import { SubmissionsTable } from '../analytics/SubmissionsTable';
 import { ReassignQuizModal } from '../common/ReassignQuizModal';
 import { QuizWithDetails } from '../../types';
 import { Avatar } from '../common/Avatar';
+import { Copy as CopyIcon } from 'lucide-react';
+import { describeQuizTarget } from '../../utils/quizTarget';
 
 export const AdminDashboard: React.FC = () => {
   const {
@@ -35,6 +37,8 @@ export const AdminDashboard: React.FC = () => {
     deleteQuizItem,
     setActiveQuizId,
     setEditingQuizId,
+    setDuplicateQuizId,
+    classes = [],
   } = useApp();
 
   const [selectedQuizForReassign, setSelectedQuizForReassign] = useState<QuizWithDetails | null>(
@@ -194,10 +198,7 @@ export const AdminDashboard: React.FC = () => {
             <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
               {safeQuizzes.map((quiz) => {
                 const teacher = safeUsers.find((u) => u.id === quiz.teacher_id);
-                const assignment = quiz.assignments?.[0];
-                let targetText = 'كافة الطلاب';
-                if (assignment?.target_type === 'class') targetText = assignment.target_name || 'صف محدد';
-                if (assignment?.target_type === 'specific_students') targetText = 'طلاب محددون بالاسم';
+                const targetText = describeQuizTarget(quiz.assignments, classes);
 
                 return (
                   <tr key={quiz.id} className="hover:bg-slate-50/60 dark:hover:bg-slate-800/40 transition-colors">
@@ -285,6 +286,18 @@ export const AdminDashboard: React.FC = () => {
                           title="تفاصيل النتائج ومَن اختبر"
                         >
                           <BarChart2 className="w-4 h-4" />
+                        </button>
+
+                        <button
+                          onClick={() => {
+                            setEditingQuizId?.(null);
+                            setDuplicateQuizId?.(quiz.id);
+                            setCurrentView?.('create_quiz');
+                          }}
+                          className="p-1.5 text-slate-600 dark:text-slate-400 hover:text-violet-600 dark:hover:text-violet-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors"
+                          title="تكرار الاختبار مع التعديل"
+                        >
+                          <CopyIcon className="w-4 h-4" />
                         </button>
 
                         <button

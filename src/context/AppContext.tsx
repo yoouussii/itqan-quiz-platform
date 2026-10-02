@@ -20,7 +20,9 @@ import {
   StorageService,
   cleanUserPayloadForSupabase,
   extractMissingColumn,
+  DEFAULT_PASSWORD,
 } from '../services/storage';
+import { canonSubjectId, isRetiredSubject } from '../utils/subjectAliases';
 import { supabase, isSupabaseConfigured } from '../services/supabase';
 import {
   pushQuiz,
@@ -74,6 +76,9 @@ interface AppContextType {
   setActiveSubmissionId: (id: string | null) => void;
   editingQuizId: string | null;
   setEditingQuizId: (id: string | null) => void;
+  /** معرّف اختبار يُراد تكراره (نسخة جديدة قابلة للتعديل) */
+  duplicateQuizId: string | null;
+  setDuplicateQuizId: (id: string | null) => void;
 
   toastMessage: ToastMessage | null;
   showToast: (text: string, type?: ToastType) => void;
@@ -146,6 +151,8 @@ function normalizeUser(u: any): User {
     subjectIds = [u.specialty_id];
   }
 
+  subjectIds = Array.from(new Set(subjectIds.map((id) => canonSubjectId(id) as string)));
+
   let classIds: string[] = [];
   if (Array.isArray(u.assigned_class_ids) && u.assigned_class_ids.length > 0) {
     classIds = [...u.assigned_class_ids];
@@ -156,7 +163,7 @@ function normalizeUser(u: any): User {
   return {
     ...u,
     username: u.username || u.national_id,
-    specialty_id: u.specialty_id || subjectIds[0] || null,
+    specialty_id: (canonSubjectId(u.specialty_id) as string) || subjectIds[0] || null,
     class_id: u.class_id || classIds[0] || null,
     assigned_subject_ids: subjectIds,
     assigned_class_ids: classIds,
@@ -185,7 +192,15 @@ function computeQuizzes(u: User | null): QuizWithDetails[] {
 
 function computeKpis(u: User | null): Kpis {
   const teacherScope = u?.role === 'teacher' && !canViewAllReports(u) ? u.id : undefined;
-  return StorageService.getDynamicKPIs(teacherScope);
+  const kpis = StorageService.getDynamicKPIs(teacherScope);
+  if (teacherScope && u) {
+    // المعلم يرى أداء المواد المسندة إليه فقط
+    const mine = new Set((u.assigned_subject_ids || []).map((id) => canonSubjectId(id) as string));
+    if (mine.size > 0) {
+      return { ...kpis, subjectPerformance: kpis.subjectPerformance.filter((s) => mine.has(s.subjectId)) };
+    }
+  }
+  return kpis;
 }
 
 function clearBrowserSession() {
@@ -240,7 +255,10 @@ async function syncUsersFromSupabase(): Promise<void> {
     const r = findRemote(l);
     if (!r) return l;
     const localNewer = time(l.updated_at) >= time(r.updated_at) || !r.updated_at;
-    return localNewer ? normalizeUser({ ...r, ...l }) : normalizeUser({ ...l, ...r });
+    const out = localNewer ? normalizeUser({ ...r, ...l }) : normalizeUser({ ...l, ...r });
+    // كلمة المرور مصدرها الخادم دائماً: لا تعود كلمة قديمة من نسخة محلية قديمة
+    if (r.password) out.password = r.password;
+    return out;
   });
 
   for (const r of data as any[]) {
@@ -255,28 +273,46 @@ async function syncUsersFromSupabase(): Promise<void> {
   localStorage.setItem(LS_USERS, JSON.stringify(merged));
 }
 
+/** يُسقط محلياً العناصر التي كانت في الخادم ثم اختفت (حُذفت من مكان آخر) بدل إعادة رفعها */
+function dropRemotelyDeleted<T extends { id: string }>(seenKey: string, local: T[], remoteIds: Set<string>): T[] {
+  let seen: string[] = [];
+  try {
+    seen = JSON.parse(localStorage.getItem(seenKey) || '[]');
+  } catch {
+    seen = [];
+  }
+  const seenSet = new Set(seen);
+  const kept = local.filter((item) => !(seenSet.has(item.id) && !remoteIds.has(item.id)));
+  localStorage.setItem(seenKey, JSON.stringify(Array.from(remoteIds)));
+  return kept;
+}
+
 async function syncSubjectsFromSupabase(): Promise<void> {
-  let local = StorageService.getSubjects() || [];
   const deleted = StorageService.getDeletedSubjectIds();
-  local = local.filter((s) => !deleted.includes(s.id));
+  let local = (StorageService.getSubjects() || []).filter(
+    (s) => !deleted.includes(s.id) && !isRetiredSubject(s.id)
+  );
 
   const { data, error } = await supabase.from('subjects').select('*');
   if (error || !Array.isArray(data)) return;
 
+  const rows = data.filter(
+    (r: any) => r && r.id && !deleted.includes(r.id) && !isRetiredSubject(r.id)
+  );
+  local = dropRemotelyDeleted('itqan_seen_remote_subject_ids', local, new Set<string>(rows.map((r: any) => r.id)));
+
   const map = new Map<string, Subject>();
-  data
-    .filter((r: any) => r && r.id && !deleted.includes(r.id))
-    .forEach((r: any) =>
-      map.set(r.id, {
-        id: r.id,
-        name: r.name || 'مادة بدون اسم',
-        code: r.code || r.id,
-        color: r.color || '#4f46e5',
-        description: r.description || '',
-        icon: r.icon || 'BookOpen',
-        created_by: r.created_by,
-      })
-    );
+  rows.forEach((r: any) =>
+    map.set(r.id, {
+      id: r.id,
+      name: r.name || 'مادة بدون اسم',
+      code: r.code || r.id,
+      color: r.color || '#4f46e5',
+      description: r.description || '',
+      icon: r.icon || 'BookOpen',
+      created_by: r.created_by,
+    })
+  );
 
   for (const s of local) {
     if (map.has(s.id)) {
@@ -301,25 +337,25 @@ async function syncSubjectsFromSupabase(): Promise<void> {
 }
 
 async function syncClassesFromSupabase(): Promise<void> {
-  let local = StorageService.getClasses() || [];
   const deleted = StorageService.getDeletedClassIds();
-  local = local.filter((c) => !deleted.includes(c.id));
+  let local = (StorageService.getClasses() || []).filter((c) => !deleted.includes(c.id));
 
   const { data, error } = await supabase.from('classes').select('*');
   if (error || !Array.isArray(data)) return;
 
+  const rows = data.filter((r: any) => r && r.id && !deleted.includes(r.id));
+  local = dropRemotelyDeleted('itqan_seen_remote_class_ids', local, new Set<string>(rows.map((r: any) => r.id)));
+
   const map = new Map<string, SchoolClass>();
-  data
-    .filter((r: any) => r && r.id && !deleted.includes(r.id))
-    .forEach((r: any) =>
-      map.set(r.id, {
-        id: r.id,
-        name: r.name || 'فصل بدون اسم',
-        grade_level: r.grade_level || 'المرحلة الدراسية',
-        student_count: r.student_count || 0,
-        created_by: r.created_by,
-      })
-    );
+  rows.forEach((r: any) =>
+    map.set(r.id, {
+      id: r.id,
+      name: r.name || 'فصل بدون اسم',
+      grade_level: r.grade_level || 'المرحلة الدراسية',
+      student_count: r.student_count || 0,
+      created_by: r.created_by,
+    })
+  );
 
   for (const c of local) {
     if (map.has(c.id)) {
@@ -383,6 +419,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   );
   const [activeQuizId, setActiveQuizId] = useState<string | null>(null);
   const [editingQuizId, setEditingQuizId] = useState<string | null>(null);
+  const [duplicateQuizId, setDuplicateQuizId] = useState<string | null>(null);
   const [activeSubmissionId, setActiveSubmissionId] = useState<string | null>(null);
   const [toastMessage, setToastMessage] = useState<ToastMessage | null>(null);
 
@@ -779,7 +816,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
               id: created.id,
               name: created.name,
               email: created.email || `${created.national_id}@itqan.edu.sa`,
-              password: created.password || 'itqan123',
+              password: created.password || DEFAULT_PASSWORD,
               role: created.role,
               national_id: created.national_id,
             };
@@ -867,9 +904,18 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       );
       if (isSupabaseConfigured()) {
         try {
-          await supabase.from('users').update({ password: newPassword, updated_at: now }).eq('id', id);
+          const { error } = await supabase
+            .from('users')
+            .update({ password: newPassword, updated_at: now })
+            .eq('id', id);
+          if (error) {
+            showToast(`تم تغيير كلمة المرور على هذا الجهاز فقط ولم تُحفظ على الخادم (${error.message})`, 'error');
+            return false;
+          }
         } catch (e) {
           console.warn('Error updating password in Supabase:', e);
+          showToast('تعذر الاتصال بالخادم، لم تُحفظ كلمة المرور الجديدة', 'error');
+          return false;
         }
       }
       void refreshData();
@@ -1054,6 +1100,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         setActiveSubmissionId,
         editingQuizId,
         setEditingQuizId,
+        duplicateQuizId,
+        setDuplicateQuizId,
         toastMessage,
         showToast,
         theme,

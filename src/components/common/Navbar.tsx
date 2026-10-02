@@ -67,7 +67,6 @@ export const Navbar: React.FC = () => {
     if (currentUser.role === 'admin') {
       return [
         { id: 'dashboard', label: 'لوحة المؤشرات', icon: LayoutDashboard },
-        { id: 'quizzes', label: 'بنك الاختبارات', icon: FileQuestion },
         { id: 'analytics', label: 'التحليلات الشاملة', icon: BarChart2 },
         { id: 'users', label: 'إدارة المستخدمين', icon: Users },
         { id: 'subjects_classes', label: 'المواد والشعب', icon: Layers },
@@ -113,7 +112,7 @@ export const Navbar: React.FC = () => {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-16 gap-4">
             {/* Brand Logo & Title */}
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-3 shrink-0">
               <div
                 onClick={() => setCurrentView('dashboard')}
                 className="flex items-center cursor-pointer group"

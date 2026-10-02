@@ -1,8 +1,10 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useRef } from 'react';
 import { ArrowRight, Users, Percent, Trophy, TrendingDown, CheckCircle2, FileQuestion } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 import { StorageService } from '../../services/storage';
 import { SubmissionsTable } from './SubmissionsTable';
+import { PdfExportButton } from './PdfExportButton';
+import { exportElementToPdf } from '../../utils/exportPdf';
 
 /**
  * صفحة "تحليلات / نتائج" اختبار واحد.
@@ -11,6 +13,8 @@ import { SubmissionsTable } from './SubmissionsTable';
  */
 export const QuizResults: React.FC = () => {
   const { activeQuizId, setActiveQuizId, setCurrentView, quizzes, submissions } = useApp();
+
+  const exportRef = useRef<HTMLDivElement>(null);
 
   const quiz = useMemo(() => {
     if (!activeQuizId) return null;
@@ -29,6 +33,28 @@ export const QuizResults: React.FC = () => {
   const goBack = () => {
     setActiveQuizId(null);
     setCurrentView('dashboard');
+  };
+
+  const handleExportPdf = async () => {
+    if (!exportRef.current || !quiz) return;
+    const rows = quizSubmissions.slice(0, 500).map((s, i) => [
+      i + 1,
+      s.student?.name || '—',
+      s.student_class?.name || '—',
+      `${s.score}/${s.total_possible_score}`,
+      `${Number(s.percentage) || 0}%`,
+    ]);
+    try {
+      await exportElementToPdf({
+        element: exportRef.current,
+        title: `نتائج وتحليلات: ${quiz.title}`,
+        subtitle: `${quiz.subject?.name || 'مادة عامة'} • ${quiz.duration_minutes} دقيقة • ${quiz.total_marks} درجة`,
+        table: { headers: ['#', 'الطالب', 'الصف', 'الدرجة', 'النسبة'], rows },
+        tableTitle: 'نتائج الطلاب',
+      });
+    } catch (e: any) {
+      alert(e?.message || 'تعذر تصدير PDF');
+    }
   };
 
   if (!activeQuizId || !quiz) {
@@ -101,6 +127,7 @@ export const QuizResults: React.FC = () => {
         </button>
       </div>
 
+      <div ref={exportRef} className="space-y-6">
       <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
         {stat(<Users className="w-5 h-5" />, 'عدد التسليمات', total)}
         {stat(<Percent className="w-5 h-5" />, 'متوسط النتائج', `${avg}%`)}
@@ -130,7 +157,10 @@ export const QuizResults: React.FC = () => {
         )}
       </div>
 
+      </div>
+
       <SubmissionsTable
+        extraActions={<PdfExportButton onClick={handleExportPdf} />}
         submissions={quizSubmissions}
         title="نتائج الطلاب في هذا الاختبار"
         subtitle="يمكنك فتح ورقة إجابة أي طالب أو منحه صلاحية إعادة المحاولة"

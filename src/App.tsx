@@ -15,6 +15,7 @@ import { QuizReview } from './components/student/QuizReview';
 import { AnalyticsCharts } from './components/analytics/AnalyticsCharts';
 import { SubmissionsTable } from './components/analytics/SubmissionsTable';
 import { QuizResults } from './components/analytics/QuizResults';
+import { AnalyticsView } from './components/analytics/AnalyticsView';
 import { QuizPreview } from './components/common/QuizPreview';
 
 const KNOWN_VIEWS = [
@@ -130,16 +131,7 @@ const AppContent: React.FC = () => {
               </p>
             </div>
 
-            {/* If student: hide school-wide charts to maintain strict personal privacy */}
-            {currentUser.role !== 'student' && (
-              <AnalyticsCharts
-                scoreDistribution={kpis.scoreDistribution}
-                completionTimeline={kpis.completionTimeline}
-                subjectPerformance={kpis.subjectPerformance}
-              />
-            )}
-
-            <SubmissionsTable submissions={submissions} />
+            <AnalyticsView />
           </div>
         )}
 

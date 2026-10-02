@@ -126,3 +126,27 @@
 .rich-text .ql-align-left { text-align: left; }
 .rich-text .ql-align-justify { text-align: justify; }
 .rich-text a { color: #4f46e5; text-decoration: underline; }
+
+/* ===== قائمة حجم الخط في المحرر: أرقام واضحة بدل كلمة Normal ===== */
+.rich-editor .ql-snow .ql-picker.ql-size { width: 82px; }
+.rich-editor .ql-snow .ql-picker.ql-size .ql-picker-label::before,
+.rich-editor .ql-snow .ql-picker.ql-size .ql-picker-item::before { content: 'عادي'; }
+.rich-editor .ql-snow .ql-picker.ql-size .ql-picker-label[data-value="12px"]::before,
+.rich-editor .ql-snow .ql-picker.ql-size .ql-picker-item[data-value="12px"]::before { content: '12'; }
+.rich-editor .ql-snow .ql-picker.ql-size .ql-picker-item[data-value="12px"] { font-size: 12px; }
+.rich-editor .ql-snow .ql-picker.ql-size .ql-picker-label[data-value="14px"]::before,
+.rich-editor .ql-snow .ql-picker.ql-size .ql-picker-item[data-value="14px"]::before { content: '14'; }
+.rich-editor .ql-snow .ql-picker.ql-size .ql-picker-item[data-value="14px"] { font-size: 14px; }
+.rich-editor .ql-snow .ql-picker.ql-size .ql-picker-label[data-value="16px"]::before,
+.rich-editor .ql-snow .ql-picker.ql-size .ql-picker-item[data-value="16px"]::before { content: '16'; }
+.rich-editor .ql-snow .ql-picker.ql-size .ql-picker-item[data-value="16px"] { font-size: 16px; }
+.rich-editor .ql-snow .ql-picker.ql-size .ql-picker-label[data-value="18px"]::before,
+.rich-editor .ql-snow .ql-picker.ql-size .ql-picker-item[data-value="18px"]::before { content: '18'; }
+.rich-editor .ql-snow .ql-picker.ql-size .ql-picker-item[data-value="18px"] { font-size: 18px; }
+.rich-editor .ql-snow .ql-picker.ql-size .ql-picker-label[data-value="22px"]::before,
+.rich-editor .ql-snow .ql-picker.ql-size .ql-picker-item[data-value="22px"]::before { content: '22'; }
+.rich-editor .ql-snow .ql-picker.ql-size .ql-picker-item[data-value="22px"] { font-size: 22px; }
+.rich-editor .ql-snow .ql-picker.ql-size .ql-picker-label[data-value="28px"]::before,
+.rich-editor .ql-snow .ql-picker.ql-size .ql-picker-item[data-value="28px"]::before { content: '28'; }
+.rich-editor .ql-snow .ql-picker.ql-size .ql-picker-label[data-value="36px"]::before,
+.rich-editor .ql-snow .ql-picker.ql-size .ql-picker-item[data-value="36px"]::before { content: '36'; }

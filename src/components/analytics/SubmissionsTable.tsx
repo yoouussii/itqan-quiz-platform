@@ -23,12 +23,15 @@ interface SubmissionsTableProps {
   submissions: SubmissionWithDetails[];
   title?: string;
   subtitle?: string;
+  /** أزرار إضافية بجوار زر التصدير (مثل تصدير PDF للرسوم) */
+  extraActions?: React.ReactNode;
 }
 
 export const SubmissionsTable: React.FC<SubmissionsTableProps> = ({
   submissions,
   title = 'سجل نتائج وتقييمات الطلاب التفصيلي',
   subtitle = 'بحث وفلترة فورية لكافة الاختبارات المسلمة مع إمكانية استعراض ورقة الإجابة',
+  extraActions,
 }) => {
   const {
     subjects,
@@ -51,6 +54,17 @@ export const SubmissionsTable: React.FC<SubmissionsTableProps> = ({
 
   // STRICT PRIVACY: If current user is a student, enforce privacy strictly
   const isStudent = currentUser?.role === 'student';
+
+  // المعلم (بدون صلاحية التقارير العامة) يرى في الفلتر المواد المسندة إليه فقط
+  const visibleSubjects = useMemo(() => {
+    const u = currentUser;
+    const mine = u?.assigned_subject_ids || [];
+    const canAll = !!(u?.teacher_permissions?.can_view_all_reports || u?.permissions?.can_view_all_reports);
+    if (u?.role === 'teacher' && !canAll && mine.length > 0) {
+      return subjects.filter((s) => mine.includes(s.id));
+    }
+    return subjects;
+  }, [subjects, currentUser]);
 
   const safeSubmissions = useMemo(() => {
     if (isStudent && currentUser) {
@@ -213,6 +227,7 @@ export const SubmissionsTable: React.FC<SubmissionsTableProps> = ({
                 <span>تصدير إلى CSV</span>
               </button>
             )}
+            {!isStudent && extraActions}
             <span className="text-xs bg-indigo-50 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-300 font-bold px-3 py-2 rounded-xl border border-indigo-100 dark:border-indigo-900">
               {filteredSubmissions.length} نتيجة مطابقة
             </span>
@@ -247,7 +262,7 @@ export const SubmissionsTable: React.FC<SubmissionsTableProps> = ({
               className="w-full px-3 py-2 text-xs rounded-xl border border-slate-200 dark:border-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-slate-50/50 dark:bg-slate-800 text-slate-700 dark:text-slate-200"
             >
               <option value="all">جميع المواد الدراسية</option>
-              {subjects.map((sub) => (
+              {visibleSubjects.map((sub) => (
                 <option key={sub.id} value={sub.id}>
                   {sub.name}
                 </option>

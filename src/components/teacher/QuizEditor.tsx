@@ -51,6 +51,8 @@ export const QuizEditor: React.FC = () => {
     setEditingQuizId,
     updateFullQuiz,
     setCurrentView,
+    duplicateQuizId,
+    setDuplicateQuizId,
   } = useApp();
 
   const isEditing = Boolean(editingQuizId);
@@ -102,7 +104,7 @@ export const QuizEditor: React.FC = () => {
 
   // Target assignment
   const [targetType, setTargetType] = useState<TargetType>('class');
-  const [targetClassId, setTargetClassId] = useState(availableClasses[0]?.id || '');
+  const [targetClassIds, setTargetClassIds] = useState<string[]>([]);
   const [selectedStudentIds, setSelectedStudentIds] = useState<string[]>([]);
 
   // Questions State
@@ -142,7 +144,79 @@ export const QuizEditor: React.FC = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [subjectIdsKey, subjectId]);
 
+  // تعبئة النموذج من اختبار موجود (للتعديل أو لتكرار اختبار كنسخة جديدة)
+  const applyQuizToForm = (quiz: any, asCopy: boolean) => {
+    setTitle(asCopy ? `${quiz.title} (نسخة)` : quiz.title);
+    setDescription(quiz.description || '');
+    setSubjectId(quiz.subject_id || '');
+    setDurationMinutes(quiz.duration_minutes);
+    setPassPercentage(quiz.pass_percentage);
+    if (asCopy) {
+      setStartDate(new Date().toISOString().split('T')[0]);
+      const d = new Date();
+      d.setDate(d.getDate() + 30);
+      setEndDate(d.toISOString().split('T')[0]);
+      setIsActive(true);
+    } else {
+      setStartDate(quiz.start_date ? quiz.start_date.split('T')[0] : '');
+      setEndDate(quiz.end_date ? quiz.end_date.split('T')[0] : '');
+      setIsActive(quiz.is_active ?? true);
+    }
+
+    const srcQuestions: any[] =
+      quiz.questions && quiz.questions.length > 0
+        ? quiz.questions
+        : StorageService.getQuestionsByQuizId(quiz.id);
+    if (srcQuestions.length > 0) {
+      setQuestions(
+        srcQuestions.map((q: any) => ({
+          id: asCopy ? undefined : q.id,
+          type: q.type || 'mcq',
+          question_text: q.question_text,
+          options: q.options ? [...q.options] : [],
+          correct_option_index: q.correct_option_index ?? 0,
+          marks: q.marks,
+          explanation: q.explanation || '',
+          sub_questions: q.sub_questions
+            ? q.sub_questions.map((sq: any) => ({
+                id: asCopy ? `sq-${Math.random().toString(36).slice(2, 8)}` : sq.id,
+                question_text: sq.question_text || '',
+                type: sq.type || 'mcq',
+                options: sq.options ? [...sq.options] : ['', '', '', ''],
+                correct_option_index: sq.correct_option_index ?? 0,
+                marks: sq.marks || 1,
+                explanation: sq.explanation || '',
+              }))
+            : [],
+        }))
+      );
+    }
+
+    const asgs: any[] = (quiz.assignments || []).filter((a: any) => a.target_type !== 'assigned_teacher');
+    if (asgs.length > 0) {
+      const first = asgs[0];
+      setTargetType(first.target_type);
+      if (first.target_type === 'class') {
+        setTargetClassIds(
+          Array.from(new Set(asgs.filter((a) => a.target_type === 'class' && a.target_id).map((a) => a.target_id as string)))
+        );
+      } else if (first.target_type === 'specific_students' && first.target_id) {
+        setSelectedStudentIds(String(first.target_id).split(',').map((x) => x.trim()).filter(Boolean));
+      }
+    }
+  };
+
+  // معلم له صف واحد فقط: نحدده تلقائياً
+  const classIdsKey = availableClasses.map((c) => c.id).join(',');
+  useEffect(() => {
+    if (availableClasses.length === 1 && targetClassIds.length === 0 && !editingQuizId && !duplicateQuizId) {
+      setTargetClassIds([availableClasses[0].id]);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [classIdsKey]);
+
   const loadedQuizIdRef = useRef<string | null>(null);
+  const duplicateLoadedRef = useRef<string | null>(null);
 
   useEffect(() => {
     if (!editingQuizId) {
@@ -160,51 +234,22 @@ export const QuizEditor: React.FC = () => {
 
     if (quizToEdit) {
       loadedQuizIdRef.current = editingQuizId;
-      setTitle(quizToEdit.title);
-      setDescription(quizToEdit.description || '');
-      setSubjectId(quizToEdit.subject_id || '');
-      setDurationMinutes(quizToEdit.duration_minutes);
-      setPassPercentage(quizToEdit.pass_percentage);
-      setStartDate(quizToEdit.start_date ? quizToEdit.start_date.split('T')[0] : '');
-      setEndDate(quizToEdit.end_date ? quizToEdit.end_date.split('T')[0] : '');
-      setIsActive(quizToEdit.is_active ?? true);
-
-      if (quizToEdit.questions && quizToEdit.questions.length > 0) {
-        setQuestions(
-          quizToEdit.questions.map((q) => ({
-            id: q.id,
-            type: (q as any).type || 'mcq',
-            question_text: q.question_text,
-            options: q.options ? [...q.options] : [],
-            correct_option_index: q.correct_option_index ?? 0,
-            marks: q.marks,
-            explanation: q.explanation || '',
-            sub_questions: (q as any).sub_questions
-              ? (q as any).sub_questions.map((sq: any) => ({
-                  id: sq.id,
-                  question_text: sq.question_text || '',
-                  type: sq.type || 'mcq',
-                  options: sq.options ? [...sq.options] : ['', '', '', ''],
-                  correct_option_index: sq.correct_option_index ?? 0,
-                  marks: sq.marks || 1,
-                  explanation: sq.explanation || '',
-                }))
-              : [],
-          }))
-        );
-      }
-
-      if (quizToEdit.assignments && quizToEdit.assignments.length > 0) {
-        const primaryAsg = quizToEdit.assignments[0];
-        setTargetType(primaryAsg.target_type);
-        if (primaryAsg.target_type === 'class' && primaryAsg.target_id) {
-          setTargetClassId(primaryAsg.target_id);
-        } else if (primaryAsg.target_type === 'specific_students' && primaryAsg.target_id) {
-          setSelectedStudentIds(primaryAsg.target_id.split(',').map((s) => s.trim()));
-        }
-      }
+      applyQuizToForm(quizToEdit, false);
     }
   }, [editingQuizId, quizzes]);
+
+  // تكرار اختبار: نملأ النموذج بنسخة قابلة للتعديل ثم تُحفظ كاختبار جديد
+  useEffect(() => {
+    if (!duplicateQuizId || editingQuizId) return;
+    if (duplicateLoadedRef.current === duplicateQuizId) return;
+    const src =
+      quizzes.find((q) => q.id === duplicateQuizId) || StorageService.getQuizWithDetails(duplicateQuizId);
+    if (!src) return;
+    duplicateLoadedRef.current = duplicateQuizId;
+    applyQuizToForm(src, true);
+    setDuplicateQuizId(null);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [duplicateQuizId, editingQuizId, quizzes]);
 
   const handleAddQuestion = () => {
     setQuestions([
@@ -432,8 +477,8 @@ export const QuizEditor: React.FC = () => {
       return;
     }
 
-    if (targetType === 'class' && !targetClassId) {
-      alert('يرجى اختيار الصف والشعبة المستهدفة');
+    if (targetType === 'class' && targetClassIds.length === 0) {
+      alert('يرجى اختيار صف واحد على الأقل');
       return;
     }
 
@@ -449,17 +494,20 @@ export const QuizEditor: React.FC = () => {
       return q;
     });
 
-    const assignments = [
-      {
-        target_type: targetType,
-        target_id:
-          targetType === 'class'
-            ? targetClassId
-            : targetType === 'specific_students'
-            ? selectedStudentIds.join(',')
-            : null,
-      },
-    ];
+    // صف أو أكثر: تعيين مستقل لكل صف (يظهر الاختبار لطلاب كل الصفوف المحددة)
+    const assignments =
+      targetType === 'class'
+        ? targetClassIds.map((id) => ({
+            target_type: 'class' as const,
+            target_id: id,
+            target_name: classes.find((c) => c.id === id)?.name,
+          }))
+        : [
+            {
+              target_type: targetType,
+              target_id: targetType === 'specific_students' ? selectedStudentIds.join(',') : null,
+            },
+          ];
 
     try {
       let outcome: { synced: boolean; error?: string };
@@ -798,21 +846,56 @@ export const QuizEditor: React.FC = () => {
 
           {targetType === 'class' && (
             <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700">
-              <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-2">
-                اختر الصف والشعبة المستهدفة:
-              </label>
-              <select
-                value={targetClassId}
-                onChange={(e) => setTargetClassId(e.target.value)}
-                className="w-full sm:w-80 p-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white text-xs font-bold focus:outline-none focus:ring-2 focus:ring-indigo-500"
-              >
-                <option value="">...اختر الصف والشعبة المستهدفة</option>
-                {availableClasses.map((cls) => (
-                  <option key={cls.id} value={cls.id}>
-                    {cls.name} ({cls.grade_level})
-                  </option>
-                ))}
-              </select>
+              <div className="flex items-center justify-between mb-2 gap-3">
+                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300">
+                  اختر الصف أو الصفوف المستهدفة ({targetClassIds.length} محدد):
+                </label>
+                <button
+                  type="button"
+                  onClick={() =>
+                    setTargetClassIds(
+                      targetClassIds.length === availableClasses.length ? [] : availableClasses.map((c) => c.id)
+                    )
+                  }
+                  className="text-[11px] font-bold text-indigo-600 dark:text-indigo-400 hover:underline"
+                >
+                  {targetClassIds.length === availableClasses.length && availableClasses.length > 0
+                    ? 'إلغاء تحديد الكل'
+                    : 'تحديد الكل'}
+                </button>
+              </div>
+              {availableClasses.length === 0 && (
+                <p className="text-xs text-slate-400">لا توجد صفوف متاحة لك</p>
+              )}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                {availableClasses.map((cls) => {
+                  const checked = targetClassIds.includes(cls.id);
+                  return (
+                    <label
+                      key={cls.id}
+                      className={`flex items-center justify-between gap-3 p-3 rounded-xl border cursor-pointer text-xs select-none transition-all ${
+                        checked
+                          ? 'border-indigo-600 bg-indigo-50 dark:bg-indigo-950/70 font-bold text-indigo-900 dark:text-indigo-200'
+                          : 'border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:border-slate-300'
+                      }`}
+                    >
+                      <span>
+                        {cls.name} <span className="text-slate-400 font-normal">({cls.grade_level})</span>
+                      </span>
+                      <input
+                        type="checkbox"
+                        checked={checked}
+                        onChange={() =>
+                          setTargetClassIds(
+                            checked ? targetClassIds.filter((id) => id !== cls.id) : [...targetClassIds, cls.id]
+                          )
+                        }
+                        className="accent-indigo-600 w-4 h-4"
+                      />
+                    </label>
+                  );
+                })}
+              </div>
             </div>
           )}
 

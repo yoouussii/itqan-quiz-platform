@@ -18,6 +18,7 @@ import {
   FileSpreadsheet,
 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
+import { DEFAULT_PASSWORD } from '../../services/storage';
 import { Role, User, TeacherPermissions } from '../../types';
 import { Avatar } from '../common/Avatar';
 
@@ -271,9 +272,11 @@ export const UsersManagement: React.FC = () => {
       permissions: permsObj,
     };
 
-    const currentPass = editingUser.password || password;
-    if (currentPass && currentPass.trim()) {
-      updates.password = currentPass.trim();
+    // لا نرسل كلمة المرور إلا إذا غيّرها المدير فعلاً (حتى لا تُكتب نسخة قديمة فوق الحالية)
+    const currentPass = (editingUser.password || password || '').trim();
+    const originalPass = (users.find((u) => u.id === editingUser.id)?.password || '').trim();
+    if (currentPass && currentPass !== originalPass) {
+      updates.password = currentPass;
     }
 
     await updateUserData(editingUser.id, updates);
@@ -332,7 +335,7 @@ export const UsersManagement: React.FC = () => {
         const parsed = jsonData.map((row: any) => ({
           name: String(row['الاسم'] || row['name'] || row['Name'] || '').trim(),
           national_id: String(row['رقم الهوية'] || row['اسم المستخدم'] || row['national_id'] || row['username'] || row['ID'] || '').trim(),
-          password: String(row['كلمة السر'] || row['password'] || row['Password'] || '123456').trim(),
+          password: String(row['كلمة السر'] || row['password'] || row['Password'] || DEFAULT_PASSWORD).trim(),
           class_name: String(row['الصف / الشعبة'] || row['الصف'] || row['class'] || row['Class'] || '').trim(),
         })).filter((s) => s.name && s.national_id);
 
@@ -377,7 +380,7 @@ export const UsersManagement: React.FC = () => {
           national_id: student.national_id,
           username: student.national_id,
           email: `${student.national_id}@itqan.edu.sa`,
-          password: student.password || '123456',
+          password: student.password || DEFAULT_PASSWORD,
           role: 'student' as const,
           specialty_id: null,
           assigned_subject_ids: [],

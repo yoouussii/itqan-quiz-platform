@@ -11,6 +11,11 @@ import {
 } from '../types';
 
 
+import { canonSubjectId } from '../utils/subjectAliases';
+
+/** كلمة المرور التلقائية عند إضافة مستخدم بدون كلمة مرور (موحّدة في كل مسارات الإضافة) */
+export const DEFAULT_PASSWORD = 'itqan123';
+
 const STORAGE_KEYS = {
   USERS: 'itqan_users_v2',
   SUBJECTS: 'itqan_subjects_v2',
@@ -447,6 +452,7 @@ public static getCurrentUser(): User | null {
     const list = getLocalItem<Quiz[]>(STORAGE_KEYS.QUIZZES, []);
     return list.map((q) => ({
       ...q,
+      subject_id: (canonSubjectId(q.subject_id) as string) || q.subject_id,
       is_active: q.is_active ?? true,
       is_deleted: q.is_deleted ?? false,
       deleted_at: q.deleted_at ?? null,
@@ -1118,7 +1124,7 @@ export function cleanUserPayloadForSupabase(user: Partial<User>): Record<string,
     id: user.id,
     name: user.name,
     email: user.email || (user.national_id ? `${user.national_id}@itqan.edu.sa` : undefined),
-    password: user.password || 'itqan123',
+    password: user.password || DEFAULT_PASSWORD,
     role: user.role,
     username: user.username || user.national_id,
     national_id: user.national_id,

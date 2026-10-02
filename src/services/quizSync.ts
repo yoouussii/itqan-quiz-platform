@@ -6,6 +6,7 @@
  * الآن Supabase هو المصدر الرئيسي، و localStorage مجرد نسخة سريعة (كاش).
  */
 import { supabase, isSupabaseConfigured } from './supabase';
+import { canonSubjectId } from '../utils/subjectAliases';
 import { StorageService, extractMissingColumn } from './storage';
 import {
   Quiz,
@@ -132,7 +133,7 @@ function rowToBundle(row: any): {
     id: row.id,
     title: row.title || '',
     description: row.description || '',
-    subject_id: row.subject_id || '',
+    subject_id: (canonSubjectId(row.subject_id) as string) || '',
     teacher_id: row.teacher_id || '',
     created_by: row.created_by || undefined,
     total_marks: Number(row.total_marks) || 0,

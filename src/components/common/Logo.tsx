@@ -23,7 +23,7 @@ export const Logo: React.FC<LogoProps> = ({
   }[size];
 
   return (
-    <div className={`flex items-center gap-3 select-none ${className}`}>
+    <div className={`flex items-center gap-3 select-none shrink-0 ${className}`}>
       {/* Official Itqan Logo with Cap and Checkmark */}
       <div className="relative flex items-center justify-center shrink-0">
         <img
@@ -39,19 +39,19 @@ export const Logo: React.FC<LogoProps> = ({
 
       {/* Brand Typography */}
       {showText && (
-        <div className="flex flex-col">
-          <div className="flex items-center gap-1.5">
+        <div className="flex flex-col leading-tight">
+          <div className="flex items-center gap-1.5 whitespace-nowrap">
             <span
-              className={`font-black tracking-tight font-cairo text-slate-900 dark:text-white ${sizeClasses.text}`}
+              className={`font-black tracking-tight font-cairo leading-tight text-slate-900 dark:text-white ${sizeClasses.text}`}
             >
               منصة إتقان
             </span>
-            <span className="text-[10px] px-1.5 py-0.5 font-bold rounded-md bg-amber-50 dark:bg-amber-950/80 text-amber-700 dark:text-amber-400 border border-amber-300/80 dark:border-amber-700 hidden sm:inline-block">
+            <span className="text-[10px] px-1.5 py-0.5 font-bold rounded-md bg-amber-50 dark:bg-amber-950/80 text-amber-700 dark:text-amber-400 border border-amber-300/80 dark:border-amber-700 hidden 2xl:inline-block whitespace-nowrap">
               التقييم الذكي
             </span>
           </div>
           <p
-            className={`text-slate-500 dark:text-slate-400 leading-tight hidden sm:block ${sizeClasses.sub}`}
+            className={`text-slate-500 dark:text-slate-400 leading-tight whitespace-nowrap hidden 2xl:block ${sizeClasses.sub}`}
           >
             نظام الاختبارات والتحصيل الأكاديمي الموحد
           </p>

@@ -30,7 +30,7 @@ try {
 // ثابتة خارج المكوّن حتى لا يُعاد إنشاء المحرر (وتضيع المؤشر) مع كل رندر
 const FULL_MODULES = {
   toolbar: [
-    [{ size: FONT_SIZES }],
+    [{ size: [false, ...FONT_SIZES] }],
     ['bold', 'italic', 'underline', 'strike'],
     [{ color: [] }, { background: [] }],
     [{ align: [] }],
@@ -42,7 +42,7 @@ const FULL_MODULES = {
 
 const COMPACT_MODULES = {
   toolbar: [
-    [{ size: FONT_SIZES }],
+    [{ size: [false, ...FONT_SIZES] }],
     ['bold', 'italic', 'underline'],
     [{ color: [] }, { background: [] }],
     ['clean'],
