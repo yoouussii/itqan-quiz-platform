@@ -31,6 +31,7 @@ import { hasPerm, normalizePerms, PERM_KEYS } from '../utils/permissions';
 import {
   AppNotification, NotifAudience, loadNotifCache, loadReads, isForUser, makeNotification,
   pushNotification, pullNotifications, pullReads, markRead,
+  loadHidden, hideNotifications, hideNotificationsForUser, deleteNotificationsEverywhere,
 } from '../services/notificationService';
 import { logActivity } from '../services/activityService';
 import { loadAwardsCache, makeAward, pushAward, pullAwards } from '../services/awardsService';
@@ -113,6 +114,14 @@ interface AppContextType {
   unreadCount: number;
   markNotificationsRead: (ids: string[] | 'all') => Promise<void>;
   sendAnnouncement: (p: { title: string; body: string; audience: NotifAudience }) => Promise<{ ok: boolean; error?: string }>;
+  /** حذف إشعارات من عند المستخدم الحالي فقط */
+  deleteMyNotifications: (ids: string[] | 'all') => Promise<void>;
+  /** كل إشعارات النظام (للمدير: صفحة إدارة الإشعارات) */
+  allNotifications: AppNotification[];
+  /** حذف نهائي من الجميع (المدير، أو مُرسل الإشعار لما أرسله) */
+  deleteNotificationsForAll: (ids: string[]) => Promise<void>;
+  /** المدير: مسح كل إشعارات مستخدم معيّن */
+  clearUserNotifications: (userId: string) => Promise<void>;
   awards: StudentAward[];
   giveAward: (p: { student: User; title: string; note?: string; points: number }) => Promise<{ ok: boolean; error?: string }>;
   settings: AppSettings;
@@ -120,6 +129,10 @@ interface AppContextType {
   changeMyPassword: (current: string, next: string) => Promise<{ ok: boolean; error?: string }>;
   /** المستخدم الحالي ما زال يستخدم كلمة المرور الافتراضية (يُطلب منه تغييرها) */
   passwordIsDefault: boolean;
+  /** المدير يعاين حساباً آخر («تبديل الحساب»): العرض فقط، والخادم يتعامل معه كمدير */
+  isPreview: boolean;
+  /** العودة من المعاينة إلى حساب صاحب الجلسة */
+  exitPreview: () => void;
   approveQuiz: (id: string) => Promise<void>;
   rejectQuiz: (id: string, reason: string) => Promise<void>;
   pendingApprovalsCount: number;
@@ -558,6 +571,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   // الإشعارات والجوائز والإعدادات
   const [notifCache, setNotifCache] = useState<AppNotification[]>(() => loadNotifCache());
   const [reads, setReads] = useState<Set<string>>(() => (currentUser ? loadReads(currentUser.id) : new Set<string>()));
+  const [hidden, setHidden] = useState<Set<string>>(() => (currentUser ? loadHidden(currentUser.id) : new Set<string>()));
   const [awards, setAwards] = useState<StudentAward[]>(() => loadAwardsCache());
   const [settings, setSettings] = useState<AppSettings>(() => loadSettings());
   const seenNotifRef = useRef<Set<string> | null>(null);
@@ -565,9 +579,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const notifications = useMemo(
     () =>
       currentUser
-        ? notifCache.filter((n) => isForUser(n, currentUser)).map((n) => ({ ...n, read: reads.has(n.id) }))
+        ? notifCache
+            .filter((n) => isForUser(n, currentUser) && !hidden.has(n.id))
+            .map((n) => ({ ...n, read: reads.has(n.id) }))
         : [],
-    [notifCache, reads, currentUser]
+    [notifCache, reads, hidden, currentUser]
   );
   const unreadCount = notifications.filter((n) => !n.read).length;
   const pendingApprovalsCount = useMemo(
@@ -633,7 +649,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             logoutRef.current('انتهت الجلسة، يرجى تسجيل الدخول من جديد');
             return;
           }
-          if (!error && data) serverRole = data.role;
+          if (!error && data) {
+            serverRole = data.role;
+            if (getSessionInfo()?.user_id !== data.id) updateSessionInfo({ user_id: data.id });
+          }
         } catch {
           /* انقطاع الشبكة: نكمل بالنسخة المحلية */
         }
@@ -688,6 +707,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       if (me) {
         const rd = loadReads(me.id);
         setReads(rd);
+        setHidden(loadHidden(me.id));
         // تنبيه منبثق عند وصول إشعار جديد (لا نُنبّه بالقديم عند أول تحميل)
         const relevant = loadNotifCache().filter((n) => isForUser(n, me));
         if (seenNotifRef.current === null) {
@@ -805,7 +825,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         const { data, error } = await supabase.rpc('itqan_login', { p_national_id: id, p_password: password });
         if (!error && data) {
           if (data.ok) {
-            setServerSession(data.token, { expires_at: data.expires_at, password_is_default: !!data.password_is_default });
+            setServerSession(data.token, { expires_at: data.expires_at, password_is_default: !!data.password_is_default, user_id: data.user?.id });
             setPasswordIsDefault(!!data.password_is_default);
             const user = normalizeUser(data.user);
             cacheUser(user);
@@ -871,6 +891,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setActiveQuizId(null);
     setActiveSubmissionId(null);
     showToast(`تم التبديل إلى: ${u?.name}`, 'info');
+  };
+
+  const sessionOwnerId = getSessionToken() ? getSessionInfo()?.user_id : undefined;
+  const isPreview = !!currentUser && !!sessionOwnerId && currentUser.id !== sessionOwnerId;
+  const exitPreview = () => {
+    if (sessionOwnerId) switchUser(sessionOwnerId);
   };
 
   // ---------------- الاختبارات ----------------
@@ -1003,6 +1029,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   ) => {
     const me = currentUserRef.current;
     if (!me) throw new Error('لا يوجد مستخدم مسجل');
+
+    // معاينة المدير لحساب طالب: لا يُسجَّل تسليم باسم الطالب
+    const ownerId = getSessionInfo()?.user_id;
+    if (getSessionToken() && ownerId && ownerId !== me.id) {
+      showToast('أنت في وضع معاينة حساب الطالب: يمكنك تصفح الاختبار فقط، ولا يُسجَّل التسليم. للتجربة الكاملة سجّل الدخول بحساب الطالب نفسه.', 'info');
+      return null;
+    }
 
     // الوضع الآمن: الخادم يصحّح (لا يمكن للطالب إرسال درجة جاهزة)
     if (getSessionToken()) {
@@ -1640,6 +1673,45 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     await markRead(me.id, list);
   };
 
+  const deleteMyNotifications: AppContextType['deleteMyNotifications'] = async (ids) => {
+    const me = currentUserRef.current;
+    if (!me) return;
+    const list = ids === 'all' ? notifications.map((n) => n.id) : ids;
+    if (!list.length) return;
+    setHidden((prev) => new Set([...Array.from(prev), ...list]));
+    setReads((prev) => new Set([...Array.from(prev), ...list]));
+    const res = await hideNotifications(me.id, list);
+    showToast(
+      res.ok ? (list.length > 1 ? `تم حذف ${list.length} إشعارات` : 'تم حذف الإشعار') : res.error || 'حُذف من هذا الجهاز فقط',
+      res.ok ? 'success' : 'info'
+    );
+  };
+
+  const deleteNotificationsForAll: AppContextType['deleteNotificationsForAll'] = async (ids) => {
+    const me = currentUserRef.current;
+    if (!me || !ids.length) return;
+    const allowed = ids.filter((id) => me.role === 'admin' || notifCache.find((n) => n.id === id)?.created_by === me.id);
+    if (!allowed.length) return void showToast('الحذف النهائي متاح للمدير أو لمُرسل الإشعار فقط', 'error');
+    const res = await deleteNotificationsEverywhere(allowed);
+    setNotifCache(loadNotifCache());
+    if (res.error && !res.deleted) showToast(`تعذر الحذف (${res.error})`, 'error');
+    else if (res.deleted < allowed.length) showToast(`حُذف ${res.deleted} من ${allowed.length} (الباقي لا تملك صلاحية حذفه)`, 'info');
+    else showToast(res.deleted > 1 ? `تم حذف ${res.deleted} إشعارات من الجميع` : 'تم حذف الإشعار من الجميع', 'success');
+    log('notifications_deleted', { type: 'notification', name: `${res.deleted} إشعار` });
+  };
+
+  const clearUserNotifications: AppContextType['clearUserNotifications'] = async (userId) => {
+    const me = currentUserRef.current;
+    if (me?.role !== 'admin') return void showToast('هذا الإجراء للمدير فقط', 'error');
+    const target = StorageService.getUserById(userId);
+    if (!target) return;
+    const ids = notifCache.filter((n) => isForUser(n, normalizeUser(target))).map((n) => n.id);
+    if (!ids.length) return void showToast(`لا توجد إشعارات لـ ${target.name}`, 'info');
+    const res = await hideNotificationsForUser(userId, ids);
+    showToast(res.ok ? `تم مسح ${ids.length} إشعارات من عند ${target.name}` : `تعذر المسح (${res.error})`, res.ok ? 'success' : 'error');
+    if (res.ok) log('notifications_cleared', { type: 'user', id: userId, name: target.name }, `${ids.length} إشعار`);
+  };
+
   const sendAnnouncement: AppContextType['sendAnnouncement'] = async ({ title, body, audience }) => {
     const me = currentUserRef.current;
     if (!me || !hasPerm(me, 'can_send_announcements')) {
@@ -1758,12 +1830,18 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         unreadCount,
         markNotificationsRead,
         sendAnnouncement,
+        deleteMyNotifications,
+        allNotifications: notifCache,
+        deleteNotificationsForAll,
+        clearUserNotifications,
         awards,
         giveAward,
         settings,
         updateSettings,
         changeMyPassword,
         passwordIsDefault,
+        isPreview,
+        exitPreview,
         approveQuiz,
         rejectQuiz,
         pendingApprovalsCount,

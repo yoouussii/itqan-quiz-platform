@@ -692,6 +692,12 @@ export const QuizEditor: React.FC = () => {
                     className="w-full pr-10 pl-3 py-2.5 text-xs rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
                   />
                 </div>
+                <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-1 leading-relaxed">
+                  أقل نسبة يعتبر عندها الطالب ناجحاً.
+                  {totalCalculatedMarks > 0 && passPercentage > 0 && (
+                    <> مثال: الدرجة الكلية {totalCalculatedMarks}، فينجح من يحصل على {(() => { const n = Math.ceil((totalCalculatedMarks * passPercentage) / 100); return `${n} ${n >= 3 && n <= 10 ? 'درجات' : 'درجة'}`; })()} أو أكثر.</>
+                  )}
+                </p>
               </div>
             </div>
 

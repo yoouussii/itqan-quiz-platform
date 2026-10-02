@@ -32,6 +32,8 @@ export const ACTION_LABELS: Record<string, string> = {
   announcement_sent: 'إرسال إعلان',
   retake_granted: 'منح إعادة محاولة',
   settings_changed: 'تغيير إعدادات النظام',
+  notifications_deleted: 'حذف إشعارات نهائياً',
+  notifications_cleared: 'مسح إشعارات مستخدم',
 };
 
 /** تسجيل حدث (لا يعطّل أي عملية عند الفشل). يُحفظ محلياً أيضاً كاحتياط */

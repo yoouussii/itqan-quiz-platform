@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Bell, Megaphone, X } from 'lucide-react';
+import { Bell, Megaphone, X, Trash2 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 import { hasPerm } from '../../utils/permissions';
 import { AppNotification, NotifAudience } from '../../services/notificationService';
@@ -137,7 +137,7 @@ export function useOpenNotification() {
 }
 
 export const NotificationBell: React.FC = () => {
-  const { currentUser, notifications, unreadCount, markNotificationsRead, setCurrentView } = useApp();
+  const { currentUser, notifications, unreadCount, markNotificationsRead, setCurrentView, deleteMyNotifications } = useApp();
   const [open, setOpen] = useState(false);
   const [composer, setComposer] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
@@ -190,7 +190,17 @@ export const NotificationBell: React.FC = () => {
                 <p className="text-xs text-slate-400 text-center py-8">لا توجد إشعارات حالياً</p>
               ) : (
                 notifications.slice(0, 40).map((n) => (
-                  <button key={n.id} onClick={() => go(n)} data-unread={!n.read}
+                  <div key={n.id} className="relative group">
+                  <button
+                    type="button"
+                    onClick={() => void deleteMyNotifications([n.id])}
+                    aria-label="حذف الإشعار"
+                    title="حذف الإشعار"
+                    className="absolute left-2 bottom-2 p-1 rounded-lg text-slate-300 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 z-10"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </button>
+                  <button onClick={() => go(n)} data-unread={!n.read}
                     className={`w-full text-right px-4 py-3 flex gap-3 hover:bg-slate-50 dark:hover:bg-slate-800/60 ${n.read ? '' : 'bg-indigo-50/60 dark:bg-indigo-950/30'}`}>
                     <span className="text-lg shrink-0">{NOTIF_ICONS[n.type] || '🔔'}</span>
                     <span className="min-w-0 flex-1">
@@ -202,6 +212,7 @@ export const NotificationBell: React.FC = () => {
                       <span className="block text-[10px] text-slate-400 mt-1">{timeAgo(n.created_at)}</span>
                     </span>
                   </button>
+                  </div>
                 ))
               )}
             </div>

@@ -1,5 +1,5 @@
-import { AppNotification } from '../../services/notificationService';
-import { QuizWithDetails, SubmissionWithDetails, User } from '../../types';
+import { AppNotification, NotifAudience } from '../../services/notificationService';
+import { QuizWithDetails, SchoolClass, SubmissionWithDetails, User } from '../../types';
 import { getWindowState } from '../../utils/quizWindow';
 
 /** سطر من نص الإشعار: «العنوان: القيمة» أو نص حر */
@@ -71,3 +71,23 @@ export function notifAction(
   }
   return { label: canRetake ? 'إعادة الاختبار' : 'ابدأ الاختبار', view: 'take_quiz', quizId: quiz.id };
 }
+
+const ROLE_AR: Record<string, string> = { student: 'الطلاب', teacher: 'المعلمون', supervisor: 'المشرفون', admin: 'المدير' };
+
+/** وصف مختصر لمستلمي الإشعار (لصفحة إدارة الإشعارات) */
+export function describeAudience(a: NotifAudience, classes: SchoolClass[], users: User[]): string {
+  const parts: string[] = [];
+  if (a.all) parts.push(a.roles?.length ? a.roles.map((r) => ROLE_AR[r] || r).join(' و') : 'الجميع');
+  else if (a.roles?.length && !a.class_ids?.length && !a.student_ids?.length) parts.push(a.roles.map((r) => ROLE_AR[r] || r).join(' و'));
+  if (a.class_ids?.length) parts.push(a.class_ids.map((id) => classes.find((c) => c.id === id)?.name || 'صف').join('، '));
+  const people = [...(a.student_ids || []), ...(a.user_ids || [])];
+  if (people.length) {
+    const names = people.map((id) => users.find((u) => u.id === id)?.name).filter(Boolean) as string[];
+    parts.push(names.length && names.length <= 3 ? names.join('، ') : `${people.length} مستخدم`);
+  }
+  return parts.join(' + ') || '—';
+}
+
+/** هل الإشعار موجّه للطلاب (لإجراء «حذف كل إشعارات الطلاب») */
+export const isStudentAudience = (a: NotifAudience) =>
+  !!(a.class_ids?.length || a.student_ids?.length || a.roles?.includes('student') || (a.all && !a.roles?.length));

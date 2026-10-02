@@ -25,7 +25,7 @@ interface QuizTakerProps {
 }
 
 export const QuizTaker: React.FC<QuizTakerProps> = ({ quizId, onFinish, onCancel }) => {
-  const { submitQuizAttempt, currentUser, showToast } = useApp();
+  const { submitQuizAttempt, currentUser, showToast, isPreview } = useApp();
   const quiz = StorageService.getQuizWithDetails(quizId);
   const questions = StorageService.getQuestionsByQuizId(quizId);
   const studentId = currentUser?.id || '';
@@ -52,7 +52,7 @@ export const QuizTaker: React.FC<QuizTakerProps> = ({ quizId, onFinish, onCancel
 
   // عند الاستئناف: مزامنة وقت النهاية مع الخادم (قد تكون ساعة الجهاز غير دقيقة)
   useEffect(() => {
-    if (!saved) return;
+    if (!saved || isPreview) return;
     void startAttemptRemote(quizId).then((r) => {
       if (r.kind === 'ok') setTiming({ endsAt: r.endsAt, offset: r.offset, startedAt: r.startedAt });
     });
@@ -96,7 +96,8 @@ export const QuizTaker: React.FC<QuizTakerProps> = ({ quizId, onFinish, onCancel
   const handleStart = async () => {
     if (!quiz) return;
     setStarting(true);
-    const r = await startAttemptRemote(quizId);
+    // في المعاينة لا نسجّل محاولة على الخادم باسم الطالب (مؤقت محلي للتصفح فقط)
+    const r = isPreview ? ({ kind: 'legacy' } as const) : await startAttemptRemote(quizId);
     setStarting(false);
     if (r.kind === 'rejected') {
       showToast(startMessages[r.error] || `تعذر بدء الاختبار (${r.error})`, 'error');
@@ -324,6 +325,12 @@ export const QuizTaker: React.FC<QuizTakerProps> = ({ quizId, onFinish, onCancel
             <p>• يمكنك التنقل بحرية بين الأسئلة وتعديل إجاباتك قبل التسليم النهائي.</p>
             <p>• يتم تصحيح الاختبار وتوليد تقرير تفصيلي لدرجتك فور التسليم مباشرة.</p>
           </div>
+
+          {isPreview && (
+            <p className="text-xs font-bold text-amber-800 dark:text-amber-300 bg-amber-100 dark:bg-amber-950/50 rounded-2xl p-3 mb-6">
+              👁️ وضع المعاينة: يمكنك تصفح الأسئلة، لكن لا يُسجَّل تسليم باسم الطالب.
+            </p>
+          )}
 
           <div className="flex items-center justify-center gap-4">
             <button

@@ -58,6 +58,8 @@ const AppContent: React.FC = () => {
     submissions,
     switchUser,
     passwordIsDefault,
+    isPreview,
+    exitPreview,
   } = useApp();
 
   // If user is not logged in or in login view
@@ -110,6 +112,13 @@ const AppContent: React.FC = () => {
     <div className="min-h-screen flex flex-col bg-slate-50 dark:bg-[#0b0f19] text-slate-900 dark:text-white font-cairo transition-colors duration-200" dir="rtl">
       {/* Top Navbar */}
       <Navbar />
+
+      {isPreview && (
+        <div className="bg-amber-100 dark:bg-amber-950/60 border-b border-amber-300 dark:border-amber-800 text-amber-900 dark:text-amber-200 text-xs font-bold px-4 py-2 flex flex-wrap items-center justify-center gap-3" role="status">
+          <span>👁️ وضع المعاينة: تشاهد الموقع كما يراه «{currentUser.name}». للعرض فقط، ولا يُسجَّل أي تسليم باسمه.</span>
+          <button onClick={exitPreview} className="px-3 py-1 rounded-lg bg-amber-600 hover:bg-amber-700 text-white">العودة لحسابي</button>
+        </div>
+      )}
 
       {/* Main Body Content */}
       <main className="flex-1 pb-16">

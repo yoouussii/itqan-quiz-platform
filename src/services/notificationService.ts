@@ -33,9 +33,12 @@ export interface AppNotification {
 const NKEY = 'itqan_notifs_v1';
 const PKEY = 'itqan_notif_pending_v1';
 const rkey = (uid: string) => `itqan_notif_reads_v1_${uid}`;
+const hkey = (uid: string) => `itqan_notif_hidden_v1_${uid}`;
 
 export const loadNotifCache = (): AppNotification[] => readJson<AppNotification[]>(NKEY, []);
 export const loadReads = (uid: string): Set<string> => new Set<string>(readJson<string[]>(rkey(uid), []));
+/** الإشعارات التي حذفها المستخدم من عنده */
+export const loadHidden = (uid: string): Set<string> => new Set<string>(readJson<string[]>(hkey(uid), []));
 
 type Viewer = { id: string; role: string; class_id?: string | null; assigned_class_ids?: string[] };
 
@@ -92,15 +95,66 @@ export async function pullNotifications(): Promise<boolean> {
 }
 
 export async function pullReads(uid: string): Promise<boolean> {
-  const res = await safe<Array<{ notification_id: string }>>(
-    () => supabase.from('notification_reads').select('notification_id').eq('user_id', uid).limit(2000) as any
+  const res = await safe<Array<{ notification_id: string; deleted_at?: string | null }>>(
+    () => supabase.from('notification_reads').select('*').eq('user_id', uid).limit(2000) as any
   );
   if (!res.ok || !Array.isArray(res.data)) return false;
   const local = loadReads(uid);
-  const before = local.size;
-  res.data.forEach((r) => local.add(r.notification_id));
+  const hidden = loadHidden(uid);
+  const before = local.size + hidden.size;
+  res.data.forEach((r) => {
+    local.add(r.notification_id);
+    if (r.deleted_at) hidden.add(r.notification_id);
+  });
   writeJson(rkey(uid), Array.from(local));
-  return local.size !== before;
+  writeJson(hkey(uid), Array.from(hidden));
+  return local.size + hidden.size !== before;
+}
+
+/** حالة «مقروء + محذوف» لمستخدم (نفسه، أو أي مستخدم للمدير). بدون عمود deleted_at (قبل 005) تُحفظ «مقروء» فقط */
+async function upsertDeleted(uid: string, ids: string[]): Promise<{ ok: boolean; error?: string }> {
+  const now = new Date().toISOString();
+  const rows = ids.map((id) => ({ user_id: uid, notification_id: id, read_at: now, deleted_at: now }));
+  let res = await safe(() => supabase.from('notification_reads').upsert(rows, { onConflict: 'user_id,notification_id' }) as any);
+  if (!res.ok && /deleted_at/.test(res.error || '')) {
+    res = await safe(() =>
+      supabase.from('notification_reads').upsert(rows.map(({ deleted_at: _d, ...r }) => r), { onConflict: 'user_id,notification_id' }) as any
+    );
+    return { ok: false, error: 'حُذفت من هذا الجهاز فقط (شغّل تحديث قاعدة البيانات 005)' };
+  }
+  return { ok: res.ok, error: res.error };
+}
+
+/** حذف إشعارات من عند المستخدم نفسه (لا تُحذف عند غيره) */
+export async function hideNotifications(uid: string, ids: string[]): Promise<{ ok: boolean; error?: string }> {
+  if (!ids.length) return { ok: true };
+  const hidden = loadHidden(uid);
+  ids.forEach((i) => hidden.add(i));
+  writeJson(hkey(uid), Array.from(hidden));
+  return upsertDeleted(uid, ids);
+}
+
+/** المدير: مسح إشعارات مستخدم معيّن من عنده */
+export const hideNotificationsForUser = (uid: string, ids: string[]): Promise<{ ok: boolean; error?: string }> =>
+  ids.length ? upsertDeleted(uid, ids) : Promise.resolve({ ok: true });
+
+/** حذف نهائي من الجميع (المدير، أو مُرسل الإشعار) */
+export async function deleteNotificationsEverywhere(ids: string[]): Promise<{ ok: boolean; error?: string; deleted: number }> {
+  if (!ids.length) return { ok: true, deleted: 0 };
+  let deleted = 0;
+  let error: string | undefined;
+  for (let i = 0; i < ids.length; i += 100) {
+    const chunk = ids.slice(i, i + 100);
+    const res = await safe<any[]>(() => supabase.from('notifications').delete().in('id', chunk).select('id') as any);
+    if (!res.ok) error = res.error;
+    else deleted += (res.data || []).length;
+  }
+  if (deleted || !error) {
+    const gone = new Set(ids);
+    writeJson(NKEY, loadNotifCache().filter((n) => !gone.has(n.id)));
+    writeJson(PKEY, readJson<AppNotification[]>(PKEY, []).filter((n) => !gone.has(n.id)));
+  }
+  return { ok: !error, error, deleted };
 }
 
 export async function markRead(uid: string, ids: string[]): Promise<void> {
