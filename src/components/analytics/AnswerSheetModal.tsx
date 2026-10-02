@@ -255,7 +255,7 @@ export const AnswerSheetModal: React.FC<AnswerSheetModalProps> = ({ submission: 
                         >
                           <div className="flex items-center gap-2">
                             <span className="w-5 h-5 rounded-md bg-white/80 dark:bg-slate-700 border text-[11px] font-bold flex items-center justify-center shrink-0">
-                              {['أ', 'ب', 'ج', 'د'][optIdx] || optIdx + 1}
+                              {['أ', 'ب', 'ج', 'د', 'هـ', 'و'][optIdx] || optIdx + 1}
                             </span>
                             <span><RichText html={opt} inline /></span>
                           </div>

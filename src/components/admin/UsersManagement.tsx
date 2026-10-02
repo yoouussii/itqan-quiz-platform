@@ -43,7 +43,13 @@ export const UsersManagement: React.FC = () => {
     resetUserPassword,
     deleteUserItem,
     refreshData,
+    bulkDeleteUsers,
+    bulkMoveStudents,
   } = useApp();
+  // التحديد الجماعي (حذف / نقل إلى صف)
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [moveClassId, setMoveClassId] = useState('');
+  const [bulkBusy, setBulkBusy] = useState(false);
 
   // التحقق من صلاحية إضافة الطلاب
   const canAddStudent =
@@ -583,12 +589,65 @@ export const UsersManagement: React.FC = () => {
         </div>
       </div>
 
+      {/* شريط الإجراءات الجماعية */}
+      {selectedIds.length > 0 && (() => {
+        const selectedStudents = selectedIds.filter((id) => users.find((u) => u.id === id)?.role === 'student');
+        return (
+          <div className="sticky top-20 z-20 mb-3 p-3 rounded-2xl border border-indigo-200 dark:border-indigo-900 bg-indigo-50 dark:bg-indigo-950/70 shadow-md flex flex-wrap items-center gap-2" role="region" aria-label="إجراءات على المحدد">
+            <span className="text-xs font-black text-indigo-900 dark:text-indigo-200">تم تحديد {selectedIds.length}</span>
+            <span className="text-slate-300">|</span>
+            <select aria-label="نقل إلى صف" value={moveClassId} onChange={(e) => setMoveClassId(e.target.value)}
+              className="px-3 py-1.5 text-xs rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white">
+              <option value="">— نقل الطلاب المحددين إلى صف —</option>
+              {classes.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+            </select>
+            <button type="button" disabled={bulkBusy || !moveClassId || !selectedStudents.length}
+              onClick={async () => {
+                const cls = classes.find((c) => c.id === moveClassId);
+                if (!window.confirm(`نقل ${selectedStudents.length} طالب إلى ${cls?.name}؟`)) return;
+                setBulkBusy(true);
+                await bulkMoveStudents(selectedStudents, moveClassId);
+                setBulkBusy(false);
+                setSelectedIds([]);
+                setMoveClassId('');
+              }}
+              className="px-3 py-1.5 rounded-xl text-xs font-bold bg-indigo-600 hover:bg-indigo-700 text-white disabled:opacity-40">
+              نقل{selectedStudents.length ? ` (${selectedStudents.length} طالب)` : ''}
+            </button>
+            <button type="button" disabled={bulkBusy}
+              onClick={async () => {
+                if (!window.confirm(`حذف ${selectedIds.length} مستخدم نهائياً من المنصة؟ لا يمكن التراجع.`)) return;
+                setBulkBusy(true);
+                await bulkDeleteUsers(selectedIds);
+                setBulkBusy(false);
+                setSelectedIds([]);
+              }}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold bg-rose-600 hover:bg-rose-700 text-white disabled:opacity-40">
+              <Trash2 className="w-3.5 h-3.5" /> حذف المحدد
+            </button>
+            <button type="button" onClick={() => setSelectedIds([])} className="px-3 py-1.5 rounded-xl text-xs font-bold text-slate-600 dark:text-slate-300 hover:bg-white/60 dark:hover:bg-slate-800">
+              إلغاء التحديد
+            </button>
+          </div>
+        );
+      })()}
+
       {/* Users Table */}
       <div className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200/80 dark:border-slate-800 shadow-soft overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-right text-xs">
             <thead>
               <tr className="bg-slate-50 dark:bg-slate-800/60 text-slate-500 dark:text-slate-400 font-bold border-b border-slate-100 dark:border-slate-800">
+                <th className="py-3 pr-4 w-8">
+                  {(() => {
+                    const selectable = filteredUsers.filter((u) => u.id !== currentUser?.id).map((u) => u.id);
+                    const all = selectable.length > 0 && selectable.every((id) => selectedIds.includes(id));
+                    return (
+                      <input type="checkbox" aria-label="تحديد كل المستخدمين المعروضين" className="accent-indigo-600 w-4 h-4"
+                        checked={all} onChange={() => setSelectedIds(all ? [] : selectable)} />
+                    );
+                  })()}
+                </th>
                 <th className="py-3 px-4">المستخدم</th>
                 <th className="py-3 px-4">رقم الهوية (Login ID)</th>
                 <th className="py-3 px-4">الدور الوظيفي</th>
@@ -621,8 +680,15 @@ export const UsersManagement: React.FC = () => {
                 return (
                   <tr
                     key={u.id}
-                    className="hover:bg-indigo-50/20 dark:hover:bg-slate-800/40 transition-colors"
+                    className={`transition-colors ${selectedIds.includes(u.id) ? 'bg-indigo-50/60 dark:bg-indigo-950/30' : 'hover:bg-indigo-50/20 dark:hover:bg-slate-800/40'}`}
                   >
+                    <td className="py-3.5 pr-4">
+                      {u.id !== currentUser?.id && (
+                        <input type="checkbox" aria-label={`تحديد ${u.name}`} className="accent-indigo-600 w-4 h-4"
+                          checked={selectedIds.includes(u.id)}
+                          onChange={() => setSelectedIds(selectedIds.includes(u.id) ? selectedIds.filter((x) => x !== u.id) : [...selectedIds, u.id])} />
+                      )}
+                    </td>
                     <td className="py-3.5 px-4">
                       <div className="flex items-center gap-3">
                         <Avatar name={u.name} role={u.role} userId={u.id} size="sm" showBadge />

@@ -4,7 +4,7 @@ import { useApp } from '../../context/AppContext';
 import { Banner, BANNER_THEMES, BannerAudience, fileToBannerDataUrl, newBanner } from '../../services/bannerService';
 import { fileToAvatarDataUrl } from '../../services/avatarService';
 import { toInputValue, inputToIso } from '../../utils/quizWindow';
-import { BannerCard } from '../common/BannerStrip';
+import { BannerCard, EDIT_BANNER_KEY } from '../common/BannerStrip';
 
 const inputCls = 'w-full px-3 py-2 text-xs rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white';
 const labelCls = 'block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5';
@@ -115,7 +115,10 @@ const Editor: React.FC<{ initial: Banner; onDone: () => void }> = ({ initial, on
           )}
           <input ref={fileRef} data-testid="banner-file" type="file" accept="image/*" multiple={b.kind === 'gallery'} className="hidden" onChange={onFiles} />
           <p className="text-[11px] text-slate-400 mt-1">
-            تُصغَّر الصور تلقائياً{b.kind === 'gallery' ? ' وتُقصّ مربعة' : ''}. الحجم الحالي: {sizeKb} ك.ب
+            {b.kind === 'wide'
+              ? 'المقاس المثالي: 1200 × 250 بكسل (أو أي صورة بنفس النسبة العريضة). تظهر الصورة كاملة دون قص. '
+              : 'تُقصّ كل صورة مربعة من منتصفها. '}
+            الحجم الحالي: {sizeKb} ك.ب
           </p>
         </div>
 
@@ -180,7 +183,16 @@ const Editor: React.FC<{ initial: Banner; onDone: () => void }> = ({ initial, on
 /** إدارة بانرات الصفحة الرئيسية (مدير النظام) */
 export const BannersPage: React.FC = () => {
   const { banners, saveBanner, deleteBanner, currentUser } = useApp();
-  const [editing, setEditing] = useState<Banner | null>(null);
+  // فتح بانر محدد للتعديل (من زر «تعديل» على البانر في الصفحة الرئيسية)
+  const [editing, setEditing] = useState<Banner | null>(() => {
+    try {
+      const id = sessionStorage.getItem(EDIT_BANNER_KEY);
+      sessionStorage.removeItem(EDIT_BANNER_KEY);
+      return id ? banners.find((b) => b.id === id) || null : null;
+    } catch {
+      return null;
+    }
+  });
   const sorted = useMemo(() => [...banners].sort((a, b) => a.sort - b.sort || b.created_at.localeCompare(a.created_at)), [banners]);
 
   const move = async (i: number, d: number) => {
