@@ -15,8 +15,14 @@ jobs:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
         run: |
-          code=$(curl -s -o /dev/null -w '%{http_code}' \
-            "$SUPABASE_URL/rest/v1/app_settings?select=key&limit=1" \
+          # يقبل الرابط مع / أو /rest/v1 في آخره
+          base=$(printf '%s' "$SUPABASE_URL" | tr -d '[:space:]' | sed -E 's#/+$##; s#/rest/v1$##')
+          case "$base" in
+            https://*.supabase.co) ;;
+            *) echo "::error::SUPABASE_URL يجب أن يكون بالشكل https://xxxx.supabase.co (من Project Settings ← Data API ← Project URL)"; exit 1 ;;
+          esac
+          code=$(curl -s -o body.txt -w '%{http_code}' \
+            "$base/rest/v1/users?select=id&limit=1" \
             -H "apikey: $SUPABASE_KEY" -H "Authorization: Bearer $SUPABASE_KEY")
           echo "HTTP $code"
-          test "$code" -lt 400
+          if [ "$code" -ge 400 ]; then head -c 300 body.txt; echo; exit 1; fi
