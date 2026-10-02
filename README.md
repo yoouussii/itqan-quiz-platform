@@ -55,6 +55,10 @@
 
 ## 💻 التشغيل والتطوير المحلي
 
+### ربط Supabase
+1. انسخ `.env.example` إلى `.env` وضع فيه `VITE_SUPABASE_URL` و`VITE_SUPABASE_ANON_KEY`.
+2. شغّل الملف `supabase/migrations/001_v8_tables.sql` من **SQL Editor** في لوحة Supabase لإنشاء جداول الإشعارات وسجل النشاط والجوائز والإعدادات والصور الرمزية (بدونها تبقى هذه المزايا محلية على كل جهاز).
+
 ```bash
 # تثبيت الاعتماديات
 npm install

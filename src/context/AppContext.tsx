@@ -16,6 +16,8 @@ import {
   QuizWithDetails,
   Submission,
   SubmissionWithDetails,
+  AnswerItem,
+  SubAnswerItem,
 } from '../types';
 import {
   StorageService,
@@ -65,6 +67,14 @@ export interface ToastMessage {
 }
 
 type Kpis = ReturnType<typeof StorageService.getDynamicKPIs>;
+
+/** إجابة الطالب كما تُرسل من شاشة الاختبار قبل التصحيح */
+export interface QuizAttemptAnswer {
+  question_id: string;
+  selected_option: number | null;
+  text_answer?: string;
+  sub_answers?: Array<{ sub_question_id: string; selected_option: number | null; text_answer?: string }>;
+}
 
 export interface SyncOutcome {
   /** هل وصل الحفظ إلى Supabase فعلاً؟ */
@@ -138,7 +148,7 @@ interface AppContextType {
   reassignQuizToTeacher: (quizId: string, newTeacherId: string) => boolean;
   submitQuizAttempt: (
     quizId: string,
-    answers: Array<{ question_id: string; selected_option: number | null }>,
+    answers: QuizAttemptAnswer[],
     timeSpentSeconds: number
   ) => Submission;
 
@@ -551,9 +561,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentUser?.id, currentView, activeQuizId, activeSubmissionId, editingQuizId]);
 
+  const toastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const showToast = useCallback((text: string, type: ToastType = 'success') => {
     setToastMessage({ text, type });
-    setTimeout(() => setToastMessage(null), 4000);
+    // إلغاء مؤقت التنبيه السابق حتى لا يُخفي التنبيه الجديد قبل أوانه
+    if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
+    toastTimerRef.current = setTimeout(() => setToastMessage(null), 4000);
   }, []);
 
   /** إعادة حساب القوائم من النسخة المحلية فوراً (بدون شبكة) */
@@ -893,21 +906,59 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     const isRetake = quiz.allowed_retake_student_ids?.includes(me.id) || false;
 
+    // الأسئلة المقالية لا تُصحَّح آلياً: تُحفظ الإجابة النصية بدرجة 0 لحين التصحيح اليدوي
+    const gradeChoice = (
+      item: { type?: string; correct_option_index?: number; marks: number },
+      selected: number | null | undefined
+    ) => {
+      const marks = Number(item.marks) || 0;
+      const isCorrect = item.type !== 'essay' && selected != null && selected === item.correct_option_index;
+      return { is_correct: isCorrect, marks_awarded: isCorrect ? marks : 0 };
+    };
+
     let totalScore = 0;
-    const graded = answers.map((a) => {
+    const graded: AnswerItem[] = answers.map((a) => {
       const q = questions.find((x) => x.id === a.question_id);
-      const isCorrect = q !== undefined && a.selected_option === q.correct_option_index;
-      const awarded = (isCorrect && q?.marks) || 0;
-      totalScore += awarded;
+      if (q?.type === 'passage') {
+        const subs = q.sub_questions || [];
+        const sub_answers: SubAnswerItem[] = subs.map((sq) => {
+          const sa = a.sub_answers?.find((x) => x.sub_question_id === sq.id);
+          return {
+            sub_question_id: sq.id,
+            selected_option: sa?.selected_option ?? null,
+            text_answer: sa?.text_answer || undefined,
+            ...gradeChoice(sq, sa?.selected_option),
+          };
+        });
+        const awarded = sub_answers.reduce((s, x) => s + (x.marks_awarded || 0), 0);
+        const possible = subs.reduce((s, sq) => s + (Number(sq.marks) || 0), 0);
+        totalScore += awarded;
+        return {
+          question_id: a.question_id,
+          selected_option: null,
+          is_correct: possible > 0 && awarded === possible,
+          marks_awarded: awarded,
+          sub_answers,
+        };
+      }
+      const res = q ? gradeChoice(q, a.selected_option) : { is_correct: false, marks_awarded: 0 };
+      totalScore += res.marks_awarded;
       return {
         question_id: a.question_id,
         selected_option: a.selected_option,
-        is_correct: isCorrect,
-        marks_awarded: awarded,
+        text_answer: a.text_answer || undefined,
+        ...res,
       };
     });
 
-    const totalPossible = questions.reduce((sum, q) => sum + q.marks, 0);
+    const totalPossible = questions.reduce(
+      (sum, q) =>
+        sum +
+        (q.type === 'passage'
+          ? (q.sub_questions || []).reduce((s, sq) => s + (Number(sq.marks) || 0), 0)
+          : Number(q.marks) || 0),
+      0
+    );
     const percentage = totalPossible > 0 ? Math.round((totalScore / totalPossible) * 100) : 0;
 
     const submission = StorageService.createSubmission({

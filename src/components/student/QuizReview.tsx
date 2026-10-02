@@ -11,6 +11,7 @@ import {
 } from 'lucide-react';
 import { StorageService } from '../../services/storage';
 import { RichText } from '../common/RichText';
+import { AnswerExtras, answerStatus, STATUS_LABEL } from '../common/AnswerExtras';
 
 interface QuizReviewProps {
   submissionId: string;
@@ -181,7 +182,9 @@ export const QuizReview: React.FC<QuizReviewProps> = ({ submissionId, onBack }) 
 
         {questions.map((question, qIdx) => {
           const studentAns = submission.answers_json.find((a) => a.question_id === question.id);
-          const isCorrect = studentAns?.is_correct ?? false;
+          const status = answerStatus(question, studentAns);
+          const isCorrect = status === 'correct';
+          const isNeutral = status === 'partial' || status === 'pending';
           const selectedIdx = studentAns?.selected_option;
 
           return (
@@ -190,6 +193,8 @@ export const QuizReview: React.FC<QuizReviewProps> = ({ submissionId, onBack }) 
               className={`p-6 rounded-3xl border transition-all ${
                 isCorrect
                   ? 'border-emerald-200 dark:border-emerald-800/80 bg-white dark:bg-slate-900 shadow-sm'
+                  : isNeutral
+                  ? 'border-amber-200 dark:border-amber-800/80 bg-amber-50/20 dark:bg-amber-950/20 shadow-sm'
                   : 'border-rose-200 dark:border-rose-800/80 bg-rose-50/20 dark:bg-rose-950/20 shadow-sm'
               }`}
             >
@@ -215,6 +220,11 @@ export const QuizReview: React.FC<QuizReviewProps> = ({ submissionId, onBack }) 
                     <span className="inline-flex items-center gap-1 text-emerald-700 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-950 px-3 py-1 rounded-xl text-xs font-bold border border-emerald-200 dark:border-emerald-800">
                       <CheckCircle2 className="w-4 h-4 text-emerald-600" />
                       <span>+{question.marks} درجات</span>
+                    </span>
+                  ) : isNeutral ? (
+                    <span className="inline-flex items-center gap-1 text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-950 px-3 py-1 rounded-xl text-xs font-bold border border-amber-200 dark:border-amber-800">
+                      <Clock className="w-4 h-4 text-amber-600" />
+                      <span>{STATUS_LABEL[status](studentAns?.marks_awarded || 0, question.marks)}</span>
                     </span>
                   ) : (
                     <span className="inline-flex items-center gap-1 text-rose-700 dark:text-rose-300 bg-rose-50 dark:bg-rose-950 px-3 py-1 rounded-xl text-xs font-bold border border-rose-200 dark:border-rose-800">
@@ -269,6 +279,8 @@ export const QuizReview: React.FC<QuizReviewProps> = ({ submissionId, onBack }) 
                   );
                 })}
               </div>
+
+              <AnswerExtras question={question} answer={studentAns} />
 
               {/* Explanation Box */}
               {question.explanation && (
