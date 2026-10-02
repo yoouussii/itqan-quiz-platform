@@ -71,7 +71,7 @@ const ROTATE_MS = 5000;
 export const EDIT_BANNER_KEY = 'itqan_edit_banner_id';
 
 /** شريط البانرات أعلى الصفحة الرئيسية (يتبدّل تلقائياً عند وجود أكثر من بانر) */
-export const BannerStrip: React.FC = () => {
+export const BannerStrip: React.FC<{ embedded?: boolean }> = ({ embedded = false }) => {
   const { currentUser, banners, deleteBanner, setCurrentView } = useApp();
   const visible = useMemo(
     () => (currentUser ? banners.filter((b) => isBannerVisible(b, currentUser.role)).sort((a, b) => a.sort - b.sort || b.created_at.localeCompare(a.created_at)) : []),
@@ -112,7 +112,7 @@ export const BannerStrip: React.FC = () => {
   const isAdmin = currentUser?.role === 'admin';
 
   return (
-    <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-6" dir="rtl" aria-label="إعلانات المدرسة"
+    <section className={embedded ? '' : 'max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-6'} dir="rtl" aria-label="إعلانات المدرسة"
       onPointerEnter={(e) => e.pointerType === 'mouse' && setHovering(true)}
       onPointerLeave={(e) => e.pointerType === 'mouse' && setHovering(false)}>
       <div

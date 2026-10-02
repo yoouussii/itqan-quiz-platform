@@ -217,7 +217,7 @@ const AppContent: React.FC = () => {
         {currentView === 'dashboard' && (
           <>
             {/* بانرات المدرسة (صور وتهاني) أعلى الصفحة الرئيسية للجميع */}
-            <BannerStrip />
+            {currentUser.role !== 'student' && <BannerStrip />}
             {currentUser.role === 'admin' && <AdminDashboard />}
             {currentUser.role === 'teacher' && <TeacherDashboard />}
             {currentUser.role === 'supervisor' && <SupervisorDashboard />}
