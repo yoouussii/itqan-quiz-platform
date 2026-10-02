@@ -466,22 +466,18 @@ export const UsersManagement: React.FC = () => {
 
   return (
     <div className="max-w-7xl mx-auto py-8 px-4 sm:px-6 lg:px-8 space-y-6" dir="rtl">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-slate-200 dark:border-slate-800">
+      <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-black text-slate-900 dark:text-white font-cairo">
-            إدارة الكادر التعليمي والطلاب (User Management & RBAC)
-          </h1>
-          <p className="text-xs text-slate-500 dark:text-slate-400">
-            التحكم الكامل في الحسابات، أرقام الهوية، الصلاحيات الدقيقة للمعلمين، وتبديل الأدوار
+          <h1 className="text-2xl sm:text-[28px] font-extrabold text-slate-900 dark:text-white">{isTeacher ? 'طلابي' : 'المستخدمون'}</h1>
+          <p className="text-[15px] text-slate-500 dark:text-slate-400 mt-0.5">
+            {scopeUsers.length} حساباً · لا يوجد تسجيل ذاتي، الحسابات تُنشأ من هنا فقط
           </p>
         </div>
-
         <div className="flex items-center gap-2 flex-wrap">
           {isTeacher && canAddStudent && (
             <button
               onClick={() => handleOpenAddModal('student')}
-              className="inline-flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold shadow-md shadow-indigo-600/20 transition-all hover:scale-105"
+              className="inline-flex items-center gap-2 h-11 px-5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-[15px] font-semibold"
             >
               <UserPlus className="w-4 h-4" />
               <span>إضافة طالب جديد</span>
@@ -492,15 +488,15 @@ export const UsersManagement: React.FC = () => {
             <>
               <button
                 onClick={downloadExcelTemplate}
-                className="inline-flex items-center gap-2 px-3 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold shadow-md transition-all hover:scale-105"
+                className="inline-flex items-center gap-2 h-11 px-4 rounded-xl text-[15px] font-semibold border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-100 hover:bg-slate-50 dark:hover:bg-slate-800"
                 title="تحميل نموذج Excel"
               >
                 <Download className="w-4 h-4" />
-                <span>تحميل نموذج Excel</span>
+                <span>نموذج Excel</span>
               </button>
               <button
                 onClick={() => fileInputRef.current?.click()}
-                className="inline-flex items-center gap-2 px-3 py-2 bg-amber-600 hover:bg-amber-700 text-white rounded-xl text-xs font-bold shadow-md transition-all hover:scale-105"
+                className="inline-flex items-center gap-2 h-11 px-4 rounded-xl text-[15px] font-semibold border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-100 hover:bg-slate-50 dark:hover:bg-slate-800"
                 title="استيراد طلاب من ملف Excel"
               >
                 <Upload className="w-4 h-4" />
@@ -519,51 +515,53 @@ export const UsersManagement: React.FC = () => {
           {!isTeacher && (
             <button
               onClick={() => handleOpenAddModal('student')}
-              className="inline-flex items-center gap-2 px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-2xl text-xs font-bold shadow-md shadow-indigo-600/20 transition-all hover:scale-105"
+              className="inline-flex items-center gap-2 h-11 px-5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-[15px] font-semibold"
             >
               <UserPlus className="w-4 h-4" />
-              <span>إضافة مستخدم جديد</span>
+              <span>إضافة مستخدم</span>
             </button>
           )}
         </div>
       </div>
 
-      {/* Filter Toolbar */}
-      <div className="bg-white dark:bg-slate-900 p-4 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-soft flex flex-col sm:flex-row gap-3 items-center justify-between">
-        <div className="relative w-full sm:w-80">
-          <Search className="w-4 h-4 text-slate-400 absolute right-3.5 top-1/2 -translate-y-1/2" />
-          <input
-            type="text"
-            placeholder="بحث بالاسم، الهوية، أو البريد..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full pl-4 pr-10 py-2 text-xs rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500"
-          />
-        </div>
+      {/* تبويبات الأدوار + البحث والصف */}
+      <div className="flex flex-col lg:flex-row gap-3 lg:items-center justify-between">
+        {!isTeacher ? (
+          <div className="flex gap-1 p-1 rounded-xl bg-slate-200/60 dark:bg-slate-800/70 w-fit max-w-full overflow-x-auto" role="tablist" aria-label="تصفية حسب الدور">
+            {[
+              { id: 'all', label: 'الكل', n: scopeUsers.length },
+              { id: 'student', label: 'الطلاب', n: roleCount('student') },
+              { id: 'teacher', label: 'المعلمون', n: roleCount('teacher') },
+              { id: 'supervisor', label: 'المشرفون', n: roleCount('supervisor') },
+              { id: 'admin', label: 'المدراء', n: roleCount('admin') },
+            ].filter((t) => t.id === 'all' || t.n > 0).map((t) => (
+              <button key={t.id} type="button" role="tab" aria-selected={roleFilter === t.id} onClick={() => setRoleFilter(t.id)}
+                className={`h-10 px-4 rounded-lg text-[14.5px] font-semibold whitespace-nowrap ${roleFilter === t.id ? 'bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-sm' : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'}`}>
+                {t.label} <span className="tabular-nums">{t.n}</span>
+              </button>
+            ))}
+          </div>
+        ) : <span />}
 
-        <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
-          {!isTeacher && (
-            <select
-              aria-label="تصفية حسب الدور"
-              value={roleFilter}
-              onChange={(e) => setRoleFilter(e.target.value)}
-              className="px-4 py-2 text-xs rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-700 dark:text-slate-200 font-semibold"
-            >
-              <option value="all">كافة الأدوار ({scopeUsers.length})</option>
-              <option value="admin">مديرو النظام ({roleCount('admin')})</option>
-              <option value="teacher">المعلمون ({roleCount('teacher')})</option>
-              <option value="supervisor">المشرفون ({roleCount('supervisor')})</option>
-              <option value="student">الطلاب ({roleCount('student')})</option>
-            </select>
-          )}
-
+        <div className="flex flex-wrap items-center gap-2">
+          <label className="flex items-center gap-2 h-11 w-full sm:w-72 px-3 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-500">
+            <Search className="w-[18px] h-[18px] shrink-0" />
+            <input
+              type="text"
+              aria-label="بحث بالاسم أو الهوية"
+              placeholder="بحث بالاسم أو الهوية"
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="flex-1 min-w-0 bg-transparent outline-none text-[15px] text-slate-900 dark:text-white placeholder:text-slate-400"
+            />
+          </label>
           <select
             aria-label="تصفية حسب الصف"
             value={classFilter}
             onChange={(e) => setClassFilter(e.target.value)}
-            className="px-4 py-2 text-xs rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-700 dark:text-slate-200 font-semibold max-w-[18rem]"
+            className="h-11 px-3 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-[15px] text-slate-800 dark:text-slate-100 max-w-[16rem]"
           >
-            <option value="all">كل الصفوف</option>
+            <option value="all">كل الشعب</option>
             {classFilterOptions.map((c) => (
               <option key={c.id} value={c.id}>
                 {c.name} ({classCount(c.id)})
@@ -571,7 +569,6 @@ export const UsersManagement: React.FC = () => {
             ))}
             {noClassCount > 0 && <option value="none">بدون صف ({noClassCount})</option>}
           </select>
-
           {(roleFilter !== 'all' || classFilter !== 'all' || searchTerm.trim()) && (
             <button
               type="button"
@@ -580,12 +577,11 @@ export const UsersManagement: React.FC = () => {
                 setClassFilter('all');
                 setSearchTerm('');
               }}
-              className="text-[11px] font-bold text-indigo-600 dark:text-indigo-400 hover:underline"
+              className="h-11 px-2 text-sm font-semibold text-indigo-700 dark:text-indigo-400 hover:underline"
             >
-              مسح الفلاتر
+              مسح الفلاتر ({filteredUsers.length} نتيجة)
             </button>
           )}
-          <span className="text-[11px] text-slate-400 font-semibold">{filteredUsers.length} نتيجة</span>
         </div>
       </div>
 
@@ -593,12 +589,11 @@ export const UsersManagement: React.FC = () => {
       {selectedIds.length > 0 && (() => {
         const selectedStudents = selectedIds.filter((id) => users.find((u) => u.id === id)?.role === 'student');
         return (
-          <div className="sticky top-20 z-20 mb-3 p-3 rounded-2xl border border-indigo-200 dark:border-indigo-900 bg-indigo-50 dark:bg-indigo-950/70 shadow-md flex flex-wrap items-center gap-2" role="region" aria-label="إجراءات على المحدد">
-            <span className="text-xs font-black text-indigo-900 dark:text-indigo-200">تم تحديد {selectedIds.length}</span>
-            <span className="text-slate-300">|</span>
+          <div className="sticky top-[72px] z-20 p-2.5 pr-4 rounded-2xl bg-slate-900 dark:bg-slate-800 text-white shadow-lg flex flex-wrap items-center gap-2" role="region" aria-label="إجراءات على المحدد">
+            <span className="text-[15px] font-semibold flex-1 min-w-[8rem]">تم تحديد {selectedIds.length}</span>
             <select aria-label="نقل إلى صف" value={moveClassId} onChange={(e) => setMoveClassId(e.target.value)}
-              className="px-3 py-1.5 text-xs rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white">
-              <option value="">— نقل الطلاب المحددين إلى صف —</option>
+              className="h-10 px-3 text-sm rounded-xl border-0 bg-white/10 text-white [&>option]:text-slate-900">
+              <option value="">نقل الطلاب إلى شعبة…</option>
               {classes.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
             </select>
             <button type="button" disabled={bulkBusy || !moveClassId || !selectedStudents.length}
@@ -611,7 +606,7 @@ export const UsersManagement: React.FC = () => {
                 setSelectedIds([]);
                 setMoveClassId('');
               }}
-              className="px-3 py-1.5 rounded-xl text-xs font-bold bg-indigo-600 hover:bg-indigo-700 text-white disabled:opacity-40">
+              className="h-10 px-4 rounded-xl text-sm font-semibold bg-white/15 hover:bg-white/25 text-white disabled:opacity-40">
               نقل{selectedStudents.length ? ` (${selectedStudents.length} طالب)` : ''}
             </button>
             <button type="button" disabled={bulkBusy}
@@ -622,10 +617,10 @@ export const UsersManagement: React.FC = () => {
                 setBulkBusy(false);
                 setSelectedIds([]);
               }}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold bg-rose-600 hover:bg-rose-700 text-white disabled:opacity-40">
-              <Trash2 className="w-3.5 h-3.5" /> حذف المحدد
+              className="inline-flex items-center gap-1.5 h-10 px-4 rounded-xl text-sm font-semibold bg-rose-600 hover:bg-rose-700 text-white disabled:opacity-40">
+              <Trash2 className="w-4 h-4" /> حذف
             </button>
-            <button type="button" onClick={() => setSelectedIds([])} className="px-3 py-1.5 rounded-xl text-xs font-bold text-slate-600 dark:text-slate-300 hover:bg-white/60 dark:hover:bg-slate-800">
+            <button type="button" onClick={() => setSelectedIds([])} className="h-10 px-3 rounded-xl text-sm font-semibold text-white/85 hover:bg-white/10">
               إلغاء التحديد
             </button>
           </div>
@@ -633,9 +628,9 @@ export const UsersManagement: React.FC = () => {
       })()}
 
       {/* Users Table */}
-      <div className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200/80 dark:border-slate-800 shadow-soft overflow-hidden">
+      <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 overflow-hidden">
         <div className="overflow-x-auto">
-          <table className="w-full text-right text-xs">
+          <table className="w-full text-right text-[14.5px]">
             <thead>
               <tr className="bg-slate-50 dark:bg-slate-800/60 text-slate-500 dark:text-slate-400 font-bold border-b border-slate-100 dark:border-slate-800">
                 <th className="py-3 pr-4 w-8">
