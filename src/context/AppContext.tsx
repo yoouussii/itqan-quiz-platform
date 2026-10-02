@@ -59,6 +59,7 @@ import {
   submitAttemptRemote,
   queueAttempt,
   QuizAttempt,
+  deleteSubmissionsRemote,
 } from '../services/quizSync';
 
 // ---------------------------------------------------------------------
@@ -187,6 +188,8 @@ interface AppContextType {
     timeSpentSeconds: number
   ) => Promise<Submission | null>;
 
+  /** حذف مشاركات طلاب نهائياً (المدير أو صاحب صلاحية «حذف مشاركات الطلاب») */
+  deleteSubmissions: (ids: string[]) => Promise<void>;
   /** تصحيح سؤال مقالي يدوياً (subQuestionId للسؤال الفرعي داخل القطعة) */
   gradeEssay: (submissionId: string, questionId: string, subQuestionId: string | null, marks: number) => Promise<boolean>;
 
@@ -1174,6 +1177,25 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return submission;
   };
 
+  const deleteSubmissions: AppContextType['deleteSubmissions'] = async (ids) => {
+    const me = currentUserRef.current;
+    if (!hasPerm(me, 'can_delete_submissions')) return void showToast('لا تملك صلاحية حذف المشاركات', 'error');
+    if (!ids.length) return;
+    const res = await deleteSubmissionsRemote(ids);
+    recompute();
+    if (!res.deleted.length) {
+      showToast(res.error ? `تعذر الحذف (${res.error})` : 'لم يُحذف شيء: لا تملك صلاحية حذف هذه المشاركات على الخادم', 'error');
+      return;
+    }
+    showToast(
+      res.deleted.length < ids.length
+        ? `حُذفت ${res.deleted.length} من ${ids.length} مشاركة`
+        : res.deleted.length > 1 ? `تم حذف ${res.deleted.length} مشاركات` : 'تم حذف المشاركة',
+      res.deleted.length < ids.length ? 'info' : 'success'
+    );
+    log('submissions_deleted', { type: 'submission', name: `${res.deleted.length} مشاركة` });
+  };
+
   const gradeEssay: AppContextType['gradeEssay'] = async (submissionId, questionId, subQuestionId, marks) => {
     const me = currentUserRef.current;
     if (!me || me.role === 'student') return false;
@@ -1907,6 +1929,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         reassignQuizToTeacher,
         submitQuizAttempt,
         gradeEssay,
+        deleteSubmissions,
         addUser,
         updateUserData,
         resetUserPassword,

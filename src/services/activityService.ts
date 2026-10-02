@@ -36,6 +36,7 @@ export const ACTION_LABELS: Record<string, string> = {
   notifications_cleared: 'مسح إشعارات مستخدم',
   banner_saved: 'حفظ بانر الصفحة الرئيسية',
   banner_deleted: 'حذف بانر',
+  submissions_deleted: 'حذف مشاركات طلاب',
 };
 
 /** تسجيل حدث (لا يعطّل أي عملية عند الفشل). يُحفظ محلياً أيضاً كاحتياط */
