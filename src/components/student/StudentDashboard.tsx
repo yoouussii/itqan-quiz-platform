@@ -183,7 +183,7 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({ onStartQuiz,
         <div className="lg:col-span-2 space-y-5">
           {next ? (
             <section className="relative overflow-hidden rounded-[20px] bg-indigo-600 text-white p-5 sm:p-7 flex flex-col sm:flex-row sm:items-center gap-5" aria-label="اختبارك التالي">
-              <span className="pointer-events-none absolute -left-12 -top-12 w-44 h-44 rounded-full border-[28px] border-white/[0.07]" />
+              <span className="pointer-events-none absolute -left-12 -top-12 w-44 h-44 rounded-full border-[28px]" style={{ borderColor: 'rgba(255,255,255,.07)' }} />
               <div className="relative flex-1 space-y-2.5">
                 <div className="flex flex-wrap items-center gap-2">
                   <span className="text-[13px] font-semibold text-white/85">{next.retake ? 'مسموح لك بإعادة المحاولة' : 'اختبارك التالي'}</span>

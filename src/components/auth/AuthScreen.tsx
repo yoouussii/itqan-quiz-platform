@@ -104,7 +104,7 @@ export const AuthScreen: React.FC = () => {
       </div>
 
       <div className="hidden lg:flex relative overflow-hidden bg-indigo-600 text-white flex-col justify-center px-16 xl:px-24 gap-7">
-        <span className="pointer-events-none absolute -left-20 -top-20 w-80 h-80 rounded-full border-[48px] border-white/[0.07]" />
+        <span className="pointer-events-none absolute -left-20 -top-20 w-80 h-80 rounded-full border-[48px]" style={{ borderColor: 'rgba(255,255,255,.07)' }} />
         <span className="pointer-events-none absolute right-16 -bottom-28 w-64 h-64 rounded-[40px] rotate-[24deg] bg-white/[0.06]" />
         <h2 className="relative text-[44px] font-extrabold leading-[1.35]">اختبارات المدرسة<br />في مكان واحد</h2>
         <ul className="relative space-y-4 text-[17px]">

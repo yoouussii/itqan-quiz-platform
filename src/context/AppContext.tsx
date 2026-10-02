@@ -1722,7 +1722,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       audience: { student_ids: late.map((st) => st.id) }, ref_type: 'quiz', ref_id: quizId,
     });
     log('quiz_reminder', { type: 'quiz', id: quizId, name: quiz.title }, `${late.length} طالب`);
-    showToast(`أُرسل تذكير إلى ${late.length} ${late.length === 1 ? 'طالب' : 'طلاب'}`, 'success');
+    showToast(`أُرسل تذكير إلى ${late.length === 1 ? 'طالب واحد' : late.length === 2 ? 'طالبين' : late.length <= 10 ? `${late.length} طلاب` : `${late.length} طالباً`}`, 'success');
     return late.length;
   };
 
