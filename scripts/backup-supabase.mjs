@@ -6,7 +6,7 @@ import { join } from 'node:path';
 const TABLES = [
   'users', 'subjects', 'classes', 'quizzes', 'submissions',
   'notifications', 'notification_reads', 'activity_log',
-  'student_awards', 'app_settings', 'user_avatars',
+  'student_awards', 'app_settings', 'user_avatars', 'banners',
 ];
 const PAGE = 1000;
 

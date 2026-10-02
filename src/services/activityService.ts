@@ -34,6 +34,8 @@ export const ACTION_LABELS: Record<string, string> = {
   settings_changed: 'تغيير إعدادات النظام',
   notifications_deleted: 'حذف إشعارات نهائياً',
   notifications_cleared: 'مسح إشعارات مستخدم',
+  banner_saved: 'حفظ بانر الصفحة الرئيسية',
+  banner_deleted: 'حذف بانر',
 };
 
 /** تسجيل حدث (لا يعطّل أي عملية عند الفشل). يُحفظ محلياً أيضاً كاحتياط */

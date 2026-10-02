@@ -21,7 +21,7 @@ import { Logo } from './Logo';
 import { ProfileModal } from './ProfileModal';
 import { NotificationBell } from './NotificationBell';
 import { hasPerm } from '../../utils/permissions';
-import { ClipboardCheck, Trophy, ScrollText, Settings as SettingsIcon, ExternalLink, MoreHorizontal, Sparkles } from 'lucide-react';
+import { ClipboardCheck, Trophy, ScrollText, Settings as SettingsIcon, ExternalLink, MoreHorizontal, Sparkles, Images } from 'lucide-react';
 
 export const Navbar: React.FC = () => {
   const {
@@ -148,6 +148,7 @@ export const Navbar: React.FC = () => {
     if (hasPerm(currentUser, 'can_approve_quizzes')) out.push({ id: 'approvals', label: 'اعتماد الاختبارات', icon: ClipboardCheck, badge: pendingApprovalsCount });
     if (hasPerm(currentUser, 'can_view_leaderboard')) out.push({ id: 'leaderboard', label: 'لوحة المتصدرين', icon: Trophy });
     if (hasPerm(currentUser, 'can_view_activity_log')) out.push({ id: 'activity_log', label: 'سجل النشاط', icon: ScrollText });
+    if (currentUser.role === 'admin') out.push({ id: 'banners', label: 'بانرات الصفحة الرئيسية', icon: Images });
     if (currentUser.role === 'admin') out.push({ id: 'settings', label: 'إعدادات النظام', icon: SettingsIcon });
     if (hasPerm(currentUser, 'can_access_preparations')) out.push({ id: 'preparations', label: 'متابعة التحضيرات', icon: ExternalLink, href: settings.preparations_url });
     return out;

@@ -9,7 +9,7 @@ do $$
 declare t text; p record;
 begin
   foreach t in array array['users','subjects','classes','quizzes','submissions','notifications',
-                           'notification_reads','activity_log','student_awards','app_settings','user_avatars']
+                           'notification_reads','activity_log','student_awards','app_settings','user_avatars','banners']
   loop
     continue when to_regclass('public.' || t) is null;
     for p in select policyname from pg_policies where schemaname = 'public' and tablename = t loop

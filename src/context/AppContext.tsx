@@ -34,6 +34,7 @@ import {
   loadHidden, hideNotifications, hideNotificationsForUser, deleteNotificationsEverywhere,
 } from '../services/notificationService';
 import { logActivity } from '../services/activityService';
+import { Banner, loadBannerCache, syncBanners, saveBannerRemote, deleteBannerRemote } from '../services/bannerService';
 import { loadAwardsCache, makeAward, pushAward, pullAwards } from '../services/awardsService';
 import { AppSettings, loadSettings, syncSettings, saveSettings } from '../services/settingsService';
 import { StudentAward } from '../utils/points';
@@ -114,6 +115,10 @@ interface AppContextType {
   unreadCount: number;
   markNotificationsRead: (ids: string[] | 'all') => Promise<void>;
   sendAnnouncement: (p: { title: string; body: string; audience: NotifAudience }) => Promise<{ ok: boolean; error?: string }>;
+  /** بانرات الصفحة الرئيسية (كلها؛ الظاهر منها يُحدد حسب الدور والتاريخ) */
+  banners: Banner[];
+  saveBanner: (b: Banner) => Promise<boolean>;
+  deleteBanner: (id: string) => Promise<void>;
   /** حذف إشعارات من عند المستخدم الحالي فقط */
   deleteMyNotifications: (ids: string[] | 'all') => Promise<void>;
   /** كل إشعارات النظام (للمدير: صفحة إدارة الإشعارات) */
@@ -323,7 +328,7 @@ function allowedViews(u: User | null): string[] {
   if (u.role === 'student') return [...base, 'my_points', 'take_quiz'];
   const out = [...base];
   if (u.role === 'admin') {
-    out.push('users', 'users_management', 'students_management', 'subjects_classes', 'reports', 'create_quiz', 'quiz_results', 'quiz_preview', 'settings');
+    out.push('users', 'users_management', 'students_management', 'subjects_classes', 'reports', 'create_quiz', 'quiz_results', 'quiz_preview', 'settings', 'banners');
   } else {
     out.push('quiz_results', 'quiz_preview');
     if (u.role === 'teacher') out.push('create_quiz');
@@ -573,6 +578,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [reads, setReads] = useState<Set<string>>(() => (currentUser ? loadReads(currentUser.id) : new Set<string>()));
   const [hidden, setHidden] = useState<Set<string>>(() => (currentUser ? loadHidden(currentUser.id) : new Set<string>()));
   const [awards, setAwards] = useState<StudentAward[]>(() => loadAwardsCache());
+  const [banners, setBanners] = useState<Banner[]>(() => loadBannerCache());
   const [settings, setSettings] = useState<AppSettings>(() => loadSettings());
   const seenNotifRef = useRef<Set<string> | null>(null);
 
@@ -680,6 +686,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         }
         try {
           await syncSettings();
+          await syncBanners();
           await pullAwards();
           await pullNotifications();
           if (me) await pullReads(me.id);
@@ -703,6 +710,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       setAvatars(avatarMapFromCache(loadAvatarCache()));
       setNotifCache(loadNotifCache());
       setAwards(loadAwardsCache());
+      setBanners(loadBannerCache());
       setSettings(loadSettings());
       if (me) {
         const rd = loadReads(me.id);
@@ -1673,6 +1681,30 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     await markRead(me.id, list);
   };
 
+  const saveBanner: AppContextType['saveBanner'] = async (b) => {
+    if (currentUserRef.current?.role !== 'admin') {
+      showToast('إدارة البانرات لمدير النظام فقط', 'error');
+      return false;
+    }
+    const res = await saveBannerRemote(b);
+    setBanners(loadBannerCache());
+    if (res.ok) {
+      showToast('تم حفظ البانر', 'success');
+      log('banner_saved', { type: 'banner', id: b.id, name: b.title || 'بانر' });
+    } else {
+      showToast(/banners/.test(res.error || '') ? 'شغّل تحديث قاعدة البيانات 006 أولاً' : `تعذر حفظ البانر (${res.error})`, 'error');
+    }
+    return res.ok;
+  };
+
+  const deleteBanner: AppContextType['deleteBanner'] = async (id) => {
+    const b = banners.find((x) => x.id === id);
+    const res = await deleteBannerRemote(id);
+    setBanners(loadBannerCache());
+    showToast(res.ok ? 'تم حذف البانر' : `تعذر الحذف (${res.error})`, res.ok ? 'info' : 'error');
+    if (res.ok) log('banner_deleted', { type: 'banner', id, name: b?.title || 'بانر' });
+  };
+
   const deleteMyNotifications: AppContextType['deleteMyNotifications'] = async (ids) => {
     const me = currentUserRef.current;
     if (!me) return;
@@ -1830,6 +1862,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         unreadCount,
         markNotificationsRead,
         sendAnnouncement,
+        banners,
+        saveBanner,
+        deleteBanner,
         deleteMyNotifications,
         allNotifications: notifCache,
         deleteNotificationsForAll,
