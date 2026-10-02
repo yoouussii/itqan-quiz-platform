@@ -1,5 +1,4 @@
 import React, { useState, useEffect, useRef } from 'react';
-import 'react-quill/dist/quill.snow.css';
 import {
   Plus,
   Trash2,

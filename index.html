@@ -17,6 +17,19 @@
         document.documentElement.classList.remove('dark');
       }
     </script>
+  <script>
+      // يعرض أي خطأ يحدث أثناء تحميل الصفحة بدل ترك شاشة بيضاء
+      window.addEventListener('error', function (e) {
+        var root = document.getElementById('root');
+        if (root && !root.hasChildNodes()) {
+          root.innerHTML = '<div dir="rtl" style="max-width:640px;margin:10vh auto;padding:24px;font-family:sans-serif">' +
+            '<h1 style="font-size:20px">تعذّر تشغيل الموقع</h1>' +
+            '<p style="font-size:13px;color:#475569">أرسل النص التالي للمطوّر:</p>' +
+            '<pre style="direction:ltr;text-align:left;font-size:11px;background:#f1f5f9;padding:12px;border-radius:12px;white-space:pre-wrap">' +
+            String(e.message || e.error).replace(/</g, '&lt;') + '</pre></div>';
+        }
+      });
+    </script>
   </head>
   <body class="font-cairo bg-slate-50 dark:bg-[#0b0f19] text-slate-900 dark:text-white antialiased selection:bg-indigo-500 selection:text-white min-h-screen transition-colors duration-200">
     <div id="root"></div>
