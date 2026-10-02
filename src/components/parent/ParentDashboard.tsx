@@ -10,6 +10,14 @@ import { Avatar } from '../common/Avatar';
 import { BannerStrip } from '../common/BannerStrip';
 import { Card, Chip, scoreTone, timeAgo } from '../common/ui';
 
+/** موعد الانتهاء مختصراً: «ينتهي اليوم» أو «ينتهي 4 أكتوبر» */
+const shortEnd = (end?: string) => {
+  const e = parseWindowEnd(end);
+  if (!e) return 'بلا موعد انتهاء';
+  if (e.toDateString() === new Date().toDateString()) return 'ينتهي اليوم';
+  return `ينتهي ${e.toLocaleDateString('ar-SA-u-ca-gregory-nu-latn', { day: 'numeric', month: 'long' })}`;
+};
+
 /** «ابنك» أو «ابنتك» حسب نوع الطالب */
 export const childWord = (u?: User | null) => (u?.gender === 'female' ? 'ابنتك' : 'ابنك');
 
@@ -48,7 +56,6 @@ export const ParentDashboard: React.FC<{ onViewReview: (submissionId: string) =>
     return { subs, waiting, upcoming, avg, done: valid.length, points, lvl: levelFor(points) };
   }, [child, submissions, awards, quizzes]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const firstName = (currentUser?.name || '').replace(/^(والد|والدة|ولي أمر)\s+(الطالب|الطالبة)\s+/, '').split(' ')[0];
 
   if (!child || !data) {
     return (
@@ -70,7 +77,7 @@ export const ParentDashboard: React.FC<{ onViewReview: (submissionId: string) =>
     <div className="max-w-5xl mx-auto py-6 sm:py-8 px-4 sm:px-6 space-y-5" dir="rtl">
       <div>
         <div className="text-sm text-slate-500 dark:text-slate-400">متابعة الأبناء</div>
-        <h1 className="text-2xl font-extrabold text-slate-900 dark:text-white">أهلاً {firstName && !/^ولي/.test(firstName) ? firstName : 'بك'}</h1>
+        <h1 className="text-2xl font-extrabold text-slate-900 dark:text-white">أهلاً بك</h1>
       </div>
 
       {children.length > 1 && (
@@ -128,7 +135,7 @@ export const ParentDashboard: React.FC<{ onViewReview: (submissionId: string) =>
                   <div className="font-semibold text-[15px] text-slate-900 dark:text-white truncate">{q.title}</div>
                   <div className="text-[13px] text-slate-500 dark:text-slate-400 truncate">{[q.subject?.name, `${q.duration_minutes} دقيقة`].filter(Boolean).join(' · ')}</div>
                 </div>
-                <Chip tone="warn">ينتهي {formatQuizDateTime(q.end_date, 'end')}</Chip>
+                <Chip tone="warn">{shortEnd(q.end_date)}</Chip>
               </div>
             ))
           )}
