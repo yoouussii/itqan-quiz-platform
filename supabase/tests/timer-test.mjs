@@ -50,6 +50,11 @@ ok(r.status < 300, 'صاحب الاختبار يعدّله');
 r = await req('POST', '/rpc/set_config', { token: S, body: { setting_name: 'itqan.internal', new_value: '1', is_local: false } });
 ok(r.status >= 400, 'لا يمكن تفعيل صلاحيات الخادم من المتصفح');
 
+// منذ 008: اختبار المعلم يحتاج اعتماد المدير قبل أن يظهر للطلاب
+ok(SQL("select status from quizzes where id='qz5'") === 'pending_approval', 'اختبار المعلم ينتظر الاعتماد');
+r = await req('PATCH', '/quizzes?id=eq.qz5', { token: A, body: { status: 'published' } });
+ok(r.status < 300 && SQL("select status from quizzes where id='qz5'") === 'published', 'المدير يعتمده');
+
 console.log('— مؤقت الخادم');
 const s1 = (await rpc('itqan_start_quiz', { p_quiz_id: 'qz5' }, S)).json;
 ok(s1.ok && s1.started_at && s1.ends_at, 'بدء الاختبار يسجّل وقت البدء');

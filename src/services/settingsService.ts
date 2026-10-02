@@ -7,9 +7,11 @@ export interface AppSettings {
   require_quiz_approval: boolean;
   preparations_url: string;
 }
-export const DEFAULT_SETTINGS: AppSettings = { require_quiz_approval: false, preparations_url: DEFAULT_PREPARATIONS_URL };
+// اشتراط اعتماد الاختبارات مفعّل افتراضياً (مثل الخادم في 008)، ويُلغيه المدير من الإعدادات
+export const DEFAULT_SETTINGS: AppSettings = { require_quiz_approval: true, preparations_url: DEFAULT_PREPARATIONS_URL };
 
-const KEY = 'itqan_settings_v1';
+// v2: النسخة السابقة كانت تحفظ «بلا اعتماد» على الأجهزة حتى لو لم يختره المدير
+const KEY = 'itqan_settings_v2';
 export const loadSettings = (): AppSettings => ({ ...DEFAULT_SETTINGS, ...readJson<Partial<AppSettings>>(KEY, {}) });
 
 export async function syncSettings(): Promise<boolean> {
