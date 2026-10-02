@@ -31,7 +31,7 @@ export const STATUS_LABEL: Record<AnswerStatus, (awarded: number, marks: number)
   pending: (_a, m) => `بانتظار التصحيح (${m})`,
 };
 
-const letters = ['أ', 'ب', 'ج', 'د'];
+const letters = ['أ', 'ب', 'ج', 'د', 'هـ', 'و'];
 
 type GradeFn = (subQuestionId: string | null, marks: number) => Promise<boolean> | void;
 

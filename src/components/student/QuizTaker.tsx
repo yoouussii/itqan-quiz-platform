@@ -208,7 +208,7 @@ export const QuizTaker: React.FC<QuizTakerProps> = ({ quizId, onFinish, onCancel
   };
   finalSubmitRef.current = () => void handleFinalSubmit();
 
-  const optionLetters = ['أ', 'ب', 'ج', 'د'];
+  const optionLetters = ['أ', 'ب', 'ج', 'د', 'هـ', 'و'];
 
   const renderOptions = (key: string, options: string[], compact = false) => (
     <div className={compact ? 'space-y-2' : 'space-y-3 mb-8'}>

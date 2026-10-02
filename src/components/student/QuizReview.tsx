@@ -276,7 +276,7 @@ export const QuizReview: React.FC<QuizReviewProps> = ({ submissionId, onBack }) 
                     >
                       <div className="flex items-center gap-2.5">
                         <span className="w-5 h-5 rounded-lg bg-white/90 dark:bg-slate-700 border text-[11px] font-bold flex items-center justify-center shrink-0">
-                          {['أ', 'ب', 'ج', 'د'][optIdx]}
+                          {['أ', 'ب', 'ج', 'د', 'هـ', 'و'][optIdx]}
                         </span>
                         <span><RichText html={opt} inline /></span>
                       </div>

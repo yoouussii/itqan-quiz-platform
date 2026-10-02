@@ -9,6 +9,9 @@ import {
   HelpCircle,
   FileText,
   CheckCircle,
+  ArrowUp,
+  ArrowDown,
+  Copy,
 } from 'lucide-react';
 import { TargetType } from '../../types';
 import { useApp } from '../../context/AppContext';
@@ -31,6 +34,8 @@ export interface SubQuestion {
 
 export interface QuestionItem {
   id?: string;
+  /** معرّف داخلي ثابت للعرض فقط (لا يُحفظ): يمنع اختلاط محررات النص عند الحذف أو الترتيب */
+  uid?: string;
   type: QuestionType;
   question_text: string;
   options: string[];
@@ -39,6 +44,32 @@ export interface QuestionItem {
   explanation: string;
   sub_questions?: SubQuestion[];
 }
+
+/** عدد الأسئلة بصيغة عربية صحيحة */
+const questionsLabel = (n: number) => (n === 1 ? 'سؤال واحد' : n === 2 ? 'سؤالان' : n <= 10 ? `${n} أسئلة` : `${n} سؤالاً`);
+
+const newUid = () => `u-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`;
+
+/** سؤال جديد فارغ حسب النوع */
+export function blankQuestion(type: QuestionType = 'mcq'): QuestionItem {
+  const base = { uid: newUid(), question_text: '', explanation: '' };
+  if (type === 'true_false') return { ...base, type, options: ['صح', 'خطأ'], correct_option_index: 0, marks: 1 };
+  if (type === 'essay') return { ...base, type, options: [], correct_option_index: -1, marks: 2 };
+  if (type === 'passage') {
+    return {
+      ...base, type, options: [], correct_option_index: 0, marks: 1,
+      sub_questions: [{ id: `sub_${Date.now()}`, question_text: '', type: 'mcq', options: ['', '', '', ''], correct_option_index: 0, marks: 1, explanation: '' }],
+    };
+  }
+  return { ...base, type: 'mcq', options: ['', '', '', ''], correct_option_index: 0, marks: 1 };
+}
+
+export const QUESTION_TYPES: Array<{ type: QuestionType; label: string; short: string }> = [
+  { type: 'mcq', label: 'اختيار من متعدد', short: 'اختيار' },
+  { type: 'true_false', label: 'صح أو خطأ', short: 'صح/خطأ' },
+  { type: 'essay', label: 'سؤال مقالي', short: 'مقالي' },
+  { type: 'passage', label: 'قطعة وأسئلة فرعية', short: 'قطعة' },
+];
 
 export const QuizEditor: React.FC = () => {
   const {
@@ -111,29 +142,7 @@ export const QuizEditor: React.FC = () => {
   const [selectedStudentIds, setSelectedStudentIds] = useState<string[]>([]);
 
   // Questions State
-  const [questions, setQuestions] = useState<QuestionItem[]>([
-    {
-      type: 'mcq',
-      question_text: 'ما هي الخاصية المميزة للمعادلات الخطية في الرسم البياني؟',
-      options: [
-        'تُمثل بخط مستقيم دائماً',
-        'تُمثل بمنحنى قطعي مكافئ',
-        'تُمثل بدائرة مغلقة',
-        'تُمثل بنقاط متباعدة عشوائية',
-      ],
-      correct_option_index: 0,
-      marks: 5,
-      explanation: 'المعادلات من الدرجة الأولى (الخطية) تظهر على المستوى الإحداثي كخط مستقيم ذي ميل ثابت.',
-    },
-    {
-      type: 'mcq',
-      question_text: '',
-      options: ['', '', '', ''],
-      correct_option_index: 0,
-      marks: 5,
-      explanation: '',
-    },
-  ]);
+  const [questions, setQuestions] = useState<QuestionItem[]>(() => [blankQuestion('mcq')]);
 
   // ضمان أن المادة المختارة في الـ state موجودة فعلاً في القائمة المعروضة
   // (الحالة الابتدائية قد تكون فارغة لأن المواد تُحمَّل بعد أول رندر)
@@ -171,6 +180,7 @@ export const QuizEditor: React.FC = () => {
     if (srcQuestions.length > 0) {
       setQuestions(
         srcQuestions.map((q: any) => ({
+          uid: newUid(),
           id: asCopy ? undefined : q.id,
           type: q.type || 'mcq',
           question_text: q.question_text,
@@ -252,18 +262,45 @@ export const QuizEditor: React.FC = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [duplicateQuizId, editingQuizId, quizzes]);
 
-  const handleAddQuestion = () => {
-    setQuestions([
-      ...questions,
-      {
-        type: 'mcq',
-        question_text: '',
-        options: ['', '', '', ''],
-        correct_option_index: 0,
-        marks: 5,
-        explanation: '',
-      },
-    ]);
+  const handleAddQuestion = (type: QuestionType = 'mcq') => {
+    setQuestions([...questions, blankQuestion(type)]);
+    // الانتقال للسؤال الجديد
+    setTimeout(() => document.getElementById(`q-card-${questions.length}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' }), 50);
+  };
+
+  const handleMoveQuestion = (idx: number, d: -1 | 1) => {
+    const j = idx + d;
+    if (j < 0 || j >= questions.length) return;
+    const next = [...questions];
+    [next[idx], next[j]] = [next[j], next[idx]];
+    setQuestions(next);
+  };
+
+  const handleDuplicateQuestion = (idx: number) => {
+    const src = questions[idx];
+    const copy: QuestionItem = {
+      ...src,
+      id: undefined,
+      uid: newUid(),
+      options: [...src.options],
+      sub_questions: src.sub_questions?.map((sq) => ({ ...sq, id: `sub_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`, options: [...sq.options] })),
+    };
+    setQuestions([...questions.slice(0, idx + 1), copy, ...questions.slice(idx + 1)]);
+  };
+
+  const handleAddOption = (qIdx: number) => {
+    setQuestions(questions.map((q, i) => (i === qIdx && q.options.length < 6 ? { ...q, options: [...q.options, ''] } : q)));
+  };
+
+  const handleRemoveOption = (qIdx: number, optIdx: number) => {
+    setQuestions(
+      questions.map((q, i) => {
+        if (i !== qIdx || q.options.length <= 2) return q;
+        const options = q.options.filter((_, k) => k !== optIdx);
+        const c = q.correct_option_index;
+        return { ...q, options, correct_option_index: c === optIdx ? 0 : c > optIdx ? c - 1 : c };
+      })
+    );
   };
 
   const handleRemoveQuestion = (idx: number) => {
@@ -443,11 +480,22 @@ export const QuizEditor: React.FC = () => {
       return;
     }
 
+    const focusQuestion = (i: number, msg: string) => {
+      document.getElementById(`q-card-${i}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      setTimeout(() => alert(msg), 300);
+    };
     for (let i = 0; i < questions.length; i++) {
       const q = questions[i];
       if (!stripHtml(q.question_text).trim()) {
-        alert(`يرجى كتابة نص السؤال رقم ${i + 1}`);
+        focusQuestion(i, `يرجى كتابة نص السؤال رقم ${i + 1}`);
         return;
+      }
+      if (q.type === 'mcq') {
+        const emptyAt = q.options.findIndex((o) => !stripHtml(o).trim());
+        if (emptyAt >= 0) {
+          focusQuestion(i, `الخيار ${emptyAt + 1} في السؤال رقم ${i + 1} فارغ: اكتبه أو احذفه`);
+          return;
+        }
       }
       if (q.type === 'passage') {
         if (!q.sub_questions || q.sub_questions.length === 0) {
@@ -488,7 +536,7 @@ export const QuizEditor: React.FC = () => {
       return;
     }
 
-    const formattedQuestions = questions.map((q) => {
+    const formattedQuestions = questions.map(({ uid: _uid, ...q }) => {
       if (q.type === 'passage') {
         const passageMarks = (q.sub_questions || []).reduce((sum, sq) => sum + (Number(sq.marks) || 0), 0);
         return {
@@ -954,56 +1002,77 @@ export const QuizEditor: React.FC = () => {
               </span>
               <h2 className="font-bold text-base text-slate-900 dark:text-white">الأسئلة والتمارين</h2>
             </div>
-            <button
-              type="button"
-              onClick={handleAddQuestion}
-              className="inline-flex items-center gap-1.5 px-4 py-2 bg-indigo-600 text-white rounded-xl font-bold text-xs hover:bg-indigo-700 transition-colors"
-            >
-              <Plus className="w-4 h-4" />
-              <span>إضافة سؤال جديد</span>
-            </button>
+            <span className="text-xs font-bold text-slate-500 dark:text-slate-400">
+              {questionsLabel(questions.length)} • {totalCalculatedMarks} درجة
+            </span>
           </div>
 
           <div className="space-y-6">
             {questions.map((q, qIdx) => (
               <div
-                key={qIdx}
-                className="p-5 sm:p-6 rounded-2xl border border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/30 space-y-4"
+                key={q.uid || q.id || qIdx}
+                id={`q-card-${qIdx}`}
+                className="p-5 sm:p-6 rounded-2xl border border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/30 space-y-4 scroll-mt-24"
               >
-                <div className="flex items-center justify-between gap-3">
-                  <div className="flex items-center gap-2">
-                    <span className="px-3 py-1 bg-indigo-100 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-300 text-xs font-bold rounded-lg">
-                      سؤال {qIdx + 1}
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="w-8 h-8 rounded-xl bg-indigo-600 text-white text-xs font-black flex items-center justify-center">
+                      {qIdx + 1}
                     </span>
-                    <select
-                      value={q.type}
-                      onChange={(e) => handleQuestionTypeChange(qIdx, e.target.value as QuestionType)}
-                      className="px-3 py-1.5 text-xs font-bold rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white"
-                    >
-                      <option value="mcq">اختيار من متعدد (MCQ)</option>
-                      <option value="true_false">صح أو خطأ</option>
-                      <option value="essay">سؤال مقالي</option>
-                      <option value="passage">قطعة وأسئلة فرعية</option>
-                    </select>
+                    {/* نوع السؤال: أزرار بدل القائمة */}
+                    <div className="flex flex-wrap rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 p-0.5" role="radiogroup" aria-label={`نوع السؤال ${qIdx + 1}`}>
+                      {QUESTION_TYPES.map((t) => (
+                        <button key={t.type} type="button" role="radio" aria-checked={q.type === t.type}
+                          onClick={() => q.type !== t.type && handleQuestionTypeChange(qIdx, t.type)}
+                          className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition-colors ${
+                            q.type === t.type ? 'bg-indigo-600 text-white shadow-sm' : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
+                          }`}>
+                          <span className="hidden sm:inline">{t.label}</span>
+                          <span className="sm:hidden">{t.short}</span>
+                        </button>
+                      ))}
+                    </div>
                   </div>
 
-                  <div className="flex items-center gap-3">
-                    <div className="flex items-center gap-1.5">
+                  <div className="flex items-center gap-1">
+                    <div className="flex items-center gap-1.5 ml-2">
                       <span className="text-xs font-bold text-slate-500">الدرجة:</span>
                       <input
                         type="number"
                         min={1}
+                        aria-label={`درجة السؤال ${qIdx + 1}`}
                         value={q.marks}
                         onChange={(e) => handleMarksChange(qIdx, Number(e.target.value))}
                         disabled={q.type === 'passage'}
-                        className="w-16 px-2 py-1 text-xs font-bold rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-center"
+                        title={q.type === 'passage' ? 'درجة القطعة = مجموع درجات أسئلتها الفرعية' : undefined}
+                        className="w-14 px-2 py-1 text-xs font-bold rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-center disabled:opacity-60"
                       />
                     </div>
+                    <button type="button" aria-label="تحريك السؤال لأعلى" title="تحريك لأعلى" disabled={qIdx === 0}
+                      onClick={() => handleMoveQuestion(qIdx, -1)}
+                      className="p-1.5 rounded-lg text-slate-500 hover:bg-slate-200 dark:hover:bg-slate-700 disabled:opacity-30">
+                      <ArrowUp className="w-4 h-4" />
+                    </button>
+                    <button type="button" aria-label="تحريك السؤال لأسفل" title="تحريك لأسفل" disabled={qIdx === questions.length - 1}
+                      onClick={() => handleMoveQuestion(qIdx, 1)}
+                      className="p-1.5 rounded-lg text-slate-500 hover:bg-slate-200 dark:hover:bg-slate-700 disabled:opacity-30">
+                      <ArrowDown className="w-4 h-4" />
+                    </button>
+                    <button type="button" aria-label="تكرار السؤال" title="تكرار السؤال"
+                      onClick={() => handleDuplicateQuestion(qIdx)}
+                      className="p-1.5 rounded-lg text-slate-500 hover:bg-slate-200 dark:hover:bg-slate-700">
+                      <Copy className="w-4 h-4" />
+                    </button>
                     {questions.length > 1 && (
                       <button
                         type="button"
-                        onClick={() => handleRemoveQuestion(qIdx)}
-                        className="text-rose-500 hover:text-rose-700 p-1.5"
+                        aria-label="حذف السؤال"
+                        title="حذف السؤال"
+                        onClick={() => {
+                          const empty = !stripHtml(q.question_text).trim();
+                          if (empty || window.confirm(`حذف السؤال رقم ${qIdx + 1}؟`)) handleRemoveQuestion(qIdx);
+                        }}
+                        className="p-1.5 rounded-lg text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/40"
                       >
                         <Trash2 className="w-4 h-4" />
                       </button>
@@ -1023,46 +1092,80 @@ export const QuizEditor: React.FC = () => {
                   />
                 </div>
 
-                {/* MCQ Options */}
+                {/* MCQ Options: اختيار الإجابة الصحيحة بزر واضح */}
                 {q.type === 'mcq' && (
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2">
-                    {q.options.map((opt, optIdx) => (
-                      <div key={optIdx} className="flex items-center gap-2">
-                        <input
-                          type="radio"
-                          name={`correct_${qIdx}`}
-                          checked={q.correct_option_index === optIdx}
-                          onChange={() => handleCorrectOptionChange(qIdx, optIdx)}
-                          className="accent-indigo-600"
-                        />
-                        <div className="flex-1 min-w-0">
-                          <RichTextEditor
-                            variant="compact"
-                            value={opt}
-                            onChange={(html) => handleOptionChange(qIdx, optIdx, html)}
-                            placeholder={`الخيار ${optIdx + 1}`}
-                          />
-                        </div>
-                      </div>
-                    ))}
+                  <div className="space-y-2 pt-1">
+                    <p className="text-[11px] font-bold text-slate-500 dark:text-slate-400">الخيارات (اضغط «صحيحة» بجانب الإجابة الصحيحة):</p>
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-2.5">
+                      {q.options.map((opt, optIdx) => {
+                        const correct = q.correct_option_index === optIdx;
+                        return (
+                          <div key={optIdx}
+                            className={`flex items-start gap-2 p-2 rounded-xl border-2 transition-colors ${
+                              correct ? 'border-emerald-500 bg-emerald-50/70 dark:bg-emerald-950/30' : 'border-transparent'
+                            }`}>
+                            <span className={`mt-1.5 w-7 h-7 shrink-0 rounded-lg text-xs font-black flex items-center justify-center ${
+                              correct ? 'bg-emerald-600 text-white' : 'bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300'
+                            }`}>
+                              {['أ', 'ب', 'ج', 'د', 'هـ', 'و'][optIdx] || optIdx + 1}
+                            </span>
+                            <div className="flex-1 min-w-0">
+                              <RichTextEditor
+                                variant="compact"
+                                value={opt}
+                                onChange={(html) => handleOptionChange(qIdx, optIdx, html)}
+                                placeholder={`الخيار ${optIdx + 1}`}
+                              />
+                            </div>
+                            <div className="flex flex-col gap-1 mt-1">
+                              <button type="button" role="radio" aria-checked={correct} aria-label={`الخيار ${optIdx + 1} هو الإجابة الصحيحة`}
+                                onClick={() => handleCorrectOptionChange(qIdx, optIdx)}
+                                className={`px-2 py-1 rounded-lg text-[10px] font-black whitespace-nowrap ${
+                                  correct ? 'bg-emerald-600 text-white' : 'bg-slate-100 dark:bg-slate-800 text-slate-500 hover:bg-emerald-100 hover:text-emerald-700'
+                                }`}>
+                                {correct ? '✓ صحيحة' : 'صحيحة'}
+                              </button>
+                              {q.options.length > 2 && (
+                                <button type="button" aria-label={`حذف الخيار ${optIdx + 1}`} title="حذف الخيار"
+                                  onClick={() => handleRemoveOption(qIdx, optIdx)}
+                                  className="px-2 py-1 rounded-lg text-[10px] font-bold text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/40">
+                                  حذف
+                                </button>
+                              )}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                    {q.options.length < 6 && (
+                      <button type="button" onClick={() => handleAddOption(qIdx)}
+                        className="inline-flex items-center gap-1 text-xs font-bold text-indigo-600 dark:text-indigo-400 hover:underline">
+                        <Plus className="w-3.5 h-3.5" /> إضافة خيار
+                      </button>
+                    )}
                   </div>
                 )}
 
-                {/* True/False Options */}
+                {/* True/False: زران كبيران */}
                 {q.type === 'true_false' && (
-                  <div className="flex gap-4 pt-2">
-                    {['صح', 'خطأ'].map((opt, optIdx) => (
-                      <label key={optIdx} className="flex items-center gap-2 cursor-pointer text-xs font-bold">
-                        <input
-                          type="radio"
-                          name={`tf_${qIdx}`}
-                          checked={q.correct_option_index === optIdx}
-                          onChange={() => handleCorrectOptionChange(qIdx, optIdx)}
-                          className="accent-indigo-600"
-                        />
-                        <span>{opt}</span>
-                      </label>
-                    ))}
+                  <div className="pt-1">
+                    <p className="text-[11px] font-bold text-slate-500 dark:text-slate-400 mb-2">الإجابة الصحيحة:</p>
+                    <div className="grid grid-cols-2 gap-3 max-w-sm">
+                      {['صح', 'خطأ'].map((opt, optIdx) => {
+                        const correct = q.correct_option_index === optIdx;
+                        return (
+                          <button key={optIdx} type="button" role="radio" aria-checked={correct}
+                            onClick={() => handleCorrectOptionChange(qIdx, optIdx)}
+                            className={`py-2.5 rounded-xl border-2 text-sm font-black transition-colors ${
+                              correct
+                                ? 'border-emerald-500 bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300'
+                                : 'border-slate-200 dark:border-slate-700 text-slate-500 hover:border-slate-300'
+                            }`}>
+                            {correct ? `✓ ${opt}` : opt}
+                          </button>
+                        );
+                      })}
+                    </div>
                   </div>
                 )}
 
@@ -1167,10 +1270,28 @@ export const QuizEditor: React.FC = () => {
               </div>
             ))}
           </div>
+
+          {/* إضافة سؤال حسب النوع */}
+          <div className="mt-6 p-4 rounded-2xl border-2 border-dashed border-slate-300 dark:border-slate-700 flex flex-wrap items-center justify-center gap-2">
+            <span className="text-xs font-bold text-slate-500 dark:text-slate-400 ml-1">
+              <Plus className="w-4 h-4 inline -mt-0.5" /> أضف سؤالاً:
+            </span>
+            {QUESTION_TYPES.map((t) => (
+              <button key={t.type} type="button" onClick={() => handleAddQuestion(t.type)}
+                className="px-3.5 py-2 rounded-xl text-xs font-bold bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 hover:border-indigo-400 hover:text-indigo-700 dark:hover:text-indigo-300">
+                {t.label}
+              </button>
+            ))}
+          </div>
         </div>
 
-        {/* Footer Actions */}
-        <div className="flex items-center justify-end gap-3 pt-4">
+        {/* Footer Actions: شريط ثابت أسفل الشاشة */}
+        <div className="sticky bottom-0 z-30 -mx-4 sm:mx-0 px-4 sm:px-5 py-3 sm:rounded-2xl bg-white/95 dark:bg-slate-900/95 backdrop-blur border-t sm:border border-slate-200 dark:border-slate-800 shadow-[0_-8px_24px_-12px_rgba(0,0,0,0.15)] flex flex-wrap items-center justify-between gap-3">
+          <div className="text-xs font-bold text-slate-600 dark:text-slate-300">
+            {questionsLabel(questions.length)} •
+            <span className="text-indigo-700 dark:text-indigo-300"> الدرجة الكلية {totalCalculatedMarks}</span>
+          </div>
+          <div className="flex items-center gap-3">
           <button
             type="button"
             onClick={() => {
@@ -1188,6 +1309,7 @@ export const QuizEditor: React.FC = () => {
             <Save className="w-4 h-4" />
             <span>{isEditing ? 'تحديث وتعديل الاختبار' : 'حفظ ونشر الاختبار'}</span>
           </button>
+          </div>
         </div>
       </form>
     </div>

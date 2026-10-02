@@ -197,6 +197,10 @@ interface AppContextType {
   updateUserData: (id: string, updates: Partial<User>) => Promise<void>;
   resetUserPassword: (id: string, newPassword: string) => Promise<boolean>;
   deleteUserItem: (id: string) => Promise<void>;
+  /** حذف عدة مستخدمين دفعة واحدة (لا يشمل المستخدم الحالي) */
+  bulkDeleteUsers: (ids: string[]) => Promise<void>;
+  /** نقل عدة طلاب إلى صف آخر دفعة واحدة */
+  bulkMoveStudents: (ids: string[], classId: string) => Promise<void>;
   addSubject: (data: Omit<Subject, 'id'>) => Promise<Subject>;
   updateSubjectData: (id: string, updates: Partial<Subject>) => Promise<void>;
   deleteSubjectItem: (id: string) => Promise<void>;
@@ -1473,6 +1477,53 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     showToast('تم حذف المستخدم من النظام نهائياً', 'info');
   };
 
+  const bulkDeleteUsers: AppContextType['bulkDeleteUsers'] = async (ids) => {
+    const me = currentUserRef.current;
+    const list = ids.filter((id) => id !== me?.id);
+    if (!list.length) return;
+    let deleted = list;
+    if (isSupabaseConfigured()) {
+      deleted = [];
+      for (let i = 0; i < list.length; i += 100) {
+        const { data, error } = await supabase.from('users').delete().in('id', list.slice(i, i + 100)).select('id');
+        if (error) {
+          showToast(`تعذر حذف بعض المستخدمين (${error.message})`, 'error');
+          break;
+        }
+        (data || []).forEach((r: any) => deleted.push(r.id));
+      }
+    }
+    deleted.forEach((id) => StorageService.deleteUser(id));
+    setUsers((prev) => prev.filter((u) => !deleted.includes(u.id)));
+    recompute();
+    if (deleted.length) {
+      log('user_deleted', { type: 'user', name: `${deleted.length} مستخدم` }, 'حذف جماعي');
+      showToast(
+        deleted.length < list.length ? `حُذف ${deleted.length} من ${list.length} (الباقي لا تملك صلاحية حذفه)` : `تم حذف ${deleted.length} مستخدم`,
+        deleted.length < list.length ? 'info' : 'success'
+      );
+    } else showToast('لم يُحذف أحد: لا تملك صلاحية حذف هؤلاء المستخدمين', 'error');
+  };
+
+  const bulkMoveStudents: AppContextType['bulkMoveStudents'] = async (ids, classId) => {
+    const students = ids.filter((id) => StorageService.getUserById(id)?.role === 'student');
+    const cls = StorageService.getClassById(classId);
+    if (!students.length || !cls) return;
+    const now = new Date().toISOString();
+    if (isSupabaseConfigured()) {
+      const { error } = await supabase
+        .from('users')
+        .update({ class_id: classId, assigned_class_ids: [classId], updated_at: now })
+        .in('id', students);
+      if (error) return void showToast(`تعذر نقل الطلاب (${error.message})`, 'error');
+    }
+    students.forEach((id) => StorageService.updateUser(id, { class_id: classId, assigned_class_ids: [classId], updated_at: now }));
+    setUsers(StorageService.getUsers().map(normalizeUser));
+    recompute();
+    log('user_updated', { type: 'class', id: classId, name: cls.name }, `نقل ${students.length} طالب`);
+    showToast(`تم نقل ${students.length} طالب إلى ${cls.name}`, 'success');
+  };
+
   // ---------------- المواد والفصول ----------------
   const addSubject = async (data: Omit<Subject, 'id'>): Promise<Subject> => {
     const me = currentUserRef.current;
@@ -1934,6 +1985,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         updateUserData,
         resetUserPassword,
         deleteUserItem,
+        bulkDeleteUsers,
+        bulkMoveStudents,
         addSubject,
         updateSubjectData,
         deleteSubjectItem,
