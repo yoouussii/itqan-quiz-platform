@@ -242,6 +242,8 @@ public static getCurrentUser(): User | null {
 
     const current = users[idx];
     const targetRole = updates.role || current.role;
+    // المشرف مثل المعلم: له صلاحيات ومواد وفصول مسندة (كانت تُمسح عند كل حفظ)
+    const isStaff = targetRole === 'teacher' || targetRole === 'supervisor';
 
     // توحيد الصلاحيات
     const hasPerms = 'teacher_permissions' in updates || 'permissions' in updates;
@@ -252,7 +254,7 @@ public static getCurrentUser(): User | null {
     // توحيد المواد
     let assignedSubs: string[] = [];
     let specialtyId: string | null = null;
-    if (targetRole === 'teacher') {
+    if (isStaff) {
       assignedSubs = Array.isArray(updates.assigned_subject_ids)
         ? updates.assigned_subject_ids
         : ('specialty_id' in updates
@@ -282,7 +284,7 @@ public static getCurrentUser(): User | null {
       if (!classId && assignedCls.length > 0) {
         classId = assignedCls[0];
       }
-    } else if (targetRole === 'teacher') {
+    } else if (isStaff) {
       assignedCls = Array.isArray(updates.assigned_class_ids)
         ? updates.assigned_class_ids
         : ('class_id' in updates
@@ -305,8 +307,8 @@ public static getCurrentUser(): User | null {
       ...current,
       ...updates,
       ...(updates.username !== undefined ? { username: updates.username } : {}),
-      teacher_permissions: targetRole === 'teacher' ? perms : undefined,
-      permissions: targetRole === 'teacher' ? perms : undefined,
+      teacher_permissions: isStaff ? perms : undefined,
+      permissions: isStaff ? perms : undefined,
       assigned_subject_ids: assignedSubs,
       specialty_id: specialtyId,
       assigned_class_ids: assignedCls,

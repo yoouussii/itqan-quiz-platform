@@ -53,8 +53,10 @@ import {
 /** مدة الجلسة القصوى بالساعات؛ بعدها يُطلب من المستخدم تسجيل الدخول من جديد */
 const SESSION_MAX_HOURS = 12;
 const SESSION_KEY = 'itqan_session_started_at';
-/** كل كم ثانية يُحدَّث المحتوى تلقائياً من Supabase */
+/** كل كم ثانية يُحدَّث المحتوى تلقائياً من Supabase.
+ *  الطلاب كل 3 دقائق لتقليل استهلاك حد التنزيل في الخطة المجانية (الطاقم كل 30 ثانية) */
 const AUTO_REFRESH_SECONDS = 30;
+const STUDENT_REFRESH_SECONDS = 180;
 
 const LS_USERS = 'itqan_users_v2';
 const LS_SUBJECTS = 'itqan_subjects_v2';
@@ -681,7 +683,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   useEffect(() => {
     if (!currentUser) return;
 
+    let lastTick = Date.now();
     const tick = () => {
+      lastTick = Date.now();
       if (isSessionExpired() && currentViewRef.current !== 'take_quiz') {
         logout('انتهت الجلسة، يرجى تسجيل الدخول من جديد');
         return;
@@ -692,9 +696,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       }
     };
 
-    const interval = setInterval(tick, AUTO_REFRESH_SECONDS * 1000);
+    const everySeconds = currentUser.role === 'student' ? STUDENT_REFRESH_SECONDS : AUTO_REFRESH_SECONDS;
+    const interval = setInterval(tick, everySeconds * 1000);
     const onVisible = () => {
-      if (document.visibilityState === 'visible') tick();
+      // العودة للتبويب تُحدّث البيانات، لكن مرة واحدة كل 30 ثانية على الأكثر
+      if (document.visibilityState === 'visible' && Date.now() - lastTick > 30_000) tick();
     };
     document.addEventListener('visibilitychange', onVisible);
     window.addEventListener('focus', onVisible);
@@ -704,7 +710,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       document.removeEventListener('visibilitychange', onVisible);
       window.removeEventListener('focus', onVisible);
     };
-  }, [currentUser?.id, logout, refreshData]);
+  }, [currentUser?.id, currentUser?.role, logout, refreshData]);
 
   // ---------------- تسجيل الدخول ----------------
   const startSession = (user: User) => {
@@ -1019,6 +1025,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         : [...prev, normalized]
     );
 
+    let remoteFailure: string | null = null;
+    const droppedCols: string[] = [];
     if (isSupabaseConfigured()) {
       let payload: Record<string, any> = cleanUserPayloadForSupabase(created);
       for (let attempt = 0; attempt < 10; attempt++) {
@@ -1033,9 +1041,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           const missing = extractMissingColumn(error.message || '');
           if (missing && missing in payload && !['id', 'name', 'role'].includes(missing)) {
             delete payload[missing];
+            droppedCols.push(missing);
             continue;
           }
           if (error.message?.includes('column') || error.code === 'PGRST204') {
+            droppedCols.push('الصلاحيات والإسنادات');
             payload = {
               id: created.id,
               name: created.name,
@@ -1046,13 +1056,21 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             };
             continue;
           }
-          console.warn('[addUser] Supabase insert warning:', error.message);
+          remoteFailure = error.message;
           break;
         } catch (e: any) {
-          console.warn('[addUser] network warning:', e?.message);
+          remoteFailure = e?.message || 'تعذر الاتصال بالخادم';
           break;
         }
       }
+    }
+    if (!remoteFailure && droppedCols.length) {
+      remoteFailure = `أعمدة غير موجودة في جدول users: ${droppedCols.join('، ')}`;
+    }
+    if (remoteFailure) {
+      showToast(`أُضيف المستخدم على هذا الجهاز فقط ولم يصل للخادم (${remoteFailure}). شغّل ملف supabase/migrations/002_users_columns.sql`, 'error');
+      log('user_added', { type: 'user', id: created.id, name: created.name }, `الدور: ${created.role} (لم يصل للخادم)`);
+      return normalized;
     }
 
     log('user_added', { type: 'user', id: created.id, name: created.name }, `الدور: ${created.role}`);
@@ -1120,6 +1138,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         if (updates.password && updates.password.trim()) payload.password = updates.password.trim();
         Object.keys(payload).forEach((k) => payload[k] === undefined && delete payload[k]);
 
+        const dropped: string[] = [];
+        let failure: string | null = null;
         for (let attempt = 0; attempt < 8; attempt++) {
           try {
             const { error } = await supabase.from('users').update(payload).eq('id', id);
@@ -1127,14 +1147,24 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             const missing = extractMissingColumn(error.message || '');
             if (missing && missing in payload) {
               delete payload[missing];
+              dropped.push(missing);
               continue;
             }
-            console.warn('[updateUserData] Supabase update warning:', error.message);
+            failure = error.message;
             break;
           } catch (e: any) {
-            console.warn('[updateUserData] network error:', e?.message);
+            failure = e?.message || 'تعذر الاتصال بالخادم';
             break;
           }
+        }
+        // لا نُخفي فشل الحفظ: كان التعديل يظهر محفوظاً على هذا الجهاز فقط ثم يختفي عند الآخرين
+        if (failure) {
+          showToast(`لم يُحفظ التعديل على الخادم (${failure}). شغّل ملف supabase/migrations/002_users_columns.sql`, 'error');
+          return;
+        }
+        if (dropped.length) {
+          showToast(`حُفظ التعديل جزئياً: الأعمدة (${dropped.join('، ')}) غير موجودة في جدول users. شغّل ملف supabase/migrations/002_users_columns.sql`, 'error');
+          return;
         }
       }
       await refreshData();

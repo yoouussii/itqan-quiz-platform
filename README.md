@@ -57,7 +57,18 @@
 
 ### ربط Supabase
 1. انسخ `.env.example` إلى `.env` وضع فيه `VITE_SUPABASE_URL` و`VITE_SUPABASE_ANON_KEY`.
-2. شغّل الملف `supabase/migrations/001_v8_tables.sql` من **SQL Editor** في لوحة Supabase لإنشاء جداول الإشعارات وسجل النشاط والجوائز والإعدادات والصور الرمزية (بدونها تبقى هذه المزايا محلية على كل جهاز).
+2. من **SQL Editor** في لوحة Supabase شغّل:
+   - `supabase/migrations/002_users_columns.sql`: **مطلوب** لحفظ إسنادات وصلاحيات المشرف والمعلم على الخادم (يضيف الأعمدة الناقصة ويسمح بدور `supervisor`).
+   - `supabase/migrations/001_v8_tables.sql`: للتثبيت الجديد فقط (جداول الإشعارات والسجل والجوائز والإعدادات والصور). إن كانت موجودة عندك فلا حاجة له.
+
+### تشغيل مجاني بدون باقة Pro (GitHub Actions)
+أضف من **Settings ← Secrets and variables ← Actions** في GitHub:
+`SUPABASE_URL` و`SUPABASE_ANON_KEY` و`BACKUP_PASSPHRASE` (كلمة سر طويلة تحفظها عندك لفك النسخ).
+- **Supabase keep-alive**: يتصل بالمشروع كل 3 أيام فلا تُوقفه الخطة المجانية في الإجازات.
+- **Supabase backup**: نسخة احتياطية مشفّرة كل جمعة تُحفظ 90 يوماً في صفحة Actions. فك التشفير:
+  `gpg -d itqan-backup.tar.gz.gpg > backup.tar.gz && tar xzf backup.tar.gz`
+
+ملاحظة: المهام المجدولة تعمل من الفرع الرئيسي فقط، ويُوقفها GitHub إن مرّ 60 يوماً بلا أي تعديل على المستودع (يُعاد تفعيلها بزر من صفحة Actions).
 
 ```bash
 # تثبيت الاعتماديات

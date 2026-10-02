@@ -156,13 +156,7 @@ export const UsersManagement: React.FC = () => {
     setClassId(classes.length === 1 ? classes[0].id : '');
     setAssignedSubjectIds([]);
     setAssignedClassIds([]);
-    setTeacherPermissions({
-      can_add_custom_subjects: false,
-      can_manage_classes: false,
-      can_view_all_reports: false,
-      can_add_students: false,
-      can_add_teachers: false,
-    });
+    setTeacherPermissions(pickPerms({}));
     setShowAddModal(true);
   };
 
@@ -174,14 +168,8 @@ export const UsersManagement: React.FC = () => {
     const clsIds = (Array.isArray(u.assigned_class_ids) && u.assigned_class_ids.length > 0)
       ? [...u.assigned_class_ids]
       : (studentClassId ? [studentClassId] : []);
-    const p = u.teacher_permissions || (u as any).permissions || {};
-    const perms: TeacherPermissions = {
-      can_add_custom_subjects: !!p.can_add_custom_subjects,
-      can_manage_classes: !!p.can_manage_classes,
-      can_view_all_reports: !!p.can_view_all_reports,
-      can_add_students: !!p.can_add_students,
-      can_add_teachers: !!p.can_add_teachers,
-    };
+    // كل الصلاحيات (وليس الخمس القديمة فقط) حتى لا تُمسح البقية عند الحفظ
+    const perms: TeacherPermissions = pickPerms(u.teacher_permissions || (u as any).permissions || {});
 
     setEditingUser({
       ...u,
