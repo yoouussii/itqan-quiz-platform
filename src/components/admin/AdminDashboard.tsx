@@ -11,7 +11,7 @@ import { SUBMISSIONS_FILTER_KEY, ungradedSummary } from '../../utils/grading';
 import { hasPerm } from '../../utils/permissions';
 import { Avatar } from '../common/Avatar';
 import { Button, Card, Chip, PageHeader, SectionTitle, StatTile, greeting, scoreTone, timeAgo, todayLabel } from '../common/ui';
-import { uiDir } from '../../i18n';
+import { uiDir, t, isEn } from '../../i18n';
 
 const avgOf = (vals: number[]) => (vals.length ? Math.round(vals.reduce((a, b) => a + b, 0) / vals.length) : 0);
 
@@ -76,41 +76,41 @@ export const AdminDashboard: React.FC = () => {
   if (pendingApprovalsCount > 0) {
     attention.push({
       key: 'approvals', icon: ClipboardCheck, tone: 'bg-amber-50 text-amber-700 dark:bg-amber-950/60 dark:text-amber-300',
-      title: `${pendingApprovalsCount} ${pendingApprovalsCount === 1 ? 'اختبار' : 'اختبارات'} بانتظار اعتمادك`,
-      desc: liveQuizzes.filter((q) => q.status === 'pending_approval').slice(0, 2).map((q) => `«${q.title}»`).join(' و') || 'راجعها قبل نشرها للطلاب',
-      action: 'مراجعة', go: () => setCurrentView('approvals'),
+      title: isEn() ? `${pendingApprovalsCount} ${pendingApprovalsCount === 1 ? 'quiz' : 'quizzes'} awaiting your approval` : `${pendingApprovalsCount} ${pendingApprovalsCount === 1 ? 'اختبار' : 'اختبارات'} بانتظار اعتمادك`,
+      desc: liveQuizzes.filter((q) => q.status === 'pending_approval').slice(0, 2).map((q) => `«${q.title}»`).join(isEn() ? ' and ' : ' و') || t('راجعها قبل نشرها للطلاب'),
+      action: t('مراجعة'), go: () => setCurrentView('approvals'),
     });
   }
   if (grading.essays > 0) {
     attention.push({
       key: 'grading', icon: PenLine, tone: 'bg-indigo-50 text-indigo-700 dark:bg-indigo-950/60 dark:text-indigo-300',
-      title: `${grading.essays} إجابة مقالية لم تُصحَّح`,
-      desc: `في ${grading.quizzes} ${grading.quizzes === 1 ? 'اختبار' : 'اختبارات'}، والطالب لا يرى درجته النهائية قبل التصحيح`,
-      action: 'تصحيح', go: () => { try { sessionStorage.setItem(SUBMISSIONS_FILTER_KEY, 'ungraded'); } catch { /* ignore */ } setCurrentView('analytics'); },
+      title: t('{n} إجابة مقالية لم تُصحَّح', { n: grading.essays }),
+      desc: isEn() ? `In ${grading.quizzes} ${grading.quizzes === 1 ? 'quiz' : 'quizzes'}; students do not see their final score until marked` : `في ${grading.quizzes} ${grading.quizzes === 1 ? 'اختبار' : 'اختبارات'}، والطالب لا يرى درجته النهائية قبل التصحيح`,
+      action: t('تصحيح'), go: () => { try { sessionStorage.setItem(SUBMISSIONS_FILTER_KEY, 'ungraded'); } catch { /* ignore */ } setCurrentView('analytics'); },
     });
   }
   if (struggling.length > 0) {
     attention.push({
       key: 'struggling', icon: AlertTriangle, tone: 'bg-rose-50 text-rose-700 dark:bg-rose-950/60 dark:text-rose-300',
-      title: `${struggling.length} ${struggling.length === 1 ? 'طالب متوسطه' : 'طلاب متوسطهم'} أقل من 50%`,
-      desc: 'يحتاجون متابعة من معلميهم',
-      action: 'عرض', go: () => setKpiModal('struggling'),
+      title: isEn() ? `${struggling.length} ${struggling.length === 1 ? 'student averages' : 'students average'} below 50%` : `${struggling.length} ${struggling.length === 1 ? 'طالب متوسطه' : 'طلاب متوسطهم'} أقل من 50%`,
+      desc: t('يحتاجون متابعة من معلميهم'),
+      action: t('عرض'), go: () => setKpiModal('struggling'),
     });
   }
 
   const modal = ((): { title: string; subtitle?: string; sections: KpiSection[] } | null => {
     switch (kpiModal) {
-      case 'students': return { title: 'الطلاب', sections: [studentsSection('قائمة الطلاب (حسب الصف)', students, submissions, classes)] };
-      case 'quizzes': return { title: 'الاختبارات', sections: [quizzesSection('قائمة الاختبارات', liveQuizzes as any, submissions, subjects, users, classes)] };
+      case 'students': return { title: t('الطلاب'), sections: [studentsSection(t('قائمة الطلاب (حسب الصف)'), students, submissions, classes)] };
+      case 'quizzes': return { title: t('الاختبارات'), sections: [quizzesSection(t('قائمة الاختبارات'), liveQuizzes as any, submissions, subjects, users, classes)] };
       case 'avg': return {
-        title: 'متوسط النتائج', subtitle: `المتوسط ${kpis?.averageScore ?? 0}% • نسبة النجاح ${kpis?.passRate ?? 0}%`,
-        sections: [perQuizSection('حسب الاختبار', liveQuizzes as any, submissions), perSubjectSection('حسب المادة', liveQuizzes as any, submissions, subjects)],
+        title: t('متوسط النتائج'), subtitle: t('المتوسط {avg}% • نسبة النجاح {pass}%', { avg: kpis?.averageScore ?? 0, pass: kpis?.passRate ?? 0 }),
+        sections: [perQuizSection(t('حسب الاختبار'), liveQuizzes as any, submissions), perSubjectSection(t('حسب المادة'), liveQuizzes as any, submissions, subjects)],
       };
       case 'active': return {
-        title: 'نشاط الطلاب (آخر 7 أيام)',
-        sections: [activeStudentsSection('الطلاب النشطون', students, submissions, classes), inactiveStudentsSection('لم يؤدوا اختباراً خلال هذه الفترة', students, submissions, classes)],
+        title: t('نشاط الطلاب (آخر 7 أيام)'),
+        sections: [activeStudentsSection(t('الطلاب النشطون'), students, submissions, classes), inactiveStudentsSection(t('لم يؤدوا اختباراً خلال هذه الفترة'), students, submissions, classes)],
       };
-      case 'struggling': return { title: 'طلاب يحتاجون متابعة', subtitle: 'متوسطهم أقل من 50%', sections: [studentsSection('الطلاب', struggling, submissions, classes)] };
+      case 'struggling': return { title: t('طلاب يحتاجون متابعة'), subtitle: t('متوسطهم أقل من 50%'), sections: [studentsSection(t('الطلاب'), struggling, submissions, classes)] };
       default: return null;
     }
   })();
@@ -119,29 +119,29 @@ export const AdminDashboard: React.FC = () => {
     <div className="max-w-7xl mx-auto py-8 px-4 sm:px-6 lg:px-8 space-y-6" dir={uiDir()}>
       <PageHeader
         eyebrow={todayLabel()}
-        title={`${greeting()}، ${firstName || 'مدير النظام'}`}
+        title={`${greeting()}${isEn() ? ', ' : '، '}${firstName || t('مدير النظام')}`}
         actions={
           <>
-            <Button variant="secondary" icon={UserPlus} onClick={() => setCurrentView('users')}>إضافة مستخدم</Button>
-            <Button icon={PlusCircle} onClick={() => { setEditingQuizId?.(null); setDuplicateQuizId?.(null); setCurrentView('create_quiz'); }}>اختبار جديد</Button>
+            <Button variant="secondary" icon={UserPlus} onClick={() => setCurrentView('users')}>{t('إضافة مستخدم')}</Button>
+            <Button icon={PlusCircle} onClick={() => { setEditingQuizId?.(null); setDuplicateQuizId?.(null); setCurrentView('create_quiz'); }}>{t('اختبار جديد')}</Button>
           </>
         }
       />
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <StatTile label="الطلاب" value={totalStudents} hint={`في ${classes.length} ${classes.length === 1 ? 'شعبة' : 'شعب'}`} onClick={() => setKpiModal('students')} />
-        <StatTile label="اختبارات متاحة الآن" value={openNow.length} hint={endingToday > 0 ? `${endingToday} تنتهي اليوم` : `من ${liveQuizzes.length} اختباراً`} hintTone={endingToday > 0 ? 'bad' : 'muted'} onClick={() => setKpiModal('quizzes')} />
-        <StatTile label="متوسط النتائج" value={`${kpis?.averageScore ?? 0}%`} hint={`نسبة النجاح ${kpis?.passRate ?? 0}%`} onClick={() => setKpiModal('avg')} />
-        <StatTile label="الطلاب النشطون (7 أيام)" value={activeStudents} progress={totalStudents ? (activeStudents / totalStudents) * 100 : 0} onClick={() => setKpiModal('active')} />
+        <StatTile label={t('الطلاب')} value={totalStudents} hint={isEn() ? `In ${classes.length} ${classes.length === 1 ? 'class' : 'classes'}` : `في ${classes.length} ${classes.length === 1 ? 'شعبة' : 'شعب'}`} onClick={() => setKpiModal('students')} />
+        <StatTile label={t('اختبارات متاحة الآن')} value={openNow.length} hint={endingToday > 0 ? t('{n} تنتهي اليوم', { n: endingToday }) : t('من {n} اختباراً', { n: liveQuizzes.length })} hintTone={endingToday > 0 ? 'bad' : 'muted'} onClick={() => setKpiModal('quizzes')} />
+        <StatTile label={t('متوسط النتائج')} value={`${kpis?.averageScore ?? 0}%`} hint={t('نسبة النجاح {pass}%', { pass: kpis?.passRate ?? 0 })} onClick={() => setKpiModal('avg')} />
+        <StatTile label={t('الطلاب النشطون (7 أيام)')} value={activeStudents} progress={totalStudents ? (activeStudents / totalStudents) * 100 : 0} onClick={() => setKpiModal('active')} />
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-5 gap-4">
         <Card className="lg:col-span-3 p-5 sm:p-6">
-          <SectionTitle action={attention.length > 0 && <Chip tone="warn">{attention.length} {attention.length === 1 ? 'مهمة' : 'مهام'}</Chip>}>يحتاج انتباهك</SectionTitle>
+          <SectionTitle action={attention.length > 0 && <Chip tone="warn">{attention.length} {attention.length === 1 ? t('مهمة') : t('مهام')}</Chip>}>{t('يحتاج انتباهك')}</SectionTitle>
           {attention.length === 0 ? (
             <div className="flex items-center gap-3 py-8 justify-center text-emerald-700 dark:text-emerald-400">
               <CheckCircle2 className="w-6 h-6" />
-              <span className="font-semibold">لا توجد مهام معلّقة. كل شيء على ما يرام.</span>
+              <span className="font-semibold">{t('لا توجد مهام معلّقة. كل شيء على ما يرام.')}</span>
             </div>
           ) : (
             attention.map((a) => {
@@ -161,8 +161,8 @@ export const AdminDashboard: React.FC = () => {
         </Card>
 
         <Card className="lg:col-span-2 p-5 sm:p-6 flex flex-col gap-4">
-          <SectionTitle>أداء الشعب</SectionTitle>
-          {classPerf.length === 0 && <p className="text-sm text-slate-500 py-6 text-center">لا توجد نتائج بعد</p>}
+          <SectionTitle>{t('أداء الشعب')}</SectionTitle>
+          {classPerf.length === 0 && <p className="text-sm text-slate-500 py-6 text-center">{t('لا توجد نتائج بعد')}</p>}
           {classPerf.map(({ c, avg }) => (
             <div key={c.id}>
               <div className="flex justify-between text-sm mb-1.5">
@@ -175,26 +175,26 @@ export const AdminDashboard: React.FC = () => {
             </div>
           ))}
           <button type="button" onClick={() => setCurrentView('analytics')} className="mt-auto text-sm font-semibold text-indigo-700 dark:text-indigo-400 text-start hover:underline">
-            كل الشعب والتحليلات ←
+            {t('كل الشعب والتحليلات ←')}
           </button>
         </Card>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-5 gap-4">
         <Card className="lg:col-span-3 p-5 sm:p-6">
-          <SectionTitle action={<button type="button" onClick={() => setCurrentView('analytics')} className="text-sm font-semibold text-indigo-700 dark:text-indigo-400 hover:underline">عرض الكل</button>}>
-            آخر التسليمات
+          <SectionTitle action={<button type="button" onClick={() => setCurrentView('analytics')} className="text-sm font-semibold text-indigo-700 dark:text-indigo-400 hover:underline">{t('عرض الكل')}</button>}>
+            {t('آخر التسليمات')}
           </SectionTitle>
-          {recent.length === 0 && <p className="text-sm text-slate-500 py-6 text-center">لا توجد تسليمات بعد</p>}
+          {recent.length === 0 && <p className="text-sm text-slate-500 py-6 text-center">{t('لا توجد تسليمات بعد')}</p>}
           {recent.map((s) => {
             const st = users.find((u) => u.id === s.student_id);
             const q = quizzes.find((x) => x.id === s.quiz_id);
             return (
               <div key={s.id} className="flex items-center gap-3 py-3 border-t border-slate-100 dark:border-slate-800 first-of-type:border-t-0">
-                <Avatar name={st?.name || 'طالب'} role="student" userId={st?.id} size="sm" />
+                <Avatar name={st?.name || t('طالب')} role="student" userId={st?.id} size="sm" />
                 <div className="flex-1 min-w-0">
-                  <div className="font-semibold text-[15px] text-slate-900 dark:text-white truncate">{st?.name || 'طالب'}</div>
-                  <div className="text-[13px] text-slate-500 dark:text-slate-400 truncate">{q?.title || 'اختبار'} · {timeAgo(s.completed_at)}</div>
+                  <div className="font-semibold text-[15px] text-slate-900 dark:text-white truncate">{st?.name || t('طالب')}</div>
+                  <div className="text-[13px] text-slate-500 dark:text-slate-400 truncate">{q?.title || t('اختبار')} · {timeAgo(s.completed_at)}</div>
                 </div>
                 <Chip tone={scoreTone(Number(s.percentage) || 0, q?.pass_percentage)}>
                   <span className="tabular-nums" dir="ltr">{s.score}/{s.total_possible_score}</span>
@@ -205,8 +205,8 @@ export const AdminDashboard: React.FC = () => {
         </Card>
 
         <Card className="lg:col-span-2 p-5 sm:p-6">
-          <SectionTitle action={<Star className="w-5 h-5 fill-amber-400 text-amber-400" />}>الأوائل</SectionTitle>
-          {topStudents.length === 0 && <p className="text-sm text-slate-500 py-6 text-center">لا توجد نتائج بعد</p>}
+          <SectionTitle action={<Star className="w-5 h-5 fill-amber-400 text-amber-400" />}>{t('الأوائل')}</SectionTitle>
+          {topStudents.length === 0 && <p className="text-sm text-slate-500 py-6 text-center">{t('لا توجد نتائج بعد')}</p>}
           {topStudents.map(({ st, avg }, i) => (
             <div key={st.id} className="flex items-center gap-3 py-3 border-t border-slate-100 dark:border-slate-800 first-of-type:border-t-0">
               <span className={`w-6 font-bold tabular-nums ${i === 0 ? 'text-amber-700 dark:text-amber-400' : 'text-slate-500'}`}>{i + 1}</span>
@@ -216,7 +216,7 @@ export const AdminDashboard: React.FC = () => {
           ))}
           {hasPerm(currentUser, 'can_view_leaderboard') && topStudents.length > 0 && (
             <button type="button" onClick={() => setCurrentView('leaderboard')} className="mt-3 text-sm font-semibold text-indigo-700 dark:text-indigo-400 hover:underline">
-              لوحة الشرف كاملة ←
+              {t('لوحة الشرف كاملة ←')}
             </button>
           )}
         </Card>

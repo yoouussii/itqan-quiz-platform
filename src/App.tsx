@@ -290,17 +290,13 @@ const AppContent: React.FC = () => {
   );
 };
 
-/** لغة الواجهة: اختيار المستخدم على جهازه. المدير بالعربية حتى تكتمل ترجمة صفحات الإدارة (المرحلة 3) */
-const STAFF_ROLES = ['admin'];
+/** لغة الواجهة: اختيار المستخدم على جهازه، متاح لكل الأدوار */
 const LangRoot: React.FC = () => {
-  const { currentUser, currentView } = useApp();
-  const [pref, setPref] = React.useState<Lang>(loadLangPref);
-  const staff = !!currentUser && currentView !== 'login' && STAFF_ROLES.includes(currentUser.role);
-  const lang: Lang = staff ? 'ar' : pref;
+  const [lang, setPref] = React.useState<Lang>(loadLangPref);
   // قبل رسم الأبناء حتى تُترجَم النصوص في نفس الرسم
   applyLang(lang);
   const setLang = React.useCallback((l: Lang) => { saveLangPref(l); setPref(l); }, []);
-  const value = React.useMemo(() => ({ lang, setLang, canSwitch: !staff }), [lang, setLang, staff]);
+  const value = React.useMemo(() => ({ lang, setLang, canSwitch: true }), [lang, setLang]);
   return (
     <LangContext.Provider value={value}>
       {/* تغيير اللغة يعيد رسم الواجهة كاملة بالنصوص الجديدة */}

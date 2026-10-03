@@ -29,7 +29,7 @@ import { FileText as FileTextIcon } from 'lucide-react';
 import { Role, User, TeacherPermissions, Gender } from '../../types';
 import { normalizeClassName } from '../../utils/classMatch';
 import { Avatar } from '../common/Avatar';
-import { uiDir } from '../../i18n';
+import { uiDir, t } from '../../i18n';
 
 export const UsersManagement: React.FC = () => {
   const {
@@ -275,7 +275,7 @@ export const UsersManagement: React.FC = () => {
 
     const exists = users.some((u) => u.national_id === nationalId.trim());
     if (exists) {
-      alert('رقم الهوية / الرقم الأكاديمي مسجل مسبقاً لمستخدم آخر');
+      alert(t('رقم الهوية / الرقم الأكاديمي مسجل مسبقاً لمستخدم آخر'));
       return;
     }
 
@@ -283,11 +283,11 @@ export const UsersManagement: React.FC = () => {
     const effectiveRole: Role = isTeacher ? 'student' : role;
 
     if (effectiveRole === 'student' && !classId) {
-      alert('يرجى اختيار الصف الدراسي للطالب');
+      alert(t('يرجى اختيار الصف الدراسي للطالب'));
       return;
     }
     if (effectiveRole === 'parent' && childIds.length === 0) {
-      alert('اختر ابناً واحداً على الأقل لربطه بحساب ولي الأمر');
+      alert(t('اختر ابناً واحداً على الأقل لربطه بحساب ولي الأمر'));
       return;
     }
     const permsObj: TeacherPermissions | undefined = isStaffRole(effectiveRole) ? pickPerms(teacherPermissions) : undefined;
@@ -379,16 +379,16 @@ export const UsersManagement: React.FC = () => {
   };
 
   const handleDelete = (id: string, userName: string) => {
-    if (window.confirm(`هل أنت متأكد من حذف المستخدم (${userName}) نهائياً من منصة إتقان؟`)) {
+    if (window.confirm(t('هل أنت متأكد من حذف المستخدم ({name}) نهائياً من منصة إتقان؟', { name: userName }))) {
       deleteUserItem(id);
     }
   };
 
   /** النوع من خلية Excel: ذكر/أنثى، ولد/بنت، م/ف، male/female */
   function parseGender(v: any): Gender | null {
-    const t = String(v ?? '').trim().toLowerCase();
-    if (/^(ذكر|ولد|م|male|m|boy|بنين)$/.test(t)) return 'male';
-    if (/^(أنثى|انثى|انثي|بنت|ف|female|f|girl|بنات)$/.test(t)) return 'female';
+    const g = String(v ?? '').trim().toLowerCase();
+    if (/^(ذكر|ولد|م|male|m|boy|بنين)$/.test(g)) return 'male';
+    if (/^(أنثى|انثى|انثي|بنت|ف|female|f|girl|بنات)$/.test(g)) return 'female';
     return null;
   }
   /** الفرع من اسمه في الملف (تطابق تام ثم جزئي واضح) */
@@ -431,7 +431,7 @@ export const UsersManagement: React.FC = () => {
         const jsonData = XLSX.utils.sheet_to_json<Record<string, any>>(worksheet);
 
         if (!jsonData || jsonData.length === 0) {
-          setImportError('الملف فارغ أو لا يحتوي على بيانات صالحة');
+          setImportError(t('الملف فارغ أو لا يحتوي على بيانات صالحة'));
           return;
         }
 
@@ -447,7 +447,7 @@ export const UsersManagement: React.FC = () => {
         })).filter((s) => s.name && s.national_id);
 
         if (parsed.length === 0) {
-          setImportError('لم يتم العثور على بيانات صالحة. تأكد من وجود أعمدة: الاسم، رقم الهوية');
+          setImportError(t('لم يتم العثور على بيانات صالحة. تأكد من وجود أعمدة: الاسم، رقم الهوية'));
           return;
         }
 
@@ -457,7 +457,7 @@ export const UsersManagement: React.FC = () => {
         setShowImportModal(true);
       } catch (err) {
         console.error('Excel parse error:', err);
-        setImportError('حدث خطأ أثناء قراءة الملف. تأكد من أنه ملف Excel صالح (.xlsx)');
+        setImportError(t('حدث خطأ أثناء قراءة الملف. تأكد من أنه ملف Excel صالح (.xlsx)'));
       }
     };
     reader.readAsBinaryString(file);
@@ -558,17 +558,17 @@ export const UsersManagement: React.FC = () => {
 
       const lines = [
         skippedCount > 0
-          ? `تم استيراد ${importedCount} طالب، وتخطي ${skippedCount} (مسجل مسبقاً أو بدون صف محدد).`
-          : `تم استيراد ${importedCount} طالب بنجاح.`,
+          ? t('تم استيراد {n} طالب، وتخطي {s} (مسجل مسبقاً أو بدون صف محدد).', { n: importedCount, s: skippedCount })
+          : t('تم استيراد {n} طالب بنجاح.', { n: importedCount }),
       ];
-      if (parentsCreated) lines.push(`أُنشئ ${parentsCreated} حساب ولي أمر.`);
-      if (parentsLinked) lines.push(`رُبط أبناء جدد بـ ${parentsLinked} حساب ولي أمر موجود.`);
-      if (parentConflicts) lines.push(`${parentConflicts} هوية ولي أمر مستخدمة لحساب آخر (ليس ولي أمر) فلم تُربط.`);
-      if (!isAdminUser && linked.length) lines.push('حسابات أولياء الأمور يُنشئها مدير النظام فقط.');
+      if (parentsCreated) lines.push(t('أُنشئ {n} حساب ولي أمر.', { n: parentsCreated }));
+      if (parentsLinked) lines.push(t('رُبط أبناء جدد بـ {n} حساب ولي أمر موجود.', { n: parentsLinked }));
+      if (parentConflicts) lines.push(t('{n} هوية ولي أمر مستخدمة لحساب آخر (ليس ولي أمر) فلم تُربط.', { n: parentConflicts }));
+      if (!isAdminUser && linked.length) lines.push(t('حسابات أولياء الأمور يُنشئها مدير النظام فقط.'));
       alert(lines.join('\n'));
     } catch (err) {
       console.error('Bulk import error:', err);
-      alert('حدث خطأ أثناء الاستيراد. تحقق من البيانات وأعد المحاولة.');
+      alert(t('حدث خطأ أثناء الاستيراد. تحقق من البيانات وأعد المحاولة.'));
     } finally {
       setIsImporting(false);
     }
@@ -582,9 +582,9 @@ export const UsersManagement: React.FC = () => {
     <div className="max-w-7xl mx-auto py-8 px-4 sm:px-6 lg:px-8 space-y-6" dir={uiDir()}>
       <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4">
         <div>
-          <h1 className="text-2xl sm:text-[28px] font-extrabold text-slate-900 dark:text-white">{isTeacher ? 'طلابي' : 'المستخدمون'}</h1>
+          <h1 className="text-2xl sm:text-[28px] font-extrabold text-slate-900 dark:text-white">{isTeacher ? t('طلابي') : t('المستخدمون')}</h1>
           <p className="text-[15px] text-slate-500 dark:text-slate-400 mt-0.5">
-            {scopeUsers.length} حساباً · لا يوجد تسجيل ذاتي، الحسابات تُنشأ من هنا فقط
+            {scopeUsers.length}{' '}{t('حساباً · لا يوجد تسجيل ذاتي، الحسابات تُنشأ من هنا فقط')}
           </p>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
@@ -594,7 +594,7 @@ export const UsersManagement: React.FC = () => {
               className="inline-flex items-center gap-2 h-11 px-5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-[15px] font-semibold"
             >
               <UserPlus className="w-4 h-4" />
-              <span>إضافة طالب جديد</span>
+              <span>{t('إضافة طالب جديد')}</span>
             </button>
           )}
 
@@ -603,18 +603,18 @@ export const UsersManagement: React.FC = () => {
               <button
                 onClick={downloadExcelTemplate}
                 className="inline-flex items-center gap-2 h-11 px-4 rounded-xl text-[15px] font-semibold border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-100 hover:bg-slate-50 dark:hover:bg-slate-800"
-                title="تحميل نموذج Excel"
+                title={t('تحميل نموذج Excel')}
               >
                 <Download className="w-4 h-4" />
-                <span>نموذج Excel</span>
+                <span>{t('نموذج Excel')}</span>
               </button>
               <button
                 onClick={() => fileInputRef.current?.click()}
                 className="inline-flex items-center gap-2 h-11 px-4 rounded-xl text-[15px] font-semibold border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-100 hover:bg-slate-50 dark:hover:bg-slate-800"
-                title="استيراد طلاب من ملف Excel"
+                title={t('استيراد طلاب من ملف Excel')}
               >
                 <Upload className="w-4 h-4" />
-                <span>استيراد من Excel</span>
+                <span>{t('استيراد من Excel')}</span>
               </button>
               <input
                 ref={fileInputRef}
@@ -632,7 +632,7 @@ export const UsersManagement: React.FC = () => {
               className="inline-flex items-center gap-2 h-11 px-5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-[15px] font-semibold"
             >
               <UserPlus className="w-4 h-4" />
-              <span>إضافة مستخدم</span>
+              <span>{t('إضافة مستخدم')}</span>
             </button>
           )}
         </div>
@@ -641,14 +641,14 @@ export const UsersManagement: React.FC = () => {
       {/* تبويبات الأدوار + البحث والصف */}
       <div className="flex flex-col lg:flex-row gap-3 lg:items-center justify-between">
         {!isTeacher ? (
-          <div className="flex gap-1 p-1 rounded-xl bg-slate-200/60 dark:bg-slate-800/70 w-fit max-w-full overflow-x-auto" role="tablist" aria-label="تصفية حسب الدور">
+          <div className="flex gap-1 p-1 rounded-xl bg-slate-200/60 dark:bg-slate-800/70 w-fit max-w-full overflow-x-auto" role="tablist" aria-label={t('تصفية حسب الدور')}>
             {[
-              { id: 'all', label: 'الكل', n: scopeUsers.length },
-              { id: 'student', label: 'الطلاب', n: roleCount('student') },
-              { id: 'teacher', label: 'المعلمون', n: roleCount('teacher') },
-              { id: 'supervisor', label: 'المشرفون', n: roleCount('supervisor') },
-              { id: 'admin', label: 'المدراء', n: roleCount('admin') },
-              { id: 'parent', label: 'أولياء الأمور', n: roleCount('parent') },
+              { id: 'all', label: t('الكل'), n: scopeUsers.length },
+              { id: 'student', label: t('الطلاب'), n: roleCount('student') },
+              { id: 'teacher', label: t('المعلمون'), n: roleCount('teacher') },
+              { id: 'supervisor', label: t('المشرفون'), n: roleCount('supervisor') },
+              { id: 'admin', label: t('المدراء'), n: roleCount('admin') },
+              { id: 'parent', label: t('أولياء الأمور'), n: roleCount('parent') },
             ].filter((t) => t.id === 'all' || t.n > 0).map((t) => (
               <button key={t.id} type="button" role="tab" aria-selected={roleFilter === t.id} onClick={() => setRoleFilter(t.id)}
                 className={`h-10 px-4 rounded-lg text-[14.5px] font-semibold whitespace-nowrap ${roleFilter === t.id ? 'bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-sm' : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'}`}>
@@ -663,40 +663,40 @@ export const UsersManagement: React.FC = () => {
             <Search className="w-[18px] h-[18px] shrink-0" />
             <input
               type="text"
-              aria-label="بحث بالاسم أو الهوية"
-              placeholder="بحث بالاسم أو الهوية"
+              aria-label={t('بحث بالاسم أو الهوية')}
+              placeholder={t('بحث بالاسم أو الهوية')}
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               className="flex-1 min-w-0 bg-transparent outline-none text-[15px] text-slate-900 dark:text-white placeholder:text-slate-400"
             />
           </label>
           <select
-            aria-label="تصفية حسب الصف"
+            aria-label={t('تصفية حسب الصف')}
             value={classFilter}
             onChange={(e) => setClassFilter(e.target.value)}
             className="h-11 px-3 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-[15px] text-slate-800 dark:text-slate-100 max-w-[16rem]"
           >
-            <option value="all">كل الشعب</option>
+            <option value="all">{t('كل الشعب')}</option>
             {classFilterOptions.map((c) => (
               <option key={c.id} value={c.id}>
                 {c.name} ({classCount(c.id)})
               </option>
             ))}
-            {noClassCount > 0 && <option value="none">بدون صف ({noClassCount})</option>}
+            {noClassCount > 0 && <option value="none">{t('بدون صف (')}{noClassCount})</option>}
           </select>
           {isAdminUser && branches.length > 0 && (
-            <select aria-label="تصفية حسب الفرع" value={branchFilter} onChange={(e) => setBranchFilter(e.target.value)}
+            <select aria-label={t('تصفية حسب الفرع')} value={branchFilter} onChange={(e) => setBranchFilter(e.target.value)}
               className="h-11 px-3 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-[15px] text-slate-800 dark:text-slate-100 max-w-[14rem]">
-              <option value="all">كل الفروع</option>
+              <option value="all">{t('كل الفروع')}</option>
               {branches.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}
-              <option value="none">بدون فرع</option>
+              <option value="none">{t('بدون فرع')}</option>
             </select>
           )}
-          <select aria-label="تصفية حسب النوع" value={genderFilter} onChange={(e) => setGenderFilter(e.target.value)}
+          <select aria-label={t('تصفية حسب النوع')} value={genderFilter} onChange={(e) => setGenderFilter(e.target.value)}
             className="h-11 px-3 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-[15px] text-slate-800 dark:text-slate-100">
-            <option value="all">ذكور وإناث</option>
-            <option value="male">ذكور</option>
-            <option value="female">إناث</option>
+            <option value="all">{t('ذكور وإناث')}</option>
+            <option value="male">{t('ذكور')}</option>
+            <option value="female">{t('إناث')}</option>
           </select>
           {(roleFilter !== 'all' || classFilter !== 'all' || branchFilter !== 'all' || genderFilter !== 'all' || searchTerm.trim()) && (
             <button
@@ -710,7 +710,7 @@ export const UsersManagement: React.FC = () => {
               }}
               className="h-11 px-2 text-sm font-semibold text-indigo-700 dark:text-indigo-400 hover:underline"
             >
-              مسح الفلاتر ({filteredUsers.length} نتيجة)
+              {t('مسح الفلاتر (')}{filteredUsers.length}{' '}{t('نتيجة)')}
             </button>
           )}
         </div>
@@ -720,17 +720,17 @@ export const UsersManagement: React.FC = () => {
       {selectedIds.length > 0 && (() => {
         const selectedStudents = selectedIds.filter((id) => users.find((u) => u.id === id)?.role === 'student');
         return (
-          <div className="sticky top-[72px] z-20 p-2.5 ps-4 rounded-2xl bg-slate-900 dark:bg-slate-800 text-white shadow-lg flex flex-wrap items-center gap-2" role="region" aria-label="إجراءات على المحدد">
-            <span className="text-[15px] font-semibold flex-1 min-w-[8rem]">تم تحديد {selectedIds.length}</span>
-            <select aria-label="نقل إلى صف" value={moveClassId} onChange={(e) => setMoveClassId(e.target.value)}
+          <div className="sticky top-[72px] z-20 p-2.5 ps-4 rounded-2xl bg-slate-900 dark:bg-slate-800 text-white shadow-lg flex flex-wrap items-center gap-2" role="region" aria-label={t('إجراءات على المحدد')}>
+            <span className="text-[15px] font-semibold flex-1 min-w-[8rem]">{t('تم تحديد')}{' '}{selectedIds.length}</span>
+            <select aria-label={t('نقل إلى صف')} value={moveClassId} onChange={(e) => setMoveClassId(e.target.value)}
               className="h-10 px-3 text-sm rounded-xl border-0 bg-white/10 text-white [&>option]:text-slate-900">
-              <option value="">نقل الطلاب إلى شعبة…</option>
+              <option value="">{t('نقل الطلاب إلى شعبة…')}</option>
               {classes.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
             </select>
             <button type="button" disabled={bulkBusy || !moveClassId || !selectedStudents.length}
               onClick={async () => {
                 const cls = classes.find((c) => c.id === moveClassId);
-                if (!window.confirm(`نقل ${selectedStudents.length} طالب إلى ${cls?.name}؟`)) return;
+                if (!window.confirm(t('نقل {n} طالب إلى {to}؟', { n: selectedStudents.length, to: cls?.name || '' }))) return;
                 setBulkBusy(true);
                 await bulkMoveStudents(selectedStudents, moveClassId);
                 setBulkBusy(false);
@@ -738,20 +738,20 @@ export const UsersManagement: React.FC = () => {
                 setMoveClassId('');
               }}
               className="h-10 px-4 rounded-xl text-sm font-semibold bg-white/15 hover:bg-white/25 text-white disabled:opacity-40">
-              نقل{selectedStudents.length ? ` (${selectedStudents.length} طالب)` : ''}
+              {t('نقل')}{selectedStudents.length ? ` (${t('{n} طالب', { n: selectedStudents.length })})` : ''}
             </button>
             {isAdminUser && branches.length > 0 && (
               <>
-                <select aria-label="نقل إلى فرع" value={moveBranchId} onChange={(e) => setMoveBranchId(e.target.value)}
+                <select aria-label={t('نقل إلى فرع')} value={moveBranchId} onChange={(e) => setMoveBranchId(e.target.value)}
                   className="h-10 px-3 text-sm rounded-xl border-0 bg-white/10 text-white [&>option]:text-slate-900">
-                  <option value="">نقل إلى فرع…</option>
+                  <option value="">{t('نقل إلى فرع…')}</option>
                   {branches.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}
-                  <option value="__none">إزالة الفرع</option>
+                  <option value="__none">{t('إزالة الفرع')}</option>
                 </select>
                 <button type="button" disabled={bulkBusy || !moveBranchId}
                   onClick={async () => {
                     const target = moveBranchId === '__none' ? null : moveBranchId;
-                    if (!window.confirm(target ? `نقل ${selectedIds.length} مستخدم إلى ${branchName(target)}؟` : `إزالة الفرع عن ${selectedIds.length} مستخدم؟`)) return;
+                    if (!window.confirm(target ? t('نقل {n} مستخدم إلى {to}؟', { n: selectedIds.length, to: branchName(target) || '' }) : t('إزالة الفرع عن {n} مستخدم؟', { n: selectedIds.length }))) return;
                     setBulkBusy(true);
                     await bulkMoveToBranch(selectedIds, target);
                     setBulkBusy(false);
@@ -759,23 +759,23 @@ export const UsersManagement: React.FC = () => {
                     setMoveBranchId('');
                   }}
                   className="h-10 px-4 rounded-xl text-sm font-semibold bg-white/15 hover:bg-white/25 text-white disabled:opacity-40">
-                  نقل للفرع
+                  {t('نقل للفرع')}
                 </button>
               </>
             )}
             <button type="button" disabled={bulkBusy}
               onClick={async () => {
-                if (!window.confirm(`حذف ${selectedIds.length} مستخدم نهائياً من المنصة؟ لا يمكن التراجع.`)) return;
+                if (!window.confirm(t('حذف {n} مستخدم نهائياً من المنصة؟ لا يمكن التراجع.', { n: selectedIds.length }))) return;
                 setBulkBusy(true);
                 await bulkDeleteUsers(selectedIds);
                 setBulkBusy(false);
                 setSelectedIds([]);
               }}
               className="inline-flex items-center gap-1.5 h-10 px-4 rounded-xl text-sm font-semibold bg-rose-600 hover:bg-rose-700 text-white disabled:opacity-40">
-              <Trash2 className="w-4 h-4" /> حذف
+              <Trash2 className="w-4 h-4" />{' '}{t('حذف')}
             </button>
             <button type="button" onClick={() => setSelectedIds([])} className="h-10 px-3 rounded-xl text-sm font-semibold text-white/85 hover:bg-white/10">
-              إلغاء التحديد
+              {t('إلغاء التحديد')}
             </button>
           </div>
         );
@@ -792,18 +792,18 @@ export const UsersManagement: React.FC = () => {
                     const selectable = filteredUsers.filter((u) => u.id !== currentUser?.id).map((u) => u.id);
                     const all = selectable.length > 0 && selectable.every((id) => selectedIds.includes(id));
                     return (
-                      <input type="checkbox" aria-label="تحديد كل المستخدمين المعروضين" className="accent-indigo-600 w-4 h-4"
+                      <input type="checkbox" aria-label={t('تحديد كل المستخدمين المعروضين')} className="accent-indigo-600 w-4 h-4"
                         checked={all} onChange={() => setSelectedIds(all ? [] : selectable)} />
                     );
                   })()}
                 </th>
-                <th className="py-3 px-4">المستخدم</th>
-                <th className="py-3 px-4">رقم الهوية (Login ID)</th>
-                <th className="py-3 px-4">الدور الوظيفي</th>
-                <th className="py-3 px-4">تمت الإضافة بواسطة</th>
-                <th className="py-3 px-4">المواد والفصول المسندة</th>
-                <th className="py-3 px-4">صلاحيات المعلم الإضافية</th>
-                <th className="py-3 px-4 text-center">الإجراءات</th>
+                <th className="py-3 px-4">{t('المستخدم')}</th>
+                <th className="py-3 px-4">{t('رقم الهوية (Login ID)')}</th>
+                <th className="py-3 px-4">{t('الدور الوظيفي')}</th>
+                <th className="py-3 px-4">{t('تمت الإضافة بواسطة')}</th>
+                <th className="py-3 px-4">{t('المواد والفصول المسندة')}</th>
+                <th className="py-3 px-4">{t('صلاحيات المعلم الإضافية')}</th>
+                <th className="py-3 px-4 text-center">{t('الإجراءات')}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
@@ -833,7 +833,7 @@ export const UsersManagement: React.FC = () => {
                   >
                     <td className="py-3.5 ps-4">
                       {u.id !== currentUser?.id && (
-                        <input type="checkbox" aria-label={`تحديد ${u.name}`} className="accent-indigo-600 w-4 h-4"
+                        <input type="checkbox" aria-label={t('تحديد {title}', { title: u.name })} className="accent-indigo-600 w-4 h-4"
                           checked={selectedIds.includes(u.id)}
                           onChange={() => setSelectedIds(selectedIds.includes(u.id) ? selectedIds.filter((x) => x !== u.id) : [...selectedIds, u.id])} />
                       )}
@@ -856,34 +856,34 @@ export const UsersManagement: React.FC = () => {
                       {u.role === 'admin' && (
                         <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-indigo-100 dark:bg-indigo-950 text-indigo-800 dark:text-indigo-300">
                           <ShieldCheck className="w-3.5 h-3.5" />
-                          <span>{u.job_title?.trim() || 'مدير نظام'}</span>
+                          <span>{u.job_title?.trim() || t('مدير نظام')}</span>
                         </span>
                       )}
                       {u.role === 'teacher' && (
                         <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-300">
                           <UserCheck className="w-3.5 h-3.5" />
-                          <span>{u.job_title?.trim() || 'معلم'}</span>
+                          <span>{u.job_title?.trim() || t('معلم')}</span>
                         </span>
                       )}
                       {u.role === 'supervisor' && (
                         <span
-                          title="الدور في النظام: مشرف"
+                          title={t('الدور في النظام: مشرف')}
                           className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-sky-100 dark:bg-sky-950 text-sky-800 dark:text-sky-300"
                         >
                           <UserCog className="w-3.5 h-3.5" />
-                          <span>{u.job_title?.trim() || 'مشرف'}</span>
+                          <span>{u.job_title?.trim() || t('مشرف')}</span>
                         </span>
                       )}
                       {u.role === 'student' && (
                         <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-amber-100 dark:bg-amber-950 text-amber-800 dark:text-amber-300">
                           <GraduationCap className="w-3.5 h-3.5" />
-                          <span>{u.job_title?.trim() || (u.gender === 'female' ? 'طالبة' : 'طالب')}</span>
+                          <span>{u.job_title?.trim() || (u.gender === 'female' ? t('طالبة') : t('طالب'))}</span>
                         </span>
                       )}
                       {u.role === 'parent' && (
                         <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-rose-100 dark:bg-rose-950 text-rose-800 dark:text-rose-300">
                           <UserCircle2 className="w-3.5 h-3.5" />
-                          <span>ولي أمر</span>
+                          <span>{t('ولي أمر')}</span>
                         </span>
                       )}
                       {branchName(u.branch_id) && (
@@ -899,11 +899,11 @@ export const UsersManagement: React.FC = () => {
                             {creator.name}
                           </span>
                           <span className="text-[10px] text-slate-400">
-                            ({creator.role === 'admin' ? 'أدمن' : creator.role === 'supervisor' ? 'مشرف' : 'معلم'})
+                            ({creator.role === 'admin' ? t('أدمن') : creator.role === 'supervisor' ? t('مشرف') : t('معلم')})
                           </span>
                         </div>
                       ) : (
-                        <span className="text-slate-400">— النظام</span>
+                        <span className="text-slate-400">{t('— النظام')}</span>
                       )}
                     </td>
 
@@ -911,7 +911,7 @@ export const UsersManagement: React.FC = () => {
                       {isStaffRole(u.role) && (
                         <div className="space-y-1.5">
                           <div className="flex flex-wrap items-center gap-1">
-                            <span className="text-[10px] font-bold text-slate-400 me-1">المواد:</span>
+                            <span className="text-[10px] font-bold text-slate-400 me-1">{t('المواد:')}</span>
                             {assignedSubs.length > 0 ? (
                               assignedSubs.map((sName, idx) => (
                                 <span
@@ -922,11 +922,11 @@ export const UsersManagement: React.FC = () => {
                                 </span>
                               ))
                             ) : (
-                              <span className="text-slate-400 text-[10px]">لا توجد</span>
+                              <span className="text-slate-400 text-[10px]">{t('لا توجد')}</span>
                             )}
                           </div>
                           <div className="flex flex-wrap items-center gap-1">
-                            <span className="text-[10px] font-bold text-slate-400 me-1">الفصول:</span>
+                            <span className="text-[10px] font-bold text-slate-400 me-1">{t('الفصول:')}</span>
                             {assignedCls.length > 0 ? (
                               assignedCls.map((cName, idx) => (
                                 <span
@@ -937,30 +937,30 @@ export const UsersManagement: React.FC = () => {
                                 </span>
                               ))
                             ) : (
-                              <span className="text-slate-400 text-[10px]">الكل/غير مخصص</span>
+                              <span className="text-slate-400 text-[10px]">{t('الكل/غير مخصص')}</span>
                             )}
                           </div>
                         </div>
                       )}
-                      {u.role === 'student' && (userClass?.name || 'غير مسكن في شعبة')}
+                      {u.role === 'student' && (userClass?.name || t('غير مسكن في شعبة'))}
                       {u.role === 'parent' && (
                         <span className="text-[13px]">
-                          {(u.child_ids || []).map((id) => users.find((x) => x.id === id)?.name).filter(Boolean).join('، ') || 'لا يوجد أبناء مرتبطون'}
+                          {(u.child_ids || []).map((id) => users.find((x) => x.id === id)?.name).filter(Boolean).join(t('، ')) || t('لا يوجد أبناء مرتبطون')}
                         </span>
                       )}
-                      {u.role === 'admin' && <span className="text-slate-400">صلاحيات كاملة</span>}
+                      {u.role === 'admin' && <span className="text-slate-400">{t('صلاحيات كاملة')}</span>}
                     </td>
 
                     <td className="py-3.5 px-4 text-xs">
                       {isStaffRole(u.role) ? (() => {
                         const perms: any = u.teacher_permissions || (u as any).permissions || {};
                         const on = PERMISSION_DEFS.filter((d) => perms[d.key]);
-                        if (on.length === 0) return <span className="text-slate-400">صلاحيات أساسية</span>;
+                        if (on.length === 0) return <span className="text-slate-400">{t('صلاحيات أساسية')}</span>;
                         return (
                           <div className="flex flex-wrap gap-1 text-[10px]">
                             {on.map((d) => (
                               <span key={d.key} className="bg-indigo-50 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-300 px-1.5 py-0.5 rounded">
-                                {d.short} ✓
+                                {t(d.short)} ✓
                               </span>
                             ))}
                           </div>
@@ -976,7 +976,7 @@ export const UsersManagement: React.FC = () => {
                           <button
                             onClick={() => reportFor(u)}
                             className="p-1.5 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors"
-                            title="كشف درجات الطالب PDF"
+                            title={t('كشف درجات الطالب PDF')}
                           >
                             <FileTextIcon className="w-4 h-4" />
                           </button>
@@ -984,7 +984,7 @@ export const UsersManagement: React.FC = () => {
                         <button
                           onClick={() => handleOpenEditModal(u)}
                           className="p-1.5 text-indigo-600 hover:bg-indigo-50 dark:hover:bg-indigo-950 rounded-lg transition-colors"
-                          title="تعديل الحساب والدور والصلاحيات"
+                          title={t('تعديل الحساب والدور والصلاحيات')}
                         >
                           <Edit2 className="w-4 h-4" />
                         </button>
@@ -992,7 +992,7 @@ export const UsersManagement: React.FC = () => {
                         <button
                           onClick={() => setPasswordResetUser(u)}
                           className="p-1.5 text-amber-600 hover:bg-amber-50 dark:hover:bg-amber-950 rounded-lg transition-colors"
-                          title="إعادة تعيين كلمة المرور"
+                          title={t('إعادة تعيين كلمة المرور')}
                         >
                           <KeyRound className="w-4 h-4" />
                         </button>
@@ -1001,7 +1001,7 @@ export const UsersManagement: React.FC = () => {
                           <button
                             onClick={() => handleDelete(u.id, u.name)}
                             className="p-1.5 text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950 rounded-lg transition-colors"
-                            title="حذف المستخدم"
+                            title={t('حذف المستخدم')}
                           >
                             <Trash2 className="w-4 h-4" />
                           </button>
@@ -1022,7 +1022,7 @@ export const UsersManagement: React.FC = () => {
           <div className="bg-white dark:bg-slate-900 rounded-3xl max-w-xl w-full p-6 shadow-2xl border border-slate-100 dark:border-slate-800 animate-in fade-in zoom-in-95 max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between pb-3 mb-4 border-b border-slate-100 dark:border-slate-800">
               <h3 className="font-bold text-base text-slate-900 dark:text-white">
-                {editingUser ? `تعديل حساب المستخدم: ${editingUser.name}` : 'إضافة مستخدم جديد للنظام'}
+                {editingUser ? t('تعديل حساب المستخدم: {name}', { name: editingUser.name }) : t('إضافة مستخدم جديد للنظام')}
               </h3>
               <button
                 onClick={() => {
@@ -1038,12 +1038,12 @@ export const UsersManagement: React.FC = () => {
             <form onSubmit={editingUser ? handleUpdate : handleCreate} className="space-y-4">
               <div>
                 <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
-                  الاسم الكامل *
+                  {t('الاسم الكامل')} *
                 </label>
                 <input
                   type="text"
                   required
-                  placeholder="مثال: يوسف العبدالله"
+                  placeholder={t('مثال: يوسف العبدالله')}
                   value={editingUser ? editingUser.name : name}
                   onChange={(e) => {
                     setName(e.target.value);
@@ -1057,12 +1057,12 @@ export const UsersManagement: React.FC = () => {
 
               <div>
                 <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
-                  رقم الهوية الوطنية / الأكاديمية (Login Key) *
+                  {t('رقم الهوية الوطنية / الأكاديمية (Login Key)')} *
                 </label>
                 <input
                   type="text"
                   required
-                  placeholder="مثال: 1010203040"
+                  placeholder={t('مثال: 1010203040')}
                   value={editingUser ? editingUser.national_id : nationalId}
                   onChange={(e) => {
                     setNationalId(e.target.value);
@@ -1076,7 +1076,7 @@ export const UsersManagement: React.FC = () => {
 
               <div>
                 <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
-                  {editingUser ? 'كلمة المرور (اتركها فارغة للإبقاء على الحالية)' : 'كلمة المرور *'}
+                  {editingUser ? t('كلمة المرور (اتركها فارغة للإبقاء على الحالية)') : t('كلمة المرور *')}
                 </label>
                 <input
                   type="password"
@@ -1096,7 +1096,7 @@ export const UsersManagement: React.FC = () => {
               {!isTeacher && (
                 <div>
                   <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
-                    الدور في النظام (Role) *
+                    {t('الدور في النظام (Role)')} *
                   </label>
                   <select
                     value={editingUser ? editingUser.role : role}
@@ -1109,31 +1109,31 @@ export const UsersManagement: React.FC = () => {
                     }}
                     className="w-full px-3 py-2 text-xs rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white font-bold"
                   >
-                    <option value="student">طالب (Student)</option>
-                    <option value="teacher">معلم (Teacher)</option>
-                    <option value="supervisor">مشرف (Supervisor)</option>
-                    <option value="admin">مدير نظام (Super Admin)</option>
-                    <option value="parent">ولي أمر (Parent)</option>
+                    <option value="student">{t('طالب (Student)')}</option>
+                    <option value="teacher">{t('معلم (Teacher)')}</option>
+                    <option value="supervisor">{t('مشرف (Supervisor)')}</option>
+                    <option value="admin">{t('مدير نظام (Super Admin)')}</option>
+                    <option value="parent">{t('ولي أمر (Parent)')}</option>
                   </select>
                 </div>
               )}
 
               <div className={`grid gap-3 ${isAdminUser && branches.length > 0 ? 'grid-cols-2' : 'grid-cols-1'}`}>
                 <div>
-                  <label htmlFor="user-gender" className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">النوع</label>
+                  <label htmlFor="user-gender" className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">{t('النوع')}</label>
                   <select id="user-gender" value={gender} onChange={(e) => setGender(e.target.value as Gender | '')}
                     className="w-full px-3 py-2 text-xs rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white">
-                    <option value="">غير محدد</option>
-                    <option value="male">ذكر</option>
-                    <option value="female">أنثى</option>
+                    <option value="">{t('غير محدد')}</option>
+                    <option value="male">{t('ذكر')}</option>
+                    <option value="female">{t('أنثى')}</option>
                   </select>
                 </div>
                 {isAdminUser && branches.length > 0 && (
                   <div>
-                    <label htmlFor="user-branch" className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">الفرع</label>
+                    <label htmlFor="user-branch" className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">{t('الفرع')}</label>
                     <select id="user-branch" value={branchId} onChange={(e) => setBranchId(e.target.value)}
                       className="w-full px-3 py-2 text-xs rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white">
-                      <option value="">بدون فرع (يرى كل الفروع)</option>
+                      <option value="">{t('بدون فرع (يرى كل الفروع)')}</option>
                       {branches.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}
                     </select>
                   </div>
@@ -1143,9 +1143,9 @@ export const UsersManagement: React.FC = () => {
               {isAdminUser && (editingUser ? editingUser.role : role) === 'parent' && (
                 <div>
                   <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5">
-                    الأبناء المرتبطون ({childIds.length})
+                    {t('الأبناء المرتبطون (')}{childIds.length})
                   </label>
-                  <input value={childSearch} onChange={(e) => setChildSearch(e.target.value)} placeholder="ابحث عن طالب بالاسم أو الهوية" aria-label="بحث عن طالب"
+                  <input value={childSearch} onChange={(e) => setChildSearch(e.target.value)} placeholder={t('ابحث عن طالب بالاسم أو الهوية')} aria-label={t('بحث عن طالب')}
                     className="w-full px-3 py-2 mb-1.5 text-xs rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white" />
                   <div className="max-h-40 overflow-y-auto p-1.5 border rounded-xl border-slate-200 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-800/30 space-y-1">
                     {users
@@ -1162,7 +1162,7 @@ export const UsersManagement: React.FC = () => {
                           </label>
                         );
                       })}
-                    {childIds.length === 0 && !childSearch.trim() && <p className="p-2 text-[12px] text-slate-500">اكتب اسم الطالب أو هويته لإضافته</p>}
+                    {childIds.length === 0 && !childSearch.trim() && <p className="p-2 text-[12px] text-slate-500">{t('اكتب اسم الطالب أو هويته لإضافته')}</p>}
                   </div>
                 </div>
               )}
@@ -1170,17 +1170,17 @@ export const UsersManagement: React.FC = () => {
               {!isTeacher && (
                 <div>
                   <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
-                    المسمى الوظيفي (نص حر — للعرض فقط ولا يغيّر الصلاحيات)
+                    {t('المسمى الوظيفي (نص حر — للعرض فقط ولا يغيّر الصلاحيات)')}
                   </label>
                   <input
                     type="text"
-                    aria-label="المسمى الوظيفي"
+                    aria-label={t('المسمى الوظيفي')}
                     value={editingUser ? (editingUser.job_title || '') : jobTitle}
                     onChange={(e) => {
                       setJobTitle(e.target.value);
                       if (editingUser) setEditingUser((prev) => (prev ? { ...prev, job_title: e.target.value } : null));
                     }}
-                    placeholder="مثال: معلم ومشرف، وكيل المدرسة، رائد النشاط..."
+                    placeholder={t('مثال: معلم ومشرف، وكيل المدرسة، رائد النشاط...')}
                     className="w-full px-3 py-2 text-xs rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
                   />
                 </div>
@@ -1189,7 +1189,7 @@ export const UsersManagement: React.FC = () => {
               {((editingUser ? editingUser.role : role) === 'student') && (
                 <div>
                   <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
-                    الصف الدراسي والشعبة
+                    {t('الصف الدراسي والشعبة')}
                   </label>
                   <select
                     value={editingUser ? (editingUser.class_id || editingUser.assigned_class_ids?.[0] || classId) : classId}
@@ -1209,7 +1209,7 @@ export const UsersManagement: React.FC = () => {
                   >
                     {!editingUser && (
                       <option value="" disabled>
-                        — اختر الصف الدراسي —
+                        {t('— اختر الصف الدراسي —')}
                       </option>
                     )}
                     {classes.map((c) => (
@@ -1226,7 +1226,7 @@ export const UsersManagement: React.FC = () => {
                   {/* المواد المسندة */}
                   <div>
                     <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5">
-                      المواد المسندة (اختر مادة أو أكثر):
+                      {t('المواد المسندة (اختر مادة أو أكثر):')}
                     </label>
                     <div className="grid grid-cols-2 gap-2 max-h-36 overflow-y-auto p-1.5 border rounded-xl border-slate-200 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-800/30">
                       {subjects.map((s) => {
@@ -1259,7 +1259,7 @@ export const UsersManagement: React.FC = () => {
                   {/* الفصول والشعب المسندة */}
                   <div>
                     <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5">
-                      الفصول والشعب المسندة (اختر فصل أو أكثر):
+                      {t('الفصول والشعب المسندة (اختر فصل أو أكثر):')}
                     </label>
                     <div className="grid grid-cols-2 gap-2 max-h-36 overflow-y-auto p-1.5 border rounded-xl border-slate-200 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-800/30">
                       {classes.map((c) => {
@@ -1293,17 +1293,17 @@ export const UsersManagement: React.FC = () => {
                   <div className="p-3.5 bg-slate-50 dark:bg-slate-800/60 rounded-2xl border border-slate-200 dark:border-slate-700 space-y-2">
                     <div className="flex items-center gap-1.5 text-xs font-bold text-slate-800 dark:text-white mb-2">
                       <Sliders className="w-4 h-4 text-indigo-600" />
-                      <span>الصلاحيات الإضافية:</span>
+                      <span>{t('الصلاحيات الإضافية:')}</span>
                     </div>
                     {(editingUser ? editingUser.role : role) === 'supervisor' && (
                       <p className="text-[11px] text-slate-500 dark:text-slate-400 leading-relaxed">
-                        نطاق المشرف هو الصفوف والمواد المحددة أعلاه (بدونها لا يرى أي بيانات). صلاحية «عرض جميع التقارير» تفتح له كل البيانات.
+                        {t('نطاق المشرف هو الصفوف والمواد المحددة أعلاه (بدونها لا يرى أي بيانات). صلاحية «عرض جميع التقارير» تفتح له كل البيانات.')}
                       </p>
                     )}
 
                     {PERM_GROUPS.map((group) => (
                       <div key={group} className="space-y-1">
-                        <p className="text-[11px] font-black text-indigo-600 dark:text-indigo-400 pt-1.5">{group}</p>
+                        <p className="text-[11px] font-black text-indigo-600 dark:text-indigo-400 pt-1.5">{t(group)}</p>
                         {PERMISSION_DEFS.filter((d) => d.group === group).map((perm) => {
                           const curPerms: any = editingUser?.teacher_permissions || teacherPermissions;
                           const roleNow = editingUser ? editingUser.role : role;
@@ -1315,7 +1315,7 @@ export const UsersManagement: React.FC = () => {
                               className={`flex items-center justify-between p-2 rounded-xl transition-colors select-none ${locked ? 'opacity-70' : 'hover:bg-slate-100 dark:hover:bg-slate-700/50 cursor-pointer'}`}
                             >
                               <span className="text-xs text-slate-700 dark:text-slate-300 font-medium">
-                                {perm.label} ({perm.key}){locked ? ' — مفعّلة افتراضياً للمعلم' : ''}
+                                {t(perm.label)} ({perm.key}){locked ? t(' — مفعّلة افتراضياً للمعلم') : ''}
                               </span>
                               <input
                                 type="checkbox"
@@ -1342,13 +1342,13 @@ export const UsersManagement: React.FC = () => {
                   }}
                   className="px-4 py-2 text-xs font-bold text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl transition-colors"
                 >
-                  إلغاء
+                  {t('إلغاء')}
                 </button>
                 <button
                   type="submit"
                   className="px-5 py-2 text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-700 rounded-xl shadow-md shadow-indigo-600/20 transition-all hover:scale-105"
                 >
-                  {editingUser ? 'حفظ التعديلات' : 'إضافة المستخدم'}
+                  {editingUser ? t('حفظ التعديلات') : t('إضافة المستخدم')}
                 </button>
               </div>
             </form>
@@ -1363,7 +1363,7 @@ export const UsersManagement: React.FC = () => {
             <div className="flex items-center justify-between pb-3 mb-4 border-b border-slate-100 dark:border-slate-800">
               <h3 className="font-bold text-base text-slate-900 dark:text-white flex items-center gap-2">
                 <KeyRound className="w-5 h-5 text-amber-500" />
-                <span>إعادة تعيين كلمة المرور</span>
+                <span>{t('إعادة تعيين كلمة المرور')}</span>
               </h3>
               <button
                 onClick={() => {
@@ -1377,7 +1377,7 @@ export const UsersManagement: React.FC = () => {
             </div>
 
             <p className="text-xs text-slate-600 dark:text-slate-400 mb-4">
-              أدخل كلمة المرور الجديدة للمستخدم:{' '}
+              {t('أدخل كلمة المرور الجديدة للمستخدم:')}{' '}
               <span className="font-bold text-slate-900 dark:text-white">
                 {passwordResetUser.name}
               </span>
@@ -1386,12 +1386,12 @@ export const UsersManagement: React.FC = () => {
             <form onSubmit={handlePasswordResetSubmit} className="space-y-4">
               <div>
                 <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
-                  كلمة المرور الجديدة *
+                  {t('كلمة المرور الجديدة')} *
                 </label>
                 <input
                   type="password"
                   required
-                  placeholder="أدخل كلمة المرور الجديدة"
+                  placeholder={t('أدخل كلمة المرور الجديدة')}
                   value={newPasswordValue}
                   onChange={(e) => setNewPasswordValue(e.target.value)}
                   className="w-full px-3 py-2 text-xs rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
@@ -1407,13 +1407,13 @@ export const UsersManagement: React.FC = () => {
                   }}
                   className="px-4 py-2 text-xs font-bold text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl transition-colors"
                 >
-                  إلغاء
+                  {t('إلغاء')}
                 </button>
                 <button
                   type="submit"
                   className="px-5 py-2 text-xs font-bold text-white bg-amber-600 hover:bg-amber-700 rounded-xl shadow-md shadow-amber-600/20 transition-all hover:scale-105"
                 >
-                  تغيير كلمة المرور
+                  {t('تغيير كلمة المرور')}
                 </button>
               </div>
             </form>
@@ -1438,7 +1438,7 @@ export const UsersManagement: React.FC = () => {
             <div className="flex items-center justify-between pb-3 mb-4 border-b border-slate-100 dark:border-slate-800">
               <h3 className="font-bold text-base text-slate-900 dark:text-white flex items-center gap-2">
                 <FileSpreadsheet className="w-5 h-5 text-emerald-600" />
-                معاينة بيانات الطلاب المستوردة ({importPreview.length} طالب)
+                {t('معاينة بيانات الطلاب المستوردة (')}{importPreview.length}{' '}{t('طالب)')}
               </h3>
               <button
                 onClick={() => { setShowImportModal(false); setImportPreview([]); }}
@@ -1451,15 +1451,15 @@ export const UsersManagement: React.FC = () => {
             {importPreview.length > 0 && (
               <div className="mb-3 p-3 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 flex flex-wrap items-center gap-3">
                 <label className="text-xs font-bold text-slate-700 dark:text-slate-300">
-                  صف افتراضي للطلاب الذين لم يُطابق صفهم في الملف:
+                  {t('صف افتراضي للطلاب الذين لم يُطابق صفهم في الملف:')}
                 </label>
                 <select
-                  aria-label="الصف الافتراضي للاستيراد"
+                  aria-label={t('الصف الافتراضي للاستيراد')}
                   value={importDefaultClassId}
                   onChange={(e) => setImportDefaultClassId(e.target.value)}
                   className="px-3 py-1.5 text-xs rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white"
                 >
-                  <option value="">— بدون (أختار لكل طالب) —</option>
+                  <option value="">{t('— بدون (أختار لكل طالب) —')}</option>
                   {classes.map((c) => (
                     <option key={c.id} value={c.id}>
                       {c.name}
@@ -1475,13 +1475,13 @@ export const UsersManagement: React.FC = () => {
                   <thead>
                     <tr className="bg-slate-50 dark:bg-slate-800/60 text-slate-500 dark:text-slate-400 font-bold border-b border-slate-100 dark:border-slate-800">
                       <th className="py-2 px-3">#</th>
-                      <th className="py-2 px-3">الاسم</th>
-                      <th className="py-2 px-3">رقم الهوية</th>
-                      <th className="py-2 px-3">كلمة السر</th>
-                      <th className="py-2 px-3">الصف / الشعبة</th>
-                      <th className="py-2 px-3">النوع / الفرع</th>
-                      <th className="py-2 px-3">ولي الأمر</th>
-                      <th className="py-2 px-3">الحالة</th>
+                      <th className="py-2 px-3">{t('الاسم')}</th>
+                      <th className="py-2 px-3">{t('رقم الهوية')}</th>
+                      <th className="py-2 px-3">{t('كلمة السر')}</th>
+                      <th className="py-2 px-3">{t('الصف / الشعبة')}</th>
+                      <th className="py-2 px-3">{t('النوع / الفرع')}</th>
+                      <th className="py-2 px-3">{t('ولي الأمر')}</th>
+                      <th className="py-2 px-3">{t('الحالة')}</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
@@ -1496,7 +1496,7 @@ export const UsersManagement: React.FC = () => {
                           <td className="py-2 px-3 text-slate-500">{'•'.repeat(s.password.length)}</td>
                           <td className="py-2 px-3">
                             <select
-                              aria-label={`صف الطالب ${s.name}`}
+                              aria-label={t('صف الطالب {name}', { name: s.name })}
                               value={rc.id || ''}
                               onChange={(e) =>
                                 setImportClassOverrides((prev) => {
@@ -1514,7 +1514,7 @@ export const UsersManagement: React.FC = () => {
                                   : 'border-rose-400 dark:border-rose-700'
                               }`}
                             >
-                              <option value="">— اختر الصف —</option>
+                              <option value="">{t('— اختر الصف —')}</option>
                               {classes.map((c) => (
                                 <option key={c.id} value={c.id}>
                                   {c.name}
@@ -1522,34 +1522,34 @@ export const UsersManagement: React.FC = () => {
                               ))}
                             </select>
                             {rc.status === 'partial' && (
-                              <span className="block text-[10px] text-amber-600 mt-0.5">تطابق جزئي مع: {s.class_name}</span>
+                              <span className="block text-[10px] text-amber-600 mt-0.5">{t('تطابق جزئي مع:')}{' '}{s.class_name}</span>
                             )}
                             {rc.status === 'default' && (
                               <span className="block text-[10px] text-slate-400 mt-0.5">
-                                صف افتراضي (في الملف: {s.class_name || 'فارغ'})
+                                {t('صف افتراضي (في الملف:')}{' '}{s.class_name || t('فارغ')})
                               </span>
                             )}
                             {!rc.id && (
                               <span className="block text-[10px] text-rose-600 mt-0.5">
-                                {rc.status === 'ambiguous' ? 'الاسم ينطبق على أكثر من صف' : 'لم يُطابق أي صف'}
-                                {s.class_name ? ` (في الملف: ${s.class_name})` : ''}
+                                {rc.status === 'ambiguous' ? t('الاسم ينطبق على أكثر من صف') : t('لم يُطابق أي صف')}
+                                {s.class_name ? ` (${t('في الملف: {name}', { name: s.class_name })})` : ''}
                               </span>
                             )}
                           </td>
                           <td className="py-2 px-3 text-slate-600 dark:text-slate-300">
-                            {s.gender === 'female' ? 'أنثى' : s.gender === 'male' ? 'ذكر' : '—'}
+                            {s.gender === 'female' ? t('أنثى') : s.gender === 'male' ? t('ذكر') : '—'}
                             {s.branch_name && (
                               <span className={`block text-[10px] ${isAdminUser && !resolveBranch(s.branch_name) ? 'text-rose-600' : 'text-slate-400'}`}>
-                                {s.branch_name}{isAdminUser && !resolveBranch(s.branch_name) ? ' (فرع غير موجود)' : ''}
+                                {s.branch_name}{isAdminUser && !resolveBranch(s.branch_name) ? t(' (فرع غير موجود)') : ''}
                               </span>
                             )}
                           </td>
                           <td className="py-2 px-3 font-mono text-slate-600 dark:text-slate-300">{s.parent_id || '—'}</td>
                           <td className="py-2 px-3">
                             {alreadyExists ? (
-                              <span className="text-amber-600 text-[10px] font-bold">مسجل مسبقاً</span>
+                              <span className="text-amber-600 text-[10px] font-bold">{t('مسجل مسبقاً')}</span>
                             ) : (
-                              <span className="text-emerald-600 text-[10px] font-bold">جاهز</span>
+                              <span className="text-emerald-600 text-[10px] font-bold">{t('جاهز')}</span>
                             )}
                           </td>
                         </tr>
@@ -1562,10 +1562,10 @@ export const UsersManagement: React.FC = () => {
 
             <div className="flex items-center justify-between pt-3 border-t border-slate-100 dark:border-slate-800">
               <p className="text-[10px] text-slate-400">
-                {importPreview.filter((s) => !users.some((u) => u.national_id === s.national_id)).length} طالب جديد سيتم إضافته
+                {importPreview.filter((s) => !users.some((u) => u.national_id === s.national_id)).length}{' '}{t('طالب جديد سيتم إضافته')}
                 {importUnresolvedCount > 0 && (
                   <span className="block text-rose-600 font-bold text-[11px]">
-                    {importUnresolvedCount} طالب بدون صف — اختر لهم صفاً قبل الاستيراد
+                    {importUnresolvedCount}{' '}{t('طالب بدون صف — اختر لهم صفاً قبل الاستيراد')}
                   </span>
                 )}
               </p>
@@ -1574,7 +1574,7 @@ export const UsersManagement: React.FC = () => {
                   onClick={() => { setShowImportModal(false); setImportPreview([]); }}
                   className="px-4 py-2 text-xs rounded-xl border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 font-bold"
                 >
-                  إلغاء
+                  {t('إلغاء')}
                 </button>
                 <button
                   onClick={handleBulkImport}
@@ -1584,12 +1584,12 @@ export const UsersManagement: React.FC = () => {
                   {isImporting ? (
                     <>
                       <span className="animate-spin">⏳</span>
-                      جاري الاستيراد...
+                      {t('جاري الاستيراد...')}
                     </>
                   ) : (
                     <>
                       <Upload className="w-4 h-4" />
-                      استيراد الطلاب الآن
+                      {t('استيراد الطلاب الآن')}
                     </>
                   )}
                 </button>

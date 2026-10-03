@@ -16,7 +16,7 @@ import {
 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 import { Subject, SchoolClass, User } from '../../types';
-import { uiDir } from '../../i18n';
+import { uiDir, t } from '../../i18n';
 
 export const SubjectsClassesManagement: React.FC = () => {
   const {
@@ -163,7 +163,7 @@ export const SubjectsClassesManagement: React.FC = () => {
   };
 
   const handleDeleteSubject = async (s: Subject) => {
-    if (window.confirm(`هل أنت متأكد من حذف مادة (${s.name})؟`)) {
+    if (window.confirm(t('هل أنت متأكد من حذف مادة ({name})؟', { name: s.name }))) {
       await deleteSubjectItem(s.id);
       await refreshData();
     }
@@ -172,7 +172,7 @@ export const SubjectsClassesManagement: React.FC = () => {
   // Handlers for Classes
   const handleOpenAddClass = () => {
     setClassName('');
-    setGradeLevel('المرحلة الثانوية');
+    setGradeLevel(t('المرحلة الثانوية'));
     setShowAddClass(true);
   };
 
@@ -189,7 +189,7 @@ export const SubjectsClassesManagement: React.FC = () => {
     if (editingClass) {
       await updateClassData(editingClass.id, {
         name: className.trim(),
-        grade_level: gradeLevel.trim() || 'المرحلة الدراسية',
+        grade_level: gradeLevel.trim() || t('المرحلة الدراسية'),
         // الشعب مشتركة بين كل الفروع
         ...(isAdmin ? { branch_id: null } : {}),
       });
@@ -197,7 +197,7 @@ export const SubjectsClassesManagement: React.FC = () => {
     } else {
       await addClass({
         name: className.trim(),
-        grade_level: gradeLevel.trim() || 'المرحلة الدراسية',
+        grade_level: gradeLevel.trim() || t('المرحلة الدراسية'),
         branch_id: null,
       });
       setShowAddClass(false);
@@ -206,7 +206,7 @@ export const SubjectsClassesManagement: React.FC = () => {
   };
 
   const handleDeleteClass = async (c: SchoolClass) => {
-    if (window.confirm(`هل أنت متأكد من حذف الشعبة (${c.name})؟`)) {
+    if (window.confirm(t('هل أنت متأكد من حذف الشعبة ({name})؟', { name: c.name }))) {
       await deleteClassItem(c.id);
       await refreshData();
     }
@@ -220,10 +220,10 @@ export const SubjectsClassesManagement: React.FC = () => {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-slate-200 dark:border-slate-800">
         <div>
           <h1 className="text-2xl font-black text-slate-900 dark:text-white font-cairo">
-            إدارة المواد الدراسية والفصول والشعب
+            {t('إدارة المواد الدراسية والفصول والشعب')}
           </h1>
           <p className="text-xs text-slate-500 dark:text-slate-400">
-            إضافة وتعديل مسميات المواد والشعب المدرسية المخصصة بحرية ودون قيود مسبقة
+            {t('إضافة وتعديل مسميات المواد والشعب المدرسية المخصصة بحرية ودون قيود مسبقة')}
           </p>
         </div>
 
@@ -238,7 +238,7 @@ export const SubjectsClassesManagement: React.FC = () => {
             }`}
           >
             <BookOpen className="w-4 h-4" />
-            <span>المواد الدراسية ({subjects.length})</span>
+            <span>{t('المواد الدراسية (')}{subjects.length})</span>
           </button>
 
           <button
@@ -250,7 +250,7 @@ export const SubjectsClassesManagement: React.FC = () => {
             }`}
           >
             <School className="w-4 h-4" />
-            <span>الفصول والشعب ({classes.length})</span>
+            <span>{t('الفصول والشعب (')}{classes.length})</span>
           </button>
 
           {isAdmin && (
@@ -263,7 +263,7 @@ export const SubjectsClassesManagement: React.FC = () => {
               }`}
             >
               <Building2 className="w-4 h-4" />
-              <span>الفروع ({branches.length})</span>
+              <span>{t('الفروع (')}{branches.length})</span>
             </button>
           )}
         </div>
@@ -274,7 +274,7 @@ export const SubjectsClassesManagement: React.FC = () => {
         <div className="space-y-4">
           <div className="flex items-center justify-between">
             <h3 className="text-sm font-bold text-slate-700 dark:text-slate-300">
-              قائمة المواد المسجلة في النظام
+              {t('قائمة المواد المسجلة في النظام')}
             </h3>
 
             {canManageSubjects && (
@@ -283,7 +283,7 @@ export const SubjectsClassesManagement: React.FC = () => {
                 className="inline-flex items-center gap-1.5 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold shadow-sm transition-all"
               >
                 <Plus className="w-4 h-4" />
-                <span>إضافة مادة مخصصة</span>
+                <span>{t('إضافة مادة مخصصة')}</span>
               </button>
             )}
           </div>
@@ -309,7 +309,7 @@ export const SubjectsClassesManagement: React.FC = () => {
                     {subj.name}
                   </h4>
                   <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed mb-4">
-                    {subj.description || 'مادة دراسية معتمدة ضمن المنهج الأكاديمي'}
+                    {subj.description || t('مادة دراسية معتمدة ضمن المنهج الأكاديمي')}
                   </p>
                 </div>
 
@@ -320,7 +320,7 @@ export const SubjectsClassesManagement: React.FC = () => {
                       className="p-1.5 text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-950 rounded-lg text-xs font-bold flex items-center gap-1"
                     >
                       <UserCheck className="w-3.5 h-3.5" />
-                      <span>إسناد معلمين ({getSubjectTeachers(subj.id).length})</span>
+                      <span>{t('إسناد معلمين (')}{getSubjectTeachers(subj.id).length})</span>
                     </button>
                     <div className="flex items-center gap-2">
                       <button
@@ -328,14 +328,14 @@ export const SubjectsClassesManagement: React.FC = () => {
                         className="p-1.5 text-indigo-600 hover:bg-indigo-50 dark:hover:bg-indigo-950 rounded-lg text-xs font-bold flex items-center gap-1"
                       >
                         <Edit2 className="w-3.5 h-3.5" />
-                        <span>تعديل</span>
+                        <span>{t('تعديل')}</span>
                       </button>
                       <button
                         onClick={() => handleDeleteSubject(subj)}
                         className="p-1.5 text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950 rounded-lg text-xs font-bold flex items-center gap-1"
                       >
                         <Trash2 className="w-3.5 h-3.5" />
-                        <span>حذف</span>
+                        <span>{t('حذف')}</span>
                       </button>
                     </div>
                   </div>
@@ -351,7 +351,7 @@ export const SubjectsClassesManagement: React.FC = () => {
         <div className="space-y-4">
           <div className="flex items-center justify-between">
             <h3 className="text-sm font-bold text-slate-700 dark:text-slate-300">
-              قائمة الفصول والشعب الدراسية
+              {t('قائمة الفصول والشعب الدراسية')}
             </h3>
 
             {canManageClasses && (
@@ -360,7 +360,7 @@ export const SubjectsClassesManagement: React.FC = () => {
                 className="inline-flex items-center gap-1.5 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold shadow-sm transition-all"
               >
                 <Plus className="w-4 h-4" />
-                <span>إضافة شعبة / صف جديد</span>
+                <span>{t('إضافة شعبة / صف جديد')}</span>
               </button>
             )}
           </div>
@@ -389,9 +389,9 @@ export const SubjectsClassesManagement: React.FC = () => {
                 {canManageClasses && (
                   <div className="pt-3 border-t border-slate-100 dark:border-slate-800 space-y-2">
                     <div className="flex items-center gap-1.5 text-[10px] text-slate-500 dark:text-slate-400">
-                      <span className="font-bold text-emerald-600 dark:text-emerald-400">{getClassStudents(cls.id).length}</span> طالب
+                      <span className="font-bold text-emerald-600 dark:text-emerald-400">{getClassStudents(cls.id).length}</span>{' '}{t('طالب')}
                       <span className="mx-1">·</span>
-                      <span className="font-bold text-indigo-600 dark:text-indigo-400">{getClassTeachers(cls.id).length}</span> معلم
+                      <span className="font-bold text-indigo-600 dark:text-indigo-400">{getClassTeachers(cls.id).length}</span>{' '}{t('معلم')}
                     </div>
                     <div className="flex items-center justify-between gap-2">
                       <button
@@ -399,7 +399,7 @@ export const SubjectsClassesManagement: React.FC = () => {
                         className="p-1.5 text-indigo-600 hover:bg-indigo-50 dark:hover:bg-indigo-950 rounded-lg text-xs font-bold flex items-center gap-1"
                       >
                         <Users className="w-3.5 h-3.5" />
-                        <span>إسناد الطلاب والمعلمين</span>
+                        <span>{t('إسناد الطلاب والمعلمين')}</span>
                       </button>
                       <div className="flex items-center gap-1">
                         <button
@@ -428,22 +428,20 @@ export const SubjectsClassesManagement: React.FC = () => {
       {activeTab === 'branches' && isAdmin && (
         <div className="space-y-4 max-w-3xl">
           <p className="text-[14.5px] text-slate-600 dark:text-slate-400 leading-relaxed">
-            كل الشعب والمواد مشتركة بين جميع الفروع تلقائياً، فأي فرع جديد يجدها جاهزة.
-            المعلم أو المشرف المسند لفرع يرى طلاب واختبارات ونتائج فرعه فقط، ومن بلا فرع يرى الكل.
-            يُسند الفرع للمستخدمين من صفحة «المستخدمون» (فردياً أو بالتحديد الجماعي).
+            {t('كل الشعب والمواد مشتركة بين جميع الفروع تلقائياً، فأي فرع جديد يجدها جاهزة. المعلم أو المشرف المسند لفرع يرى طلاب واختبارات ونتائج فرعه فقط، ومن بلا فرع يرى الكل. يُسند الفرع للمستخدمين من صفحة «المستخدمون» (فردياً أو بالتحديد الجماعي).')}
           </p>
           <form
             onSubmit={async (e) => { e.preventDefault(); if (!branchName.trim()) return; await saveBranch(branchName); setBranchName(''); }}
             className="flex gap-2"
           >
-            <input value={branchName} onChange={(e) => setBranchName(e.target.value)} placeholder="اسم الفرع، مثل: فرع البنين" aria-label="اسم الفرع الجديد"
+            <input value={branchName} onChange={(e) => setBranchName(e.target.value)} placeholder={t('اسم الفرع، مثل: فرع البنين')} aria-label={t('اسم الفرع الجديد')}
               className="flex-1 h-11 px-3 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-[15px] text-slate-900 dark:text-white" />
             <button type="submit" className="inline-flex items-center gap-1.5 h-11 px-5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-semibold">
-              <Plus className="w-4 h-4" />إضافة فرع
+              <Plus className="w-4 h-4" />{t('إضافة فرع')}
             </button>
           </form>
           <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 divide-y divide-slate-100 dark:divide-slate-800">
-            {branches.length === 0 && <p className="p-6 text-center text-slate-500">لا توجد فروع بعد</p>}
+            {branches.length === 0 && <p className="p-6 text-center text-slate-500">{t('لا توجد فروع بعد')}</p>}
             {branches.map((b) => {
               const members = users.filter((u) => u.branch_id === b.id);
               const nStudents = members.filter((u) => u.role === 'student').length;
@@ -454,22 +452,22 @@ export const SubjectsClassesManagement: React.FC = () => {
                   <div className="flex-1 min-w-0">
                     {renaming?.id === b.id ? (
                       <form onSubmit={async (e) => { e.preventDefault(); await saveBranch(renaming.name, b.id); setRenaming(null); }} className="flex gap-2">
-                        <input autoFocus value={renaming.name} onChange={(e) => setRenaming({ id: b.id, name: e.target.value })} aria-label="اسم الفرع"
+                        <input autoFocus value={renaming.name} onChange={(e) => setRenaming({ id: b.id, name: e.target.value })} aria-label={t('اسم الفرع')}
                           className="flex-1 h-10 px-3 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white" />
-                        <button type="submit" className="h-10 px-3 rounded-lg bg-indigo-600 text-white text-sm font-semibold" aria-label="حفظ"><Check className="w-4 h-4" /></button>
+                        <button type="submit" className="h-10 px-3 rounded-lg bg-indigo-600 text-white text-sm font-semibold" aria-label={t('حفظ')}><Check className="w-4 h-4" /></button>
                       </form>
                     ) : (
                       <>
                         <div className="font-bold text-[15.5px] text-slate-900 dark:text-white">{b.name}</div>
-                        <div className="text-[13px] text-slate-500 dark:text-slate-400">{nStudents} طالب · {nStaff} من الطاقم</div>
+                        <div className="text-[13px] text-slate-500 dark:text-slate-400">{nStudents}{' '}{t('طالب ·')}{' '}{nStaff}{' '}{t('من الطاقم')}</div>
                       </>
                     )}
                   </div>
                   {renaming?.id !== b.id && (
                     <>
-                      <button type="button" onClick={() => setRenaming({ id: b.id, name: b.name })} className="p-2 rounded-lg text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800" aria-label="تعديل الاسم"><Edit2 className="w-4 h-4" /></button>
-                      <button type="button" onClick={() => window.confirm(`حذف «${b.name}»؟ سيصبح ${members.length} مستخدم بلا فرع.`) && void deleteBranch(b.id)}
-                        className="p-2 rounded-lg text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/50" aria-label="حذف الفرع"><Trash2 className="w-4 h-4" /></button>
+                      <button type="button" onClick={() => setRenaming({ id: b.id, name: b.name })} className="p-2 rounded-lg text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800" aria-label={t('تعديل الاسم')}><Edit2 className="w-4 h-4" /></button>
+                      <button type="button" onClick={() => window.confirm(t('حذف «{name}»؟ سيصبح {n} مستخدم بلا فرع.', { name: b.name, n: members.length })) && void deleteBranch(b.id)}
+                        className="p-2 rounded-lg text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/50" aria-label={t('حذف الفرع')}><Trash2 className="w-4 h-4" /></button>
                     </>
                   )}
                 </div>
@@ -485,7 +483,7 @@ export const SubjectsClassesManagement: React.FC = () => {
           <div className="bg-white dark:bg-slate-900 rounded-3xl max-w-md w-full p-6 shadow-2xl border border-slate-100 dark:border-slate-800 animate-in fade-in zoom-in-95">
             <div className="flex items-center justify-between pb-3 mb-4 border-b border-slate-100 dark:border-slate-800">
               <h3 className="font-bold text-base text-slate-900 dark:text-white">
-                {editingSubject ? `تعديل المادة: ${editingSubject.name}` : 'إضافة مادة مخصصة جديدة'}
+                {editingSubject ? t('تعديل المادة: {name}', { name: editingSubject.name }) : t('إضافة مادة مخصصة جديدة')}
               </h3>
               <button
                 onClick={() => {
@@ -501,12 +499,12 @@ export const SubjectsClassesManagement: React.FC = () => {
             <form onSubmit={handleSaveSubject} className="space-y-4">
               <div>
                 <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
-                  اسم المادة الدراسية *
+                  {t('اسم المادة الدراسية')} *
                 </label>
                 <input
                   type="text"
                   required
-                  placeholder="مثال: الأمن السيبراني والشبكات"
+                  placeholder={t('مثال: الأمن السيبراني والشبكات')}
                   value={subjName}
                   onChange={(e) => setSubjName(e.target.value)}
                   className="w-full px-3 py-2 text-xs rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
@@ -515,7 +513,7 @@ export const SubjectsClassesManagement: React.FC = () => {
 
               <div>
                 <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
-                  رمز المادة (Course Code)
+                  {t('رمز المادة (Course Code)')}
                 </label>
                 <input
                   type="text"
@@ -528,7 +526,7 @@ export const SubjectsClassesManagement: React.FC = () => {
 
               <div>
                 <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
-                  اللون المميز للمادة
+                  {t('اللون المميز للمادة')}
                 </label>
                 <div className="flex items-center gap-2">
                   {colorPresets.map((c) => (
@@ -547,11 +545,11 @@ export const SubjectsClassesManagement: React.FC = () => {
 
               <div>
                 <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
-                  وصف مختصر للمادة
+                  {t('وصف مختصر للمادة')}
                 </label>
                 <textarea
                   rows={2}
-                  placeholder="مفاهيم حماية البيانات واختبار الاختراق..."
+                  placeholder={t('مفاهيم حماية البيانات واختبار الاختراق...')}
                   value={subjDesc}
                   onChange={(e) => setSubjDesc(e.target.value)}
                   className="w-full px-3 py-2 text-xs rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
@@ -567,13 +565,13 @@ export const SubjectsClassesManagement: React.FC = () => {
                   }}
                   className="px-4 py-2 text-xs font-semibold text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl"
                 >
-                  إلغاء
+                  {t('إلغاء')}
                 </button>
                 <button
                   type="submit"
                   className="px-5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold"
                 >
-                  حفظ المادة
+                  {t('حفظ المادة')}
                 </button>
               </div>
             </form>
@@ -587,7 +585,7 @@ export const SubjectsClassesManagement: React.FC = () => {
           <div className="bg-white dark:bg-slate-900 rounded-3xl max-w-md w-full p-6 shadow-2xl border border-slate-100 dark:border-slate-800 animate-in fade-in zoom-in-95">
             <div className="flex items-center justify-between pb-3 mb-4 border-b border-slate-100 dark:border-slate-800">
               <h3 className="font-bold text-base text-slate-900 dark:text-white">
-                {editingClass ? `تعديل الشعبة: ${editingClass.name}` : 'إضافة شعبة / صف جديد'}
+                {editingClass ? t('تعديل الشعبة: {name}', { name: editingClass.name }) : t('إضافة شعبة / صف جديد')}
               </h3>
               <button
                 onClick={() => {
@@ -603,12 +601,12 @@ export const SubjectsClassesManagement: React.FC = () => {
             <form onSubmit={handleSaveClass} className="space-y-4">
               <div>
                 <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
-                  اسم الصف والشعبة *
+                  {t('اسم الصف والشعبة')} *
                 </label>
                 <input
                   type="text"
                   required
-                  placeholder="مثال: الصف الثالث الثانوي - شعبة موهبة (ج)"
+                  placeholder={t('مثال: الصف الثالث الثانوي - شعبة موهبة (ج)')}
                   value={className}
                   onChange={(e) => setClassName(e.target.value)}
                   className="w-full px-3 py-2 text-xs rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
@@ -617,11 +615,11 @@ export const SubjectsClassesManagement: React.FC = () => {
 
               <div>
                 <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
-                  المرحلة الدراسية
+                  {t('المرحلة الدراسية')}
                 </label>
                 <input
                   type="text"
-                  placeholder="مثال: المرحلة الثانوية - المسار التخصصي"
+                  placeholder={t('مثال: المرحلة الثانوية - المسار التخصصي')}
                   value={gradeLevel}
                   onChange={(e) => setGradeLevel(e.target.value)}
                   className="w-full px-3 py-2 text-xs rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white"
@@ -638,13 +636,13 @@ export const SubjectsClassesManagement: React.FC = () => {
                   }}
                   className="px-4 py-2 text-xs font-semibold text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl"
                 >
-                  إلغاء
+                  {t('إلغاء')}
                 </button>
                 <button
                   type="submit"
                   className="px-5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold"
                 >
-                  حفظ الشعبة
+                  {t('حفظ الشعبة')}
                 </button>
               </div>
             </form>
@@ -659,10 +657,10 @@ export const SubjectsClassesManagement: React.FC = () => {
             <div className="flex items-center justify-between pb-3 mb-4 border-b border-slate-100 dark:border-slate-800">
               <div>
                 <h3 className="font-bold text-base text-slate-900 dark:text-white">
-                  إسناد معلمين لمادة: {assignSubjectTeachersModal.name}
+                  {t('إسناد معلمين لمادة:')}{' '}{assignSubjectTeachersModal.name}
                 </h3>
                 <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
-                  اضغط على المعلم لإسناده أو إلغاء إسناده لهذه المادة فوراً
+                  {t('اضغط على المعلم لإسناده أو إلغاء إسناده لهذه المادة فوراً')}
                 </p>
               </div>
               <button
@@ -675,7 +673,7 @@ export const SubjectsClassesManagement: React.FC = () => {
 
             <div className="space-y-2">
               {teachers.length === 0 && (
-                <p className="text-xs text-slate-400 text-center py-4">لا يوجد معلمون مضافون في النظام</p>
+                <p className="text-xs text-slate-400 text-center py-4">{t('لا يوجد معلمون مضافون في النظام')}</p>
               )}
               {teachers.map((teacher) => {
                 const isAssigned =
@@ -710,7 +708,7 @@ export const SubjectsClassesManagement: React.FC = () => {
                 onClick={() => setAssignSubjectTeachersModal(null)}
                 className="px-5 py-2 text-xs font-bold bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl"
               >
-                تم الحفظ والإغلاق
+                {t('تم الحفظ والإغلاق')}
               </button>
             </div>
           </div>
@@ -724,10 +722,10 @@ export const SubjectsClassesManagement: React.FC = () => {
             <div className="flex items-center justify-between pb-3 mb-4 border-b border-slate-100 dark:border-slate-800">
               <div>
                 <h3 className="font-bold text-base text-slate-900 dark:text-white">
-                  إسناد الطلاب والمعلمين للشعبة: {assignClassUsersModal.name}
+                  {t('إسناد الطلاب والمعلمين للشعبة:')}{' '}{assignClassUsersModal.name}
                 </h3>
                 <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
-                  اضغط على الاسم لإسناده أو إلغاء إسناده لهذا الفصل
+                  {t('اضغط على الاسم لإسناده أو إلغاء إسناده لهذا الفصل')}
                 </p>
               </div>
               <button
@@ -741,14 +739,14 @@ export const SubjectsClassesManagement: React.FC = () => {
             {/* Students Section */}
             <div className="mb-5">
               <div className="flex items-center gap-2 mb-2">
-                <span className="text-xs font-bold text-slate-700 dark:text-slate-300">الطلاب</span>
+                <span className="text-xs font-bold text-slate-700 dark:text-slate-300">{t('الطلاب')}</span>
                 <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-bold">
-                  ({getClassStudents(assignClassUsersModal.id).length} مسند)
+                  ({getClassStudents(assignClassUsersModal.id).length}{' '}{t('مسند)')}
                 </span>
               </div>
               <div className="space-y-1.5 max-h-48 overflow-y-auto">
                 {students.length === 0 && (
-                  <p className="text-xs text-slate-400 text-center py-2">لا يوجد طلاب مضافون</p>
+                  <p className="text-xs text-slate-400 text-center py-2">{t('لا يوجد طلاب مضافون')}</p>
                 )}
                 {students.map((student) => {
                   const isAssigned =
@@ -782,14 +780,14 @@ export const SubjectsClassesManagement: React.FC = () => {
             {/* Teachers Section */}
             <div>
               <div className="flex items-center gap-2 mb-2">
-                <span className="text-xs font-bold text-slate-700 dark:text-slate-300">المعلمون</span>
+                <span className="text-xs font-bold text-slate-700 dark:text-slate-300">{t('المعلمون')}</span>
                 <span className="text-[10px] text-indigo-600 dark:text-indigo-400 font-bold">
-                  ({getClassTeachers(assignClassUsersModal.id).length} مسند)
+                  ({getClassTeachers(assignClassUsersModal.id).length}{' '}{t('مسند)')}
                 </span>
               </div>
               <div className="space-y-1.5 max-h-48 overflow-y-auto">
                 {teachers.length === 0 && (
-                  <p className="text-xs text-slate-400 text-center py-2">لا يوجد معلمون مضافون</p>
+                  <p className="text-xs text-slate-400 text-center py-2">{t('لا يوجد معلمون مضافون')}</p>
                 )}
                 {teachers.map((teacher) => {
                   const isAssigned = teacher.assigned_class_ids?.includes(assignClassUsersModal.id);
@@ -823,7 +821,7 @@ export const SubjectsClassesManagement: React.FC = () => {
                 onClick={() => setAssignClassUsersModal(null)}
                 className="px-5 py-2 text-xs font-bold bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl"
               >
-                تم الحفظ والإغلاق
+                {t('تم الحفظ والإغلاق')}
               </button>
             </div>
           </div>

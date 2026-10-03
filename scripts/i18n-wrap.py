@@ -9,7 +9,7 @@ import os, re, sys
 AR = r"[؀-ۿ]"
 # نص JSX: بين > (أو }) وبين < (أو {)، بلا رموز كود
 JSX_TEXT = re.compile(r"(?<=[>}])([^<>{}'\"`=;&|$*]*" + AR + r"[^<>{}'\"`=;&|$*]*)(?=[<{])")
-ATTR = re.compile(r"\b(aria-label|title|placeholder|alt)=\"([^\"]*" + AR + r"[^\"]*)\"")
+ATTR = re.compile(r"\b(aria-label|title|placeholder|alt|label|subtitle|hint|description)=\"([^\"]*" + AR + r"[^\"]*)\"")
 
 
 def esc(s: str) -> str:

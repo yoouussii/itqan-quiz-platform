@@ -99,7 +99,7 @@ export const ProfileModal: React.FC<{ onClose: () => void }> = ({ onClose }) => 
                 type="button"
                 disabled={busy}
                 aria-label={`avatar-${p.key}`}
-                title={p.label}
+                title={t(p.label)}
                 onClick={() => apply(`preset:${p.key}`)}
                 className={`w-12 h-12 rounded-2xl shadow-sm transition-transform hover:scale-110 ${
                   current === `preset:${p.key}` ? 'ring-2 ring-offset-2 ring-indigo-500 dark:ring-offset-slate-900' : ''
