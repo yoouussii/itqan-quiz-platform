@@ -3,7 +3,7 @@ import { X, UserCheck, ArrowRightLeft, BookOpen, AlertCircle } from 'lucide-reac
 import { QuizWithDetails, User } from '../../types';
 import { useApp } from '../../context/AppContext';
 import { Avatar } from './Avatar';
-import { uiDir } from '../../i18n';
+import { uiDir, t } from '../../i18n';
 
 interface ReassignQuizModalProps {
   quiz: QuizWithDetails | null;
@@ -50,8 +50,8 @@ export const ReassignQuizModal: React.FC<ReassignQuizModalProps> = ({ quiz, onCl
               <ArrowRightLeft className="w-5 h-5 text-white" />
             </div>
             <div>
-              <h2 className="text-base font-bold">إعادة إسناد وتفويض الاختبار</h2>
-              <p className="text-xs text-indigo-100">نقل صلاحيات إدارة ومتابعة الاختبار لمعلم آخر</p>
+              <h2 className="text-base font-bold">{t('إعادة إسناد وتفويض الاختبار')}</h2>
+              <p className="text-xs text-indigo-100">{t('نقل صلاحيات إدارة ومتابعة الاختبار لمعلم آخر')}</p>
             </div>
           </div>
           <button
@@ -67,7 +67,7 @@ export const ReassignQuizModal: React.FC<ReassignQuizModalProps> = ({ quiz, onCl
           {/* Target Quiz Details */}
           <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200/80 dark:border-slate-700">
             <span className="text-[11px] font-bold text-slate-400 dark:text-slate-500 block mb-1 uppercase tracking-wider">
-              الاختبار المستهدف
+              {t('الاختبار المستهدف')}
             </span>
             <div className="font-bold text-slate-900 dark:text-white text-sm">{quiz.title}</div>
             <div className="flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400 mt-1">
@@ -76,7 +76,7 @@ export const ReassignQuizModal: React.FC<ReassignQuizModalProps> = ({ quiz, onCl
                 {quiz.subject?.name}
               </span>
               <span>•</span>
-              <span>المعلم الحالي: {currentTeacher?.name || 'غير محدد'}</span>
+              <span>{t('المعلم الحالي:')}{' '}{currentTeacher?.name || t('غير محدد')}</span>
             </div>
           </div>
 
@@ -85,14 +85,14 @@ export const ReassignQuizModal: React.FC<ReassignQuizModalProps> = ({ quiz, onCl
             <div className="px-3 py-1 bg-indigo-50 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-300 text-xs font-bold rounded-full flex items-center gap-2 border border-indigo-100 dark:border-indigo-900">
               <span>{currentTeacher?.name}</span>
               <ArrowRightLeft className="w-3.5 h-3.5 rotate-180 text-indigo-500" />
-              <span>{selectedTeacher?.name || 'المعلم الجديد'}</span>
+              <span>{selectedTeacher?.name || t('المعلم الجديد')}</span>
             </div>
           </div>
 
           {/* New Teacher Selection */}
           <div>
             <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-2">
-              اختر المعلم البديل المراد تفويضه بالصلاحيات:
+              {t('اختر المعلم البديل المراد تفويضه بالصلاحيات:')}
             </label>
             <select
               value={selectedTeacherId}
@@ -101,11 +101,11 @@ export const ReassignQuizModal: React.FC<ReassignQuizModalProps> = ({ quiz, onCl
               required
             >
               <option value="" disabled>
-                -- حدد معلماً من القائمة --
+                {t('-- حدد معلماً من القائمة --')}
               </option>
               {teachers.map((teacher) => (
                 <option key={teacher.id} value={teacher.id} disabled={teacher.id === quiz.teacher_id}>
-                  {teacher.name} ({teacher.national_id}) {teacher.id === quiz.teacher_id ? '(المعلم الحالي)' : ''}
+                  {teacher.name} ({teacher.national_id}) {teacher.id === quiz.teacher_id ? t('(المعلم الحالي)') : ''}
                 </option>
               ))}
             </select>
@@ -115,8 +115,7 @@ export const ReassignQuizModal: React.FC<ReassignQuizModalProps> = ({ quiz, onCl
           <div className="p-3.5 rounded-xl bg-amber-50 dark:bg-amber-950/40 border border-amber-200/80 dark:border-amber-800 text-xs text-amber-900 dark:text-amber-300 flex items-start gap-2.5">
             <AlertCircle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
             <p className="leading-relaxed">
-              عند إتمام النقل، سيتمكن المعلم الجديد من الاطلاع على ورقات إجابة الطلاب، وتعديل خيارات
-              التقييم، ومتابعة التحليلات الخاصة بهذا الاختبار.
+              {t('عند إتمام النقل، سيتمكن المعلم الجديد من الاطلاع على ورقات إجابة الطلاب، وتعديل خيارات التقييم، ومتابعة التحليلات الخاصة بهذا الاختبار.')}
             </p>
           </div>
 
@@ -127,7 +126,7 @@ export const ReassignQuizModal: React.FC<ReassignQuizModalProps> = ({ quiz, onCl
               onClick={onClose}
               className="px-4 py-2 text-xs font-semibold text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl transition-colors"
             >
-              إلغاء
+              {t('إلغاء')}
             </button>
             <button
               type="submit"
@@ -135,7 +134,7 @@ export const ReassignQuizModal: React.FC<ReassignQuizModalProps> = ({ quiz, onCl
               className="inline-flex items-center gap-2 px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white rounded-xl text-xs font-bold transition-all shadow-md shadow-indigo-600/20"
             >
               <UserCheck className="w-4 h-4" />
-              <span>{isSubmitting ? 'جارِ التحويل...' : 'تأكيد نقل الاختبار'}</span>
+              <span>{isSubmitting ? t('جارِ التحويل...') : t('تأكيد نقل الاختبار')}</span>
             </button>
           </div>
         </form>

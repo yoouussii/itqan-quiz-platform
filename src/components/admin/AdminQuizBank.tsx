@@ -8,17 +8,17 @@ import { Avatar } from '../common/Avatar';
 import { describeQuizTarget } from '../../utils/quizTarget';
 import { getWindowState } from '../../utils/quizWindow';
 import { Button, Card, Chip, PageHeader, Tone } from '../common/ui';
-import { uiDir } from '../../i18n';
+import { uiDir, t } from '../../i18n';
 
 const statusOf = (q: QuizWithDetails): { label: string; tone: Tone } => {
-  if (q.status === 'draft') return { label: 'مسودة', tone: 'muted' };
-  if (q.status === 'pending_approval') return { label: 'بانتظار الاعتماد', tone: 'info' };
-  if (q.status === 'rejected') return { label: 'مرفوض', tone: 'bad' };
-  if (q.status === 'archived') return { label: 'مؤرشف', tone: 'muted' };
+  if (q.status === 'draft') return { label: t('مسودة'), tone: 'muted' };
+  if (q.status === 'pending_approval') return { label: t('بانتظار الاعتماد'), tone: 'info' };
+  if (q.status === 'rejected') return { label: t('مرفوض'), tone: 'bad' };
+  if (q.status === 'archived') return { label: t('مؤرشف'), tone: 'muted' };
   const w = getWindowState(q.start_date, q.end_date);
-  if (w === 'upcoming') return { label: 'لم يبدأ', tone: 'info' };
-  if (w === 'ended') return { label: 'منتهٍ', tone: 'muted' };
-  return { label: 'متاح الآن', tone: 'ok' };
+  if (w === 'upcoming') return { label: t('لم يبدأ'), tone: 'info' };
+  if (w === 'ended') return { label: t('منتهٍ'), tone: 'muted' };
+  return { label: t('متاح الآن'), tone: 'ok' };
 };
 
 /** بنك الاختبارات المدرسي (للمدير): معاينة، تعديل، نتائج، نسخ، نقل لمعلم آخر، حذف */
@@ -41,11 +41,11 @@ export const AdminQuizBank: React.FC = () => {
     setCurrentView?.(view);
   };
   const handleDelete = async (q: QuizWithDetails) => {
-    if (window.confirm(`حذف اختبار «${q.title}»؟ سيمسح ذلك جميع نتائج الطلاب المتعلقة به.`)) await deleteQuizItem?.(q.id);
+    if (window.confirm(t('حذف اختبار «{title}»؟ سيمسح ذلك جميع نتائج الطلاب المتعلقة به.', { title: q.title }))) await deleteQuizItem?.(q.id);
   };
   /** إيقاف اختبار منشور وإعادته لقائمة الاعتماد (لا يراه الطلاب حتى يُعتمد) */
   const pullBack = async (q: QuizWithDetails) => {
-    if (window.confirm(`سحب «${q.title}» للمراجعة؟ سيختفي من قوائم الطلاب حتى تعتمده من «بانتظار الاعتماد».`)) {
+    if (window.confirm(t('سحب «{title}» للمراجعة؟ سيختفي من قوائم الطلاب حتى تعتمده من «بانتظار الاعتماد».', { title: q.title }))) {
       await updateQuizInfo(q.id, { status: 'pending_approval' });
     }
   };
@@ -54,17 +54,17 @@ export const AdminQuizBank: React.FC = () => {
   return (
     <div className="max-w-7xl mx-auto py-8 px-4 sm:px-6 lg:px-8 space-y-6" dir={uiDir()}>
       <PageHeader
-        title="بنك الاختبارات"
-        subtitle={`${list.length} اختباراً · معاينة وتعديل ونقل الملكية بين المعلمين`}
+        title={t('بنك الاختبارات')}
+        subtitle={t('{n} اختباراً · معاينة وتعديل ونقل الملكية بين المعلمين', { n: list.length })}
         actions={
           <Button icon={PlusCircle} onClick={() => { setEditingQuizId?.(null); setDuplicateQuizId?.(null); setCurrentView?.('create_quiz'); }}>
-            اختبار جديد
+            {t('اختبار جديد')}
           </Button>
         }
       />
       <label className="flex items-center gap-2 max-w-sm h-11 px-3 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-500">
         <Search className="w-[18px] h-[18px]" />
-        <input value={term} onChange={(e) => setTerm(e.target.value)} placeholder="بحث بالعنوان أو المادة أو المعلم" aria-label="بحث في الاختبارات"
+        <input value={term} onChange={(e) => setTerm(e.target.value)} placeholder={t('بحث بالعنوان أو المادة أو المعلم')} aria-label={t('بحث في الاختبارات')}
           className="flex-1 bg-transparent outline-none text-[15px] text-slate-900 dark:text-white" />
       </label>
 
@@ -73,12 +73,12 @@ export const AdminQuizBank: React.FC = () => {
           <table className="w-full text-start text-[14.5px]">
             <thead>
               <tr className="bg-slate-50 dark:bg-slate-800/60 text-slate-500 dark:text-slate-400 text-[13px] border-b border-slate-200 dark:border-slate-800">
-                <th className="py-3 px-4 font-semibold">الاختبار</th>
-                <th className="py-3 px-4 font-semibold">الحالة</th>
-                <th className="py-3 px-4 font-semibold">المعلم</th>
-                <th className="py-3 px-4 font-semibold">موجّه إلى</th>
-                <th className="py-3 px-4 font-semibold">التسليمات</th>
-                <th className="py-3 px-4 font-semibold text-center">الإجراءات</th>
+                <th className="py-3 px-4 font-semibold">{t('الاختبار')}</th>
+                <th className="py-3 px-4 font-semibold">{t('الحالة')}</th>
+                <th className="py-3 px-4 font-semibold">{t('المعلم')}</th>
+                <th className="py-3 px-4 font-semibold">{t('موجّه إلى')}</th>
+                <th className="py-3 px-4 font-semibold">{t('التسليمات')}</th>
+                <th className="py-3 px-4 font-semibold text-center">{t('الإجراءات')}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
@@ -90,43 +90,43 @@ export const AdminQuizBank: React.FC = () => {
                     <td className="py-3 px-4">
                       <div className="font-semibold text-slate-900 dark:text-white">{quiz.title}</div>
                       <div className="text-[13px] text-slate-500 dark:text-slate-400">
-                        {quiz.subject?.name || 'عام'} · {quiz.duration_minutes} دقيقة · {quiz.total_marks} درجة
+                        {quiz.subject?.name || t('عام')} · {quiz.duration_minutes}{' '}{t('دقيقة ·')}{' '}{quiz.total_marks}{' '}{t('درجة')}
                       </div>
                     </td>
                     <td className="py-3 px-4"><Chip tone={st.tone}>{st.label}</Chip></td>
                     <td className="py-3 px-4">
                       <div className="flex items-center gap-2">
-                        <Avatar name={teacher?.name || 'م'} role={teacher?.role} userId={teacher?.id} size="xs" />
-                        <span className="text-slate-700 dark:text-slate-300">{teacher?.name || 'غير معروف'}</span>
+                        <Avatar name={teacher?.name || t('م')} role={teacher?.role} userId={teacher?.id} size="xs" />
+                        <span className="text-slate-700 dark:text-slate-300">{teacher?.name || t('غير معروف')}</span>
                       </div>
                     </td>
                     <td className="py-3 px-4 text-slate-600 dark:text-slate-400">{describeQuizTarget(quiz.assignments, classes)}</td>
                     <td className="py-3 px-4">
                       <button type="button" onClick={() => open(quiz.id, 'quiz_results')} className="font-semibold text-indigo-700 dark:text-indigo-400 hover:underline">
-                        {quiz.submissions_count || 0} تسليم
+                        {quiz.submissions_count || 0}{' '}{t('تسليم')}
                       </button>
                     </td>
                     <td className="py-3 px-4">
                       <div className="flex items-center justify-center gap-0.5">
-                        <button type="button" onClick={() => open(quiz.id, 'quiz_preview')} className={iconBtn} title="معاينة" aria-label="معاينة"><Eye className="w-[18px] h-[18px]" /></button>
-                        <button type="button" onClick={() => { setEditingQuizId?.(quiz.id); setCurrentView?.('create_quiz'); }} className={iconBtn} title="تعديل" aria-label="تعديل"><Edit3 className="w-[18px] h-[18px]" /></button>
-                        <button type="button" onClick={() => open(quiz.id, 'quiz_results')} className={iconBtn} title="النتائج" aria-label="النتائج"><BarChart2 className="w-[18px] h-[18px]" /></button>
-                        <button type="button" onClick={() => { setEditingQuizId?.(null); setDuplicateQuizId?.(quiz.id); setCurrentView?.('create_quiz'); }} className={iconBtn} title="نسخ مع التعديل" aria-label="نسخ"><CopyIcon className="w-[18px] h-[18px]" /></button>
+                        <button type="button" onClick={() => open(quiz.id, 'quiz_preview')} className={iconBtn} title={t('معاينة')} aria-label={t('معاينة')}><Eye className="w-[18px] h-[18px]" /></button>
+                        <button type="button" onClick={() => { setEditingQuizId?.(quiz.id); setCurrentView?.('create_quiz'); }} className={iconBtn} title={t('تعديل')} aria-label={t('تعديل')}><Edit3 className="w-[18px] h-[18px]" /></button>
+                        <button type="button" onClick={() => open(quiz.id, 'quiz_results')} className={iconBtn} title={t('النتائج')} aria-label={t('النتائج')}><BarChart2 className="w-[18px] h-[18px]" /></button>
+                        <button type="button" onClick={() => { setEditingQuizId?.(null); setDuplicateQuizId?.(quiz.id); setCurrentView?.('create_quiz'); }} className={iconBtn} title={t('نسخ مع التعديل')} aria-label={t('نسخ')}><CopyIcon className="w-[18px] h-[18px]" /></button>
                         {quiz.status === 'published' && (
-                          <button type="button" onClick={async () => { if (await copyQuizLink(quiz.id)) showToast?.('تم نسخ رابط الاختبار، أرسله للطلاب', 'success'); }} className={iconBtn} title="نسخ رابط الاختبار للطلاب" aria-label="نسخ رابط الاختبار"><Link2 className="w-[18px] h-[18px]" /></button>
+                          <button type="button" onClick={async () => { if (await copyQuizLink(quiz.id)) showToast?.(t('تم نسخ رابط الاختبار، أرسله للطلاب'), 'success'); }} className={iconBtn} title={t('نسخ رابط الاختبار للطلاب')} aria-label={t('نسخ رابط الاختبار')}><Link2 className="w-[18px] h-[18px]" /></button>
                         )}
                         {quiz.status === 'published' && (
-                          <button type="button" onClick={() => pullBack(quiz)} className={iconBtn} title="سحب للمراجعة (إيقاف النشر)" aria-label="سحب للمراجعة"><Undo2 className="w-[18px] h-[18px]" /></button>
+                          <button type="button" onClick={() => pullBack(quiz)} className={iconBtn} title={t('سحب للمراجعة (إيقاف النشر)')} aria-label={t('سحب للمراجعة')}><Undo2 className="w-[18px] h-[18px]" /></button>
                         )}
-                        <button type="button" onClick={() => setReassign(quiz)} className={iconBtn} title="نقل لمعلم آخر" aria-label="نقل لمعلم آخر"><ArrowRightLeft className="w-[18px] h-[18px]" /></button>
-                        <button type="button" onClick={() => handleDelete(quiz)} className="w-9 h-9 flex items-center justify-center rounded-lg text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/50" title="حذف" aria-label="حذف"><Trash2 className="w-[18px] h-[18px]" /></button>
+                        <button type="button" onClick={() => setReassign(quiz)} className={iconBtn} title={t('نقل لمعلم آخر')} aria-label={t('نقل لمعلم آخر')}><ArrowRightLeft className="w-[18px] h-[18px]" /></button>
+                        <button type="button" onClick={() => handleDelete(quiz)} className="w-9 h-9 flex items-center justify-center rounded-lg text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/50" title={t('حذف')} aria-label={t('حذف')}><Trash2 className="w-[18px] h-[18px]" /></button>
                       </div>
                     </td>
                   </tr>
                 );
               })}
               {list.length === 0 && (
-                <tr><td colSpan={6} className="py-12 text-center text-slate-500">لا توجد اختبارات مطابقة</td></tr>
+                <tr><td colSpan={6} className="py-12 text-center text-slate-500">{t('لا توجد اختبارات مطابقة')}</td></tr>
               )}
             </tbody>
           </table>

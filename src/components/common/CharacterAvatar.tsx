@@ -1,4 +1,5 @@
 import React, { useId } from 'react';
+import { t } from '../../i18n';
 
 /**
  * صور رمزية على شكل شخصيات مرسومة (SVG) بدلاً من الإيموجي:
@@ -43,7 +44,7 @@ export const CharacterSvg: React.FC<{ preset: CharacterPreset; className?: strin
   const checkId = `chk-${uid}`;
   const covered = p.headwear === 'hijab';
   return (
-    <svg viewBox="0 0 64 64" className={className} role="img" aria-label={title || p.label}>
+    <svg viewBox="0 0 64 64" className={className} role="img" aria-label={title || t(p.label)}>
       <defs>
         <linearGradient id={bgId} x1="0" y1="0" x2="1" y2="1">
           <stop offset="0" stopColor={p.bg[0]} />
