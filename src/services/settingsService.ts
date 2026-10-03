@@ -19,6 +19,12 @@ export interface AppSettings {
   cert_principal_name: string;
   cert_principal_title: string;
   cert_style: { template?: string; primary?: string; accent?: string; qr?: boolean } | null;
+  /** وضع الصيانة (019): لا يدخل إلا المدير */
+  maintenance: { on?: boolean; message?: string; until?: string } | null;
+  /** تصميم شاشة الدخول وصورتها وعبارتها (019) */
+  login_style: string;
+  login_image: string;
+  login_tagline: string;
 }
 // اشتراط اعتماد الاختبارات مفعّل افتراضياً (مثل الخادم في 008)، ويُلغيه المدير من الإعدادات
 export const DEFAULT_SETTINGS: AppSettings = {
@@ -34,8 +40,12 @@ export const DEFAULT_SETTINGS: AppSettings = {
   cert_principal_name: '',
   cert_principal_title: '',
   cert_style: null,
+  maintenance: null,
+  login_style: 'classic',
+  login_image: '',
+  login_tagline: '',
 };
-const BRANDING_KEYS = ['school_name', 'school_logo', 'brand_color'] as const;
+const BRANDING_KEYS = ['school_name', 'school_logo', 'brand_color', 'maintenance', 'login_style', 'login_image', 'login_tagline', 'cert_company_logo', 'cert_school_logo'] as const;
 
 // v2: النسخة السابقة كانت تحفظ «بلا اعتماد» على الأجهزة حتى لو لم يختره المدير
 const KEY = 'itqan_settings_v2';
@@ -60,7 +70,12 @@ export async function syncPublicBranding(): Promise<boolean> {
   if (!res.ok || !res.data || typeof res.data !== 'object') return false;
   const cur = loadSettings();
   const next: any = { ...cur };
-  BRANDING_KEYS.forEach((k) => { next[k] = k in res.data! ? res.data![k] ?? DEFAULT_SETTINGS[k] : DEFAULT_SETTINGS[k]; });
+  // الهوية الأساسية تعود للافتراضي إن حُذفت؛ المفاتيح الأحدث (019) تُحدَّث فقط إن أعادها الخادم
+  const CORE = ['school_name', 'school_logo', 'brand_color'];
+  BRANDING_KEYS.forEach((k) => {
+    if (k in res.data!) next[k] = res.data![k] ?? DEFAULT_SETTINGS[k];
+    else if (CORE.includes(k)) next[k] = DEFAULT_SETTINGS[k];
+  });
   const changed = JSON.stringify(next) !== JSON.stringify(cur);
   writeJson(KEY, next);
   return changed;

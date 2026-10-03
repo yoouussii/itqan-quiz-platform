@@ -28,7 +28,7 @@ export function applyBrandColor(id?: string | null) {
 }
 
 /** تصغير صورة الشعار قبل حفظها (أقصى بُعد 256px، PNG للحفاظ على الشفافية) */
-export function resizeLogo(file: File, max = 256): Promise<string> {
+export function resizeLogo(file: File, max = 256, type: 'image/png' | 'image/jpeg' = 'image/png'): Promise<string> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
     reader.onerror = () => reject(new Error('تعذرت قراءة الصورة'));
@@ -41,7 +41,7 @@ export function resizeLogo(file: File, max = 256): Promise<string> {
         canvas.width = Math.max(1, Math.round(img.width * scale));
         canvas.height = Math.max(1, Math.round(img.height * scale));
         canvas.getContext('2d')!.drawImage(img, 0, 0, canvas.width, canvas.height);
-        resolve(canvas.toDataURL('image/png'));
+        resolve(type === 'image/jpeg' ? canvas.toDataURL('image/jpeg', 0.82) : canvas.toDataURL('image/png'));
       };
       img.src = String(reader.result);
     };

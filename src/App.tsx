@@ -4,6 +4,7 @@ import { AppShell } from './components/common/AppShell';
 import { Footer } from './components/common/Footer';
 import { Toast } from './components/common/Toast';
 import { AuthScreen } from './components/auth/AuthScreen';
+import { MaintenanceScreen } from './components/auth/MaintenanceScreen';
 
 
 import { hasPerm } from './utils/permissions';
@@ -99,6 +100,8 @@ const AppContent: React.FC = () => {
     editingQuizId,
   } = useApp();
   const pathname = usePathname();
+  const { settings } = useApp();
+  const [adminLogin, setAdminLogin] = React.useState(false);
 
   // If user is not logged in or in login view
   if (!currentUser || currentView === 'login') {
@@ -106,7 +109,9 @@ const AppContent: React.FC = () => {
     return (
       <div className="min-h-screen flex flex-col bg-slate-50 dark:bg-[#0b0f19] text-slate-900 dark:text-white transition-colors duration-200" dir={uiDir()}>
         <div className="flex-1">
-          {legal ? <React.Suspense fallback={<Spinner />}><LegalPage doc={legal} /></React.Suspense> : <AuthScreen />}
+          {legal ? <React.Suspense fallback={<Spinner />}><LegalPage doc={legal} /></React.Suspense>
+            : settings.maintenance?.on && !adminLogin ? <MaintenanceScreen onAdminLogin={() => setAdminLogin(true)} />
+            : <AuthScreen />}
         </div>
         <Footer />
         <Toast />
@@ -165,12 +170,17 @@ const AppContent: React.FC = () => {
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-[#0b0f19] text-slate-900 dark:text-white transition-colors duration-200" dir={uiDir()}>
       <AppShell
-        banner={isPreview && (
+        banner={isPreview ? (
           <div className="bg-amber-100 dark:bg-amber-950/60 border-b border-amber-300 dark:border-amber-800 text-amber-900 dark:text-amber-200 text-sm font-semibold px-4 py-2 flex flex-wrap items-center justify-center gap-3" role="status">
             <span>{t('وضع المعاينة: تشاهد الموقع كما يراه «{name}». للعرض فقط، ولا يُسجَّل أي تسليم باسمه.', { name: currentUser.name })}</span>
             <button type="button" onClick={exitPreview} className="px-3 py-1.5 rounded-lg bg-amber-700 hover:bg-amber-800 text-white">{t('العودة لحسابي')}</button>
           </div>
-        )}
+        ) : settings.maintenance?.on && currentUser.role === 'admin' ? (
+          <div className="bg-rose-50 dark:bg-rose-950/50 border-b border-rose-200 dark:border-rose-900 text-rose-900 dark:text-rose-200 text-sm font-semibold px-4 py-2 flex flex-wrap items-center justify-center gap-3" role="status" data-testid="maintenance-banner">
+            <span>{t('وضع الصيانة مفعّل: لا يستطيع أحد غيرك الدخول للمنصة الآن.')}</span>
+            <button type="button" onClick={() => setCurrentView('settings')} className="px-3 py-1.5 rounded-lg bg-rose-700 hover:bg-rose-800 text-white">{t('إيقاف الصيانة')}</button>
+          </div>
+        ) : null}
       >
 
         <React.Suspense

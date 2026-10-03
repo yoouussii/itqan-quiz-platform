@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { Info, Check, Moon, Sun, Eye, EyeOff } from 'lucide-react';
+import { Info, Moon, Sun, Eye, EyeOff } from 'lucide-react';
+import { LoginHero, LoginStyle, LOGIN_STYLES } from './LoginHero';
 import { useApp } from '../../context/AppContext';
 import { Logo } from '../common/Logo';
 import { navigateTo } from '../../utils/router';
@@ -8,7 +9,10 @@ import { t } from '../../i18n';
 
 /** تسجيل الدخول برقم الهوية (لا يوجد تسجيل ذاتي: الحسابات تُنشأ من إدارة المدرسة) */
 export const AuthScreen: React.FC = () => {
-  const { login, theme, toggleTheme } = useApp();
+  const { login, theme, toggleTheme, settings } = useApp();
+  // معاينة تصميم آخر: ?login_style=showcase (للمدير قبل الاختيار)
+  const preview = new URLSearchParams(window.location.search).get('login_style');
+  const loginStyle = (LOGIN_STYLES.find((x) => x.id === (preview || settings.login_style))?.id || 'classic') as LoginStyle;
 
   const [nationalId, setNationalId] = useState('');
   const [password, setPassword] = useState('');
@@ -28,8 +32,8 @@ export const AuthScreen: React.FC = () => {
     'w-full h-[52px] px-4 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-base text-slate-900 dark:text-white placeholder:text-slate-400 focus:outline-none focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/15 transition';
 
   return (
-    <div className="w-full min-h-[calc(100vh-72px)] grid lg:grid-cols-2">
-      <div className="relative flex flex-col justify-center px-5 sm:px-12 xl:px-24 py-12 bg-white dark:bg-slate-950">
+    <div className={`w-full min-h-[calc(100vh-72px)] grid ${loginStyle === 'minimal' ? 'bg-slate-50 dark:bg-slate-950' : 'lg:grid-cols-2'}`}>
+      <div className={`relative flex flex-col justify-center px-5 sm:px-12 xl:px-24 py-12 ${loginStyle === 'minimal' ? '' : 'bg-white dark:bg-slate-950'}`}>
         <div className="absolute top-4 end-4 flex items-center gap-2">
           <LangToggle className="h-11 border border-slate-200 dark:border-slate-700" />
           <button
@@ -43,7 +47,7 @@ export const AuthScreen: React.FC = () => {
           </button>
         </div>
 
-        <div className="w-full max-w-md mx-auto space-y-7">
+        <div className={`w-full max-w-md mx-auto space-y-7 ${loginStyle === 'minimal' ? 'bg-white dark:bg-slate-900 rounded-3xl shadow-xl shadow-slate-200/60 dark:shadow-none border border-slate-200 dark:border-slate-800 p-8 sm:p-10' : ''}`}>
           <Logo size="md" />
           <div>
             <h1 className="text-[32px] sm:text-[38px] font-extrabold text-slate-900 dark:text-white leading-tight">{t('أهلاً بعودتك')}</h1>
@@ -53,7 +57,7 @@ export const AuthScreen: React.FC = () => {
           <form onSubmit={handleStandardLogin} className="space-y-5">
             <div className="space-y-2">
               <label htmlFor="login-id" className="block text-[15px] font-semibold text-slate-800 dark:text-slate-200">
-                {t('رقم الهوية أو الرقم الأكاديمي')}
+                {t('رقم الهوية')}
               </label>
               <input
                 id="login-id"
@@ -115,17 +119,7 @@ export const AuthScreen: React.FC = () => {
         </div>
       </div>
 
-      <div className="hidden lg:flex relative overflow-hidden bg-indigo-600 text-white flex-col justify-center px-16 xl:px-24 gap-7">
-        <span className="pointer-events-none absolute -end-20 -top-20 w-80 h-80 rounded-full border-[48px]" style={{ borderColor: 'rgba(255,255,255,.07)' }} />
-        <span className="pointer-events-none absolute start-16 -bottom-28 w-64 h-64 rounded-[40px] rotate-[24deg] bg-white/[0.06]" />
-        <h2 className="relative text-[44px] font-extrabold leading-[1.35]">{t('اختبارات المدرسة')}<br />{t('في مكان واحد')}</h2>
-        <ul className="relative space-y-4 text-[17px]">
-          {[t('اختبارات إلكترونية بنتيجة فورية'), t('نقاط وأوسمة تحفّز الطلاب'), t('تقارير دقيقة للمعلم والإدارة')].map((item) => (
-            <li key={item} className="flex items-center gap-3"><Check className="w-[22px] h-[22px] text-amber-300" strokeWidth={2.5} />{item}</li>
-          ))}
-        </ul>
-        <p className="relative text-[13px] text-white/80">{t('منظومة الاختبارات والتقييم الذكي')}</p>
-      </div>
+      <LoginHero style={loginStyle} />
     </div>
   );
 };

@@ -122,7 +122,17 @@ export const CertificatesPage: React.FC = () => {
   const [style, setStyle] = useState<CertStyle>(() => normalizeStyle());
   const [busy, setBusy] = useState(false);
 
-  const students = useMemo(() => (users || []).filter((u) => u.role === 'student').sort((a, b) => a.name.localeCompare(b.name, 'ar')), [users]);
+  // المدير يرى كل الطلاب؛ المعلم والمشرف يرون طلاب الفصول المسندة إليهم فقط
+  const myClassIds = useMemo(() => {
+    if (!currentUser || currentUser.role === 'admin') return null;
+    const ids = [...(currentUser.assigned_class_ids || []), ...(currentUser.class_id ? [currentUser.class_id] : [])];
+    return new Set(ids);
+  }, [currentUser]);
+  const students = useMemo(
+    () => (users || []).filter((u) => u.role === 'student' && (!myClassIds || myClassIds.has(u.class_id || ''))).sort((a, b) => a.name.localeCompare(b.name, 'ar')),
+    [users, myClassIds]
+  );
+  const myClasses = useMemo(() => (myClassIds ? classes.filter((c) => myClassIds.has(c.id)) : classes), [classes, myClassIds]);
   const className = (id?: string | null) => classes.find((c) => c.id === id)?.name || '';
   const matches = useMemo(() => {
     const s = q.trim().toLowerCase();
@@ -282,7 +292,7 @@ export const CertificatesPage: React.FC = () => {
               <div className="space-y-2">
                 <select aria-label={t('الفصل')} value={groupClass} onChange={(e) => setGroupClass(e.target.value)} className={inputCls}>
                   <option value="">{t('اختر الفصل')}</option>
-                  {classes.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+                  {myClasses.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
                 </select>
                 {groupClass && (
                   <div className="rounded-xl border border-slate-200 dark:border-slate-700 max-h-52 overflow-y-auto divide-y divide-slate-100 dark:divide-slate-800">
