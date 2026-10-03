@@ -43,6 +43,7 @@ import { StudentAward } from '../utils/points';
 import { describeQuizTarget } from '../utils/quizTarget';
 import { targetStudents } from '../utils/quizAudience';
 import { loadAttempt } from '../utils/activeAttempt';
+import { RouteState, parsePath, pathFor, replaceNextNavigation, takeReplaceFlag } from '../utils/router';
 import { formatQuizDateTime } from '../utils/quizWindow';
 import {
   supabase,
@@ -150,6 +151,8 @@ interface AppContextType {
 
   currentView: string;
   setCurrentView: (view: string) => void;
+  /** اكتمل أول تحديث للبيانات من الخادم للمستخدم الحالي (للروابط المباشرة) */
+  dataReady: boolean;
   activeQuizId: string | null;
   setActiveQuizId: (id: string | null) => void;
   activeSubmissionId: string | null;
@@ -338,9 +341,8 @@ function isSessionExpired(): boolean {
 }
 
 // ---------------------------------------------------------------------
-// حفظ الصفحة الحالية عند التحديث (Refresh): لكل تبويب على حدة (sessionStorage)
+// الصفحات المسموحة لكل مستخدم (تُستخدم أيضاً للتحقق من الروابط المباشرة)
 // ---------------------------------------------------------------------
-const VIEW_KEY = 'itqan_view_state_v1';
 
 function allowedViews(u: User | null): string[] {
   if (!u) return [];
@@ -364,26 +366,18 @@ function allowedViews(u: User | null): string[] {
   return out;
 }
 
-function restoreViewState(u: User | null) {
-  const fallback = { view: u ? 'dashboard' : 'login', activeQuizId: null as string | null, activeSubmissionId: null as string | null, editingQuizId: null as string | null };
-  if (!u) return fallback;
-  try {
-    const raw = sessionStorage.getItem(VIEW_KEY);
-    if (!raw) return fallback;
-    const st = JSON.parse(raw);
-    if (st.userId !== u.id || !allowedViews(u).includes(st.view)) return fallback;
-    if ((st.view === 'quiz_results' || st.view === 'quiz_preview') && !st.activeQuizId) return fallback;
-    if (st.view === 'quiz_review' && !st.activeSubmissionId) return fallback;
-    if (st.view === 'take_quiz' && !(st.activeQuizId && loadAttempt(u.id, st.activeQuizId))) return fallback;
-    return {
-      view: st.view as string,
-      activeQuizId: (st.activeQuizId || null) as string | null,
-      activeSubmissionId: (st.activeSubmissionId || null) as string | null,
-      editingQuizId: (st.editingQuizId || null) as string | null,
-    };
-  } catch {
-    return fallback;
+/** الشاشة التي يطلبها الرابط بعد التحقق من صلاحية المستخدم (وإلا الرئيسية) */
+function routeForUser(u: User | null, path: string): RouteState {
+  const home: RouteState = { view: 'dashboard' };
+  if (!u) return home;
+  let r = parsePath(path);
+  if (!r) return home;
+  // رابط الاختبار المرسل للطلاب: الطاقم يفتحه معاينةً، وولي الأمر يذهب للرئيسية
+  if (r.view === 'take_quiz' && u.role !== 'student') {
+    r = u.role === 'parent' ? home : { ...r, view: 'quiz_preview' };
   }
+  if (r.view === 'users' && u.role !== 'admin') r = { view: 'users_management' };
+  return allowedViews(u).includes(r.view) ? r : home;
 }
 
 // ---------------------------------------------------------------------
@@ -581,12 +575,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [users, setUsers] = useState<User[]>(() => StorageService.getUsers().map(normalizeUser));
   const [subjects, setSubjects] = useState<Subject[]>(() => StorageService.getSubjects());
   const [classes, setClasses] = useState<SchoolClass[]>(() => StorageService.getClasses());
-  const [restored] = useState(() => restoreViewState(currentUser));
+  // الرابط هو مصدر الشاشة عند فتح الموقع أو تحديثه
+  const [restored] = useState<RouteState>(() =>
+    currentUser ? routeForUser(currentUser, window.location.pathname) : { view: 'login' }
+  );
   const [currentView, setCurrentView] = useState<string>(restored.view);
-  const [activeQuizId, setActiveQuizId] = useState<string | null>(restored.activeQuizId);
-  const [editingQuizId, setEditingQuizId] = useState<string | null>(restored.editingQuizId);
+  const [activeQuizId, setActiveQuizId] = useState<string | null>(restored.quizId || null);
+  const [editingQuizId, setEditingQuizId] = useState<string | null>(restored.editingQuizId || null);
   const [duplicateQuizId, setDuplicateQuizId] = useState<string | null>(null);
-  const [activeSubmissionId, setActiveSubmissionId] = useState<string | null>(restored.activeSubmissionId);
+  const [activeSubmissionId, setActiveSubmissionId] = useState<string | null>(restored.submissionId || null);
   const [toastMessage, setToastMessage] = useState<ToastMessage | null>(null);
   const [passwordIsDefault, setPasswordIsDefault] = useState<boolean>(() => !!getSessionInfo()?.password_is_default);
   const [avatars, setAvatars] = useState<Record<string, string>>(() => avatarMapFromCache(loadAvatarCache()));
@@ -606,6 +603,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [settings, setSettings] = useState<AppSettings>(() => loadSettings());
   const [branches, setBranches] = useState<Branch[]>(() => loadBranchCache());
   const seenNotifRef = useRef<Set<string> | null>(null);
+  const [syncedUserId, setSyncedUserId] = useState<string | null>(null);
 
   const notifications = useMemo(
     () =>
@@ -635,24 +633,61 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const currentUserRef = useRef<User | null>(currentUser);
   const currentViewRef = useRef<string>(currentView);
   const refreshingRef = useRef(false);
+  const refreshUserRef = useRef<string | null>(null);
+  const rerunRef = useRef(false);
   useEffect(() => {
     currentUserRef.current = currentUser;
   }, [currentUser]);
   useEffect(() => {
     currentViewRef.current = currentView;
   }, [currentView]);
+  // ---------------- الروابط: الشاشة ← الرابط ----------------
+  const activeQuizIdRef = useRef<string | null>(activeQuizId);
+  activeQuizIdRef.current = activeQuizId;
+  const firstUrlSyncRef = useRef(true);
   useEffect(() => {
-    if (!currentUser) return;
-    try {
-      sessionStorage.setItem(
-        VIEW_KEY,
-        JSON.stringify({ userId: currentUser.id, view: currentView, activeQuizId, activeSubmissionId, editingQuizId })
-      );
-    } catch {
-      /* ignore */
-    }
+    // شاشة الدخول لا تغيّر الرابط، فيبقى الرابط المباشر محفوظاً حتى يُسجَّل الدخول
+    if (!currentUser || currentView === 'login') return;
+    const path = pathFor({ view: currentView, quizId: activeQuizId, submissionId: activeSubmissionId, editingQuizId });
+    const replace = takeReplaceFlag() || firstUrlSyncRef.current;
+    firstUrlSyncRef.current = false;
+    if (path === window.location.pathname) return;
+    if (replace) window.history.replaceState(null, '', path);
+    else window.history.pushState(null, '', path);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentUser?.id, currentView, activeQuizId, activeSubmissionId, editingQuizId]);
+
+  const applyRoute = useCallback((r: RouteState) => {
+    setCurrentView(r.view);
+    if (r.quizId !== undefined) setActiveQuizId(r.quizId || null);
+    if (r.submissionId !== undefined) setActiveSubmissionId(r.submissionId || null);
+    if (r.view === 'create_quiz') {
+      setEditingQuizId(r.editingQuizId || null);
+      setDuplicateQuizId(null);
+    }
+  }, []);
+
+  // ---------------- الروابط: زر الرجوع/التقدّم ← الشاشة ----------------
+  useEffect(() => {
+    const onPop = () => {
+      const u = currentUserRef.current;
+      if (!u) return;
+      const target = routeForUser(u, window.location.pathname);
+      const quizId = activeQuizIdRef.current;
+      const leavingQuiz = currentViewRef.current === 'take_quiz' && !!quizId
+        && !(target.view === 'take_quiz' && target.quizId === quizId);
+      if (leavingQuiz && loadAttempt(u.id, quizId) &&
+          !window.confirm('أنت في منتصف الاختبار والوقت مستمر. تخرج من صفحة الاختبار؟\nإجاباتك محفوظة وتقدر ترجع تكمل قبل انتهاء الوقت.')) {
+        window.history.pushState(null, '', pathFor({ view: 'take_quiz', quizId }));
+        return;
+      }
+      // إن حُوِّل الرابط لشاشة أخرى (غير مسموح مثلاً) يُستبدل بدل إضافة خطوة جديدة
+      if (pathFor(target) !== window.location.pathname) replaceNextNavigation();
+      applyRoute(target);
+    };
+    window.addEventListener('popstate', onPop);
+    return () => window.removeEventListener('popstate', onPop);
+  }, [applyRoute]);
 
   const toastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const showToast = useCallback((text: string, type: ToastType = 'success') => {
@@ -675,8 +710,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   /** جلب أحدث البيانات من Supabase ثم تحديث الواجهة */
   const refreshData = useCallback(async () => {
-    if (refreshingRef.current) return;
+    if (refreshingRef.current) {
+      // تحديث جارٍ لمستخدم آخر (مثل لحظة تسجيل الدخول): نعيده بعد انتهائه
+      if (refreshUserRef.current !== (currentUserRef.current?.id || null)) rerunRef.current = true;
+      return;
+    }
     refreshingRef.current = true;
+    refreshUserRef.current = currentUserRef.current?.id || null;
     // دور صاحب الجلسة على الخادم (قد يختلف عن المستخدم المعروض عند «تبديل الحساب» للمعاينة)
     let serverRole: string | undefined;
     try {
@@ -764,8 +804,16 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       }
     } finally {
       refreshingRef.current = false;
+      if (rerunRef.current) {
+        rerunRef.current = false;
+        setTimeout(() => void refreshDataRef.current(), 0);
+      } else {
+        setSyncedUserId(refreshUserRef.current);
+      }
     }
   }, [recompute, showToast]);
+  const refreshDataRef = useRef(refreshData);
+  refreshDataRef.current = refreshData;
 
   const logoutRef = useRef<(message?: string) => void>(() => undefined);
 
@@ -800,6 +848,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       setQuizzes([]);
       setSubmissions([]);
       setCurrentView('login');
+      try { window.history.replaceState(null, '', '/'); } catch { /* ignore */ }
       showToast(message, 'info');
     },
     [showToast]
@@ -847,7 +896,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     seenNotifRef.current = null;
     currentUserRef.current = user;
     setCurrentUserState(user);
-    setCurrentView('dashboard');
+    // رابط مباشر فُتح قبل الدخول (مثل رابط اختبار): يُفتح بعد الدخول
+    replaceNextNavigation();
+    applyRoute(routeForUser(normalizeUser(user), window.location.pathname));
     showToast(`مرحباً بك يا ${user.name}`, 'success');
   };
 
@@ -2058,6 +2109,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         pendingApprovalsCount,
         currentView,
         setCurrentView,
+        dataReady: !isSupabaseConfigured() || (!!currentUser && syncedUserId === currentUser.id),
         activeQuizId,
         setActiveQuizId,
         activeSubmissionId,

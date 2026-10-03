@@ -10,6 +10,14 @@ import { Logo } from './Logo';
 import { ProfileModal } from './ProfileModal';
 import { NotificationBell } from './NotificationBell';
 import { Footer } from './Footer';
+import { pathFor } from '../../utils/router';
+
+/** رابط حقيقي للصفحة: الضغط العادي يتنقل داخل الموقع، وCtrl/الزر الأوسط يفتحها في تبويب جديد */
+const linkClick = (go: () => void) => (e: React.MouseEvent) => {
+  if (e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+  e.preventDefault();
+  go();
+};
 import { hasPerm } from '../../utils/permissions';
 import { User } from '../../types';
 
@@ -154,7 +162,7 @@ const NavLink: React.FC<{ item: NavItem; active: boolean; onGo: (id: string) => 
   return item.href ? (
     <a href={item.href} target="_blank" rel="noopener noreferrer" className={cls}>{inner}</a>
   ) : (
-    <button type="button" onClick={() => onGo(item.id)} aria-current={active ? 'page' : undefined} className={cls}>{inner}</button>
+    <a href={pathFor({ view: item.id })} onClick={linkClick(() => onGo(item.id))} aria-current={active ? 'page' : undefined} className={cls}>{inner}</a>
   );
 };
 
@@ -254,15 +262,15 @@ const StudentShell: React.FC<{ children: React.ReactNode; banner?: React.ReactNo
             <button type="button" onClick={() => setCurrentView('dashboard')} aria-label="الرئيسية"><Logo size="sm" /></button>
             <nav className="hidden md:flex items-center gap-1" aria-label="القائمة الرئيسية">
               {tabs.filter((t) => t.id !== 'notifications').map((t) => (
-                <button
+                <a
                   key={t.id}
-                  type="button"
-                  onClick={() => setCurrentView(t.id)}
+                  href={pathFor({ view: t.id })}
+                  onClick={linkClick(() => setCurrentView(t.id))}
                   aria-current={currentView === t.id ? 'page' : undefined}
-                  className={`h-10 px-4 rounded-xl text-[15px] font-semibold transition-colors ${currentView === t.id ? 'bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300' : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'}`}
+                  className={`h-10 px-4 inline-flex items-center rounded-xl text-[15px] font-semibold transition-colors ${currentView === t.id ? 'bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300' : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'}`}
                 >
                   {t.id === 'my_points' ? 'نقاطي وأوسمتي' : t.label}
-                </button>
+                </a>
               ))}
             </nav>
           </div>
@@ -290,11 +298,11 @@ const StudentShell: React.FC<{ children: React.ReactNode; banner?: React.ReactNo
           const Icon = t.icon;
           const on = currentView === t.id;
           return (
-            <button key={t.id} type="button" onClick={() => setCurrentView(t.id)} aria-current={on ? 'page' : undefined}
+            <a key={t.id} href={pathFor({ view: t.id })} onClick={linkClick(() => setCurrentView(t.id))} aria-current={on ? 'page' : undefined}
               className={`flex-1 h-16 flex flex-col items-center justify-center gap-1 text-xs font-semibold ${on ? 'text-indigo-700 dark:text-indigo-300' : 'text-slate-500 dark:text-slate-400'}`}>
               <Icon className="w-[22px] h-[22px]" strokeWidth={on ? 2.4 : 1.9} />
               {t.label}
-            </button>
+            </a>
           );
         })}
       </nav>

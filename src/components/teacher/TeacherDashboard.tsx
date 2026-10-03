@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { Plus, PenLine, MoreHorizontal, Copy, Trash2, BellRing, Eye } from 'lucide-react';
+import { Plus, PenLine, MoreHorizontal, Copy, Trash2, BellRing, Eye, Link2 } from 'lucide-react';
+import { copyQuizLink } from '../../utils/router';
 import { useApp } from '../../context/AppContext';
 import { Quiz, Submission } from '../../types';
 import { StorageService } from '../../services/storage';
@@ -75,7 +76,7 @@ const QuizMenu: React.FC<{ items: Array<{ label: string; icon: React.ElementType
 export const TeacherDashboard: React.FC = () => {
   const {
     currentUser, quizzes, submissions, subjects, classes, users, setCurrentView, setEditingQuizId, setDuplicateQuizId,
-    deleteQuizItem, setActiveQuizId, remindLateStudents,
+    deleteQuizItem, setActiveQuizId, remindLateStudents, showToast,
   } = useApp();
   const [tab, setTab] = useState<Tab>('all');
   const [reminding, setReminding] = useState<string | null>(null);
@@ -118,6 +119,7 @@ export const TeacherDashboard: React.FC = () => {
   const remove = async (q: Quiz) => {
     if (window.confirm(`حذف الاختبار «${q.title}»؟\nسيختفي من قوائم الطلاب، وتبقى درجاتهم السابقة محفوظة ومستبعدة من المعدل.`)) await deleteQuizItem(q.id);
   };
+  const copyLink = async (id: string) => { if (await copyQuizLink(id)) showToast('تم نسخ رابط الاختبار، أرسله للطلاب', 'success'); };
   const remind = async (id: string) => { setReminding(id); await remindLateStudents(id); setReminding(null); };
 
   return (
@@ -164,6 +166,7 @@ export const TeacherDashboard: React.FC = () => {
               : { label: 'منتهٍ', tone: 'muted' };
           const menu = [
             { label: 'معاينة', icon: Eye, onClick: () => preview(quiz.id) },
+            ...(quiz.status === 'published' ? [{ label: 'نسخ رابط الاختبار للطلاب', icon: Link2, onClick: () => copyLink(quiz.id) }] : []),
             { label: 'نسخ كاختبار جديد', icon: Copy, onClick: () => duplicate(quiz.id) },
             ...(st === 'open' && done < target ? [{ label: 'تذكير المتأخرين', icon: BellRing, onClick: () => remind(quiz.id) }] : []),
             { label: 'حذف', icon: Trash2, onClick: () => remove(quiz), danger: true },
