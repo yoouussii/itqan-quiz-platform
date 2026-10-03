@@ -15,6 +15,7 @@ import { Card, Chip, scoreTone, timeAgo } from '../common/ui';
 import { uiDir, t, dateLocale } from '../../i18n';
 import { minutesCount } from '../../i18n/count';
 import { SkillsCard } from '../analytics/OutcomesPage';
+import { DevicePushCard } from '../common/DevicePushCard';
 
 /** موعد الانتهاء مختصراً: «ينتهي اليوم» أو «ينتهي 4 أكتوبر» */
 const shortEnd = (end?: string) => {
@@ -138,6 +139,7 @@ export const ParentDashboard: React.FC<{ onViewReview: (submissionId: string) =>
       </div>
 
       <BannerStrip embedded />
+      <DevicePushCard compact />
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 items-start">
         <Card className="overflow-hidden">

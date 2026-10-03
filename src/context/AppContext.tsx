@@ -41,6 +41,7 @@ import { loadAwardsCache, makeAward, pushAward, pullAwards } from '../services/a
 import { AppSettings, loadSettings, syncSettings, saveSettings, syncPublicBranding } from '../services/settingsService';
 import { applyBrandColor, BRAND_PRESETS } from '../utils/brand';
 import { setPrintBrand } from '../utils/exportPdf';
+import { disablePush } from '../services/pushService';
 import { t, isEn } from '../i18n';
 import { loadBranchCache, syncBranches, saveBranchRemote, deleteBranchRemote, newBranch } from '../services/branchService';
 import { StudentAward } from '../utils/points';
@@ -854,7 +855,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       if (oldToken) {
         StorageService.clearCachedDataForLogout();
         // إنهاء الجلسة على الخادم ثم حذف الرمز من الجهاز (إلا إذا سجّل مستخدم آخر الدخول في الأثناء)
-        void Promise.resolve(supabase.rpc('itqan_logout')).finally(() => {
+        // إشعارات الجوال: يُلغى اشتراك هذا الجهاز قبل إنهاء الجلسة (جهاز مشترك في المعمل)
+        void disablePush().finally(() => Promise.resolve(supabase.rpc('itqan_logout'))).finally(() => {
           if (getSessionToken() === oldToken) setServerSession(null);
         });
       }

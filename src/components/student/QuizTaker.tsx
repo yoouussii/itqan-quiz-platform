@@ -192,6 +192,11 @@ export const QuizTaker: React.FC<QuizTakerProps> = ({ quizId, onFinish, onCancel
     enterFullscreen();
     setStarting(true);
     // في المعاينة لا نسجّل محاولة على الخادم باسم الطالب (مؤقت محلي للتصفح فقط)
+    // «أسئلة مختلفة لكل طالب»: لا نبدأ قبل وصول أسئلة هذا الطالب من الخادم
+    if (pooled && !servedIds && !isPreview) {
+      const ids = await servedQuestionIds(quizId);
+      if (ids) setServedIds(ids);
+    }
     const r = isPreview ? ({ kind: 'legacy' } as const) : await startAttemptRemote(quizId);
     setStarting(false);
     if (r.kind === 'rejected') {
