@@ -15,6 +15,7 @@ import {
   ShieldCheck,
   Library,
   BookmarkPlus,
+  Target,
 } from 'lucide-react';
 import { TargetType } from '../../types';
 import { useApp } from '../../context/AppContext';
@@ -50,6 +51,8 @@ export interface QuestionItem {
   marks: number;
   explanation: string;
   sub_questions?: SubQuestion[];
+  /** ناتج التعلم أو المهارة (لتحليل نواتج التعلم) */
+  outcome?: string;
 }
 
 /** عدد الأسئلة بصيغة عربية صحيحة */
@@ -237,6 +240,7 @@ export const QuizEditor: React.FC = () => {
           correct_option_index: q.correct_option_index ?? 0,
           marks: q.marks,
           explanation: q.explanation || '',
+          outcome: q.outcome || '',
           sub_questions: q.sub_questions
             ? q.sub_questions.map((sq: any) => ({
                 id: asCopy ? `sq-${Math.random().toString(36).slice(2, 8)}` : sq.id,
@@ -421,6 +425,20 @@ export const QuizEditor: React.FC = () => {
     updated[qIdx].marks = Math.max(1, marks);
     setQuestions(updated);
   };
+
+  const handleOutcomeChange = (qIdx: number, text: string) =>
+    setQuestions(questions.map((q, i) => (i === qIdx ? { ...q, outcome: text } : q)));
+
+  // نواتج التعلم المستخدمة سابقاً في هذه المادة (اقتراحات أثناء الكتابة)
+  const knownOutcomes = Array.from(
+    new Set(
+      [
+        ...quizzes.filter((qz) => qz.subject_id === subjectId).flatMap((qz) => (qz.questions || []).map((x) => x.outcome || '')),
+        ...loadBankCache().filter((b) => b.subject_id === subjectId).map((b) => b.outcome || b.question.outcome || ''),
+        ...questions.map((x) => x.outcome || ''),
+      ].map((x) => x.trim()).filter(Boolean)
+    )
+  ).sort();
 
   const handleExplanationChange = (qIdx: number, text: string) => {
     const updated = [...questions];
@@ -1327,6 +1345,16 @@ export const QuizEditor: React.FC = () => {
                   </div>
                 )}
 
+                {/* ناتج التعلم */}
+                <div className="flex flex-wrap items-center gap-2">
+                  <label htmlFor={`outcome-${qIdx}`} className="text-xs font-bold text-slate-700 dark:text-slate-300 inline-flex items-center gap-1.5">
+                    <Target className="w-4 h-4 text-indigo-600" />{t('ناتج التعلم / المهارة')}
+                  </label>
+                  <input id={`outcome-${qIdx}`} list="known-outcomes" value={q.outcome || ''} onChange={(e) => handleOutcomeChange(qIdx, e.target.value)}
+                    placeholder={t('اختياري، مثل: جمع الكسور — يظهر في تقرير نواتج التعلم')}
+                    className="flex-1 min-w-[220px] px-3 py-1.5 text-xs rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+                </div>
+
                 {/* Explanation */}
                 <div>
                   <RichTextEditor
@@ -1359,6 +1387,7 @@ export const QuizEditor: React.FC = () => {
               </button>
             )}
           </div>
+          <datalist id="known-outcomes">{knownOutcomes.map((o) => <option key={o} value={o} />)}</datalist>
           {bankOpen && <BankPickerModal subjectId={subjectId} onClose={() => setBankOpen(false)} onAdd={appendQuestions} />}
         </div>
 

@@ -47,7 +47,7 @@ export const SupervisorDashboard: React.FC = () => {
                 className="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold bg-emerald-500/90 hover:bg-emerald-500 text-white shadow-md"
               >
                 <ExternalLink className="w-4 h-4" />
-                <span>{t('متابعة التحضيرات')}</span>
+                <span>{t('متابعة تحضير مزن')}</span>
               </a>
             )}
             <button

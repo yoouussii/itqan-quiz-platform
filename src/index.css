@@ -178,6 +178,19 @@ html[dir="ltr"] .rich-editor .ql-snow .ql-picker.ql-size .ql-picker-item:not([da
 .rich-editor .ql-snow .ql-picker.ql-size .ql-picker-label[data-value="36px"]::before,
 .rich-editor .ql-snow .ql-picker.ql-size .ql-picker-item[data-value="36px"]::before { content: '36'; }
 
+/* في العربية: سهم القائمة على اليسار والنص على اليمين (Quill يضع السهم يميناً فيغطي كلمة «عادي») */
+html[dir="rtl"] .rich-editor .ql-snow .ql-picker:not(.ql-color-picker):not(.ql-icon-picker) .ql-picker-label {
+  padding-left: 18px;
+  padding-right: 4px;
+  text-align: right;
+}
+html[dir="rtl"] .rich-editor .ql-snow .ql-picker:not(.ql-color-picker):not(.ql-icon-picker) svg { right: auto; left: 0; }
+html[dir="rtl"] .rich-editor .ql-snow .ql-picker-options { text-align: right; }
+.rich-editor-compact .ql-snow .ql-picker.ql-size { width: 70px; }
+/* محررات الاختيارات الصغيرة: مسافات أقل بين المجموعات حتى يبقى الشريط سطراً واحداً */
+.rich-editor-compact .ql-snow.ql-toolbar .ql-formats { margin-left: 2px; margin-right: 2px; }
+.rich-editor-compact .ql-snow.ql-toolbar button { width: 26px; padding: 3px 4px; }
+
 /* انتقال بانرات الصفحة الرئيسية */
 @keyframes bannerIn {
   from { opacity: 0; transform: translateX(-28px); }

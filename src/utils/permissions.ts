@@ -32,7 +32,7 @@ export const PERMISSION_DEFS: PermDef[] = [
   { key: 'can_award_badges', label: 'منح الأوسمة والجوائز للطلاب', short: 'منح جوائز', group: 'التفاعل والتحفيز' },
 
   { key: 'can_view_activity_log', label: 'عرض سجل النشاط', short: 'سجل النشاط', group: 'النظام' },
-  { key: 'can_access_preparations', label: 'رابط متابعة التحضيرات', short: 'التحضيرات', group: 'النظام' },
+  { key: 'can_access_preparations', label: 'رابط متابعة تحضير مزن', short: 'تحضير مزن', group: 'النظام' },
 ];
 
 export const PERM_KEYS: string[] = PERMISSION_DEFS.map((d) => d.key);

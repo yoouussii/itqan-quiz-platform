@@ -25,6 +25,7 @@ const SIMPLE: Record<string, string> = {
   settings: '/settings',
   banners: '/banners',
   question_bank: '/bank',
+  outcomes: '/outcomes',
   privacy: '/privacy',
   terms: '/terms',
 };

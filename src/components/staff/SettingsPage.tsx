@@ -116,10 +116,10 @@ export const SettingsPage: React.FC = () => {
       </label>
 
       <div className={`${card} space-y-2`}>
-        <label className="block text-sm font-bold text-slate-900 dark:text-white">{t('رابط متابعة التحضير')}</label>
-        <input aria-label={t('رابط متابعة التحضير')} dir="ltr" value={url} onChange={(e) => setUrl(e.target.value)}
+        <label className="block text-sm font-bold text-slate-900 dark:text-white">{t('رابط متابعة تحضير مزن')}</label>
+        <input aria-label={t('رابط متابعة تحضير مزن')} dir="ltr" value={url} onChange={(e) => setUrl(e.target.value)}
           className="w-full px-3 py-2 text-xs rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white" />
-        <p className="text-[11px] text-slate-500">{t('يفتح في تبويب جديد عند الضغط على زر «متابعة التحضير».')}</p>
+        <p className="text-[11px] text-slate-500">{t('يفتح في تبويب جديد عند الضغط على زر «متابعة تحضير مزن».')}</p>
       </div>
 
       <button onClick={save} disabled={busy} className="px-6 py-2.5 rounded-xl text-xs font-bold bg-indigo-600 hover:bg-indigo-700 text-white shadow-md disabled:opacity-60">{t('حفظ الإعدادات')}</button>

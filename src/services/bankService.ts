@@ -71,7 +71,7 @@ export function newBankItem(q: QuestionItem, meta: { subject_id: string | null; 
     subject_id: meta.subject_id,
     unit: (meta.unit || '').trim(),
     difficulty: meta.difficulty || 'medium',
-    outcome: '',
+    outcome: (question.outcome || '').trim(),
     type: question.type,
     marks: questionMarks(question),
     question,
