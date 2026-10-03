@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from 'react';
-import { ArrowRightLeft, Eye, Edit3, BarChart2, Trash2, Copy as CopyIcon, PlusCircle, Search, Undo2, Link2 } from 'lucide-react';
-import { copyQuizLink } from '../../utils/router';
+import { ArrowRightLeft, Eye, Edit3, BarChart2, Trash2, Copy as CopyIcon, PlusCircle, Search, Undo2, Link2, Share2 } from 'lucide-react';
+import { copyQuizLink, shareQuizOnWhatsApp } from '../../utils/router';
 import { useApp } from '../../context/AppContext';
 import { ReassignQuizModal } from '../common/ReassignQuizModal';
 import { QuizWithDetails } from '../../types';
@@ -114,6 +114,9 @@ export const AdminQuizBank: React.FC = () => {
                         <button type="button" onClick={() => { setEditingQuizId?.(null); setDuplicateQuizId?.(quiz.id); setCurrentView?.('create_quiz'); }} className={iconBtn} title={t('نسخ مع التعديل')} aria-label={t('نسخ')}><CopyIcon className="w-[18px] h-[18px]" /></button>
                         {quiz.status === 'published' && (
                           <button type="button" onClick={async () => { if (await copyQuizLink(quiz.id)) showToast?.(t('تم نسخ رابط الاختبار، أرسله للطلاب'), 'success'); }} className={iconBtn} title={t('نسخ رابط الاختبار للطلاب')} aria-label={t('نسخ رابط الاختبار')}><Link2 className="w-[18px] h-[18px]" /></button>
+                        )}
+                        {quiz.status === 'published' && (
+                          <button type="button" onClick={() => shareQuizOnWhatsApp(quiz)} className={iconBtn} title={t('مشاركة على واتساب')} aria-label={t('مشاركة على واتساب')}><Share2 className="w-[18px] h-[18px]" /></button>
                         )}
                         {quiz.status === 'published' && (
                           <button type="button" onClick={() => pullBack(quiz)} className={iconBtn} title={t('سحب للمراجعة (إيقاف النشر)')} aria-label={t('سحب للمراجعة')}><Undo2 className="w-[18px] h-[18px]" /></button>

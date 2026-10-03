@@ -1,0 +1,92 @@
+# تفعيل إشعارات الجوال (Web Push) بزر واحد
+# Actions ← Setup push notifications ← Run workflow
+#
+# قبل التشغيل (مرة واحدة):
+#   1) شغّل 017_push_notifications.sql من «Supabase migrate».
+#   2) أضف سرّين من Settings ← Secrets and variables ← Actions ← New repository secret:
+#      SUPABASE_ACCESS_TOKEN : من supabase.com/dashboard/account/tokens ← Generate new token
+#      SUPABASE_PROJECT_REF  : معرّف المشروع (الجزء قبل .supabase.co في رابط المشروع)
+#   (رابط قاعدة البيانات SUPABASE_DB_URL موجود مسبقاً.)
+#
+# ماذا يفعل: يولّد مفاتيح الإشعارات (مرة واحدة فقط)، ويرفع دالة send-push إلى Supabase،
+# ويربطها بقاعدة البيانات. إعادة التشغيل آمنة: تحدّث الدالة ولا تغيّر المفاتيح إلا عند اختيار rotate.
+name: Setup push notifications
+
+on:
+  workflow_dispatch:
+    inputs:
+      db_secret:
+        description: 'اسم سر قاعدة البيانات (اتركه كما هو للمدرسة الأساسية)'
+        required: false
+        default: SUPABASE_DB_URL
+        type: string
+      project_ref_secret:
+        description: 'اسم سر معرّف المشروع (اتركه كما هو للمدرسة الأساسية)'
+        required: false
+        default: SUPABASE_PROJECT_REF
+        type: string
+      contact_email:
+        description: 'بريد للتواصل يُرسل مع الإشعارات (مطلوب من خدمات الإشعارات)'
+        required: false
+        default: 'admin@example.com'
+        type: string
+      rotate:
+        description: 'توليد مفاتيح جديدة (يحتاج كل جهاز إعادة تفعيل الإشعارات)'
+        required: false
+        default: false
+        type: boolean
+
+jobs:
+  setup:
+    runs-on: ubuntu-latest
+    env:
+      DATABASE_URL: ${{ secrets[inputs.db_secret] }}
+      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+      PROJECT_REF: ${{ secrets[inputs.project_ref_secret] }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check secrets
+        run: |
+          test -n "$DATABASE_URL" || { echo "::error::السر «${{ inputs.db_secret }}» غير موجود."; exit 1; }
+          test -n "$SUPABASE_ACCESS_TOKEN" || { echo "::error::أضف السر SUPABASE_ACCESS_TOKEN (من supabase.com/dashboard/account/tokens)."; exit 1; }
+          test -n "$PROJECT_REF" || { echo "::error::أضف السر «${{ inputs.project_ref_secret }}» (معرّف المشروع قبل .supabase.co)."; exit 1; }
+          sudo apt-get -qq update && sudo apt-get -qq install -y postgresql-client >/dev/null
+          psql "$DATABASE_URL" -tAc "select to_regclass('itqan.push_config') is not null" | grep -q t \
+            || { echo "::error::شغّل 017_push_notifications.sql أولاً من Supabase migrate."; exit 1; }
+
+      - uses: supabase/setup-cli@v1
+        with:
+          version: latest
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Keys and function secrets
+        run: |
+          EXISTING=$(psql "$DATABASE_URL" -tAc "select value #>> '{}' from public.app_settings where key = 'vapid_public_key'")
+          if [ -n "$EXISTING" ] && [ "${{ inputs.rotate }}" != "true" ]; then
+            echo "المفاتيح موجودة مسبقاً، لن تتغير."
+          else
+            KEYS=$(npx -y web-push@3.6.7 generate-vapid-keys --json)
+            PUB=$(echo "$KEYS" | node -e "process.stdout.write(JSON.parse(require('fs').readFileSync(0)).publicKey)")
+            PRIV=$(echo "$KEYS" | node -e "process.stdout.write(JSON.parse(require('fs').readFileSync(0)).privateKey)")
+            echo "::add-mask::$PRIV"
+            supabase secrets set --project-ref "$PROJECT_REF" VAPID_PUBLIC_KEY="$PUB" VAPID_PRIVATE_KEY="$PRIV" VAPID_SUBJECT="mailto:${{ inputs.contact_email }}"
+            psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -qc "insert into public.app_settings (key, value, updated_at) values ('vapid_public_key', to_jsonb('$PUB'::text), now()) on conflict (key) do update set value = excluded.value, updated_at = now()"
+          fi
+          SECRET=$(openssl rand -hex 32)
+          echo "::add-mask::$SECRET"
+          supabase secrets set --project-ref "$PROJECT_REF" PUSH_SECRET="$SECRET"
+          echo "PUSH_SECRET=$SECRET" >> "$GITHUB_ENV"
+
+      - name: Deploy send-push
+        run: supabase functions deploy send-push --project-ref "$PROJECT_REF" --no-verify-jwt
+
+      - name: Connect database
+        run: |
+          psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -qc "insert into itqan.push_config (id, function_url, secret, updated_at)
+            values (1, 'https://$PROJECT_REF.supabase.co/functions/v1/send-push', '$PUSH_SECRET', now())
+            on conflict (id) do update set function_url = excluded.function_url, secret = excluded.secret, updated_at = now()"
+          echo "✓ تم تفعيل إشعارات الجوال. يفعّلها كل مستخدم على جهازه من صفحة الإشعارات."

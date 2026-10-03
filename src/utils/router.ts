@@ -1,5 +1,7 @@
 // روابط الصفحات: الموقع صفحة واحدة (SPA)، والرابط يعكس الشاشة الحالية
 // حتى يعمل زر الرجوع والروابط المباشرة وفتح الصفحة في تبويب جديد.
+import { t } from '../i18n';
+import { formatQuizDateTime } from './quizWindow';
 
 export interface RouteState {
   view: string;
@@ -99,4 +101,18 @@ export async function copyQuizLink(quizId: string): Promise<boolean> {
     window.prompt('انسخ رابط الاختبار:', url);
     return false;
   }
+}
+
+/**
+ * مشاركة الاختبار على واتساب (مجاناً): يفتح واتساب برسالة جاهزة فيها العنوان والموعد والرابط،
+ * والمعلم يختار جروب أولياء الأمور أو الطلاب ويرسلها.
+ */
+export function shareQuizOnWhatsApp(quiz: { id: string; title: string; end_date?: string | null; subject?: { name?: string } | null }) {
+  const lines = [
+    `📝 ${t('اختبار جديد: {title}', { title: quiz.title })}`,
+    quiz.subject?.name ? t('المادة: {name}', { name: quiz.subject.name }) : '',
+    quiz.end_date ? t('متاح حتى: {date}', { date: formatQuizDateTime(quiz.end_date, 'end') }) : '',
+    t('رابط الاختبار: {url}', { url: quizShareUrl(quiz.id) }),
+  ].filter(Boolean);
+  window.open(`https://wa.me/?text=${encodeURIComponent(lines.join('\n'))}`, '_blank', 'noopener');
 }

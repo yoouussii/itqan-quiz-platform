@@ -1,17 +1,18 @@
 import React, { useMemo, useState } from 'react';
-import { Trophy, Download, Sparkles, Medal, Lock } from 'lucide-react';
+import { Trophy, Download, Sparkles, Medal, Lock, Award } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 import {
   BADGES, LEVELS, bestPerQuiz, computePointEvents, earnedBadges, levelFor, totalPoints,
 } from '../../utils/points';
-import { exportStudentReport } from '../../utils/studentReport';
+import { exportStudentReport, reportExtras } from '../../utils/studentReport';
 import { formatFullArabicDate } from '../../utils/dateUtils';
 import { timeAgo } from '../common/NotificationBell';
 import { uiDir, t, isEn } from '../../i18n';
+import { exportCertificates } from '../../utils/certificate';
 
 /** صفحة "نقاطي" للطالب: النقاط، المستوى، الأوسمة، الجوائز، ولوحة الشرف */
 export const MyPoints: React.FC = () => {
-  const { currentUser, submissions, quizzes, awards, classes } = useApp();
+  const { currentUser, submissions, quizzes, awards, classes, subjects } = useApp();
   const [busy, setBusy] = useState(false);
 
   const data = useMemo(() => {
@@ -42,6 +43,7 @@ export const MyPoints: React.FC = () => {
         })),
         points: data.total,
         badgeKeys: data.badges,
+        ...reportExtras(currentUser.id, quizzes, submissions, (id) => subjects.find((s) => s.id === id)?.name || ''),
         awards: data.myAwards,
       });
     } finally {
@@ -118,6 +120,10 @@ export const MyPoints: React.FC = () => {
                 {a.points > 0 && <span className="text-emerald-600 font-bold"> {t('+{n} نقطة', { n: a.points })}</span>}
                 {a.note && <p className="text-xs text-slate-500 mt-1">{a.note}</p>}
                 <p className="text-[11px] text-slate-400 mt-1">{a.awarded_by_name ? `${t('من {name}', { name: a.awarded_by_name })} • ` : ''}{timeAgo(a.created_at)}</p>
+                <button type="button" onClick={() => void exportCertificates([{ kind: 'award', student: currentUser.name, achievement: a.title, detail: a.note || undefined, date: a.created_at, signer: a.awarded_by_name || undefined }])}
+                  className="mt-2 h-8 px-3 rounded-lg bg-amber-50 dark:bg-amber-950/50 text-amber-800 dark:text-amber-300 text-xs font-bold inline-flex items-center gap-1.5 hover:bg-amber-100">
+                  <Award className="w-3.5 h-3.5" />{t('شهادة التقدير')}
+                </button>
               </li>
             ))}
           </ul>

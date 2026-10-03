@@ -22,7 +22,7 @@ import { useApp } from '../../context/AppContext';
 import { DEFAULT_PASSWORD, StorageService } from '../../services/storage';
 import { resolveClass } from '../../utils/classMatch';
 import { PERMISSION_DEFS, PERM_GROUPS, TEACHER_ALWAYS, normalizePerms, hasPerm } from '../../utils/permissions';
-import { exportStudentReport } from '../../utils/studentReport';
+import { exportStudentReport, reportExtras } from '../../utils/studentReport';
 import { computePointEvents, earnedBadges, totalPoints } from '../../utils/points';
 import { formatFullArabicDate } from '../../utils/dateUtils';
 import { FileText as FileTextIcon } from 'lucide-react';
@@ -138,6 +138,7 @@ export const UsersManagement: React.FC = () => {
       })),
       points: totalPoints(computePointEvents(subs, quizzes || [], myAwards)),
       badgeKeys: earnedBadges(subs, quizzes || []),
+      ...reportExtras(u.id, quizzes || [], submissions || [], (id) => subjects.find((s) => s.id === id)?.name || ''),
       awards: myAwards,
     });
   };

@@ -39,7 +39,9 @@ import { logActivity } from '../services/activityService';
 import { Banner, loadBannerCache, syncBanners, saveBannerRemote, deleteBannerRemote } from '../services/bannerService';
 import { loadAwardsCache, makeAward, pushAward, pullAwards } from '../services/awardsService';
 import { AppSettings, loadSettings, syncSettings, saveSettings, syncPublicBranding } from '../services/settingsService';
-import { applyBrandColor } from '../utils/brand';
+import { applyBrandColor, BRAND_PRESETS } from '../utils/brand';
+import { setPrintBrand } from '../utils/exportPdf';
+import { disablePush } from '../services/pushService';
 import { t, isEn } from '../i18n';
 import { loadBranchCache, syncBranches, saveBranchRemote, deleteBranchRemote, newBranch } from '../services/branchService';
 import { StudentAward } from '../utils/points';
@@ -614,8 +616,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   // هوية المدرسة: اللون وعنوان التبويب
   useEffect(() => {
     applyBrandColor(settings.brand_color);
+    setPrintBrand({ name: settings.school_name || '', logo: settings.school_logo || '', color: (BRAND_PRESETS.find((b) => b.id === settings.brand_color) || BRAND_PRESETS[0]).shades[600] });
     document.title = settings.school_name ? `${settings.school_name} | منصة إتقان` : 'منصة إتقان التعليمية | نظام إدارة الاختبارات والتقييم الذكي';
-  }, [settings.brand_color, settings.school_name]);
+  }, [settings.brand_color, settings.school_name, settings.school_logo]);
   const [syncedUserId, setSyncedUserId] = useState<string | null>(null);
 
   const notifications = useMemo(
@@ -852,7 +855,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       if (oldToken) {
         StorageService.clearCachedDataForLogout();
         // إنهاء الجلسة على الخادم ثم حذف الرمز من الجهاز (إلا إذا سجّل مستخدم آخر الدخول في الأثناء)
-        void Promise.resolve(supabase.rpc('itqan_logout')).finally(() => {
+        // إشعارات الجوال: يُلغى اشتراك هذا الجهاز قبل إنهاء الجلسة (جهاز مشترك في المعمل)
+        void disablePush().finally(() => Promise.resolve(supabase.rpc('itqan_logout'))).finally(() => {
           if (getSessionToken() === oldToken) setServerSession(null);
         });
       }

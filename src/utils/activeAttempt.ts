@@ -18,6 +18,8 @@ export interface ActiveAttempt {
   integrity?: { leaves: number; away_seconds: number; fullscreen_exits?: number };
   /** وقت مغادرة صفحة الاختبار (إغلاق التبويب أو الخروج منه) لاحتساب الغياب عند العودة */
   left_at?: number;
+  /** أسئلة هذا الطالب عند «أسئلة مختلفة لكل طالب» */
+  served_ids?: string[];
 }
 
 const KEY = 'itqan_active_attempt_v1';

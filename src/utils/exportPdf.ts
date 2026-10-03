@@ -4,6 +4,14 @@
  * ليختار المستخدم "حفظ بصيغة PDF". هذه الطريقة تحافظ على الخط العربي والرسوم كما هي
  * بدون مكتبات خارجية.
  */
+import { t, uiDir, getLang, dateLocale } from '../i18n';
+
+/** هوية المدرسة في رأس الملفات المطبوعة (تُضبط من الإعدادات عند تحميلها) */
+export interface PrintBrand { name: string; logo: string; color: string }
+let brand: PrintBrand = { name: '', logo: '', color: '#4f46e5' };
+export const setPrintBrand = (b: Partial<PrintBrand>) => { brand = { ...brand, ...b }; };
+export const getPrintBrand = () => brand;
+
 export interface PdfTableData {
   headers: string[];
   rows: Array<Array<string | number>>;
@@ -57,26 +65,29 @@ export function buildPdfHtml(opts: PdfExportOptions): string {
            .join('')}</tbody></table></div>`
     : '';
 
-  return `<!doctype html><html lang="ar" dir="rtl" class="${isDark ? 'dark' : ''}"><head><meta charset="utf-8">
+  const dir = uiDir();
+  const start = dir === 'rtl' ? 'right' : 'left';
+  const logo = brand.logo ? `<img src="${esc(brand.logo)}" alt="" style="height:40px;max-width:120px;object-fit:contain">` : '';
+  return `<!doctype html><html lang="${getLang()}" dir="${dir}" class="${isDark ? 'dark' : ''}"><head><meta charset="utf-8">
 <base href="${window.location.origin}/"><title>${esc(opts.title)}</title>${headTags}
 <style>
   @page { size: A4 ${opts.orientation || 'landscape'}; margin: 10mm; }
   html, body { background: ${bg} !important; color: ${fg}; margin: 0; }
   * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
   .pdf-wrap { padding: 12px 16px; }
-  .pdf-head { display:flex; justify-content:space-between; align-items:flex-end; border-bottom:2px solid #4f46e5; padding-bottom:8px; margin-bottom:16px; }
+  .pdf-head { display:flex; justify-content:space-between; align-items:flex-end; border-bottom:2px solid ${brand.color}; padding-bottom:8px; margin-bottom:16px; }
   .pdf-head h1 { font-size:20px; font-weight:900; margin:0; }
   .pdf-head p { font-size:11px; margin:4px 0 0; opacity:.75; }
   .pdf-block { break-inside: avoid; }
   svg { max-width: 100%; height: auto; }
   .pdf-table { width:100%; border-collapse:collapse; font-size:11px; }
-  .pdf-table th, .pdf-table td { border:1px solid ${border}; padding:6px 8px; text-align:right; color:${fg}; }
+  .pdf-table th, .pdf-table td { border:1px solid ${border}; padding:6px 8px; text-align:${start}; color:${fg}; }
   .pdf-table th { background:${th}; }
   .pdf-table tr { break-inside: avoid; }
 </style></head>
 <body class="font-cairo"><div class="pdf-wrap">
-  <div class="pdf-head"><div><h1>${esc(opts.title)}</h1>${opts.subtitle ? `<p>${esc(opts.subtitle)}</p>` : ''}</div>
-  <div style="font-size:11px;opacity:.75">منصة إتقان التعليمية • ${esc(new Date().toLocaleDateString('ar-EG-u-ca-gregory-nu-latn'))}</div></div>
+  <div class="pdf-head"><div style="display:flex;align-items:center;gap:12px">${logo}<div><h1>${esc(opts.title)}</h1>${opts.subtitle ? `<p>${esc(opts.subtitle)}</p>` : ''}</div></div>
+  <div style="font-size:11px;opacity:.75;text-align:end">${esc(brand.name || t('منصة إتقان التعليمية'))}<br>${esc(new Date().toLocaleDateString(dateLocale()))}</div></div>
   <div class="pdf-block">${bodyContent}</div>
   ${table}
 </div></body></html>`;
@@ -98,7 +109,7 @@ export async function exportElementToPdf(opts: PdfExportOptions): Promise<void> 
   const win = iframe.contentWindow;
   if (!doc || !win) {
     iframe.remove();
-    throw new Error('تعذر تجهيز ملف PDF');
+    throw new Error(t('تعذر تجهيز ملف PDF'));
   }
   doc.open();
   doc.write(html);

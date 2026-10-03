@@ -4,6 +4,7 @@ import { useApp } from '../../context/AppContext';
 import { NOTIF_ICONS, NotifBody, timeAgo, useOpenNotification } from './NotificationBell';
 import { describeAudience, isStudentAudience } from './notificationActions';
 import { uiDir, t } from '../../i18n';
+import { DevicePushCard } from './DevicePushCard';
 
 const btnGhost = 'px-3 py-1.5 rounded-xl text-[11px] font-bold text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800';
 const btnDanger =
@@ -115,6 +116,7 @@ export const NotificationsPage: React.FC = () => {
 
   return (
     <div className="max-w-3xl mx-auto py-8 px-4 sm:px-6" dir={uiDir()}>
+      <DevicePushCard />
       <div className="flex flex-wrap items-center justify-between gap-3 pb-4 mb-6 border-b border-slate-200 dark:border-slate-800">
         <div>
           <h1 className="text-2xl font-black text-slate-900 dark:text-white flex items-center gap-2">

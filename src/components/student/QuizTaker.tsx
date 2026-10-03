@@ -6,7 +6,7 @@ import { RichText } from '../common/RichText';
 import { Question, QuizIntegrity } from '../../types';
 import { seededShuffle } from '../../utils/shuffle';
 import { loadAttempt, saveAttempt, clearAttempt, secondsLeft, markAttemptLeft } from '../../utils/activeAttempt';
-import { startAttemptRemote } from '../../services/quizSync';
+import { startAttemptRemote, servedQuestionIds } from '../../services/quizSync';
 import { uiDir, t, optionLetters, isEn } from '../../i18n';
 import { questionsCount, marksCount, minutesCount } from '../../i18n/count';
 
@@ -25,11 +25,20 @@ export const QuizTaker: React.FC<QuizTakerProps> = ({ quizId, onFinish, onCancel
   const studentId = currentUser?.id || '';
   // ترتيب ثابت لكل طالب عند تفعيل «ترتيب مختلف للأسئلة»
   const shuffleKey = `${studentId}:${quizId}`;
-  const questions = useMemo(
-    () => (quiz?.shuffle_questions ? seededShuffle(rawQuestions, shuffleKey) : rawQuestions),
+  // «أسئلة مختلفة لكل طالب»: الخادم يحدد أسئلة هذا الطالب (يُحفظ مع المحاولة للاستئناف)
+  const [servedIds, setServedIds] = useState<string[] | null>(() => loadAttempt(studentId, quizId)?.served_ids || null);
+  const pooled = !!quiz?.questions_per_student;
+  const questions = useMemo(() => {
+    const mine = pooled && servedIds ? rawQuestions.filter((q) => servedIds.includes(q.id)) : rawQuestions;
+    const list = mine.length ? mine : rawQuestions;
+    return quiz?.shuffle_questions ? seededShuffle(list, shuffleKey) : list;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [rawQuestions.map((q) => q.id).join(','), quiz?.shuffle_questions, shuffleKey]
-  );
+  }, [rawQuestions.map((q) => q.id).join(','), quiz?.shuffle_questions, shuffleKey, pooled, servedIds?.join(',')]);
+  useEffect(() => {
+    if (!pooled || isPreview) return;
+    void servedQuestionIds(quizId).then((ids) => ids && setServedIds(ids));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pooled, quizId]);
 
   // محاولة جارية محفوظة (تحديث الصفحة أثناء الاختبار يكمل من نفس المكان ونفس المؤقت)
   const [saved] = useState(() => (studentId ? loadAttempt(studentId, quizId) : null));
@@ -164,8 +173,9 @@ export const QuizTaker: React.FC<QuizTakerProps> = ({ quizId, onFinish, onCancel
       flagged: flaggedQuestions,
       index: currentQuestionIndex,
       integrity,
+      ...(servedIds ? { served_ids: servedIds } : {}),
     });
-  }, [hasStarted, timing, studentId, quizId, userAnswers, textAnswers, flaggedQuestions, currentQuestionIndex, integrity]);
+  }, [hasStarted, timing, studentId, quizId, userAnswers, textAnswers, flaggedQuestions, currentQuestionIndex, integrity, servedIds]);
 
   const startMessages: Record<string, string> = {
     ended: t('انتهى وقت إتاحة هذا الاختبار'),
@@ -182,6 +192,11 @@ export const QuizTaker: React.FC<QuizTakerProps> = ({ quizId, onFinish, onCancel
     enterFullscreen();
     setStarting(true);
     // في المعاينة لا نسجّل محاولة على الخادم باسم الطالب (مؤقت محلي للتصفح فقط)
+    // «أسئلة مختلفة لكل طالب»: لا نبدأ قبل وصول أسئلة هذا الطالب من الخادم
+    if (pooled && !servedIds && !isPreview) {
+      const ids = await servedQuestionIds(quizId);
+      if (ids) setServedIds(ids);
+    }
     const r = isPreview ? ({ kind: 'legacy' } as const) : await startAttemptRemote(quizId);
     setStarting(false);
     if (r.kind === 'rejected') {
@@ -369,7 +384,7 @@ export const QuizTaker: React.FC<QuizTakerProps> = ({ quizId, onFinish, onCancel
             {[
               { v: qCountLabel(questions.length), l: t('الأسئلة') },
               { v: minutesCount(quiz.duration_minutes), l: t('الوقت') },
-              { v: marksLabel(quiz.total_marks), l: t('الدرجة الكلية') },
+              { v: marksLabel(pooled ? questions.reduce((sum, q) => sum + (q.type === 'passage' ? (q.sub_questions || []).reduce((x, sq) => x + (Number(sq.marks) || 0), 0) : Number(q.marks) || 0), 0) : quiz.total_marks), l: t('الدرجة الكلية') },
             ].map((x) => (
               <div key={x.l} className="rounded-2xl bg-slate-50 dark:bg-slate-800/60 py-3 px-2">
                 <div className="font-bold text-base text-slate-900 dark:text-white">{x.v}</div>

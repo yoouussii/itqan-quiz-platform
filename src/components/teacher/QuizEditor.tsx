@@ -16,12 +16,14 @@ import {
   Library,
   BookmarkPlus,
   Target,
+  FileUp,
 } from 'lucide-react';
 import { TargetType } from '../../types';
 import { useApp } from '../../context/AppContext';
 import { StorageService } from '../../services/storage';
 import { RichTextEditor } from '../common/RichTextEditor';
 import { BankPickerModal, BANK_TO_EDITOR_KEY } from './QuestionBank';
+import { ImportQuestionsModal } from './ImportQuestionsModal';
 import { loadBankCache, syncBank, newBankItem, saveBankItems, sameQuestion, toQuizQuestion, markBankUsed } from '../../services/bankService';
 import { toLocalInputValue, toInputValue, inputToIso, defaultEndInput } from '../../utils/quizWindow';
 import { stripHtml } from '../common/RichText';
@@ -143,6 +145,7 @@ export const QuizEditor: React.FC = () => {
   const [shuffleQuestions, setShuffleQuestions] = useState(false);
   const [shuffleOptions, setShuffleOptions] = useState(false);
   const [requireFullscreen, setRequireFullscreen] = useState(false);
+  const [perStudent, setPerStudent] = useState<number | ''>('');
 
   // Target assignment
   const [targetType, setTargetType] = useState<TargetType>('class');
@@ -160,6 +163,7 @@ export const QuizEditor: React.FC = () => {
 
   // بنك الأسئلة
   const [bankOpen, setBankOpen] = useState(false);
+  const [importOpen, setImportOpen] = useState(false);
   const canUseBank = currentUser?.role === 'admin' || currentUser?.role === 'teacher';
   /** إضافة أسئلة (من البنك) مع استبدال السؤال الفارغ الوحيد إن وُجد */
   const appendQuestions = (qs: QuestionItem[]) =>
@@ -215,6 +219,7 @@ export const QuizEditor: React.FC = () => {
     setShuffleQuestions(!!quiz.shuffle_questions);
     setShuffleOptions(!!quiz.shuffle_options);
     setRequireFullscreen(!!quiz.require_fullscreen);
+    setPerStudent(quiz.questions_per_student || '');
     if (asCopy) {
       setStartDate(toLocalInputValue(new Date()));
       setEndDate(defaultEndInput());
@@ -655,6 +660,7 @@ export const QuizEditor: React.FC = () => {
             shuffle_questions: shuffleQuestions,
             shuffle_options: shuffleOptions,
             require_fullscreen: requireFullscreen,
+            questions_per_student: perStudent && perStudent < questions.length ? Number(perStudent) : null,
           },
           formattedQuestions as any,
           assignments as any
@@ -679,6 +685,7 @@ export const QuizEditor: React.FC = () => {
             shuffle_questions: shuffleQuestions,
             shuffle_options: shuffleOptions,
             require_fullscreen: requireFullscreen,
+            questions_per_student: perStudent && perStudent < questions.length ? Number(perStudent) : null,
           },
           formattedQuestions as any,
           assignments as any
@@ -905,6 +912,20 @@ export const QuizEditor: React.FC = () => {
                   </span>
                 </label>
               ))}
+              <div className="flex flex-wrap items-start gap-2.5 pt-1">
+                <input id="per-student" type="number" min={1} max={Math.max(1, questions.length - 1)} value={perStudent}
+                  onChange={(e) => setPerStudent(e.target.value === '' ? '' : Math.max(1, Math.floor(Number(e.target.value)) || 1))}
+                  placeholder={t('الكل')}
+                  className="w-20 px-2 py-1.5 text-xs rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white text-center" />
+                <label htmlFor="per-student" className="flex-1 min-w-[200px]">
+                  <span className="block text-xs font-bold text-slate-800 dark:text-slate-200">{t('أسئلة مختلفة لكل طالب')}</span>
+                  <span className="block text-[11px] text-slate-500 dark:text-slate-400 leading-relaxed">
+                    {perStudent && perStudent < questions.length
+                      ? t('كل طالب يأخذ {n} سؤالاً يختارها الخادم من {m}، ويُصحَّح على أسئلته فقط. اجعل الأسئلة متقاربة في الصعوبة والدرجة.', { n: perStudent, m: questions.length })
+                      : t('اكتب عدداً أقل من عدد الأسئلة ليأخذ كل طالب مجموعة مختلفة منها. فارغ = كل الطلاب يأخذون كل الأسئلة.')}
+                  </span>
+                </label>
+              </div>
               <p className="text-[11px] text-slate-500 dark:text-slate-400 leading-relaxed border-t border-slate-100 dark:border-slate-800 pt-2.5">
                 {t('في كل الاختبارات: يُسجَّل عدد مرات خروج الطالب من صفحة الاختبار ومدته، ويظهر لك في النتائج.')}
               </p>
@@ -1386,8 +1407,13 @@ export const QuizEditor: React.FC = () => {
                 <Library className="w-4 h-4" />{t('من بنك الأسئلة')}
               </button>
             )}
+            <button type="button" onClick={() => setImportOpen(true)}
+              className="px-3.5 py-2 rounded-xl text-xs font-bold bg-white dark:bg-slate-800 border border-indigo-300 dark:border-indigo-700 text-indigo-700 dark:text-indigo-300 hover:bg-indigo-50 dark:hover:bg-indigo-950/50 inline-flex items-center gap-1.5">
+              <FileUp className="w-4 h-4" />{t('استيراد من ملف Word أو PDF')}
+            </button>
           </div>
           <datalist id="known-outcomes">{knownOutcomes.map((o) => <option key={o} value={o} />)}</datalist>
+          {importOpen && <ImportQuestionsModal onClose={() => setImportOpen(false)} onAdd={appendQuestions} />}
           {bankOpen && <BankPickerModal subjectId={subjectId} onClose={() => setBankOpen(false)} onAdd={appendQuestions} />}
         </div>
 

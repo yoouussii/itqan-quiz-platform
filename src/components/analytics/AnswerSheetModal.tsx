@@ -26,6 +26,8 @@ export const AnswerSheetModal: React.FC<AnswerSheetModalProps> = ({ submission: 
 
   const questions: Question[] = submission.quiz_id
     ? StorageService.getQuestionsByQuizId(submission.quiz_id)
+        // «أسئلة مختلفة لكل طالب»: أسئلة هذا الطالب فقط (الموجودة في إجاباته)
+        .filter((q) => !submission.quiz?.questions_per_student || submission.answers_json.some((a) => a.question_id === q.id))
     : [];
 
   const getGradeBadge = (percentage: number) => {

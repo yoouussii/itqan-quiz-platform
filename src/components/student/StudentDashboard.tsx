@@ -9,6 +9,7 @@ import { BannerStrip } from '../common/BannerStrip';
 import { Card, Chip, scoreTone, timeAgo } from '../common/ui';
 import { uiDir, t } from '../../i18n';
 import { questionsCount, minutesCount, hoursCount, daysCount } from '../../i18n/count';
+import { DevicePushCard } from '../common/DevicePushCard';
 
 interface StudentDashboardProps {
   onStartQuiz: (quizId: string) => void;
@@ -220,6 +221,7 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({ onStartQuiz,
 
           <div className="lg:hidden">{StatsCard}</div>
           <BannerStrip embedded />
+          <DevicePushCard compact />
 
           {others.length > 0 && (
             <Card className="overflow-hidden">

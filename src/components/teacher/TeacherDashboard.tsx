@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { Plus, PenLine, MoreHorizontal, Copy, Trash2, BellRing, Eye, Link2 } from 'lucide-react';
-import { copyQuizLink } from '../../utils/router';
+import { Plus, PenLine, MoreHorizontal, Copy, Trash2, BellRing, Eye, Link2, Share2 } from 'lucide-react';
+import { copyQuizLink, shareQuizOnWhatsApp } from '../../utils/router';
 import { useApp } from '../../context/AppContext';
 import { Quiz, Submission } from '../../types';
 import { StorageService } from '../../services/storage';
@@ -168,7 +168,7 @@ export const TeacherDashboard: React.FC = () => {
               : { label: t('منتهٍ'), tone: 'muted' };
           const menu = [
             { label: t('معاينة'), icon: Eye, onClick: () => preview(quiz.id) },
-            ...(quiz.status === 'published' ? [{ label: t('نسخ رابط الاختبار للطلاب'), icon: Link2, onClick: () => copyLink(quiz.id) }] : []),
+            ...(quiz.status === 'published' ? [{ label: t('مشاركة على واتساب'), icon: Share2, onClick: () => shareQuizOnWhatsApp({ ...quiz, subject }) }, { label: t('نسخ رابط الاختبار للطلاب'), icon: Link2, onClick: () => copyLink(quiz.id) }] : []),
             { label: t('نسخ كاختبار جديد'), icon: Copy, onClick: () => duplicate(quiz.id) },
             ...(st === 'open' && done < target ? [{ label: t('تذكير المتأخرين'), icon: BellRing, onClick: () => remind(quiz.id) }] : []),
             { label: t('حذف'), icon: Trash2, onClick: () => remove(quiz), danger: true },
