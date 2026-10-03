@@ -95,6 +95,12 @@ export interface Quiz {
   is_deleted?: boolean;
   deleted_at?: string | null;
   allowed_retake_student_ids?: string[];
+  /** الحد من الغش: ترتيب مختلف للأسئلة لكل طالب */
+  shuffle_questions?: boolean;
+  /** ترتيب مختلف لاختيارات أسئلة الاختيار من متعدد */
+  shuffle_options?: boolean;
+  /** يُطلب من الطالب ملء الشاشة أثناء الاختبار */
+  require_fullscreen?: boolean;
 }
 
 export type QuestionType = 'mcq' | 'true_false' | 'essay' | 'fill_blank' | 'matching' | 'passage';
@@ -189,6 +195,14 @@ export interface Submission {
   status: SubmissionStatus;
   time_spent_seconds?: number;
   is_retake?: boolean;
+  /** سجل الخروج من صفحة الاختبار أثناء الحل */
+  integrity?: QuizIntegrity | null;
+}
+
+export interface QuizIntegrity {
+  leaves: number;
+  away_seconds: number;
+  fullscreen_exits?: number;
 }
 
 export interface QuizWithDetails extends Quiz {

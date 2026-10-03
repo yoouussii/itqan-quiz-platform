@@ -12,6 +12,7 @@ import {
   ArrowUp,
   ArrowDown,
   Copy,
+  ShieldCheck,
 } from 'lucide-react';
 import { TargetType } from '../../types';
 import { useApp } from '../../context/AppContext';
@@ -130,6 +131,10 @@ export const QuizEditor: React.FC = () => {
   const [startDate, setStartDate] = useState(() => toLocalInputValue(new Date()));
   const [endDate, setEndDate] = useState(() => defaultEndInput());
   const [isActive, setIsActive] = useState(true);
+  // الحد من الغش
+  const [shuffleQuestions, setShuffleQuestions] = useState(false);
+  const [shuffleOptions, setShuffleOptions] = useState(false);
+  const [requireFullscreen, setRequireFullscreen] = useState(false);
 
   // Target assignment
   const [targetType, setTargetType] = useState<TargetType>('class');
@@ -164,6 +169,9 @@ export const QuizEditor: React.FC = () => {
     setSubjectId(quiz.subject_id || '');
     setDurationMinutes(quiz.duration_minutes);
     setPassPercentage(quiz.pass_percentage);
+    setShuffleQuestions(!!quiz.shuffle_questions);
+    setShuffleOptions(!!quiz.shuffle_options);
+    setRequireFullscreen(!!quiz.require_fullscreen);
     if (asCopy) {
       setStartDate(toLocalInputValue(new Date()));
       setEndDate(defaultEndInput());
@@ -586,6 +594,9 @@ export const QuizEditor: React.FC = () => {
             start_date: inputToIso(startDate),
             end_date: inputToIso(endDate),
             is_active: isActive,
+            shuffle_questions: shuffleQuestions,
+            shuffle_options: shuffleOptions,
+            require_fullscreen: requireFullscreen,
           },
           formattedQuestions as any,
           assignments as any
@@ -607,6 +618,9 @@ export const QuizEditor: React.FC = () => {
             start_date: inputToIso(startDate),
             end_date: inputToIso(endDate),
             is_active: isActive,
+            shuffle_questions: shuffleQuestions,
+            shuffle_options: shuffleOptions,
+            require_fullscreen: requireFullscreen,
           },
           formattedQuestions as any,
           assignments as any
@@ -815,6 +829,28 @@ export const QuizEditor: React.FC = () => {
                 </div>
               </div>
             </div>
+
+            <fieldset className="md:col-span-2 p-4 rounded-2xl border border-slate-200 dark:border-slate-700 space-y-2.5">
+              <legend className="px-1 text-xs font-bold text-slate-900 dark:text-white inline-flex items-center gap-1.5">
+                <ShieldCheck className="w-4 h-4 text-indigo-600" />{t('الحد من الغش')}
+              </legend>
+              {([
+                [shuffleQuestions, setShuffleQuestions, t('ترتيب مختلف للأسئلة لكل طالب'), t('كل طالب يرى الأسئلة بترتيب مختلف، فيصعب تبادل الإجابات بأرقام الأسئلة.')],
+                [shuffleOptions, setShuffleOptions, t('ترتيب مختلف للاختيارات'), t('تتبدّل أماكن اختيارات «الاختيار من متعدد» لكل طالب (صح/خطأ يبقى كما هو). لا تفعّله إذا كان في الاختيارات «جميع ما سبق».')],
+                [requireFullscreen, setRequireFullscreen, t('وضع ملء الشاشة'), t('يُطلب من الطالب ملء الشاشة، ويُسجَّل خروجه منها. لا يعمل على iPhone.')],
+              ] as const).map(([on, set, label, hint]) => (
+                <label key={label} className="flex items-start gap-2.5 cursor-pointer">
+                  <input type="checkbox" checked={on} onChange={(e) => set(e.target.checked)} className="mt-0.5 w-4 h-4 accent-indigo-600 shrink-0" />
+                  <span>
+                    <span className="block text-xs font-bold text-slate-800 dark:text-slate-200">{label}</span>
+                    <span className="block text-[11px] text-slate-500 dark:text-slate-400 leading-relaxed">{hint}</span>
+                  </span>
+                </label>
+              ))}
+              <p className="text-[11px] text-slate-500 dark:text-slate-400 leading-relaxed border-t border-slate-100 dark:border-slate-800 pt-2.5">
+                {t('في كل الاختبارات: يُسجَّل عدد مرات خروج الطالب من صفحة الاختبار ومدته، ويظهر لك في النتائج.')}
+              </p>
+            </fieldset>
 
             <div className="md:col-span-2">
               <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5">
