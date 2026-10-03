@@ -188,6 +188,35 @@
   .banner-in, .banner-in-rev { animation: none; }
 }
 
+/* تأثيرات البانر الاحتفالية (BannerEffects): تخرج من البانر وتتلاشى */
+.fx-particle { position: absolute; display: block; opacity: 0; line-height: 1; will-change: transform, opacity;
+  animation-fill-mode: both; animation-timing-function: cubic-bezier(0.2, 0.7, 0.3, 1); }
+@keyframes fxBurst {
+  0% { transform: translate(0, 0) rotate(0deg) scale(0.6); opacity: 0; }
+  8% { opacity: 1; }
+  55% { transform: translate(var(--dx), var(--dy)) rotate(var(--rot)) scale(1); opacity: 1; }
+  100% { transform: translate(calc(var(--dx) * 1.15), calc(var(--dy) + 90px)) rotate(calc(var(--rot) * 1.6)); opacity: 0; }
+}
+@keyframes fxRise {
+  0% { transform: translate(0, 0) scale(0.7); opacity: 0; }
+  10% { opacity: 1; }
+  50% { transform: translate(var(--sway), calc(var(--rise) * 0.5)) scale(1); }
+  85% { opacity: 1; }
+  100% { transform: translate(calc(var(--sway) * -0.6), var(--rise)) scale(1); opacity: 0; }
+}
+@keyframes fxTwinkle {
+  0% { transform: scale(0) rotate(0deg); opacity: 0; }
+  35% { transform: scale(1.25) rotate(20deg); opacity: 1; }
+  65% { transform: scale(0.9) rotate(-10deg); opacity: 1; }
+  100% { transform: scale(0) rotate(30deg); opacity: 0; }
+}
+.fx-burst { animation-name: fxBurst; }
+.fx-rise { animation-name: fxRise; animation-timing-function: ease-out; }
+.fx-twinkle { animation-name: fxTwinkle; animation-timing-function: ease-in-out; }
+@media (prefers-reduced-motion: reduce) {
+  .fx-particle { display: none; }
+}
+
 /* النصوص الصغيرة جداً: حد أدنى أوضح للقراءة */
 .text-\[10px\] { font-size: 11px; }
 .text-\[11px\] { font-size: 12px; }

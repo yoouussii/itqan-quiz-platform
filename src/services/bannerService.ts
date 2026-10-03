@@ -8,6 +8,15 @@ import { safe, readJson, writeJson, newId } from './remote';
 
 export type BannerKind = 'wide' | 'gallery';
 export type BannerAudience = 'all' | 'students' | 'staff';
+export type BannerEffect = 'none' | 'confetti' | 'balloons' | 'stars' | 'trophies';
+
+export const BANNER_EFFECTS: Record<BannerEffect, string> = {
+  none: 'بدون',
+  confetti: '🎉 قصاصات ملونة',
+  balloons: '🎈 بالونات',
+  stars: '✨ نجوم لامعة',
+  trophies: '🏆 كؤوس وميداليات',
+};
 
 export interface BannerImage {
   src: string;
@@ -24,6 +33,10 @@ export interface Banner {
   theme: string;
   text_position: 'overlay' | 'below';
   is_active: boolean;
+  /** دائم: لا يظهر عليه زر الإخفاء (013) */
+  pinned?: boolean;
+  /** تأثير احتفالي يخرج من البانر عند ظهوره (013) */
+  effect?: BannerEffect;
   starts_at?: string | null;
   ends_at?: string | null;
   sort: number;
@@ -54,7 +67,7 @@ export function newBanner(createdBy?: string): Banner {
   const now = new Date().toISOString();
   return {
     id: newId('bnr'), kind: 'wide', title: '', body: '', images: [], audience: 'all', theme: 'indigo',
-    text_position: 'overlay', is_active: true, starts_at: null, ends_at: null, sort: 0,
+    text_position: 'overlay', is_active: true, pinned: false, effect: 'none', starts_at: null, ends_at: null, sort: 0,
     created_by: createdBy || null, created_at: now, updated_at: now,
   };
 }
@@ -95,11 +108,18 @@ export async function syncBanners(): Promise<boolean> {
   return changed;
 }
 
-export async function saveBannerRemote(b: Banner): Promise<{ ok: boolean; error?: string }> {
-  const row = { ...b, updated_at: new Date().toISOString() };
-  const res = await safe(() => supabase.from('banners').upsert(row, { onConflict: 'id' }) as any);
+export async function saveBannerRemote(b: Banner): Promise<{ ok: boolean; error?: string; needsMigration?: boolean }> {
+  const row = { ...b, pinned: !!b.pinned, effect: b.effect || 'none', updated_at: new Date().toISOString() };
+  let res = await safe(() => supabase.from('banners').upsert(row, { onConflict: 'id' }) as any);
+  // قبل تشغيل 013: الأعمدة الجديدة غير موجودة، فنحفظ البانر بدونها
+  let needsMigration = false;
+  if (!res.ok && /pinned|effect/.test(res.error || '')) {
+    const { pinned: _p, effect: _e, ...legacy } = row;
+    res = await safe(() => supabase.from('banners').upsert(legacy, { onConflict: 'id' }) as any);
+    needsMigration = res.ok && (row.pinned || row.effect !== 'none');
+  }
   if (res.ok) saveCache([...loadBannerCache().filter((x) => x.id !== b.id), row]);
-  return { ok: res.ok, error: res.error };
+  return { ok: res.ok, error: res.error, needsMigration };
 }
 
 export async function deleteBannerRemote(id: string): Promise<{ ok: boolean; error?: string }> {

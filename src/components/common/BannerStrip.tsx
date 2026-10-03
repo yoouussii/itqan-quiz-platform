@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { ChevronRight, ChevronLeft, X, Pencil, Trash2 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 import { Banner, BANNER_THEMES, isBannerVisible } from '../../services/bannerService';
+import { BannerEffects } from './BannerEffects';
 
 const themeBg = (theme: string) => {
   const t = BANNER_THEMES[theme] || BANNER_THEMES.indigo;
@@ -73,11 +74,12 @@ export const EDIT_BANNER_KEY = 'itqan_edit_banner_id';
 /** شريط البانرات أعلى الصفحة الرئيسية (يتبدّل تلقائياً عند وجود أكثر من بانر) */
 export const BannerStrip: React.FC<{ embedded?: boolean }> = ({ embedded = false }) => {
   const { currentUser, banners, deleteBanner, setCurrentView } = useApp();
-  const visible = useMemo(
+  const allVisible = useMemo(
     () => (currentUser ? banners.filter((b) => isBannerVisible(b, currentUser.role)).sort((a, b) => a.sort - b.sort || b.created_at.localeCompare(a.created_at)) : []),
     [banners, currentUser]
   );
-  const signature = visible.map((b) => `${b.id}:${b.updated_at}`).join('|');
+  // الإخفاء يخص البانرات العادية فقط؛ البانر «الدائم» يبقى ظاهراً دائماً
+  const signature = allVisible.filter((b) => !b.pinned).map((b) => `${b.id}:${b.updated_at}`).join('|');
   const [dismissed, setDismissed] = useState(() => {
     try {
       return sessionStorage.getItem(DISMISS_KEY) || '';
@@ -85,6 +87,7 @@ export const BannerStrip: React.FC<{ embedded?: boolean }> = ({ embedded = false
       return '';
     }
   });
+  const visible = !!signature && dismissed === signature ? allVisible.filter((b) => b.pinned) : allVisible;
   const [index, setIndex] = useState(0);
   const [dir, setDir] = useState<1 | -1>(1);
   // إيقاف مؤقت فقط أثناء وجود مؤشر الفأرة فوق البانر (لا عند اللمس في الجوال)
@@ -103,7 +106,7 @@ export const BannerStrip: React.FC<{ embedded?: boolean }> = ({ embedded = false
     return () => clearTimeout(t);
   }, [count, hovering, safeIndex]);
 
-  if (!count || dismissed === signature) return null;
+  if (!count) return null;
   const current = visible[safeIndex];
   const go = (d: 1 | -1) => {
     setDir(d);
@@ -115,6 +118,7 @@ export const BannerStrip: React.FC<{ embedded?: boolean }> = ({ embedded = false
     <section className={embedded ? '' : 'max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-6'} dir="rtl" aria-label="إعلانات المدرسة"
       onPointerEnter={(e) => e.pointerType === 'mouse' && setHovering(true)}
       onPointerLeave={(e) => e.pointerType === 'mouse' && setHovering(false)}>
+      <div className="relative">
       <div
         className="relative overflow-hidden rounded-3xl"
         onTouchStart={(e) => { touchX.current = e.touches[0].clientX; }}
@@ -147,14 +151,17 @@ export const BannerStrip: React.FC<{ embedded?: boolean }> = ({ embedded = false
               </button>
             </>
           )}
-          <button type="button" aria-label="إخفاء البانر" title="إخفاء"
-            onClick={() => {
-              setDismissed(signature);
-              try { sessionStorage.setItem(DISMISS_KEY, signature); } catch { /* ignore */ }
-            }}
-            className="p-1.5 rounded-full bg-black/30 hover:bg-black/50 text-white backdrop-blur-sm">
-            <X className="w-4 h-4" />
-          </button>
+          {!current.pinned && (
+            <button type="button" aria-label="إخفاء البانر" title="إخفاء"
+              onClick={() => {
+                setDismissed(signature);
+                setIndex(0);
+                try { sessionStorage.setItem(DISMISS_KEY, signature); } catch { /* ignore */ }
+              }}
+              className="p-1.5 rounded-full bg-black/30 hover:bg-black/50 text-white backdrop-blur-sm">
+              <X className="w-4 h-4" />
+            </button>
+          )}
         </div>
         {count > 1 && (
           <>
@@ -168,6 +175,8 @@ export const BannerStrip: React.FC<{ embedded?: boolean }> = ({ embedded = false
             </button>
           </>
         )}
+      </div>
+      <BannerEffects effect={current.effect} playKey={`${current.id}-${current.updated_at}-${safeIndex}`} />
       </div>
       {count > 1 && (
         <div className="flex justify-center gap-1.5 mt-3">

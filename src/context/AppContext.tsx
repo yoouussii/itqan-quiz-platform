@@ -1932,7 +1932,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
     const res = await saveBannerRemote(b);
     setBanners(loadBannerCache());
-    if (res.ok) {
+    if (res.ok && res.needsMigration) {
+      showToast('حُفظ البانر، لكن «دائم» والتأثيرات تحتاج تشغيل تحديث قاعدة البيانات 013', 'info');
+      log('banner_saved', { type: 'banner', id: b.id, name: b.title || 'بانر' });
+    } else if (res.ok) {
       showToast('تم حفظ البانر', 'success');
       log('banner_saved', { type: 'banner', id: b.id, name: b.title || 'بانر' });
     } else {
