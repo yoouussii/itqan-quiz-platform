@@ -101,6 +101,8 @@ export interface Quiz {
   shuffle_options?: boolean;
   /** يُطلب من الطالب ملء الشاشة أثناء الاختبار */
   require_fullscreen?: boolean;
+  /** أسئلة مختلفة لكل طالب: عدد الأسئلة التي يأخذها كل طالب من أسئلة الاختبار (فارغ = الكل) */
+  questions_per_student?: number | null;
 }
 
 export type QuestionType = 'mcq' | 'true_false' | 'essay' | 'fill_blank' | 'matching' | 'passage';

@@ -83,6 +83,7 @@ function quizToRow(
     shuffle_questions: quiz.shuffle_questions ?? false,
     shuffle_options: quiz.shuffle_options ?? false,
     require_fullscreen: quiz.require_fullscreen ?? false,
+    questions_per_student: quiz.questions_per_student || null,
     target_type: targetType,
     class_id: targetType === 'class' ? primary?.target_id ?? null : null,
     student_ids:
@@ -162,6 +163,7 @@ function rowToBundle(row: any): {
     shuffle_questions: !!row.shuffle_questions,
     shuffle_options: !!row.shuffle_options,
     require_fullscreen: !!row.require_fullscreen,
+    questions_per_student: Number(row.questions_per_student) > 0 ? Number(row.questions_per_student) : null,
   };
 
   return { quiz, questions, assignments };
@@ -405,6 +407,18 @@ export type StartResult =
   | { kind: 'rejected'; error: string }
   | { kind: 'offline' }
   | { kind: 'legacy' };
+
+/** أسئلة هذا الطالب في اختبار «أسئلة مختلفة لكل طالب» (null: كل الأسئلة أو تعذّر السؤال) */
+export async function servedQuestionIds(quizId: string): Promise<string[] | null> {
+  if (!getSessionToken()) return null;
+  try {
+    const { data, error } = await supabase.rpc('itqan_served_questions', { p_quiz_id: quizId });
+    if (error || !data?.ok || !Array.isArray(data.question_ids)) return null;
+    return data.question_ids.map(String);
+  } catch {
+    return null;
+  }
+}
 
 /** تسجيل بدء المحاولة على الخادم (أو استئنافها): يُرجع وقت النهاية الفعلي */
 export async function startAttemptRemote(quizId: string): Promise<StartResult> {
