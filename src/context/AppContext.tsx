@@ -72,10 +72,13 @@ import {
 /** مدة الجلسة القصوى بالساعات؛ بعدها يُطلب من المستخدم تسجيل الدخول من جديد */
 const SESSION_MAX_HOURS = 12;
 const SESSION_KEY = 'itqan_session_started_at';
-/** كل كم ثانية يُحدَّث المحتوى تلقائياً من Supabase.
- *  الطلاب كل 3 دقائق لتقليل استهلاك حد التنزيل في الخطة المجانية (الطاقم كل 30 ثانية) */
-const AUTO_REFRESH_SECONDS = 30;
+/** كل كم ثانية يُحدَّث المحتوى تلقائياً من Supabase (لتقليل استهلاك حد التنزيل في الخطة المجانية):
+ *  الطاقم وأولياء الأمور كل دقيقتين، والطلاب كل 3 دقائق */
+const AUTO_REFRESH_SECONDS = 120;
 const STUDENT_REFRESH_SECONDS = 180;
+/** البيانات التي نادراً ما تتغير (المستخدمون، المواد، الشعب، الفروع، الإعدادات، الصور، البانرات، الجوائز)
+ *  تُجلب في التحديث الدوري مرة كل 10 دقائق فقط، وكاملةً عند الدخول وبعد أي تعديل */
+const SLOW_SYNC_MS = 10 * 60_000;
 
 const LS_USERS = 'itqan_users_v2';
 const LS_SUBJECTS = 'itqan_subjects_v2';
@@ -634,6 +637,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const currentViewRef = useRef<string>(currentView);
   const refreshingRef = useRef(false);
   const refreshUserRef = useRef<string | null>(null);
+  const lastSlowSyncRef = useRef(0);
   const rerunRef = useRef(false);
   useEffect(() => {
     currentUserRef.current = currentUser;
@@ -709,7 +713,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   }, []);
 
   /** جلب أحدث البيانات من Supabase ثم تحديث الواجهة */
-  const refreshData = useCallback(async () => {
+  const refreshData = useCallback(async (opts?: { periodic?: boolean }) => {
     if (refreshingRef.current) {
       // تحديث جارٍ لمستخدم آخر (مثل لحظة تسجيل الدخول): نعيده بعد انتهائه
       if (refreshUserRef.current !== (currentUserRef.current?.id || null)) rerunRef.current = true;
@@ -719,6 +723,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     refreshUserRef.current = currentUserRef.current?.id || null;
     // دور صاحب الجلسة على الخادم (قد يختلف عن المستخدم المعروض عند «تبديل الحساب» للمعاينة)
     let serverRole: string | undefined;
+    // التحديث الدوري يتخطى البيانات البطيئة التغيّر إن جُلبت قبل أقل من 10 دقائق
+    const slow = !opts?.periodic || Date.now() - lastSlowSyncRef.current >= SLOW_SYNC_MS;
+    if (slow) lastSlowSyncRef.current = Date.now();
     try {
       if (isSupabaseConfigured() && currentUserRef.current) {
         // التحقق من الجلسة على الخادم: انتهت أو أُلغيت (تغيير كلمة المرور / حذف الحساب)
@@ -738,7 +745,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         }
       }
       if (isSupabaseConfigured()) {
-        try {
+        if (slow) try {
           await syncUsersFromSupabase();
           await syncSubjectsFromSupabase();
           await syncClassesFromSupabase();
@@ -753,16 +760,18 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         } catch (e) {
           console.warn('[refreshData] quizzes/submissions sync failed:', e);
         }
-        try {
+        if (slow) try {
           await syncAvatars();
         } catch (e) {
           console.warn('[refreshData] avatars sync failed:', e);
         }
         try {
-          await syncSettings();
-          await syncBranches();
-          await syncBanners();
-          await pullAwards();
+          if (slow) {
+            await syncSettings();
+            await syncBranches();
+            await syncBanners();
+            await pullAwards();
+          }
           await pullNotifications();
           if (me) await pullReads(me.id);
         } catch (e) {
@@ -869,7 +878,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       }
       // لا نقاطع الطالب أثناء أداء الاختبار
       if (document.visibilityState === 'visible' && currentViewRef.current !== 'take_quiz') {
-        void refreshData();
+        void refreshData({ periodic: true });
       }
     };
 
