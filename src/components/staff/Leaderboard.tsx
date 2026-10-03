@@ -11,7 +11,7 @@ import { exportElementToPdf } from '../../utils/exportPdf';
 import { exportStudentReport } from '../../utils/studentReport';
 import { formatFullArabicDate } from '../../utils/dateUtils';
 import { User } from '../../types';
-import { uiDir } from '../../i18n';
+import { uiDir, t } from '../../i18n';
 
 const PERIODS: Array<{ id: Period; label: string }> = [
   { id: 'week', label: 'آخر 7 أيام' },
@@ -23,12 +23,12 @@ const MEDALS = ['🥇', '🥈', '🥉'];
 
 const AwardModal: React.FC<{ student: User; onClose: () => void }> = ({ student, onClose }) => {
   const { giveAward } = useApp();
-  const [title, setTitle] = useState(PRESET_TITLES[0]);
+  const [title, setTitle] = useState(t(PRESET_TITLES[0]));
   const [points, setPoints] = useState(20);
   const [note, setNote] = useState('');
   const [busy, setBusy] = useState(false);
   const save = async () => {
-    if (!title.trim()) return alert('اكتب عنوان الجائزة');
+    if (!title.trim()) return alert(t('اكتب عنوان الجائزة'));
     setBusy(true);
     const res = await giveAward({ student, title: title.trim(), note: note.trim(), points: Math.max(0, Math.min(500, Number(points) || 0)) });
     setBusy(false);
@@ -36,31 +36,31 @@ const AwardModal: React.FC<{ student: User; onClose: () => void }> = ({ student,
   };
   return (
     <div className="fixed inset-0 z-[60] bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4" onClick={onClose} dir={uiDir()}>
-      <div role="dialog" aria-label="منح جائزة" onClick={(e) => e.stopPropagation()}
+      <div role="dialog" aria-label={t('منح جائزة')} onClick={(e) => e.stopPropagation()}
         className="bg-white dark:bg-slate-900 rounded-3xl w-full max-w-md p-6 shadow-2xl border border-slate-100 dark:border-slate-800 space-y-4">
         <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800">
-          <h3 className="font-black text-base text-slate-900 dark:text-white">🏆 منح جائزة: {student.name}</h3>
-          <button onClick={onClose} aria-label="إغلاق" className="p-1 text-slate-400"><X className="w-5 h-5" /></button>
+          <h3 className="font-black text-base text-slate-900 dark:text-white">{t('🏆 منح جائزة:')}{' '}{student.name}</h3>
+          <button onClick={onClose} aria-label={t('إغلاق')} className="p-1 text-slate-400"><X className="w-5 h-5" /></button>
         </div>
         <div>
-          <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">عنوان الجائزة</label>
-          <input aria-label="عنوان الجائزة" list="award-titles" value={title} onChange={(e) => setTitle(e.target.value)}
+          <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">{t('عنوان الجائزة')}</label>
+          <input aria-label={t('عنوان الجائزة')} list="award-titles" value={title} onChange={(e) => setTitle(e.target.value)}
             className="w-full px-3 py-2 text-xs rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white" />
-          <datalist id="award-titles">{PRESET_TITLES.map((t) => <option key={t} value={t} />)}</datalist>
+          <datalist id="award-titles">{PRESET_TITLES.map((pt) => <option key={pt} value={t(pt)} />)}</datalist>
         </div>
         <div>
-          <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">نقاط إضافية (0 – 500)</label>
-          <input aria-label="نقاط الجائزة" type="number" min={0} max={500} value={points} onChange={(e) => setPoints(Number(e.target.value))}
+          <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">{t('نقاط إضافية (0 – 500)')}</label>
+          <input aria-label={t('نقاط الجائزة')} type="number" min={0} max={500} value={points} onChange={(e) => setPoints(Number(e.target.value))}
             className="w-full px-3 py-2 text-xs rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white" />
         </div>
         <div>
-          <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">ملاحظة (اختياري)</label>
-          <textarea aria-label="ملاحظة الجائزة" rows={2} value={note} onChange={(e) => setNote(e.target.value)}
+          <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">{t('ملاحظة (اختياري)')}</label>
+          <textarea aria-label={t('ملاحظة الجائزة')} rows={2} value={note} onChange={(e) => setNote(e.target.value)}
             className="w-full px-3 py-2 text-xs rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white" />
         </div>
         <div className="flex justify-end gap-2">
-          <button onClick={onClose} className="px-4 py-2 text-xs font-bold text-slate-600 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800">إلغاء</button>
-          <button onClick={save} disabled={busy} className="px-5 py-2 text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-700 rounded-xl shadow-md disabled:opacity-60">منح الجائزة</button>
+          <button onClick={onClose} className="px-4 py-2 text-xs font-bold text-slate-600 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800">{t('إلغاء')}</button>
+          <button onClick={save} disabled={busy} className="px-5 py-2 text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-700 rounded-xl shadow-md disabled:opacity-60">{t('منح الجائزة')}</button>
         </div>
       </div>
     </div>
@@ -108,8 +108,8 @@ export const Leaderboard: React.FC = () => {
 
   if (!currentUser || !staff) return null;
   const classOpts = classes.filter((c) => staff.students.some((s) => (s.class_id || s.assigned_class_ids?.[0]) === c.id));
-  const clsName = (s: User) => classes.find((c) => c.id === (s.class_id || s.assigned_class_ids?.[0]))?.name || 'بدون صف';
-  const periodLabel = PERIODS.find((p) => p.id === period)?.label || '';
+  const clsName = (s: User) => classes.find((c) => c.id === (s.class_id || s.assigned_class_ids?.[0]))?.name || t('بدون صف');
+  const periodLabel = t(PERIODS.find((p) => p.id === period)?.label || '');
 
   const report = async (s: User) => {
     const subs = staff.submissions.filter((x) => x.student_id === s.id);
@@ -129,25 +129,25 @@ export const Leaderboard: React.FC = () => {
     <div className="max-w-6xl mx-auto py-8 px-4 sm:px-6 lg:px-8 space-y-6" dir={uiDir()}>
       <div className="flex flex-wrap items-end justify-between gap-4 pb-4 border-b border-slate-200 dark:border-slate-800">
         <div>
-          <h1 className="text-2xl font-black text-slate-900 dark:text-white font-cairo flex items-center gap-2"><Trophy className="w-6 h-6 text-amber-500" /> لوحة المتصدرين</h1>
-          <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">ترتيب الطلاب حسب نقاط الفترة المختارة (من أفضل نتيجة لكل اختبار + نقاط الجوائز).</p>
+          <h1 className="text-2xl font-black text-slate-900 dark:text-white font-cairo flex items-center gap-2"><Trophy className="w-6 h-6 text-amber-500" />{' '}{t('لوحة المتصدرين')}</h1>
+          <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">{t('ترتيب الطلاب حسب نقاط الفترة المختارة (من أفضل نتيجة لكل اختبار + نقاط الجوائز).')}</p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <select aria-label="الفترة" value={period} onChange={(e) => setPeriod(e.target.value as Period)}
+          <select aria-label={t('الفترة')} value={period} onChange={(e) => setPeriod(e.target.value as Period)}
             className="px-3 py-2 text-xs rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 font-bold text-slate-800 dark:text-slate-100">
-            {PERIODS.map((p) => <option key={p.id} value={p.id}>{p.label}</option>)}
+            {PERIODS.map((p) => <option key={p.id} value={p.id}>{t(p.label)}</option>)}
           </select>
-          <select aria-label="الصف" value={classId} onChange={(e) => setClassId(e.target.value)}
+          <select aria-label={t('الصف')} value={classId} onChange={(e) => setClassId(e.target.value)}
             className="px-3 py-2 text-xs rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 font-bold text-slate-800 dark:text-slate-100 max-w-[14rem]">
-            <option value="all">كل الصفوف</option>
+            <option value="all">{t('كل الصفوف')}</option>
             {classOpts.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
           </select>
-          <input aria-label="بحث" value={q} onChange={(e) => setQ(e.target.value)} placeholder="بحث بالاسم..."
+          <input aria-label={t('بحث')} value={q} onChange={(e) => setQ(e.target.value)} placeholder={t('بحث بالاسم...')}
             className="px-3 py-2 text-xs rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100" />
           {canExport && (
-            <button onClick={() => tableRef.current && exportElementToPdf({ element: tableRef.current, title: 'لوحة المتصدرين', subtitle: periodLabel })}
+            <button onClick={() => tableRef.current && exportElementToPdf({ element: tableRef.current, title: t('لوحة المتصدرين'), subtitle: periodLabel })}
               className="inline-flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-bold bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 hover:bg-slate-200">
-              <Download className="w-4 h-4 text-rose-600" /> تصدير PDF
+              <Download className="w-4 h-4 text-rose-600" />{' '}{t('تصدير PDF')}
             </button>
           )}
         </div>
@@ -162,7 +162,7 @@ export const Leaderboard: React.FC = () => {
                 <div className="flex justify-center my-2"><Avatar name={r.s.name} role="student" userId={r.s.id} size="lg" /></div>
                 <p className="font-black text-slate-900 dark:text-white text-sm">{r.s.name}</p>
                 <p className="text-[11px] text-slate-500">{clsName(r.s)}</p>
-                <p className="text-2xl font-black text-amber-600 mt-1">{r.pts} <span className="text-xs font-bold">نقطة</span></p>
+                <p className="text-2xl font-black text-amber-600 mt-1">{r.pts} <span className="text-xs font-bold">{t('نقطة')}</span></p>
               </div>
             ))}
           </div>
@@ -172,14 +172,14 @@ export const Leaderboard: React.FC = () => {
           <table className="w-full text-start text-xs">
             <thead>
               <tr className="bg-slate-50 dark:bg-slate-800/60 text-slate-500 dark:text-slate-400 font-bold">
-                <th className="py-3 px-3">#</th><th className="py-3 px-3">الطالب</th><th className="py-3 px-3">الصف</th>
-                <th className="py-3 px-3">نقاط الفترة</th><th className="py-3 px-3">اختبارات</th><th className="py-3 px-3">المتوسط</th>
-                <th className="py-3 px-3">المستوى</th><th className="py-3 px-3">أوسمة</th>
-                <th className="py-3 px-3 text-center" data-pdf-hide>إجراءات</th>
+                <th className="py-3 px-3">#</th><th className="py-3 px-3">{t('الطالب')}</th><th className="py-3 px-3">{t('الصف')}</th>
+                <th className="py-3 px-3">{t('نقاط الفترة')}</th><th className="py-3 px-3">{t('اختبارات')}</th><th className="py-3 px-3">{t('المتوسط')}</th>
+                <th className="py-3 px-3">{t('المستوى')}</th><th className="py-3 px-3">{t('أوسمة')}</th>
+                <th className="py-3 px-3 text-center" data-pdf-hide>{t('إجراءات')}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-              {rows.length === 0 && (<tr><td colSpan={9} className="py-10 text-center text-slate-400">لا توجد بيانات ضمن هذه الفلاتر</td></tr>)}
+              {rows.length === 0 && (<tr><td colSpan={9} className="py-10 text-center text-slate-400">{t('لا توجد بيانات ضمن هذه الفلاتر')}</td></tr>)}
               {rows.map((r, i) => (
                 <tr key={r.s.id} data-student={r.s.id}>
                   <td className="py-2.5 px-3 font-bold text-slate-400">{i + 1}</td>
@@ -196,12 +196,12 @@ export const Leaderboard: React.FC = () => {
                     <div className="flex items-center justify-center gap-1.5">
                       {canAward && (
                         <button onClick={() => setAwardFor(r.s)} className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-[11px] font-bold bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-100">
-                          <Award className="w-3.5 h-3.5" /> منح جائزة
+                          <Award className="w-3.5 h-3.5" />{' '}{t('منح جائزة')}
                         </button>
                       )}
                       {canExport && (
-                        <button onClick={() => report(r.s)} title="كشف درجات الطالب PDF" className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-[11px] font-bold bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 hover:bg-slate-200">
-                          <FileText className="w-3.5 h-3.5" /> كشف
+                        <button onClick={() => report(r.s)} title={t('كشف درجات الطالب PDF')} className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-[11px] font-bold bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 hover:bg-slate-200">
+                          <FileText className="w-3.5 h-3.5" />{' '}{t('كشف')}
                         </button>
                       )}
                     </div>

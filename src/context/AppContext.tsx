@@ -39,7 +39,7 @@ import { Banner, loadBannerCache, syncBanners, saveBannerRemote, deleteBannerRem
 import { loadAwardsCache, makeAward, pushAward, pullAwards } from '../services/awardsService';
 import { AppSettings, loadSettings, syncSettings, saveSettings, syncPublicBranding } from '../services/settingsService';
 import { applyBrandColor } from '../utils/brand';
-import { t } from '../i18n';
+import { t, isEn } from '../i18n';
 import { loadBranchCache, syncBranches, saveBranchRemote, deleteBranchRemote, newBranch } from '../services/branchService';
 import { StudentAward } from '../utils/points';
 import { describeQuizTarget } from '../utils/quizTarget';
@@ -1036,10 +1036,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     recompute();
     if (status === 'published') {
       void notifyQuizPublished(created.id);
-      if (outcome.synced) showToast(`تم إنشاء الاختبار بنجاح: ${created.title}`, 'success');
+      if (outcome.synced) showToast(t('تم إنشاء الاختبار بنجاح: {title}', { title: created.title }), 'success');
     } else {
       void notifyApprovers(created.id);
-      showToast('تم إرسال الاختبار للاعتماد، وسيظهر للطلاب بعد الموافقة', 'info');
+      showToast(t('تم إرسال الاختبار للاعتماد، وسيظهر للطلاب بعد الموافقة'), 'info');
     }
     log('quiz_created', { type: 'quiz', id: created.id, name: created.title }, needsApproval ? 'بانتظار الاعتماد' : undefined);
     return { id: created.id, status, ...outcome };
@@ -1063,7 +1063,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const outcome = await syncQuiz(id);
     recompute();
     if (resubmitted) void notifyApprovers(id);
-    if (outcome.synced) showToast('تم حفظ وتحديث بيانات الاختبار بنجاح', 'success');
+    if (outcome.synced) showToast(t('تم حفظ وتحديث بيانات الاختبار بنجاح'), 'success');
     log('quiz_updated', { type: 'quiz', id, name: (patch.title as string) || existing?.title }, resubmitted ? 'أُعيد إرساله للاعتماد' : undefined);
     return { ...outcome, status: (patch.status as string) || existing?.status };
   };
@@ -1072,7 +1072,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     StorageService.updateQuiz(id, updates);
     recompute();
     const outcome = await syncQuiz(id);
-    if (outcome.synced) showToast('تم تحديث بيانات الاختبار بنجاح', 'success');
+    if (outcome.synced) showToast(t('تم تحديث بيانات الاختبار بنجاح'), 'success');
   };
 
   const deleteQuizItem = async (id: string) => {
@@ -1080,7 +1080,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     StorageService.deleteQuiz(id);
     recompute();
     const outcome = await syncQuiz(id);
-    if (outcome.synced) showToast('تم حذف الاختبار واستبعاد درجاته', 'info');
+    if (outcome.synced) showToast(t('تم حذف الاختبار واستبعاد درجاته'), 'info');
     log('quiz_deleted', { type: 'quiz', id, name: qd?.title });
   };
 
@@ -1120,7 +1120,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const me = currentUserRef.current;
     if (!me) return false;
     if (me.role !== 'admin') {
-      showToast('إسناد الاختبار لمعلم آخر متاح لمدير النظام فقط', 'error');
+      showToast(t('إسناد الاختبار لمعلم آخر متاح لمدير النظام فقط'), 'error');
       return false;
     }
     const res = StorageService.reassignQuiz(quizId, newTeacherId, me.id);
@@ -1282,7 +1282,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const deleteSubmissions: AppContextType['deleteSubmissions'] = async (ids) => {
     const me = currentUserRef.current;
-    if (!hasPerm(me, 'can_delete_submissions')) return void showToast('لا تملك صلاحية حذف المشاركات', 'error');
+    if (!hasPerm(me, 'can_delete_submissions')) return void showToast(t('لا تملك صلاحية حذف المشاركات'), 'error');
     if (!ids.length) return;
     const res = await deleteSubmissionsRemote(ids);
     recompute();
@@ -1342,7 +1342,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     StorageService.saveSubmissionFromRemote(updated);
     recompute();
     const res = await pushSubmission(submissionId);
-    showToast(res.ok ? 'تم حفظ درجة السؤال المقالي' : `حُفظت الدرجة على جهازك فقط (${res.error})`, res.ok ? 'success' : 'error');
+    showToast(res.ok ? 'تم حفظ درجة السؤال المقالي' : t('حُفظت الدرجة على جهازك فقط ({error})', { error: res.error || '' }), res.ok ? 'success' : 'error');
     return res.ok;
   };
 
@@ -1445,7 +1445,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       const before = StorageService.getUserById(id);
       const updated = StorageService.updateUser(id, { ...updates, updated_at: now });
       if (!updated) {
-        showToast('لم يتم العثور على المستخدم المطلوب تعديله', 'error');
+        showToast(t('لم يتم العثور على المستخدم المطلوب تعديله'), 'error');
         return;
       }
       const normalized = normalizeUser(updated);
@@ -1525,7 +1525,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       await refreshData();
     } catch (e) {
       console.error('Error updating user data:', e);
-      showToast('حدث خطأ أثناء حفظ التعديلات', 'error');
+      showToast(t('حدث خطأ أثناء حفظ التعديلات'), 'error');
     }
   };
 
@@ -1548,17 +1548,17 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           }
         } catch (e) {
           console.warn('Error updating password in Supabase:', e);
-          showToast('تعذر الاتصال بالخادم، لم تُحفظ كلمة المرور الجديدة', 'error');
+          showToast(t('تعذر الاتصال بالخادم، لم تُحفظ كلمة المرور الجديدة'), 'error');
           return false;
         }
       }
       void refreshData();
       if (currentUserRef.current?.id !== id) log('password_reset', { type: 'user', id, name: StorageService.getUserById(id)?.name });
-      showToast('تمت إعادة تعيين كلمة المرور بنجاح', 'success');
+      showToast(t('تمت إعادة تعيين كلمة المرور بنجاح'), 'success');
       return true;
     } catch (e) {
       console.error('Error resetting password:', e);
-      showToast('حدث خطأ أثناء إعادة تعيين كلمة المرور', 'error');
+      showToast(t('حدث خطأ أثناء إعادة تعيين كلمة المرور'), 'error');
       return false;
     }
   };
@@ -1576,7 +1576,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         console.warn('[deleteUserItem] network error:', e);
       }
     }
-    showToast('تم حذف المستخدم من النظام نهائياً', 'info');
+    showToast(t('تم حذف المستخدم من النظام نهائياً'), 'info');
   };
 
   const bulkDeleteUsers: AppContextType['bulkDeleteUsers'] = async (ids) => {
@@ -1604,7 +1604,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         deleted.length < list.length ? `حُذف ${deleted.length} من ${list.length} (الباقي لا تملك صلاحية حذفه)` : `تم حذف ${deleted.length} مستخدم`,
         deleted.length < list.length ? 'info' : 'success'
       );
-    } else showToast('لم يُحذف أحد: لا تملك صلاحية حذف هؤلاء المستخدمين', 'error');
+    } else showToast(t('لم يُحذف أحد: لا تملك صلاحية حذف هؤلاء المستخدمين'), 'error');
   };
 
   const bulkMoveStudents: AppContextType['bulkMoveStudents'] = async (ids, classId) => {
@@ -1720,7 +1720,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       }
     }
     await refreshData();
-    showToast('تم تحديث المادة بنجاح', 'success');
+    showToast(t('تم تحديث المادة بنجاح'), 'success');
   };
 
   const deleteSubjectItem = async (id: string) => {
@@ -1735,7 +1735,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       }
     }
     await refreshData();
-    showToast('تم حذف المادة بنجاح', 'info');
+    showToast(t('تم حذف المادة بنجاح'), 'info');
   };
 
   const addClass = async (data: Omit<SchoolClass, 'id'>): Promise<SchoolClass> => {
@@ -1790,7 +1790,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       }
     }
     await refreshData();
-    showToast('تم تحديث الشعبة بنجاح', 'success');
+    showToast(t('تم تحديث الشعبة بنجاح'), 'success');
   };
 
   const deleteClassItem = async (id: string) => {
@@ -1805,7 +1805,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       }
     }
     await refreshData();
-    showToast('تم حذف الشعبة بنجاح', 'info');
+    showToast(t('تم حذف الشعبة بنجاح'), 'info');
   };
 
   // ---------------- سجل النشاط + الإشعارات (دوال داخلية) ----------------
@@ -1861,7 +1861,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const done = new Set(StorageService.getSubmissions().filter((x) => x.quiz_id === quizId).map((x) => x.student_id));
     const late = targetStudents(StorageService.getAssignmentsByQuizId(quizId), StorageService.getStudents()).filter((st) => !done.has(st.id));
     if (!late.length) {
-      showToast('كل الطلاب سلّموا هذا الاختبار', 'success');
+      showToast(t('كل الطلاب سلّموا هذا الاختبار'), 'success');
       return 0;
     }
     await notify({
@@ -1871,7 +1871,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       audience: { student_ids: late.map((st) => st.id) }, ref_type: 'quiz', ref_id: quizId,
     });
     log('quiz_reminder', { type: 'quiz', id: quizId, name: quiz.title }, `${late.length} طالب`);
-    showToast(`أُرسل تذكير إلى ${late.length === 1 ? 'طالب واحد' : late.length === 2 ? 'طالبين' : late.length <= 10 ? `${late.length} طلاب` : `${late.length} طالباً`}`, 'success');
+    showToast(isEn() ? `Reminder sent to ${late.length} ${late.length === 1 ? 'student' : 'students'}` : `أُرسل تذكير إلى ${late.length === 1 ? 'طالب واحد' : late.length === 2 ? 'طالبين' : late.length <= 10 ? `${late.length} طلاب` : `${late.length} طالباً`}`, 'success');
     return late.length;
   };
 
@@ -1892,7 +1892,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const approveQuiz = async (id: string) => {
     const me = currentUserRef.current;
-    if (!hasPerm(me, 'can_approve_quizzes')) return void showToast('لا تملك صلاحية اعتماد الاختبارات', 'error');
+    if (!hasPerm(me, 'can_approve_quizzes')) return void showToast(t('لا تملك صلاحية اعتماد الاختبارات'), 'error');
     const q = StorageService.getQuizById(id);
     if (!q) return;
     StorageService.updateQuiz(id, { status: 'published', review_note: '' });
@@ -1901,12 +1901,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     void notifyQuizPublished(id);
     void notify({ type: 'quiz_approved', title: `تم اعتماد اختبارك: ${q.title}`, body: 'أصبح الاختبار ظاهراً للطلاب.', audience: { user_ids: [q.teacher_id] }, ref_type: 'quiz', ref_id: id });
     log('quiz_approved', { type: 'quiz', id, name: q.title });
-    showToast('تم اعتماد الاختبار ونشره للطلاب', 'success');
+    showToast(t('تم اعتماد الاختبار ونشره للطلاب'), 'success');
   };
 
   const rejectQuiz = async (id: string, reason: string) => {
     const me = currentUserRef.current;
-    if (!hasPerm(me, 'can_approve_quizzes')) return void showToast('لا تملك صلاحية اعتماد الاختبارات', 'error');
+    if (!hasPerm(me, 'can_approve_quizzes')) return void showToast(t('لا تملك صلاحية اعتماد الاختبارات'), 'error');
     const q = StorageService.getQuizById(id);
     if (!q) return;
     StorageService.updateQuiz(id, { status: 'rejected', review_note: reason });
@@ -1914,7 +1914,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     recompute();
     void notify({ type: 'quiz_rejected', title: `تم رفض اختبارك: ${q.title}`, body: `السبب: ${reason}`, audience: { user_ids: [q.teacher_id] }, ref_type: 'quiz', ref_id: id });
     log('quiz_rejected', { type: 'quiz', id, name: q.title }, reason);
-    showToast('تم رفض الاختبار وإبلاغ المعلم', 'info');
+    showToast(t('تم رفض الاختبار وإبلاغ المعلم'), 'info');
   };
 
   const markNotificationsRead = async (ids: string[] | 'all') => {
@@ -1928,16 +1928,16 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const saveBanner: AppContextType['saveBanner'] = async (b) => {
     if (currentUserRef.current?.role !== 'admin') {
-      showToast('إدارة البانرات لمدير النظام فقط', 'error');
+      showToast(t('إدارة البانرات لمدير النظام فقط'), 'error');
       return false;
     }
     const res = await saveBannerRemote(b);
     setBanners(loadBannerCache());
     if (res.ok && res.needsMigration) {
-      showToast('حُفظ البانر، لكن «دائم» والتأثيرات تحتاج تشغيل تحديث قاعدة البيانات 013', 'info');
+      showToast(t('حُفظ البانر، لكن «دائم» والتأثيرات تحتاج تشغيل تحديث قاعدة البيانات 013'), 'info');
       log('banner_saved', { type: 'banner', id: b.id, name: b.title || 'بانر' });
     } else if (res.ok) {
-      showToast('تم حفظ البانر', 'success');
+      showToast(t('تم حفظ البانر'), 'success');
       log('banner_saved', { type: 'banner', id: b.id, name: b.title || 'بانر' });
     } else {
       showToast(/banners/.test(res.error || '') ? 'شغّل تحديث قاعدة البيانات 006 أولاً' : `تعذر حفظ البانر (${res.error})`, 'error');
@@ -1971,7 +1971,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const me = currentUserRef.current;
     if (!me || !ids.length) return;
     const allowed = ids.filter((id) => me.role === 'admin' || notifCache.find((n) => n.id === id)?.created_by === me.id);
-    if (!allowed.length) return void showToast('الحذف النهائي متاح للمدير أو لمُرسل الإشعار فقط', 'error');
+    if (!allowed.length) return void showToast(t('الحذف النهائي متاح للمدير أو لمُرسل الإشعار فقط'), 'error');
     const res = await deleteNotificationsEverywhere(allowed);
     setNotifCache(loadNotifCache());
     if (res.error && !res.deleted) showToast(`تعذر الحذف (${res.error})`, 'error');
@@ -1982,7 +1982,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const clearUserNotifications: AppContextType['clearUserNotifications'] = async (userId) => {
     const me = currentUserRef.current;
-    if (me?.role !== 'admin') return void showToast('هذا الإجراء للمدير فقط', 'error');
+    if (me?.role !== 'admin') return void showToast(t('هذا الإجراء للمدير فقط'), 'error');
     const target = StorageService.getUserById(userId);
     if (!target) return;
     const ids = notifCache.filter((n) => isForUser(n, normalizeUser(target))).map((n) => n.id);
@@ -1995,7 +1995,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const sendAnnouncement: AppContextType['sendAnnouncement'] = async ({ title, body, audience }) => {
     const me = currentUserRef.current;
     if (!me || !hasPerm(me, 'can_send_announcements')) {
-      showToast('لا تملك صلاحية إرسال الإعلانات', 'error');
+      showToast(t('لا تملك صلاحية إرسال الإعلانات'), 'error');
       return { ok: false, error: 'no-permission' };
     }
     const n = makeNotification({ type: 'announcement', title, body, audience, created_by: me.id, created_by_name: me.name });
@@ -2009,7 +2009,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const giveAward: AppContextType['giveAward'] = async ({ student, title, note, points }) => {
     const me = currentUserRef.current;
     if (!me || !hasPerm(me, 'can_award_badges')) {
-      showToast('لا تملك صلاحية منح الجوائز', 'error');
+      showToast(t('لا تملك صلاحية منح الجوائز'), 'error');
       return { ok: false, error: 'no-permission' };
     }
     const clsName = StorageService.getClassById(student.class_id || student.assigned_class_ids?.[0] || '')?.name;
@@ -2021,12 +2021,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setAwards(loadAwardsCache());
     void notify({ type: 'award', title: `🏆 حصلت على جائزة: ${title}`, body: note || (points ? `+${points} نقطة` : ''), audience: { user_ids: [student.id] }, ref_type: 'award', ref_id: a.id });
     log('award_given', { type: 'user', id: student.id, name: student.name }, `${title} (+${points})`);
-    showToast(res.ok ? `تم منح الجائزة للطالب ${student.name}` : `حُفظت الجائزة على جهازك وسترفع عند توفر الاتصال (${res.error})`, res.ok ? 'success' : 'info');
+    showToast(res.ok ? t('تم منح الجائزة للطالب {name}', { name: student.name }) : `حُفظت الجائزة على جهازك وسترفع عند توفر الاتصال (${res.error})`, res.ok ? 'success' : 'info');
     return { ok: true };
   };
 
   const updateSettings = async (patch: Partial<AppSettings>) => {
-    if (currentUserRef.current?.role !== 'admin') return void showToast('الإعدادات لمدير النظام فقط', 'error');
+    if (currentUserRef.current?.role !== 'admin') return void showToast(t('الإعدادات لمدير النظام فقط'), 'error');
     const res = await saveSettings(patch);
     setSettings(loadSettings());
     log('settings_changed', { type: 'settings', name: 'إعدادات النظام' }, Object.keys(patch).join('، '));
@@ -2050,7 +2050,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             too_short: 'كلمة المرور الجديدة يجب ألا تقل عن 6 أحرف',
             no_session: 'انتهت الجلسة، يرجى تسجيل الدخول من جديد',
           };
-          return { ok: false, error: msg[data?.error] || 'تعذر تغيير كلمة المرور' };
+          return { ok: false, error: msg[data?.error] || t('تعذر تغيير كلمة المرور') };
         }
         updateSessionInfo({ password_is_default: false });
         setPasswordIsDefault(false);
@@ -2080,7 +2080,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const setMyAvatar = async (data: string | null) => {
     const me = currentUserRef.current;
-    if (!me) return { ok: false, error: 'لا يوجد مستخدم مسجل' };
+    if (!me) return { ok: false, error: t('لا يوجد مستخدم مسجل') };
     const res = await saveMyAvatar(me.id, data);
     setAvatars(avatarMapFromCache(loadAvatarCache()));
     return res;
@@ -2091,7 +2091,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     localStorage.removeItem(LS_SUBJECTS);
     localStorage.removeItem(LS_CLASSES);
     void refreshData();
-    showToast('تمت إعادة ضبط بيانات النظام بنجاح', 'success');
+    showToast(t('تمت إعادة ضبط بيانات النظام بنجاح'), 'success');
   };
 
   return (

@@ -80,7 +80,7 @@ export const SubmissionsTable: React.FC<SubmissionsTableProps> = ({
 
   const removeSubs = async (ids: string[], what: string) => {
     if (!ids.length) return;
-    if (!window.confirm(`حذف ${what} نهائياً؟\nسيتمكن الطالب من دخول الاختبار مرة أخرى إن كان ما زال متاحاً. لا يمكن التراجع.`)) return;
+    if (!window.confirm(t('حذف {what} نهائياً؟\nسيتمكن الطالب من دخول الاختبار مرة أخرى إن كان ما زال متاحاً. لا يمكن التراجع.', { what }))) return;
     setDeleting(true);
     await deleteSubmissions(ids);
     setDeleting(false);
@@ -382,12 +382,12 @@ export const SubmissionsTable: React.FC<SubmissionsTableProps> = ({
                 onChange={(e) => setPicked(e.target.checked ? filteredSubmissions.map((x) => x.id) : [])} />
               {t('تحديد كل النتائج المعروضة (')}{filteredSubmissions.length})
             </label>
-            <button type="button" disabled={deleting || !picked.length} onClick={() => void removeSubs(picked, `${picked.length} مشاركة محددة`)}
+            <button type="button" disabled={deleting || !picked.length} onClick={() => void removeSubs(picked, t('{n} مشاركة محددة', { n: picked.length }))}
               className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[11px] font-bold text-rose-700 dark:text-rose-300 bg-rose-100 dark:bg-rose-950/50 hover:bg-rose-200 disabled:opacity-40">
               <Trash2 className="w-3.5 h-3.5" />{' '}{t('حذف المحدد (')}{picked.length})
             </button>
             {deletedQuizSubs.length > 0 && (
-              <button type="button" disabled={deleting} onClick={() => void removeSubs(deletedQuizSubs, `${deletedQuizSubs.length} مشاركة في اختبارات محذوفة`)}
+              <button type="button" disabled={deleting} onClick={() => void removeSubs(deletedQuizSubs, t('{n} مشاركة في اختبارات محذوفة', { n: deletedQuizSubs.length }))}
                 className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[11px] font-bold text-rose-700 dark:text-rose-300 bg-rose-100 dark:bg-rose-950/50 hover:bg-rose-200 disabled:opacity-40">
                 <Trash2 className="w-3.5 h-3.5" />{' '}{t('حذف مشاركات الاختبارات المحذوفة (')}{deletedQuizSubs.length})
               </button>
@@ -429,7 +429,7 @@ export const SubmissionsTable: React.FC<SubmissionsTableProps> = ({
                 >
                   {canDelete && (
                     <td className="py-3 ps-4">
-                      <input type="checkbox" className="accent-rose-600" aria-label={`تحديد مشاركة ${sub.student?.name || ''}`}
+                      <input type="checkbox" className="accent-rose-600" aria-label={t('تحديد مشاركة {name}', { name: sub.student?.name || '' })}
                         checked={picked.includes(sub.id)}
                         onChange={() => setPicked(picked.includes(sub.id) ? picked.filter((x) => x !== sub.id) : [...picked, sub.id])} />
                     </td>
@@ -525,7 +525,7 @@ export const SubmissionsTable: React.FC<SubmissionsTableProps> = ({
 
                       {canDelete && (
                         <button
-                          onClick={() => void removeSubs([sub.id], `مشاركة ${sub.student?.name || 'الطالب'} في «${sub.quiz?.title || 'الاختبار'}»`)}
+                          onClick={() => void removeSubs([sub.id], t('مشاركة {name} في «{title}»', { name: sub.student?.name || t('الطالب'), title: sub.quiz?.title || t('الاختبار') }))}
                           disabled={deleting}
                           className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-xl text-[11px] font-bold bg-rose-50 dark:bg-rose-950/40 text-rose-700 dark:text-rose-300 hover:bg-rose-100 dark:hover:bg-rose-900/50 disabled:opacity-40"
                           title={t('حذف المشاركة')}

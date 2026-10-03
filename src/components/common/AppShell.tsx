@@ -238,6 +238,7 @@ const StaffShell: React.FC<{ children: React.ReactNode; banner?: React.ReactNode
           </div>
           <div className="flex items-center gap-1.5">
             <PreviewSwitcher />
+            <LangToggle />
             <ThemeButton />
             <NotificationBell />
           </div>

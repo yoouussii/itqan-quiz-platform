@@ -19,7 +19,8 @@ import { StorageService } from '../../services/storage';
 import { RichTextEditor } from '../common/RichTextEditor';
 import { toLocalInputValue, toInputValue, inputToIso, defaultEndInput } from '../../utils/quizWindow';
 import { stripHtml } from '../common/RichText';
-import { uiDir, optionLetters } from '../../i18n';
+import { uiDir, optionLetters, t, isEn } from '../../i18n';
+import { questionsCount, marksCount } from '../../i18n/count';
 
 export type QuestionType = 'mcq' | 'true_false' | 'essay' | 'passage';
 
@@ -47,14 +48,14 @@ export interface QuestionItem {
 }
 
 /** عدد الأسئلة بصيغة عربية صحيحة */
-const questionsLabel = (n: number) => (n === 1 ? 'سؤال واحد' : n === 2 ? 'سؤالان' : n <= 10 ? `${n} أسئلة` : `${n} سؤالاً`);
+const questionsLabel = (n: number) => (isEn() ? questionsCount(n) : n === 1 ? 'سؤال واحد' : n === 2 ? 'سؤالان' : n <= 10 ? `${n} أسئلة` : `${n} سؤالاً`);
 
 const newUid = () => `u-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`;
 
 /** سؤال جديد فارغ حسب النوع */
 export function blankQuestion(type: QuestionType = 'mcq'): QuestionItem {
   const base = { uid: newUid(), question_text: '', explanation: '' };
-  if (type === 'true_false') return { ...base, type, options: ['صح', 'خطأ'], correct_option_index: 0, marks: 1 };
+  if (type === 'true_false') return { ...base, type, options: [t('صح'), t('خطأ')], correct_option_index: 0, marks: 1 };
   if (type === 'essay') return { ...base, type, options: [], correct_option_index: -1, marks: 2 };
   if (type === 'passage') {
     return {
@@ -138,7 +139,7 @@ export const QuizEditor: React.FC = () => {
   const validClassIds = targetClassIds.filter((id) => availableClasses.some((c) => c.id === id));
   const hiddenClassNames = targetClassIds
     .filter((id) => !availableClasses.some((c) => c.id === id))
-    .map((id) => classes.find((c) => c.id === id)?.name || 'صف غير متاح');
+    .map((id) => classes.find((c) => c.id === id)?.name || t('صف غير متاح'));
   const [selectedStudentIds, setSelectedStudentIds] = useState<string[]>([]);
 
   // Questions State
@@ -158,7 +159,7 @@ export const QuizEditor: React.FC = () => {
 
   // تعبئة النموذج من اختبار موجود (للتعديل أو لتكرار اختبار كنسخة جديدة)
   const applyQuizToForm = (quiz: any, asCopy: boolean) => {
-    setTitle(asCopy ? `${quiz.title} (نسخة)` : quiz.title);
+    setTitle(asCopy ? t('{title} (نسخة)', { title: quiz.title }) : quiz.title);
     setDescription(quiz.description || '');
     setSubjectId(quiz.subject_id || '');
     setDurationMinutes(quiz.duration_minutes);
@@ -334,7 +335,7 @@ export const QuizEditor: React.FC = () => {
       }
       updated[idx].marks = updated[idx].sub_questions!.reduce((sum, sq) => sum + (sq.marks || 0), 0);
     } else if (type === 'true_false') {
-      updated[idx].options = ['صح', 'خطأ'];
+      updated[idx].options = [t('صح'), t('خطأ')];
       updated[idx].correct_option_index = 0;
     } else if (type === 'mcq') {
       if (updated[idx].options.length !== 4) {
@@ -400,7 +401,7 @@ export const QuizEditor: React.FC = () => {
     const updated = [...questions];
     const subQList = updated[qIdx].sub_questions || [];
     if (subQList.length <= 1) {
-      alert('يجب أن تحتوي القطعة على سؤال فرعي واحد على الأقل');
+      alert(t('يجب أن تحتوي القطعة على سؤال فرعي واحد على الأقل'));
       return;
     }
     updated[qIdx].sub_questions = subQList.filter((_, i) => i !== sqIdx);
@@ -422,7 +423,7 @@ export const QuizEditor: React.FC = () => {
     if (subQ) {
       subQ.type = type;
       if (type === 'true_false') {
-        subQ.options = ['صواب', 'خطأ'];
+        subQ.options = [t('صواب'), t('خطأ')];
         subQ.correct_option_index = 0;
       } else if (type === 'mcq') {
         subQ.options = ['', '', '', ''];
@@ -482,7 +483,7 @@ export const QuizEditor: React.FC = () => {
     e.preventDefault();
 
     if (!title.trim()) {
-      alert('يرجى إدخال عنوان للاختبار');
+      alert(t('يرجى إدخال عنوان للاختبار'));
       return;
     }
 
@@ -493,24 +494,24 @@ export const QuizEditor: React.FC = () => {
     for (let i = 0; i < questions.length; i++) {
       const q = questions[i];
       if (!stripHtml(q.question_text).trim()) {
-        focusQuestion(i, `يرجى كتابة نص السؤال رقم ${i + 1}`);
+        focusQuestion(i, t('يرجى كتابة نص السؤال رقم {n}', { n: i + 1 }));
         return;
       }
       if (q.type === 'mcq') {
         const emptyAt = q.options.findIndex((o) => !stripHtml(o).trim());
         if (emptyAt >= 0) {
-          focusQuestion(i, `الخيار ${emptyAt + 1} في السؤال رقم ${i + 1} فارغ: اكتبه أو احذفه`);
+          focusQuestion(i, t('الخيار {o} في السؤال رقم {n} فارغ: اكتبه أو احذفه', { o: emptyAt + 1, n: i + 1 }));
           return;
         }
       }
       if (q.type === 'passage') {
         if (!q.sub_questions || q.sub_questions.length === 0) {
-          alert(`يرجى إضافة سؤال فرعي واحد على الأقل للقطعة في السؤال رقم ${i + 1}`);
+          alert(t('يرجى إضافة سؤال فرعي واحد على الأقل للقطعة في السؤال رقم {n}', { n: i + 1 }));
           return;
         }
         for (let j = 0; j < q.sub_questions.length; j++) {
           if (!stripHtml(q.sub_questions[j].question_text).trim()) {
-            alert(`يرجى كتابة نص السؤال الفرعي رقم ${j + 1} للقطعة رقم ${i + 1}`);
+            alert(t('يرجى كتابة نص السؤال الفرعي رقم {s} للقطعة رقم {n}', { s: j + 1, n: i + 1 }));
             return;
           }
         }
@@ -518,27 +519,27 @@ export const QuizEditor: React.FC = () => {
     }
 
     if (startDate && endDate && new Date(endDate).getTime() <= new Date(startDate).getTime()) {
-      alert('وقت انتهاء الإتاحة يجب أن يكون بعد وقت البدء');
+      alert(t('وقت انتهاء الإتاحة يجب أن يكون بعد وقت البدء'));
       return;
     }
 
     if (!subjectId) {
-      alert('يرجى اختيار المادة');
+      alert(t('يرجى اختيار المادة'));
       return;
     }
 
     if (!currentUser?.id) {
-      alert('انتهت الجلسة، يرجى تسجيل الدخول من جديد');
+      alert(t('انتهت الجلسة، يرجى تسجيل الدخول من جديد'));
       return;
     }
 
     if (targetType === 'specific_students' && selectedStudentIds.length === 0) {
-      alert('يرجى تحديد طالب واحد على الأقل للاستهداف المخصص');
+      alert(t('يرجى تحديد طالب واحد على الأقل للاستهداف المخصص'));
       return;
     }
 
     if (targetType === 'class' && validClassIds.length === 0) {
-      alert('يرجى اختيار صف واحد على الأقل');
+      alert(t('يرجى اختيار صف واحد على الأقل'));
       return;
     }
 
@@ -615,20 +616,20 @@ export const QuizEditor: React.FC = () => {
       if (outcome.synced) {
         alert(
           outcome.status === 'pending_approval'
-            ? 'تم حفظ الاختبار وإرساله للاعتماد. سيظهر للطلاب بعد موافقة المسؤول.'
-            : 'تم حفظ ونشر الاختبار بنجاح!'
+            ? t('تم حفظ الاختبار وإرساله للاعتماد. سيظهر للطلاب بعد موافقة المسؤول.')
+            : t('تم حفظ ونشر الاختبار بنجاح!')
         );
       } else {
         alert(
-          'تم حفظ الاختبار على جهازك، لكنه لم يصل إلى الخادم بعد، ولن يراه الآدمن أو الطلاب قبل ذلك.\n' +
-            'سيُعاد الإرسال تلقائياً. السبب: ' +
-            (outcome.error || 'غير معروف')
+          t('تم حفظ الاختبار على جهازك، لكنه لم يصل إلى الخادم بعد، ولن يراه الآدمن أو الطلاب قبل ذلك.\n') +
+            t('سيُعاد الإرسال تلقائياً. السبب: ') +
+            (outcome.error || t('غير معروف'))
         );
       }
       setCurrentView('dashboard');
     } catch (err: any) {
       console.error(err);
-      alert('حدث خطأ أثناء حفظ الاختبار: ' + (err.message || 'خطأ غير معروف'));
+      alert(t('حدث خطأ أثناء حفظ الاختبار: ') + (err.message || t('خطأ غير معروف')));
     }
   };
 
@@ -646,25 +647,25 @@ export const QuizEditor: React.FC = () => {
             className="inline-flex items-center gap-1.5 text-xs text-slate-500 dark:text-slate-400 hover:text-indigo-600 mb-2 font-bold transition-colors"
           >
             <ArrowRight className="w-4 h-4 dir-icon" />
-            <span>العودة إلى قائمة الاختبارات</span>
+            <span>{t('العودة إلى قائمة الاختبارات')}</span>
           </button>
           <h1 className="text-2xl font-black text-slate-900 dark:text-white font-cairo">
-            {isEditing ? 'تعديل الاختبار والأسئلة' : 'إنشاء اختبار وتقييم إلكتروني جديد'}
+            {isEditing ? t('تعديل الاختبار والأسئلة') : t('إنشاء اختبار وتقييم إلكتروني جديد')}
           </h1>
           <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
             {isEditing
-              ? 'قم بتحديث بيانات الاختبار، معايير التقييم، تفاصيل الأسئلة وصلاحيات التعيين'
-              : 'حدد إعدادات الاختبار، صلاحيات الاستهداف الدقيقة، وأسئلة التقييم التفاعلية'}
+              ? t('قم بتحديث بيانات الاختبار، معايير التقييم، تفاصيل الأسئلة وصلاحيات التعيين')
+              : t('حدد إعدادات الاختبار، صلاحيات الاستهداف الدقيقة، وأسئلة التقييم التفاعلية')}
           </p>
         </div>
 
         <div className="flex items-center gap-3">
           <div className="text-end bg-indigo-50 dark:bg-indigo-950 px-4 py-2 rounded-2xl border border-indigo-100 dark:border-indigo-900">
             <span className="text-[11px] text-indigo-700 dark:text-indigo-300 block font-bold">
-              الدرجة الإجمالية
+              {t('الدرجة الإجمالية')}
             </span>
             <span className="text-xl font-black text-indigo-900 dark:text-indigo-200 font-cairo">
-              {totalCalculatedMarks} درجات
+              {isEn() ? marksCount(totalCalculatedMarks) : `${totalCalculatedMarks} ${t('درجات')}`}
             </span>
           </div>
         </div>
@@ -677,18 +678,18 @@ export const QuizEditor: React.FC = () => {
             <span className="w-7 h-7 rounded-xl bg-indigo-600 text-white font-bold text-xs flex items-center justify-center">
               1
             </span>
-            <h2 className="font-bold text-base text-slate-900 dark:text-white">البيانات العامة للاختبار</h2>
+            <h2 className="font-bold text-base text-slate-900 dark:text-white">{t('البيانات العامة للاختبار')}</h2>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
             <div className="md:col-span-2">
               <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5">
-                عنوان الاختبار الرئيسي *
+                {t('عنوان الاختبار الرئيسي')} *
               </label>
               <input
                 type="text"
                 required
-                placeholder="مثال: الاختبار الفصلي الأول في الجبر والهندسة التحليلية"
+                placeholder={t('مثال: الاختبار الفصلي الأول في الجبر والهندسة التحليلية')}
                 value={title}
                 onChange={(e) => setTitle(e.target.value)}
                 className="w-full px-4 py-2.5 text-xs rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
@@ -697,14 +698,14 @@ export const QuizEditor: React.FC = () => {
 
             <div>
               <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5">
-                المادة / التخصص *
+                {t('المادة / التخصص')} *
               </label>
               <select
                 value={subjectId}
                 onChange={(e) => setSubjectId(e.target.value)}
                 className="w-full px-4 py-2.5 text-xs rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
               >
-                <option value="">...اختر المادة</option>
+                <option value="">{t('...اختر المادة')}</option>
                 {availableSubjects.map((s) => (
                   <option key={s.id} value={s.id}>
                     {s.name} ({s.code})
@@ -716,7 +717,7 @@ export const QuizEditor: React.FC = () => {
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5">
-                  مدة الاختبار (بالدقائق) *
+                  {t('مدة الاختبار (بالدقائق)')} *
                 </label>
                 <div className="relative">
                   <Clock className="w-4 h-4 text-slate-400 absolute start-3.5 top-1/2 -translate-y-1/2" />
@@ -733,7 +734,7 @@ export const QuizEditor: React.FC = () => {
 
               <div>
                 <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5">
-                  نسبة النجاح (%) *
+                  {t('نسبة النجاح (%)')} *
                 </label>
                 <div className="relative">
                   <Award className="w-4 h-4 text-slate-400 absolute start-3.5 top-1/2 -translate-y-1/2" />
@@ -747,9 +748,9 @@ export const QuizEditor: React.FC = () => {
                   />
                 </div>
                 <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-1 leading-relaxed">
-                  أقل نسبة يعتبر عندها الطالب ناجحاً.
+                  {t('أقل نسبة يعتبر عندها الطالب ناجحاً.')}
                   {totalCalculatedMarks > 0 && passPercentage > 0 && (
-                    <> مثال: الدرجة الكلية {totalCalculatedMarks}، فينجح من يحصل على {(() => { const n = Math.ceil((totalCalculatedMarks * passPercentage) / 100); return `${n} ${n >= 3 && n <= 10 ? 'درجات' : 'درجة'}`; })()} أو أكثر.</>
+                    <>{' '}{(() => { const n = Math.ceil((totalCalculatedMarks * passPercentage) / 100); return t('مثال: الدرجة الكلية {total}، فينجح من يحصل على {need} أو أكثر.', { total: totalCalculatedMarks, need: isEn() ? marksCount(n) : `${n} ${n >= 3 && n <= 10 ? 'درجات' : 'درجة'}` }); })()}</>
                   )}
                 </p>
               </div>
@@ -759,10 +760,10 @@ export const QuizEditor: React.FC = () => {
               <div className="flex items-center justify-between">
                 <div>
                   <h3 className="text-xs font-bold text-indigo-900 dark:text-indigo-200">
-                    جدولة إتاحة الاختبار وحالة التفعيل الفوري
+                    {t('جدولة إتاحة الاختبار وحالة التفعيل الفوري')}
                   </h3>
                   <p className="text-[11px] text-slate-500 dark:text-slate-400">
-                    حدد الفترة الزمنية التي يُسمح خلالها للطلاب بدخول الاختبار وإمكانية الإيقاف اليدوي
+                    {t('حدد الفترة الزمنية التي يُسمح خلالها للطلاب بدخول الاختبار وإمكانية الإيقاف اليدوي')}
                   </p>
                 </div>
                 <button
@@ -771,7 +772,7 @@ export const QuizEditor: React.FC = () => {
                   className="flex items-center gap-2 cursor-pointer select-none"
                 >
                   <span className="text-xs font-bold text-slate-700 dark:text-slate-300">
-                    {isActive ? 'الاختبار مفعل ومتاح' : 'الاختبار موقوف ومغلق'}
+                    {isActive ? t('الاختبار مفعل ومتاح') : t('الاختبار موقوف ومغلق')}
                   </span>
                   <div
                     className={`w-11 h-6 flex items-center rounded-full p-1 transition-colors ${
@@ -780,7 +781,7 @@ export const QuizEditor: React.FC = () => {
                   >
                     <div
                       className={`bg-white w-4 h-4 rounded-full shadow-md transform transition-transform ${
-                        isActive ? 'translate-x-[-18px]' : 'translate-x-0'
+                        isActive ? 'rtl:-translate-x-[18px] ltr:translate-x-[18px]' : 'translate-x-0'
                       }`}
                     />
                   </div>
@@ -790,7 +791,7 @@ export const QuizEditor: React.FC = () => {
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2">
                 <div>
                   <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
-                    بدء إتاحة الاختبار (التاريخ والوقت) *
+                    {t('بدء إتاحة الاختبار (التاريخ والوقت)')} *
                   </label>
                   <input
                     type="datetime-local"
@@ -802,7 +803,7 @@ export const QuizEditor: React.FC = () => {
                 </div>
                 <div>
                   <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
-                    انتهاء إتاحة الاختبار (التاريخ والوقت) *
+                    {t('انتهاء إتاحة الاختبار (التاريخ والوقت)')} *
                   </label>
                   <input
                     type="datetime-local"
@@ -817,11 +818,11 @@ export const QuizEditor: React.FC = () => {
 
             <div className="md:col-span-2">
               <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5">
-                وصف موجز وتعليمات للطلاب
+                {t('وصف موجز وتعليمات للطلاب')}
               </label>
               <textarea
                 rows={2}
-                placeholder="مثال: يغطي هذا الاختبار موضوعات الوحدة الأولى والثانية..."
+                placeholder={t('مثال: يغطي هذا الاختبار موضوعات الوحدة الأولى والثانية...')}
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
                 className="w-full px-4 py-2 text-xs rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
@@ -838,10 +839,10 @@ export const QuizEditor: React.FC = () => {
             </span>
             <div>
               <h2 className="font-bold text-base text-slate-900 dark:text-white">
-                صلاحيات وتخصيص استهداف الاختبار (Targeting)
+                {t('صلاحيات وتخصيص استهداف الاختبار (Targeting)')}
               </h2>
               <p className="text-xs text-slate-500 dark:text-slate-400">
-                حدد بدقة من يحق له أداء هذا الاختبار والظهور في لوحته المدرسية
+                {t('حدد بدقة من يحق له أداء هذا الاختبار والظهور في لوحته المدرسية')}
               </p>
             </div>
           </div>
@@ -855,7 +856,7 @@ export const QuizEditor: React.FC = () => {
               }`}
             >
               <div className="flex items-center justify-between mb-2">
-                <span className="font-bold text-xs text-slate-900 dark:text-white">صف / شعبة محددة</span>
+                <span className="font-bold text-xs text-slate-900 dark:text-white">{t('صف / شعبة محددة')}</span>
                 <input
                   type="radio"
                   name="targetType"
@@ -865,7 +866,7 @@ export const QuizEditor: React.FC = () => {
                 />
               </div>
               <p className="text-[11px] text-slate-500 dark:text-slate-400">
-                يظهر حصراً لطلاب الشعبة المحددة فقط
+                {t('يظهر حصراً لطلاب الشعبة المحددة فقط')}
               </p>
             </label>
 
@@ -877,7 +878,7 @@ export const QuizEditor: React.FC = () => {
               }`}
             >
               <div className="flex items-center justify-between mb-2">
-                <span className="font-bold text-xs text-slate-900 dark:text-white">طلاب محددون بالاسم</span>
+                <span className="font-bold text-xs text-slate-900 dark:text-white">{t('طلاب محددون بالاسم')}</span>
                 <input
                   type="radio"
                   name="targetType"
@@ -887,7 +888,7 @@ export const QuizEditor: React.FC = () => {
                 />
               </div>
               <p className="text-[11px] text-slate-500 dark:text-slate-400">
-                استهداف فردي مخصص لحالات التقوية أو الموهوبين
+                {t('استهداف فردي مخصص لحالات التقوية أو الموهوبين')}
               </p>
             </label>
           </div>
@@ -896,7 +897,7 @@ export const QuizEditor: React.FC = () => {
             <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700">
               <div className="flex items-center justify-between mb-2 gap-3">
                 <label className="block text-xs font-bold text-slate-700 dark:text-slate-300">
-                  اختر الصف أو الصفوف المستهدفة ({validClassIds.length} محدد):
+                  {t('اختر الصف أو الصفوف المستهدفة (')}{validClassIds.length}{' '}{t('محدد):')}
                 </label>
                 <button
                   type="button"
@@ -908,18 +909,18 @@ export const QuizEditor: React.FC = () => {
                   className="text-[11px] font-bold text-indigo-600 dark:text-indigo-400 hover:underline"
                 >
                   {validClassIds.length === availableClasses.length && availableClasses.length > 0
-                    ? 'إلغاء تحديد الكل'
-                    : 'تحديد الكل'}
+                    ? t('إلغاء تحديد الكل')
+                    : t('تحديد الكل')}
                 </button>
               </div>
               {availableClasses.length === 0 && (
                 <p className="text-[13px] leading-relaxed text-amber-800 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/40 rounded-xl p-3">
-                  لا توجد شعب متاحة لك. إن كنت مسنداً لفرع، اطلب من مدير النظام ربط الشعب بفرعك من «المواد والشعب» ← تعديل الشعبة، أو إضافة شعب لك.
+                  {t('لا توجد شعب متاحة لك. إن كنت مسنداً لفرع، اطلب من مدير النظام ربط الشعب بفرعك من «المواد والشعب» ← تعديل الشعبة، أو إضافة شعب لك.')}
                 </p>
               )}
               {hiddenClassNames.length > 0 && (
                 <div className="mb-2 p-2.5 rounded-xl bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800 text-[11px] text-amber-800 dark:text-amber-300 font-semibold">
-                  هذا الاختبار موجَّه أيضاً لصفوف غير مسندة لك ({hiddenClassNames.join(' ، ')}) وسيتم استبعادها عند الحفظ.
+                  {t('هذا الاختبار موجَّه أيضاً لصفوف غير مسندة لك (')}{hiddenClassNames.join(t(' ، '))}{t(') وسيتم استبعادها عند الحفظ.')}
                 </div>
               )}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
@@ -957,7 +958,7 @@ export const QuizEditor: React.FC = () => {
           {targetType === 'specific_students' && (
             <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700">
               <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-2">
-                اختر الطلاب المحددين ({selectedStudentIds.length} محددين):
+                {t('اختر الطلاب المحددين (')}{selectedStudentIds.length}{' '}{t('محددين):')}
               </label>
               <div className="max-h-48 overflow-y-auto grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2 p-2 bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-700">
                 {students.map((st) => (
@@ -986,10 +987,10 @@ export const QuizEditor: React.FC = () => {
               <span className="w-7 h-7 rounded-xl bg-indigo-600 text-white font-bold text-xs flex items-center justify-center">
                 3
               </span>
-              <h2 className="font-bold text-base text-slate-900 dark:text-white">الأسئلة والتمارين</h2>
+              <h2 className="font-bold text-base text-slate-900 dark:text-white">{t('الأسئلة والتمارين')}</h2>
             </div>
             <span className="text-xs font-bold text-slate-500 dark:text-slate-400">
-              {questionsLabel(questions.length)} • {totalCalculatedMarks} درجة
+              {questionsLabel(questions.length)} • {totalCalculatedMarks}{' '}{t('درجة')}
             </span>
           </div>
 
@@ -1006,15 +1007,15 @@ export const QuizEditor: React.FC = () => {
                       {qIdx + 1}
                     </span>
                     {/* نوع السؤال: أزرار بدل القائمة */}
-                    <div className="flex flex-wrap rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 p-0.5" role="radiogroup" aria-label={`نوع السؤال ${qIdx + 1}`}>
-                      {QUESTION_TYPES.map((t) => (
-                        <button key={t.type} type="button" role="radio" aria-checked={q.type === t.type}
-                          onClick={() => q.type !== t.type && handleQuestionTypeChange(qIdx, t.type)}
+                    <div className="flex flex-wrap rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 p-0.5" role="radiogroup" aria-label={t('نوع السؤال {n}', { n: qIdx + 1 })}>
+                      {QUESTION_TYPES.map((qt) => (
+                        <button key={qt.type} type="button" role="radio" aria-checked={q.type === qt.type}
+                          onClick={() => q.type !== qt.type && handleQuestionTypeChange(qIdx, qt.type)}
                           className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition-colors ${
-                            q.type === t.type ? 'bg-indigo-600 text-white shadow-sm' : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
+                            q.type === qt.type ? 'bg-indigo-600 text-white shadow-sm' : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
                           }`}>
-                          <span className="hidden sm:inline">{t.label}</span>
-                          <span className="sm:hidden">{t.short}</span>
+                          <span className="hidden sm:inline">{t(qt.label)}</span>
+                          <span className="sm:hidden">{t(qt.short)}</span>
                         </button>
                       ))}
                     </div>
@@ -1022,29 +1023,29 @@ export const QuizEditor: React.FC = () => {
 
                   <div className="flex items-center gap-1">
                     <div className="flex items-center gap-1.5 me-2">
-                      <span className="text-xs font-bold text-slate-500">الدرجة:</span>
+                      <span className="text-xs font-bold text-slate-500">{t('الدرجة:')}</span>
                       <input
                         type="number"
                         min={1}
-                        aria-label={`درجة السؤال ${qIdx + 1}`}
+                        aria-label={t('درجة السؤال {n}', { n: qIdx + 1 })}
                         value={q.marks}
                         onChange={(e) => handleMarksChange(qIdx, Number(e.target.value))}
                         disabled={q.type === 'passage'}
-                        title={q.type === 'passage' ? 'درجة القطعة = مجموع درجات أسئلتها الفرعية' : undefined}
+                        title={q.type === 'passage' ? t('درجة القطعة = مجموع درجات أسئلتها الفرعية') : undefined}
                         className="w-14 px-2 py-1 text-xs font-bold rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-center disabled:opacity-60"
                       />
                     </div>
-                    <button type="button" aria-label="تحريك السؤال لأعلى" title="تحريك لأعلى" disabled={qIdx === 0}
+                    <button type="button" aria-label={t('تحريك السؤال لأعلى')} title={t('تحريك لأعلى')} disabled={qIdx === 0}
                       onClick={() => handleMoveQuestion(qIdx, -1)}
                       className="p-1.5 rounded-lg text-slate-500 hover:bg-slate-200 dark:hover:bg-slate-700 disabled:opacity-30">
                       <ArrowUp className="w-4 h-4" />
                     </button>
-                    <button type="button" aria-label="تحريك السؤال لأسفل" title="تحريك لأسفل" disabled={qIdx === questions.length - 1}
+                    <button type="button" aria-label={t('تحريك السؤال لأسفل')} title={t('تحريك لأسفل')} disabled={qIdx === questions.length - 1}
                       onClick={() => handleMoveQuestion(qIdx, 1)}
                       className="p-1.5 rounded-lg text-slate-500 hover:bg-slate-200 dark:hover:bg-slate-700 disabled:opacity-30">
                       <ArrowDown className="w-4 h-4" />
                     </button>
-                    <button type="button" aria-label="تكرار السؤال" title="تكرار السؤال"
+                    <button type="button" aria-label={t('تكرار السؤال')} title={t('تكرار السؤال')}
                       onClick={() => handleDuplicateQuestion(qIdx)}
                       className="p-1.5 rounded-lg text-slate-500 hover:bg-slate-200 dark:hover:bg-slate-700">
                       <Copy className="w-4 h-4" />
@@ -1052,11 +1053,11 @@ export const QuizEditor: React.FC = () => {
                     {questions.length > 1 && (
                       <button
                         type="button"
-                        aria-label="حذف السؤال"
-                        title="حذف السؤال"
+                        aria-label={t('حذف السؤال')}
+                        title={t('حذف السؤال')}
                         onClick={() => {
                           const empty = !stripHtml(q.question_text).trim();
-                          if (empty || window.confirm(`حذف السؤال رقم ${qIdx + 1}؟`)) handleRemoveQuestion(qIdx);
+                          if (empty || window.confirm(t('حذف السؤال رقم {n}؟', { n: qIdx + 1 }))) handleRemoveQuestion(qIdx);
                         }}
                         className="p-1.5 rounded-lg text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/40"
                       >
@@ -1068,12 +1069,12 @@ export const QuizEditor: React.FC = () => {
 
                 <div>
                   <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
-                    {q.type === 'passage' ? 'نص القطعة / القرائية:' : 'نص السؤال:'}
+                    {q.type === 'passage' ? t('نص القطعة / القرائية:') : t('نص السؤال:')}
                   </label>
                   <RichTextEditor
                     value={q.question_text}
                     onChange={(html) => handleQuestionTextChange(qIdx, html)}
-                    placeholder={q.type === 'passage' ? 'أدخل نص القطعة القراءية هنا...' : 'اكتب نص السؤال هنا...'}
+                    placeholder={q.type === 'passage' ? t('أدخل نص القطعة القراءية هنا...') : t('اكتب نص السؤال هنا...')}
                     minHeight={q.type === 'passage' ? 140 : 80}
                   />
                 </div>
@@ -1081,7 +1082,7 @@ export const QuizEditor: React.FC = () => {
                 {/* MCQ Options: اختيار الإجابة الصحيحة بزر واضح */}
                 {q.type === 'mcq' && (
                   <div className="space-y-2 pt-1">
-                    <p className="text-[11px] font-bold text-slate-500 dark:text-slate-400">الخيارات (اضغط «صحيحة» بجانب الإجابة الصحيحة):</p>
+                    <p className="text-[11px] font-bold text-slate-500 dark:text-slate-400">{t('الخيارات (اضغط «صحيحة» بجانب الإجابة الصحيحة):')}</p>
                     <div className="grid grid-cols-1 lg:grid-cols-2 gap-2.5">
                       {q.options.map((opt, optIdx) => {
                         const correct = q.correct_option_index === optIdx;
@@ -1100,22 +1101,22 @@ export const QuizEditor: React.FC = () => {
                                 variant="compact"
                                 value={opt}
                                 onChange={(html) => handleOptionChange(qIdx, optIdx, html)}
-                                placeholder={`الخيار ${optIdx + 1}`}
+                                placeholder={t('الخيار {n}', { n: optIdx + 1 })}
                               />
                             </div>
                             <div className="flex flex-col gap-1 mt-1">
-                              <button type="button" role="radio" aria-checked={correct} aria-label={`الخيار ${optIdx + 1} هو الإجابة الصحيحة`}
+                              <button type="button" role="radio" aria-checked={correct} aria-label={t('الخيار {n} هو الإجابة الصحيحة', { n: optIdx + 1 })}
                                 onClick={() => handleCorrectOptionChange(qIdx, optIdx)}
                                 className={`px-2 py-1 rounded-lg text-[10px] font-black whitespace-nowrap ${
                                   correct ? 'bg-emerald-600 text-white' : 'bg-slate-100 dark:bg-slate-800 text-slate-500 hover:bg-emerald-100 hover:text-emerald-700'
                                 }`}>
-                                {correct ? '✓ صحيحة' : 'صحيحة'}
+                                {correct ? t('✓ صحيحة') : t('صحيحة')}
                               </button>
                               {q.options.length > 2 && (
-                                <button type="button" aria-label={`حذف الخيار ${optIdx + 1}`} title="حذف الخيار"
+                                <button type="button" aria-label={t('حذف الخيار {n}', { n: optIdx + 1 })} title={t('حذف الخيار')}
                                   onClick={() => handleRemoveOption(qIdx, optIdx)}
                                   className="px-2 py-1 rounded-lg text-[10px] font-bold text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/40">
-                                  حذف
+                                  {t('حذف')}
                                 </button>
                               )}
                             </div>
@@ -1126,7 +1127,7 @@ export const QuizEditor: React.FC = () => {
                     {q.options.length < 6 && (
                       <button type="button" onClick={() => handleAddOption(qIdx)}
                         className="inline-flex items-center gap-1 text-xs font-bold text-indigo-600 dark:text-indigo-400 hover:underline">
-                        <Plus className="w-3.5 h-3.5" /> إضافة خيار
+                        <Plus className="w-3.5 h-3.5" />{' '}{t('إضافة خيار')}
                       </button>
                     )}
                   </div>
@@ -1135,9 +1136,9 @@ export const QuizEditor: React.FC = () => {
                 {/* True/False: زران كبيران */}
                 {q.type === 'true_false' && (
                   <div className="pt-1">
-                    <p className="text-[11px] font-bold text-slate-500 dark:text-slate-400 mb-2">الإجابة الصحيحة:</p>
+                    <p className="text-[11px] font-bold text-slate-500 dark:text-slate-400 mb-2">{t('الإجابة الصحيحة:')}</p>
                     <div className="grid grid-cols-2 gap-3 max-w-sm">
-                      {['صح', 'خطأ'].map((opt, optIdx) => {
+                      {[t('صح'), t('خطأ')].map((opt, optIdx) => {
                         const correct = q.correct_option_index === optIdx;
                         return (
                           <button key={optIdx} type="button" role="radio" aria-checked={correct}
@@ -1166,29 +1167,29 @@ export const QuizEditor: React.FC = () => {
                 {q.type === 'passage' && (
                   <div className="mt-4 space-y-4 border-t border-slate-200 dark:border-slate-700 pt-4">
                     <div className="flex items-center justify-between">
-                      <h4 className="text-xs font-bold text-slate-800 dark:text-slate-200">الأسئلة الفرعية للقطعة:</h4>
+                      <h4 className="text-xs font-bold text-slate-800 dark:text-slate-200">{t('الأسئلة الفرعية للقطعة:')}</h4>
                       <button
                         type="button"
                         onClick={() => handleAddSubQuestion(qIdx)}
                         className="text-xs font-bold text-indigo-600 hover:text-indigo-800 flex items-center gap-1"
                       >
-                        <Plus className="w-3.5 h-3.5" /> إضافة سؤال فرعي
+                        <Plus className="w-3.5 h-3.5" />{' '}{t('إضافة سؤال فرعي')}
                       </button>
                     </div>
 
                     {(q.sub_questions || []).map((sq, sqIdx) => (
                       <div key={sqIdx} className="p-4 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 space-y-3">
                         <div className="flex items-center justify-between gap-2">
-                          <span className="text-[11px] font-bold text-slate-500">سؤال فرعي {sqIdx + 1}</span>
+                          <span className="text-[11px] font-bold text-slate-500">{t('سؤال فرعي')}{' '}{sqIdx + 1}</span>
                           <div className="flex items-center gap-2">
                             <select
                               value={sq.type}
                               onChange={(e) => handleSubQuestionTypeChange(qIdx, sqIdx, e.target.value as any)}
                               className="px-2 py-1 text-xs font-bold rounded-lg border border-slate-200 dark:border-slate-700"
                             >
-                              <option value="mcq">اختيار من متعدد</option>
-                              <option value="true_false">صح أو خطأ</option>
-                              <option value="essay">مقالي</option>
+                              <option value="mcq">{t('اختيار من متعدد')}</option>
+                              <option value="true_false">{t('صح أو خطأ')}</option>
+                              <option value="essay">{t('مقالي')}</option>
                             </select>
                             <input
                               type="number"
@@ -1211,7 +1212,7 @@ export const QuizEditor: React.FC = () => {
                           variant="compact"
                           value={sq.question_text}
                           onChange={(html) => handleSubQuestionTextChange(qIdx, sqIdx, html)}
-                          placeholder="نص السؤال الفرعي..."
+                          placeholder={t('نص السؤال الفرعي...')}
                           minHeight={50}
                         />
 
@@ -1231,7 +1232,7 @@ export const QuizEditor: React.FC = () => {
                                     variant="compact"
                                     value={opt}
                                     onChange={(html) => handleSubOptionChange(qIdx, sqIdx, optIdx, html)}
-                                    placeholder={`خيار ${optIdx + 1}`}
+                                    placeholder={t('خيار {n}', { n: optIdx + 1 })}
                                   />
                                 </div>
                               </div>
@@ -1249,7 +1250,7 @@ export const QuizEditor: React.FC = () => {
                     variant="compact"
                     value={q.explanation}
                     onChange={(html) => handleExplanationChange(qIdx, html)}
-                    placeholder="شرح الإجابة النموذجية (اختياري يظهر للطلاب بعد التقييم)..."
+                    placeholder={t('شرح الإجابة النموذجية (اختياري يظهر للطلاب بعد التقييم)...')}
                     minHeight={50}
                   />
                 </div>
@@ -1260,12 +1261,12 @@ export const QuizEditor: React.FC = () => {
           {/* إضافة سؤال حسب النوع */}
           <div className="mt-6 p-4 rounded-2xl border-2 border-dashed border-slate-300 dark:border-slate-700 flex flex-wrap items-center justify-center gap-2">
             <span className="text-xs font-bold text-slate-500 dark:text-slate-400 me-1">
-              <Plus className="w-4 h-4 inline -mt-0.5" /> أضف سؤالاً:
+              <Plus className="w-4 h-4 inline -mt-0.5" />{' '}{t('أضف سؤالاً:')}
             </span>
-            {QUESTION_TYPES.map((t) => (
-              <button key={t.type} type="button" onClick={() => handleAddQuestion(t.type)}
+            {QUESTION_TYPES.map((qt) => (
+              <button key={qt.type} type="button" onClick={() => handleAddQuestion(qt.type)}
                 className="px-3.5 py-2 rounded-xl text-xs font-bold bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 hover:border-indigo-400 hover:text-indigo-700 dark:hover:text-indigo-300">
-                {t.label}
+                {t(qt.label)}
               </button>
             ))}
           </div>
@@ -1275,7 +1276,7 @@ export const QuizEditor: React.FC = () => {
         <div className="sticky bottom-0 z-30 -mx-4 sm:mx-0 px-4 sm:px-5 py-3 sm:rounded-2xl bg-white/95 dark:bg-slate-900/95 backdrop-blur border-t sm:border border-slate-200 dark:border-slate-800 shadow-[0_-8px_24px_-12px_rgba(0,0,0,0.15)] flex flex-wrap items-center justify-between gap-3">
           <div className="text-xs font-bold text-slate-600 dark:text-slate-300">
             {questionsLabel(questions.length)} •
-            <span className="text-indigo-700 dark:text-indigo-300"> الدرجة الكلية {totalCalculatedMarks}</span>
+            <span className="text-indigo-700 dark:text-indigo-300">{' '}{t('الدرجة الكلية')}{' '}{totalCalculatedMarks}</span>
           </div>
           <div className="flex items-center gap-3">
           <button
@@ -1286,14 +1287,14 @@ export const QuizEditor: React.FC = () => {
             }}
             className="px-6 py-2.5 rounded-xl border border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-300 text-xs font-bold hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
           >
-            إلغاء
+            {t('إلغاء')}
           </button>
           <button
             type="submit"
             className="inline-flex items-center gap-2 px-6 py-2.5 bg-indigo-600 text-white rounded-xl font-bold text-xs hover:bg-indigo-700 transition-colors shadow-lg shadow-indigo-600/20"
           >
             <Save className="w-4 h-4" />
-            <span>{isEditing ? 'تحديث وتعديل الاختبار' : 'حفظ ونشر الاختبار'}</span>
+            <span>{isEditing ? t('تحديث وتعديل الاختبار') : t('حفظ ونشر الاختبار')}</span>
           </button>
           </div>
         </div>

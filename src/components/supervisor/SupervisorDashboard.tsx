@@ -7,7 +7,7 @@ import { SubmissionsTable } from '../analytics/SubmissionsTable';
 import { Avatar } from '../common/Avatar';
 import { InsightsPanels } from '../staff/InsightsPanels';
 import { hasPerm } from '../../utils/permissions';
-import { uiDir } from '../../i18n';
+import { uiDir, t } from '../../i18n';
 
 export const SupervisorDashboard: React.FC = () => {
   const { currentUser, quizzes, submissions, users, kpis, setCurrentView, settings, pendingApprovalsCount } = useApp();
@@ -28,13 +28,13 @@ export const SupervisorDashboard: React.FC = () => {
             <Avatar name={currentUser.name} role="supervisor" userId={currentUser.id} size="xl" showBadge />
             <div>
               <span className="text-xs px-2.5 py-0.5 rounded-full bg-white/20 font-bold text-sky-100">
-                {currentUser.job_title?.trim() || 'لوحة المشرف'}
+                {currentUser.job_title?.trim() || t('لوحة المشرف')}
               </span>
-              <h1 className="text-2xl sm:text-3xl font-black font-cairo mt-1">مرحباً بك، {currentUser.name}</h1>
+              <h1 className="text-2xl sm:text-3xl font-black font-cairo mt-1">{t('مرحباً بك،')}{' '}{currentUser.name}</h1>
               <p className="text-xs text-sky-100 mt-1">
                 {scope.all
-                  ? 'نطاق الإشراف: كل الصفوف والمواد'
-                  : `نطاق الإشراف: ${scope.classIds.length ? `${scope.classIds.length} صف` : 'كل الصفوف'} • ${scope.subjectIds.length ? `${scope.subjectIds.length} مادة` : 'كل المواد'}`}
+                  ? t('نطاق الإشراف: كل الصفوف والمواد')
+                  : t('نطاق الإشراف: {classes} • {subjects}', { classes: scope.classIds.length ? t('{n} صف', { n: scope.classIds.length }) : t('كل الصفوف'), subjects: scope.subjectIds.length ? t('{n} مادة', { n: scope.subjectIds.length }) : t('كل المواد') })}
               </p>
             </div>
           </div>
@@ -47,14 +47,14 @@ export const SupervisorDashboard: React.FC = () => {
                 className="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold bg-emerald-500/90 hover:bg-emerald-500 text-white shadow-md"
               >
                 <ExternalLink className="w-4 h-4" />
-                <span>متابعة التحضيرات</span>
+                <span>{t('متابعة التحضيرات')}</span>
               </a>
             )}
             <button
               onClick={() => setCurrentView('analytics')}
               className="px-4 py-2 rounded-xl text-xs font-bold bg-white/10 hover:bg-white/20 border border-white/20"
             >
-              التحليلات التفصيلية
+              {t('التحليلات التفصيلية')}
             </button>
           </div>
         </div>
@@ -63,7 +63,7 @@ export const SupervisorDashboard: React.FC = () => {
       {scope.empty && (
         <div className="p-4 rounded-2xl bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800 text-xs font-semibold text-amber-800 dark:text-amber-300 flex items-start gap-2">
           <ShieldAlert className="w-4 h-4 shrink-0 mt-0.5" />
-          <span>لم تُسنَد لك صفوف أو مواد بعد، لذلك لا تظهر بيانات. اطلب من مدير النظام إسناد نطاق الإشراف لحسابك.</span>
+          <span>{t('لم تُسنَد لك صفوف أو مواد بعد، لذلك لا تظهر بيانات. اطلب من مدير النظام إسناد نطاق الإشراف لحسابك.')}</span>
         </div>
       )}
 
@@ -72,7 +72,7 @@ export const SupervisorDashboard: React.FC = () => {
           onClick={() => setCurrentView('approvals')}
           className="w-full text-start px-5 py-3 rounded-2xl bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800 text-xs font-bold text-amber-800 dark:text-amber-300 hover:bg-amber-100"
         >
-          🕓 {pendingApprovalsCount} اختبار بانتظار اعتمادك — اضغط للمراجعة
+          🕓 {pendingApprovalsCount}{' '}{t('اختبار بانتظار اعتمادك — اضغط للمراجعة')}
         </button>
       )}
 
@@ -86,7 +86,7 @@ export const SupervisorDashboard: React.FC = () => {
       />
 
       <div className="bg-white dark:bg-slate-900 p-6 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-soft">
-        <h2 className="font-bold text-base text-slate-900 dark:text-white mb-4">توزيع الدرجات ونشاط التسليم</h2>
+        <h2 className="font-bold text-base text-slate-900 dark:text-white mb-4">{t('توزيع الدرجات ونشاط التسليم')}</h2>
         <AnalyticsCharts
           scoreDistribution={kpis?.scoreDistribution || []}
           completionTimeline={kpis?.completionTimeline || []}

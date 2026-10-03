@@ -113,7 +113,7 @@
   border-radius: 0.75rem 0.75rem 0 0;
   border-color: rgb(226 232 240);
   background: rgb(248 250 252);
-  direction: rtl;
+  direction: inherit;
 }
 .rich-editor .ql-container.ql-snow {
   border-radius: 0 0 0.75rem 0.75rem;
@@ -122,13 +122,14 @@
   font-size: 0.8rem;
 }
 .rich-editor .ql-editor {
-  direction: rtl;
-  text-align: right;
+  /* اتجاه الكتابة الافتراضي يتبع لغة الواجهة (زر الاتجاه في الشريط يغيّره لكل فقرة) */
+  direction: inherit;
+  text-align: start;
   min-height: var(--editor-min-height, 90px);
 }
 .rich-editor .ql-editor.ql-blank::before {
-  right: 15px;
-  left: auto;
+  inset-inline-start: 15px;
+  inset-inline-end: auto;
   font-style: normal;
 }
 .rich-editor-compact .ql-toolbar.ql-snow { padding: 2px 6px; }
@@ -143,8 +144,8 @@
 
 .rich-text p { margin: 0 0 0.35rem; }
 .rich-text p:last-child { margin-bottom: 0; }
-.rich-text ol { list-style: decimal; padding-right: 1.5rem; margin: 0.25rem 0; }
-.rich-text ul { list-style: disc; padding-right: 1.5rem; margin: 0.25rem 0; }
+.rich-text ol { list-style: decimal; padding-inline-start: 1.5rem; margin: 0.25rem 0; }
+.rich-text ul { list-style: disc; padding-inline-start: 1.5rem; margin: 0.25rem 0; }
 .rich-text .ql-align-center { text-align: center; }
 .rich-text .ql-align-right { text-align: right; }
 .rich-text .ql-align-left { text-align: left; }
@@ -155,6 +156,8 @@
 .rich-editor .ql-snow .ql-picker.ql-size { width: 82px; }
 .rich-editor .ql-snow .ql-picker.ql-size .ql-picker-label::before,
 .rich-editor .ql-snow .ql-picker.ql-size .ql-picker-item::before { content: 'عادي'; }
+html[dir="ltr"] .rich-editor .ql-snow .ql-picker.ql-size .ql-picker-label:not([data-value])::before,
+html[dir="ltr"] .rich-editor .ql-snow .ql-picker.ql-size .ql-picker-item:not([data-value])::before { content: 'Normal'; }
 .rich-editor .ql-snow .ql-picker.ql-size .ql-picker-label[data-value="12px"]::before,
 .rich-editor .ql-snow .ql-picker.ql-size .ql-picker-item[data-value="12px"]::before { content: '12'; }
 .rich-editor .ql-snow .ql-picker.ql-size .ql-picker-item[data-value="12px"] { font-size: 12px; }

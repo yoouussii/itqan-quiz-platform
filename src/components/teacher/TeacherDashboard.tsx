@@ -11,7 +11,8 @@ import { describeQuizTarget } from '../../utils/quizTarget';
 import { targetStudents } from '../../utils/quizAudience';
 import { SUBMISSIONS_FILTER_KEY, ungradedSummary } from '../../utils/grading';
 import { Button, Card, Chip, PageHeader, Tone } from '../common/ui';
-import { uiDir } from '../../i18n';
+import { uiDir, t, isEn } from '../../i18n';
+import { daysCount } from '../../i18n/count';
 
 type Tab = 'all' | 'open' | 'upcoming' | 'pending' | 'draft' | 'ended';
 
@@ -25,13 +26,13 @@ const quizState = (q: Quiz): Exclude<Tab, 'all'> => {
 /** «ينتهي بعد 5 أيام» / «ينتهي اليوم» */
 const endsIn = (end?: string): { text: string; urgent: boolean } => {
   const e = parseWindowEnd(end);
-  if (!e) return { text: 'بلا موعد انتهاء', urgent: false };
+  if (!e) return { text: t('بلا موعد انتهاء'), urgent: false };
   const startOf = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
   const days = Math.round((startOf(e) - startOf(new Date())) / 864e5);
-  if (days <= 0) return { text: 'ينتهي اليوم', urgent: true };
-  if (days === 1) return { text: 'ينتهي غداً', urgent: true };
-  if (days === 2) return { text: 'ينتهي بعد يومين', urgent: false };
-  return { text: `ينتهي بعد ${days} ${days <= 10 ? 'أيام' : 'يوماً'}`, urgent: false };
+  if (days <= 0) return { text: t('ينتهي اليوم'), urgent: true };
+  if (days === 1) return { text: t('ينتهي غداً'), urgent: true };
+  if (days === 2) return { text: t('ينتهي بعد يومين'), urgent: false };
+  return { text: t('ينتهي بعد {time}', { time: daysCount(days) }), urgent: false };
 };
 
 const TABS: Array<{ id: Tab; label: string }> = [
@@ -53,7 +54,7 @@ const QuizMenu: React.FC<{ items: Array<{ label: string; icon: React.ElementType
   }, []);
   return (
     <div className="relative" ref={ref}>
-      <button type="button" aria-label="خيارات أخرى" onClick={() => setOpen(!open)} className="w-9 h-9 flex items-center justify-center rounded-lg text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800">
+      <button type="button" aria-label={t('خيارات أخرى')} onClick={() => setOpen(!open)} className="w-9 h-9 flex items-center justify-center rounded-lg text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800">
         <MoreHorizontal className="w-5 h-5" />
       </button>
       {open && (
@@ -109,8 +110,8 @@ export const TeacherDashboard: React.FC = () => {
   const mySubjects = subjects.filter((s) => currentUser?.assigned_subject_ids?.includes(s.id)).map((s) => s.name);
   const myClassCount = currentUser?.assigned_class_ids?.length || 0;
   const myStudentCount = students.filter((s) => s.class_id && currentUser?.assigned_class_ids?.includes(s.class_id)).length;
-  const subtitle = [mySubjects.join('، '), myClassCount ? `${myClassCount} ${myClassCount === 1 ? 'شعبة' : 'شعب'}` : '', myStudentCount ? `${myStudentCount} طالباً` : '']
-    .filter(Boolean).join(' · ') || 'إنشاء الاختبارات ومتابعة نتائج طلابك';
+  const subtitle = [mySubjects.join('، '), myClassCount ? (isEn() ? `${myClassCount} ${myClassCount === 1 ? 'class' : 'classes'}` : `${myClassCount} ${myClassCount === 1 ? 'شعبة' : 'شعب'}`) : '', myStudentCount ? (isEn() ? `${myStudentCount} students` : `${myStudentCount} طالباً`) : '']
+    .filter(Boolean).join(' · ') || t('إنشاء الاختبارات ومتابعة نتائج طلابك');
 
   const newQuiz = () => { setEditingQuizId(null); setDuplicateQuizId(null); setCurrentView('create_quiz'); };
   const edit = (id: string) => { setEditingQuizId(id); setCurrentView('create_quiz'); };
@@ -118,33 +119,33 @@ export const TeacherDashboard: React.FC = () => {
   const results = (id: string) => { setActiveQuizId(id); setCurrentView('quiz_results'); };
   const preview = (id: string) => { setActiveQuizId(id); setCurrentView('quiz_preview'); };
   const remove = async (q: Quiz) => {
-    if (window.confirm(`حذف الاختبار «${q.title}»؟\nسيختفي من قوائم الطلاب، وتبقى درجاتهم السابقة محفوظة ومستبعدة من المعدل.`)) await deleteQuizItem(q.id);
+    if (window.confirm(t('حذف الاختبار «{title}»؟\nسيختفي من قوائم الطلاب، وتبقى درجاتهم السابقة محفوظة ومستبعدة من المعدل.', { title: q.title }))) await deleteQuizItem(q.id);
   };
-  const copyLink = async (id: string) => { if (await copyQuizLink(id)) showToast('تم نسخ رابط الاختبار، أرسله للطلاب', 'success'); };
+  const copyLink = async (id: string) => { if (await copyQuizLink(id)) showToast(t('تم نسخ رابط الاختبار، أرسله للطلاب'), 'success'); };
   const remind = async (id: string) => { setReminding(id); await remindLateStudents(id); setReminding(null); };
 
   return (
     <div className="max-w-7xl mx-auto py-8 px-4 sm:px-6 lg:px-8 space-y-6" dir={uiDir()}>
-      <PageHeader title="اختباراتي" subtitle={subtitle} actions={<Button icon={Plus} onClick={newQuiz}>اختبار جديد</Button>} />
+      <PageHeader title={t('اختباراتي')} subtitle={subtitle} actions={<Button icon={Plus} onClick={newQuiz}>{t('اختبار جديد')}</Button>} />
 
       {grading.essays > 0 && (
         <Card className="p-4 sm:px-5 flex flex-wrap items-center gap-4 !border-indigo-200 dark:!border-indigo-900 !bg-indigo-50/60 dark:!bg-indigo-950/30">
           <span className="w-11 h-11 rounded-full bg-indigo-600 text-white flex items-center justify-center shrink-0"><PenLine className="w-5 h-5" /></span>
           <div className="flex-1 min-w-[12rem]">
-            <div className="font-bold text-base text-slate-900 dark:text-white">{grading.essays} إجابة مقالية بانتظار تصحيحك</div>
-            <div className="text-[13.5px] text-slate-600 dark:text-slate-400">الطلاب لا يرون درجتهم النهائية حتى تُصحَّح</div>
+            <div className="font-bold text-base text-slate-900 dark:text-white">{grading.essays}{' '}{t('إجابة مقالية بانتظار تصحيحك')}</div>
+            <div className="text-[13.5px] text-slate-600 dark:text-slate-400">{t('الطلاب لا يرون درجتهم النهائية حتى تُصحَّح')}</div>
           </div>
           <Button onClick={() => { try { sessionStorage.setItem(SUBMISSIONS_FILTER_KEY, 'ungraded'); } catch { /* ignore */ } setCurrentView('analytics'); }}>
-            ابدأ التصحيح
+            {t('ابدأ التصحيح')}
           </Button>
         </Card>
       )}
 
-      <div className="flex gap-1 p-1 rounded-xl bg-slate-200/60 dark:bg-slate-800/70 w-fit max-w-full overflow-x-auto" role="tablist" aria-label="تصفية الاختبارات">
-        {TABS.filter((t) => t.id === 'all' || counts[t.id] > 0).map((t) => (
-          <button key={t.id} type="button" role="tab" aria-selected={tab === t.id} onClick={() => setTab(t.id)}
-            className={`h-10 px-4 rounded-lg text-[14.5px] font-semibold whitespace-nowrap ${tab === t.id ? 'bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-sm' : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'}`}>
-            {t.label} <span className="tabular-nums">{counts[t.id]}</span>
+      <div className="flex gap-1 p-1 rounded-xl bg-slate-200/60 dark:bg-slate-800/70 w-fit max-w-full overflow-x-auto" role="tablist" aria-label={t('تصفية الاختبارات')}>
+        {TABS.filter((tb) => tb.id === 'all' || counts[tb.id] > 0).map((tb) => (
+          <button key={tb.id} type="button" role="tab" aria-selected={tab === tb.id} onClick={() => setTab(tb.id)}
+            className={`h-10 px-4 rounded-lg text-[14.5px] font-semibold whitespace-nowrap ${tab === tb.id ? 'bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-sm' : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'}`}>
+            {t(tb.label)} <span className="tabular-nums">{counts[tb.id]}</span>
           </button>
         ))}
       </div>
@@ -160,17 +161,17 @@ export const TeacherDashboard: React.FC = () => {
           const qCount = (quiz as any).questions?.length ?? StorageService.getQuestionsByQuizId(quiz.id).length;
           const ends = endsIn(quiz.end_date);
           const chip: { label: string; tone: Tone } =
-            st === 'open' ? { label: `متاح · ${ends.text}`, tone: ends.urgent ? 'warn' : 'ok' }
-              : st === 'upcoming' ? { label: `يبدأ ${formatQuizDateTime(quiz.start_date, 'start')}`, tone: 'info' }
-              : st === 'pending' ? (quiz.status === 'rejected' ? { label: 'مرفوض', tone: 'bad' } : { label: 'بانتظار الاعتماد', tone: 'info' })
-              : st === 'draft' ? { label: 'مسودة', tone: 'muted' }
-              : { label: 'منتهٍ', tone: 'muted' };
+            st === 'open' ? { label: `${t('متاح')} · ${ends.text}`, tone: ends.urgent ? 'warn' : 'ok' }
+              : st === 'upcoming' ? { label: t('يبدأ {date}', { date: formatQuizDateTime(quiz.start_date, 'start') }), tone: 'info' }
+              : st === 'pending' ? (quiz.status === 'rejected' ? { label: t('مرفوض'), tone: 'bad' } : { label: t('بانتظار الاعتماد'), tone: 'info' })
+              : st === 'draft' ? { label: t('مسودة'), tone: 'muted' }
+              : { label: t('منتهٍ'), tone: 'muted' };
           const menu = [
-            { label: 'معاينة', icon: Eye, onClick: () => preview(quiz.id) },
-            ...(quiz.status === 'published' ? [{ label: 'نسخ رابط الاختبار للطلاب', icon: Link2, onClick: () => copyLink(quiz.id) }] : []),
-            { label: 'نسخ كاختبار جديد', icon: Copy, onClick: () => duplicate(quiz.id) },
-            ...(st === 'open' && done < target ? [{ label: 'تذكير المتأخرين', icon: BellRing, onClick: () => remind(quiz.id) }] : []),
-            { label: 'حذف', icon: Trash2, onClick: () => remove(quiz), danger: true },
+            { label: t('معاينة'), icon: Eye, onClick: () => preview(quiz.id) },
+            ...(quiz.status === 'published' ? [{ label: t('نسخ رابط الاختبار للطلاب'), icon: Link2, onClick: () => copyLink(quiz.id) }] : []),
+            { label: t('نسخ كاختبار جديد'), icon: Copy, onClick: () => duplicate(quiz.id) },
+            ...(st === 'open' && done < target ? [{ label: t('تذكير المتأخرين'), icon: BellRing, onClick: () => remind(quiz.id) }] : []),
+            { label: t('حذف'), icon: Trash2, onClick: () => remove(quiz), danger: true },
           ];
           return (
             <Card key={quiz.id} className="p-5 flex flex-col gap-3.5">
@@ -182,8 +183,8 @@ export const TeacherDashboard: React.FC = () => {
                 <h3 className="text-lg font-bold text-slate-900 dark:text-white leading-snug">{quiz.title}</h3>
                 <div className="flex flex-wrap gap-x-3 gap-y-1 mt-1 text-[13.5px] text-slate-500 dark:text-slate-400">
                   {subject && <span>{subject.name}</span>}
-                  <span>{qCount} {qCount === 1 ? 'سؤال' : qCount === 2 ? 'سؤالان' : qCount <= 10 ? 'أسئلة' : 'سؤالاً'}</span>
-                  <span>{quiz.duration_minutes} دقيقة</span>
+                  <span>{qCount} {qCount === 1 ? t('سؤال') : qCount === 2 ? t('سؤالان') : qCount <= 10 ? t('أسئلة') : t('سؤالاً')}</span>
+                  <span>{quiz.duration_minutes}{' '}{t('دقيقة')}</span>
                   <span>{describeQuizTarget((quiz as any).assignments, classes)}</span>
                 </div>
               </div>
@@ -191,16 +192,16 @@ export const TeacherDashboard: React.FC = () => {
               {st === 'pending' ? (
                 <div className={`text-[13.5px] leading-relaxed rounded-xl px-3 py-2.5 ${quiz.status === 'rejected' ? 'bg-rose-50 text-rose-800 dark:bg-rose-950/50 dark:text-rose-300' : 'bg-slate-50 text-slate-600 dark:bg-slate-800/60 dark:text-slate-300'}`}>
                   {quiz.status === 'rejected'
-                    ? `سبب الرفض: ${quiz.review_note || 'لم يُذكر'}. عدّله لإعادة الإرسال.`
-                    : 'أُرسل للاعتماد. سيصلك إشعار عند الموافقة، ولن يظهر للطلاب قبلها.'}
+                    ? t('سبب الرفض: {reason}. عدّله لإعادة الإرسال.', { reason: quiz.review_note || t('لم يُذكر') })
+                    : t('أُرسل للاعتماد. سيصلك إشعار عند الموافقة، ولن يظهر للطلاب قبلها.')}
                 </div>
               ) : st === 'draft' ? (
-                <div className="text-[13.5px] text-slate-500 dark:text-slate-400">لم يُنشر بعد للطلاب</div>
+                <div className="text-[13.5px] text-slate-500 dark:text-slate-400">{t('لم يُنشر بعد للطلاب')}</div>
               ) : (
                 <div>
                   <div className="flex justify-between text-[13.5px] mb-1.5">
-                    <span className="text-slate-500 dark:text-slate-400">سلّم {done} من {target || '—'}</span>
-                    {quizSubs.length > 0 && <span className="font-bold text-slate-900 dark:text-white tabular-nums">متوسط {avg}%</span>}
+                    <span className="text-slate-500 dark:text-slate-400">{t('سلّم')}{' '}{done}{' '}{t('من')}{' '}{target || '—'}</span>
+                    {quizSubs.length > 0 && <span className="font-bold text-slate-900 dark:text-white tabular-nums">{t('متوسط')}{' '}{avg}%</span>}
                   </div>
                   <div className="h-2 rounded-full bg-slate-100 dark:bg-slate-800">
                     <div className={`h-2 rounded-full ${st === 'ended' ? 'bg-emerald-600' : 'bg-indigo-600'}`} style={{ width: `${target ? Math.min(100, (done / target) * 100) : 0}%` }} />
@@ -210,18 +211,18 @@ export const TeacherDashboard: React.FC = () => {
 
               <div className="flex gap-2 mt-auto pt-1">
                 {st === 'draft' ? (
-                  <Button className="flex-1" size="sm" onClick={() => edit(quiz.id)}>أكمل التحرير</Button>
+                  <Button className="flex-1" size="sm" onClick={() => edit(quiz.id)}>{t('أكمل التحرير')}</Button>
                 ) : (
                   <>
                     <Button className="flex-1" size="sm" variant="secondary" onClick={() => (st === 'pending' ? preview(quiz.id) : results(quiz.id))}>
-                      {st === 'pending' ? 'معاينة' : 'النتائج'}
+                      {st === 'pending' ? t('معاينة') : t('النتائج')}
                     </Button>
                     {st === 'open' && done < target ? (
                       <Button className="flex-1" size="sm" variant="secondary" icon={BellRing} disabled={reminding === quiz.id} onClick={() => remind(quiz.id)}>
-                        تذكير المتأخرين
+                        {t('تذكير المتأخرين')}
                       </Button>
                     ) : (
-                      <Button className="flex-1" size="sm" variant="secondary" onClick={() => edit(quiz.id)}>تعديل</Button>
+                      <Button className="flex-1" size="sm" variant="secondary" onClick={() => edit(quiz.id)}>{t('تعديل')}</Button>
                     )}
                   </>
                 )}
@@ -234,8 +235,8 @@ export const TeacherDashboard: React.FC = () => {
           <button type="button" onClick={newQuiz}
             className="min-h-[220px] rounded-2xl border-2 border-dashed border-slate-300 dark:border-slate-700 flex flex-col items-center justify-center gap-2 text-indigo-700 dark:text-indigo-400 hover:border-indigo-400 hover:bg-indigo-50/40 dark:hover:bg-indigo-950/20 transition-colors">
             <Plus className="w-8 h-8" />
-            <span className="font-bold text-base">اختبار جديد</span>
-            <span className="text-[13.5px] text-slate-500 dark:text-slate-400">ابدأ من الصفر أو انسخ اختباراً سابقاً</span>
+            <span className="font-bold text-base">{t('اختبار جديد')}</span>
+            <span className="text-[13.5px] text-slate-500 dark:text-slate-400">{t('ابدأ من الصفر أو انسخ اختباراً سابقاً')}</span>
           </button>
         )}
       </div>
