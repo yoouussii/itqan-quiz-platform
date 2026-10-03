@@ -5,6 +5,7 @@ import { SubmissionsTable } from './SubmissionsTable';
 import { PdfExportButton } from './PdfExportButton';
 import { exportElementToPdf } from '../../utils/exportPdf';
 import { InsightsPanels } from '../staff/InsightsPanels';
+import { AnalyticsInsights } from './AnalyticsInsights';
 import { StorageService } from '../../services/storage';
 import { t } from '../../i18n';
 
@@ -148,6 +149,8 @@ export const AnalyticsView: React.FC = () => {
           ))}
         </select>
       </div>
+
+      {!selectedQuiz && <AnalyticsInsights />}
 
       <div ref={exportRef} className="space-y-6">
         <div className="flex flex-wrap items-center gap-x-6 gap-y-1 text-xs text-slate-600 dark:text-slate-300">
