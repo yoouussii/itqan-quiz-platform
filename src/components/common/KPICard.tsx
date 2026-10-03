@@ -1,5 +1,6 @@
 import React from 'react';
 import { LucideIcon } from 'lucide-react';
+import { t } from '../../i18n';
 
 interface KPICardProps {
   title: string;
@@ -75,7 +76,7 @@ export const KPICard: React.FC<KPICardProps> = ({
     <div
       role={onClick ? 'button' : undefined}
       tabIndex={onClick ? 0 : undefined}
-      aria-label={onClick ? `${title}: عرض التفاصيل` : undefined}
+      aria-label={onClick ? t('{title}: عرض التفاصيل', { title: String(title) }) : undefined}
       onClick={onClick}
       onKeyDown={onClick ? (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onClick(); } } : undefined}
       className={`relative overflow-hidden bg-white dark:bg-slate-900 p-5 rounded-2xl border ${scheme.border} shadow-sm hover:shadow-md transition-all duration-300 group ${onClick ? 'cursor-pointer hover:-translate-y-0.5 focus:outline-none focus:ring-2 focus:ring-indigo-400' : ''}`}
@@ -106,7 +107,7 @@ export const KPICard: React.FC<KPICardProps> = ({
             )}
           </div>
           {subtitle && <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">{subtitle}</p>}
-          {onClick && <p className="text-[10px] font-bold text-indigo-500 dark:text-indigo-400 mt-1.5">اضغط لعرض التفاصيل ←</p>}
+          {onClick && <p className="text-[10px] font-bold text-indigo-500 dark:text-indigo-400 mt-1.5">{t('اضغط لعرض التفاصيل ←')}</p>}
         </div>
 
         <div

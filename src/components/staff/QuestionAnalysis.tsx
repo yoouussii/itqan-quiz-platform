@@ -2,6 +2,7 @@ import React, { useMemo, useState } from 'react';
 import { useApp } from '../../context/AppContext';
 import { StorageService } from '../../services/storage';
 import { stripHtml } from '../common/RichText';
+import { t } from '../../i18n';
 
 /** تحليل أسئلة اختبار واحد: نسبة الإجابات الصحيحة، الصعوبة، وأكثر خيار خاطئ شيوعاً */
 export const QuestionAnalysis: React.FC<{ quizId: string }> = ({ quizId }) => {
@@ -32,10 +33,10 @@ export const QuestionAnalysis: React.FC<{ quizId: string }> = ({ quizId }) => {
         });
         return {
           n: idx + 1,
-          text: stripHtml(q.question_text).slice(0, 110) || '(سؤال بدون نص)',
+          text: stripHtml(q.question_text).slice(0, 110) || t('(سؤال بدون نص)'),
           attempts,
           pct,
-          level: pct === null ? '—' : pct >= 80 ? 'سهل' : pct >= 50 ? 'متوسط' : 'صعب',
+          level: pct === null ? '—' : pct >= 80 ? t('سهل') : pct >= 50 ? t('متوسط') : t('صعب'),
           wrong: wrongIdx >= 0 ? `${stripHtml(q.options?.[wrongIdx] || '').slice(0, 40)} (${wrongCount})` : '—',
         };
       });
@@ -47,26 +48,26 @@ export const QuestionAnalysis: React.FC<{ quizId: string }> = ({ quizId }) => {
   return (
     <section data-testid="question-analysis" className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200/80 dark:border-slate-800 p-6 space-y-3">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <h2 className="font-bold text-base text-slate-900 dark:text-white">تحليل الأسئلة ({rows.length})</h2>
+        <h2 className="font-bold text-base text-slate-900 dark:text-white">{t('تحليل الأسئلة (')}{rows.length})</h2>
         <label className="flex items-center gap-2 text-xs text-slate-600 dark:text-slate-300 cursor-pointer">
           <input type="checkbox" checked={hardestFirst} onChange={(e) => setHardestFirst(e.target.checked)} className="accent-indigo-600" />
-          الأصعب أولاً
+          {t('الأصعب أولاً')}
         </label>
       </div>
       {hardest && (
         <p className="text-xs text-slate-600 dark:text-slate-300">
-          أصعب سؤال: <b>السؤال {hardest.n}</b> — أجاب عنه صحيحاً {hardest.pct}% فقط. يُنصح بإعادة شرح موضوعه.
+          {t('أصعب سؤال:')}{' '}<b>{t('السؤال')}{' '}{hardest.n}</b>{' '}{t('— أجاب عنه صحيحاً')}{' '}{hardest.pct}{t('% فقط. يُنصح بإعادة شرح موضوعه.')}
         </p>
       )}
       {rows.length === 0 ? (
-        <p className="text-xs text-slate-400">لا توجد أسئلة قابلة للتحليل (الاختيار من متعدد / صح وخطأ).</p>
+        <p className="text-xs text-slate-400">{t('لا توجد أسئلة قابلة للتحليل (الاختيار من متعدد / صح وخطأ).')}</p>
       ) : (
         <div className="overflow-x-auto rounded-xl border border-slate-200 dark:border-slate-700">
           <table className="w-full text-start text-xs">
             <thead>
               <tr className="bg-slate-50 dark:bg-slate-800/60 text-slate-500 dark:text-slate-400 font-bold">
-                <th className="py-2 px-3">#</th><th className="py-2 px-3">السؤال</th><th className="py-2 px-3">الإجابات</th>
-                <th className="py-2 px-3 min-w-[9rem]">نسبة الصحيح</th><th className="py-2 px-3">الصعوبة</th><th className="py-2 px-3">أكثر خيار خاطئ</th>
+                <th className="py-2 px-3">#</th><th className="py-2 px-3">{t('السؤال')}</th><th className="py-2 px-3">{t('الإجابات')}</th>
+                <th className="py-2 px-3 min-w-[9rem]">{t('نسبة الصحيح')}</th><th className="py-2 px-3">{t('الصعوبة')}</th><th className="py-2 px-3">{t('أكثر خيار خاطئ')}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 dark:divide-slate-800">

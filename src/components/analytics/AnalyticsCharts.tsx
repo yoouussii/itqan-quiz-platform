@@ -20,7 +20,7 @@ import {
   FileText,
 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
-import { uiDir } from '../../i18n';
+import { uiDir, t, dateLocale } from '../../i18n';
 
 interface ScoreDistributionItem {
   name: string;
@@ -50,10 +50,16 @@ interface AnalyticsChartsProps {
 }
 
 export const AnalyticsCharts: React.FC<AnalyticsChartsProps> = ({
-  scoreDistribution = [],
-  completionTimeline = [],
+  scoreDistribution: rawDistribution = [],
+  completionTimeline: rawTimeline = [],
   subjectPerformance = [],
 }) => {
+  // البيانات تُحسب مرة وتُخزَّن بالعربية: تُترجم التسميات والتواريخ هنا عند العرض
+  const scoreDistribution = rawDistribution.map((d) => ({ ...d, name: t(d.name), shortName: t(d.shortName) }));
+  const completionTimeline = rawTimeline.map((d) => ({
+    ...d,
+    dateLabel: d.dateKey ? new Date(d.dateKey).toLocaleDateString(dateLocale(), { day: 'numeric', month: 'short' }) : d.dateLabel,
+  }));
   const { theme, submissions, quizzes, users } = useApp();
   const isDark = theme === 'dark';
   const gridStroke = isDark ? '#1e293b' : '#f1f5f9';
@@ -127,14 +133,14 @@ export const AnalyticsCharts: React.FC<AnalyticsChartsProps> = ({
                 <BarChart3 className="w-5 h-5" />
               </div>
               <div>
-                <h3 className="text-base font-bold text-slate-800 dark:text-white">توزيع الدرجات ومستويات الإنجاز</h3>
+                <h3 className="text-base font-bold text-slate-800 dark:text-white">{t('توزيع الدرجات ومستويات الإنجاز')}</h3>
                 <p className="text-xs text-slate-500 dark:text-slate-400">
-                  إحصائية التقديرات التراكمية لنتائج جميع الاختبارات
+                  {t('إحصائية التقديرات التراكمية لنتائج جميع الاختبارات')}
                 </p>
               </div>
             </div>
             <span className="text-xs font-semibold px-2.5 py-1 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 rounded-lg">
-              إجمالي التقييمات
+              {t('إجمالي التقييمات')}
             </span>
           </div>
 
@@ -168,8 +174,8 @@ export const AnalyticsCharts: React.FC<AnalyticsChartsProps> = ({
                         >
                           <p className="font-bold text-sm mb-1">{data.name}</p>
                           <p className="text-slate-300">
-                            عدد الطلاب المسجلين:{' '}
-                            <span className="font-bold text-emerald-400">{data.count} طلاب</span>
+                            {t('عدد الطلاب المسجلين:')}{' '}
+                            <span className="font-bold text-emerald-400">{data.count}{' '}{t('طلاب')}</span>
                           </p>
                         </div>
                       );
@@ -206,12 +212,12 @@ export const AnalyticsCharts: React.FC<AnalyticsChartsProps> = ({
                 <TrendingUp className="w-5 h-5" />
               </div>
               <div>
-                <h3 className="text-base font-bold text-slate-800 dark:text-white">معدل إكمال وتسليم الاختبارات</h3>
-                <p className="text-xs text-slate-500 dark:text-slate-400">حركة نشاط الاختبارات اليومية عبر الوقت</p>
+                <h3 className="text-base font-bold text-slate-800 dark:text-white">{t('معدل إكمال وتسليم الاختبارات')}</h3>
+                <p className="text-xs text-slate-500 dark:text-slate-400">{t('حركة نشاط الاختبارات اليومية عبر الوقت')}</p>
               </div>
             </div>
             <span className="text-xs font-semibold px-2.5 py-1 bg-emerald-50 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-400 border border-emerald-200/50 dark:border-emerald-800 rounded-lg">
-              تحديث فوري
+              {t('تحديث فوري')}
             </span>
           </div>
 
@@ -251,9 +257,9 @@ export const AnalyticsCharts: React.FC<AnalyticsChartsProps> = ({
                         >
                           <p className="font-bold text-sm mb-1">{data.dateLabel}</p>
                           <p className="text-slate-300">
-                            الاختبارات المسلمة:{' '}
+                            {t('الاختبارات المسلمة:')}{' '}
                             <span className="font-bold text-emerald-400">
-                              {data.submissionsCount} محاولة
+                              {data.submissionsCount}{' '}{t('محاولة')}
                             </span>
                           </p>
                         </div>
@@ -275,8 +281,8 @@ export const AnalyticsCharts: React.FC<AnalyticsChartsProps> = ({
           </div>
 
           <div className="flex items-center justify-between text-xs text-slate-500 dark:text-slate-400 mt-4 pt-3 border-t border-slate-100 dark:border-slate-800">
-            <span>يوضح المنحنى إقبال الطلاب على أداء التقييمات وفق الفترات الزمنية المجدولة</span>
-            <span className="font-semibold text-emerald-600 dark:text-emerald-400">نشاط تفاعلي مستمر</span>
+            <span>{t('يوضح المنحنى إقبال الطلاب على أداء التقييمات وفق الفترات الزمنية المجدولة')}</span>
+            <span className="font-semibold text-emerald-600 dark:text-emerald-400">{t('نشاط تفاعلي مستمر')}</span>
           </div>
         </div>
 
@@ -289,15 +295,15 @@ export const AnalyticsCharts: React.FC<AnalyticsChartsProps> = ({
               </div>
               <div>
                 <h3 className="text-base font-bold text-slate-800 dark:text-white">
-                  مؤشر الأداء والتحصيل الأكاديمي حسب المادة
+                  {t('مؤشر الأداء والتحصيل الأكاديمي حسب المادة')}
                 </h3>
                 <p className="text-xs text-slate-500 dark:text-slate-400">
-                  متوسط الدرجات ونسبة الإنجاز لكل مادة دراسية — انقر على أي مادة للتفاصيل
+                  {t('متوسط الدرجات ونسبة الإنجاز لكل مادة دراسية — انقر على أي مادة للتفاصيل')}
                 </p>
               </div>
             </div>
             <span className="text-xs font-semibold px-2.5 py-1 bg-indigo-50 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-400 rounded-lg">
-              مقارنة المواد
+              {t('مقارنة المواد')}
             </span>
           </div>
 
@@ -332,13 +338,13 @@ export const AnalyticsCharts: React.FC<AnalyticsChartsProps> = ({
                   />
                 </div>
                 <div className="flex items-center justify-between text-[11px] text-slate-500 dark:text-slate-400">
-                  <span>المحاولات المسجلة:</span>
+                  <span>{t('المحاولات المسجلة:')}</span>
                   <span className="font-semibold text-slate-700 dark:text-slate-300">
-                    {subj.submissionsCount} تسليم
+                    {subj.submissionsCount}{' '}{t('تسليم')}
                   </span>
                 </div>
                 <p className="text-[10px] text-indigo-500 dark:text-indigo-400 mt-2 text-center font-bold opacity-0 group-hover:opacity-100 transition-opacity">
-                  انقر لعرض التفاصيل ←
+                  {t('انقر لعرض التفاصيل ←')}
                 </p>
               </div>
             ))}
@@ -372,11 +378,11 @@ export const AnalyticsCharts: React.FC<AnalyticsChartsProps> = ({
                     {selectedSubject.subjectName}
                   </h2>
                   <p className="text-xs text-slate-500 dark:text-slate-400">
-                    تقرير تفصيلي ·{' '}
+                    {t('تقرير تفصيلي ·')}{' '}
                     <span className="font-bold" style={{ color: selectedSubject.color }}>
                       {selectedSubject.submissionsCount}
                     </span>{' '}
-                    محاولة · متوسط{' '}
+                    {t('محاولة · متوسط')}{' '}
                     <span className="font-bold" style={{ color: selectedSubject.color }}>
                       {selectedSubject.averageScore}%
                     </span>
@@ -398,16 +404,16 @@ export const AnalyticsCharts: React.FC<AnalyticsChartsProps> = ({
                 <div className="flex items-center gap-2 mb-3">
                   <FileText className="w-4 h-4 text-indigo-500" />
                   <h3 className="font-bold text-sm text-slate-800 dark:text-white">
-                    الاختبارات في هذه المادة
+                    {t('الاختبارات في هذه المادة')}
                   </h3>
                   <span className="text-[10px] bg-indigo-50 dark:bg-indigo-950 text-indigo-600 dark:text-indigo-400 px-2 py-0.5 rounded-full font-bold">
-                    {subjectDetailData.quizDetails.length} اختبار
+                    {subjectDetailData.quizDetails.length}{' '}{t('اختبار')}
                   </span>
                 </div>
 
                 {subjectDetailData.quizDetails.length === 0 ? (
                   <p className="text-xs text-slate-400 text-center py-6 bg-slate-50 dark:bg-slate-800/40 rounded-2xl">
-                    لا توجد اختبارات بعد في هذه المادة
+                    {t('لا توجد اختبارات بعد في هذه المادة')}
                   </p>
                 ) : (
                   <div className="space-y-2">
@@ -420,20 +426,20 @@ export const AnalyticsCharts: React.FC<AnalyticsChartsProps> = ({
                           <p className="font-bold text-xs text-slate-900 dark:text-white truncate">
                             {quiz.title}
                           </p>
-                          <p className="text-[10px] text-slate-400">{count} محاولة</p>
+                          <p className="text-[10px] text-slate-400">{count}{' '}{t('محاولة')}</p>
                         </div>
                         <div className="flex items-center gap-3 shrink-0 ms-3">
                           <div className="text-center">
                             <p className="text-xs font-black" style={{ color: selectedSubject.color }}>
                               {avg}%
                             </p>
-                            <p className="text-[9px] text-slate-400">متوسط</p>
+                            <p className="text-[9px] text-slate-400">{t('متوسط')}</p>
                           </div>
                           <div className="text-center">
                             <p className="text-xs font-black text-emerald-600 dark:text-emerald-400">
                               {passing}
                             </p>
-                            <p className="text-[9px] text-slate-400">ناجح</p>
+                            <p className="text-[9px] text-slate-400">{t('ناجح')}</p>
                           </div>
                           <div className="w-20 bg-slate-200 dark:bg-slate-700 rounded-full h-1.5">
                             <div
@@ -456,16 +462,16 @@ export const AnalyticsCharts: React.FC<AnalyticsChartsProps> = ({
                 <div className="flex items-center gap-2 mb-3">
                   <GraduationCap className="w-4 h-4 text-emerald-500" />
                   <h3 className="font-bold text-sm text-slate-800 dark:text-white">
-                    أداء الطلاب في هذه المادة
+                    {t('أداء الطلاب في هذه المادة')}
                   </h3>
                   <span className="text-[10px] bg-emerald-50 dark:bg-emerald-950 text-emerald-600 dark:text-emerald-400 px-2 py-0.5 rounded-full font-bold">
-                    {subjectDetailData.studentResults.length} طالب
+                    {subjectDetailData.studentResults.length}{' '}{t('طالب')}
                   </span>
                 </div>
 
                 {subjectDetailData.studentResults.length === 0 ? (
                   <p className="text-xs text-slate-400 text-center py-6 bg-slate-50 dark:bg-slate-800/40 rounded-2xl">
-                    لا توجد بيانات طلاب بعد
+                    {t('لا توجد بيانات طلاب بعد')}
                   </p>
                 ) : (
                   <div className="max-h-72 overflow-y-auto space-y-2 pe-1">
@@ -494,7 +500,7 @@ export const AnalyticsCharts: React.FC<AnalyticsChartsProps> = ({
                             {student.name}
                           </p>
                           <p className="text-[10px] text-slate-400">
-                            {student.nationalId} · {student.attempts} محاولة
+                            {student.nationalId} · {student.attempts}{' '}{t('محاولة')}
                           </p>
                         </div>
 
@@ -537,7 +543,7 @@ export const AnalyticsCharts: React.FC<AnalyticsChartsProps> = ({
                 onClick={() => setSelectedSubjectId(null)}
                 className="px-6 py-2 text-xs font-bold bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 rounded-xl transition-colors"
               >
-                إغلاق
+                {t('إغلاق')}
               </button>
             </div>
           </div>

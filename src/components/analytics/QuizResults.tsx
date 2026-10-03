@@ -7,7 +7,8 @@ import { PdfExportButton } from './PdfExportButton';
 import { QuestionAnalysis } from '../staff/QuestionAnalysis';
 import { hasPerm } from '../../utils/permissions';
 import { exportElementToPdf } from '../../utils/exportPdf';
-import { uiDir } from '../../i18n';
+import { uiDir, t, isEn } from '../../i18n';
+import { minutesCount, marksCount } from '../../i18n/count';
 
 /**
  * صفحة "تحليلات / نتائج" اختبار واحد.
@@ -50,13 +51,13 @@ export const QuizResults: React.FC = () => {
     try {
       await exportElementToPdf({
         element: exportRef.current,
-        title: `نتائج وتحليلات: ${quiz.title}`,
-        subtitle: `${quiz.subject?.name || 'مادة عامة'} • ${quiz.duration_minutes} دقيقة • ${quiz.total_marks} درجة`,
-        table: { headers: ['#', 'الطالب', 'الصف', 'الدرجة', 'النسبة'], rows },
-        tableTitle: 'نتائج الطلاب',
+        title: t('نتائج وتحليلات: {title}', { title: quiz.title }),
+        subtitle: `${quiz.subject?.name || t('مادة عامة')} • ${minutesCount(quiz.duration_minutes)} • ${isEn() ? marksCount(quiz.total_marks) : `${quiz.total_marks} درجة`}`,
+        table: { headers: ['#', t('الطالب'), t('الصف'), t('الدرجة'), t('النسبة')], rows },
+        tableTitle: t('نتائج الطلاب'),
       });
     } catch (e: any) {
-      alert(e?.message || 'تعذر تصدير PDF');
+      alert(e?.message || t('تعذر تصدير PDF'));
     }
   };
 
@@ -65,16 +66,16 @@ export const QuizResults: React.FC = () => {
       <div className="max-w-3xl mx-auto py-16 px-4 text-center" dir={uiDir()}>
         <FileQuestion className="w-12 h-12 mx-auto text-slate-300 dark:text-slate-600 mb-3" />
         <h2 className="font-bold text-lg text-slate-800 dark:text-white mb-1">
-          لم يتم العثور على هذا الاختبار
+          {t('لم يتم العثور على هذا الاختبار')}
         </h2>
         <p className="text-xs text-slate-500 dark:text-slate-400 mb-5">
-          قد يكون الاختبار حُذف أو لم يتم تحميله بعد. حاول التحديث أو العودة للوحة التحكم.
+          {t('قد يكون الاختبار حُذف أو لم يتم تحميله بعد. حاول التحديث أو العودة للوحة التحكم.')}
         </p>
         <button
           onClick={goBack}
           className="px-5 py-2.5 bg-indigo-600 text-white rounded-xl text-xs font-bold hover:bg-indigo-700"
         >
-          العودة للوحة التحكم
+          {t('العودة للوحة التحكم')}
         </button>
       </div>
     );
@@ -90,11 +91,11 @@ export const QuizResults: React.FC = () => {
   const lowest = total > 0 ? Math.min(...percentages) : 0;
 
   const bands = [
-    { label: 'ممتاز (85% فأكثر)', color: 'bg-emerald-500', test: (p: number) => p >= 85 },
-    { label: 'جيد جداً (75–84%)', color: 'bg-indigo-500', test: (p: number) => p >= 75 && p < 85 },
-    { label: 'جيد (65–74%)', color: 'bg-sky-500', test: (p: number) => p >= 65 && p < 75 },
-    { label: 'مقبول (50–64%)', color: 'bg-amber-500', test: (p: number) => p >= 50 && p < 65 },
-    { label: 'دون التمرير (أقل من 50%)', color: 'bg-rose-500', test: (p: number) => p < 50 },
+    { label: t('ممتاز (85% فأكثر)'), color: 'bg-emerald-500', test: (p: number) => p >= 85 },
+    { label: t('جيد جداً (75–84%)'), color: 'bg-indigo-500', test: (p: number) => p >= 75 && p < 85 },
+    { label: t('جيد (65–74%)'), color: 'bg-sky-500', test: (p: number) => p >= 65 && p < 75 },
+    { label: t('مقبول (50–64%)'), color: 'bg-amber-500', test: (p: number) => p >= 50 && p < 65 },
+    { label: t('دون التمرير (أقل من 50%)'), color: 'bg-rose-500', test: (p: number) => p < 50 },
   ].map((b) => ({ ...b, count: percentages.filter(b.test).length }));
 
   const stat = (icon: React.ReactNode, label: string, value: string | number) => (
@@ -114,11 +115,10 @@ export const QuizResults: React.FC = () => {
       <div className="flex items-start justify-between gap-4 pb-4 border-b border-slate-200 dark:border-slate-800">
         <div>
           <h1 className="text-2xl font-black text-slate-900 dark:text-white font-cairo">
-            نتائج وتحليلات: {quiz.title}
+            {t('نتائج وتحليلات:')}{' '}{quiz.title}
           </h1>
           <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
-            {quiz.subject?.name || 'مادة عامة'} • {quiz.duration_minutes} دقيقة • {quiz.total_marks} درجة •
-            نسبة النجاح المطلوبة {passMark}%
+            {quiz.subject?.name || t('مادة عامة')} • {quiz.duration_minutes}{' '}{t('دقيقة •')}{' '}{quiz.total_marks}{' '}{t('درجة • نسبة النجاح المطلوبة')}{' '}{passMark}%
           </p>
         </div>
         <button
@@ -126,21 +126,21 @@ export const QuizResults: React.FC = () => {
           className="inline-flex items-center gap-2 px-4 py-2 rounded-xl border border-slate-300 dark:border-slate-700 text-xs font-bold text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800"
         >
           <ArrowRight className="w-4 h-4 dir-icon" />
-          <span>رجوع</span>
+          <span>{t('رجوع')}</span>
         </button>
       </div>
 
       <div ref={exportRef} className="space-y-6">
       <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
-        {stat(<Users className="w-5 h-5" />, 'عدد التسليمات', total)}
-        {stat(<Percent className="w-5 h-5" />, 'متوسط النتائج', `${avg}%`)}
-        {stat(<CheckCircle2 className="w-5 h-5" />, 'نسبة النجاح', `${passRate}%`)}
-        {stat(<Trophy className="w-5 h-5" />, 'أعلى نتيجة', `${highest}%`)}
-        {stat(<TrendingDown className="w-5 h-5" />, 'أقل نتيجة', `${lowest}%`)}
+        {stat(<Users className="w-5 h-5" />, t('عدد التسليمات'), total)}
+        {stat(<Percent className="w-5 h-5" />, t('متوسط النتائج'), `${avg}%`)}
+        {stat(<CheckCircle2 className="w-5 h-5" />, t('نسبة النجاح'), `${passRate}%`)}
+        {stat(<Trophy className="w-5 h-5" />, t('أعلى نتيجة'), `${highest}%`)}
+        {stat(<TrendingDown className="w-5 h-5" />, t('أقل نتيجة'), `${lowest}%`)}
       </div>
 
       <div className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200/80 dark:border-slate-800 p-6">
-        <h2 className="font-bold text-sm text-slate-900 dark:text-white mb-4">توزيع مستويات الطلاب</h2>
+        <h2 className="font-bold text-sm text-slate-900 dark:text-white mb-4">{t('توزيع مستويات الطلاب')}</h2>
         <div className="space-y-3">
           {bands.map((b) => (
             <div key={b.label} className="flex items-center gap-3 text-xs">
@@ -156,7 +156,7 @@ export const QuizResults: React.FC = () => {
           ))}
         </div>
         {total === 0 && (
-          <p className="text-xs text-slate-400 mt-4">لم يُسلِّم أي طالب هذا الاختبار حتى الآن.</p>
+          <p className="text-xs text-slate-400 mt-4">{t('لم يُسلِّم أي طالب هذا الاختبار حتى الآن.')}</p>
         )}
       </div>
 
@@ -167,8 +167,8 @@ export const QuizResults: React.FC = () => {
       <SubmissionsTable
         extraActions={<PdfExportButton onClick={handleExportPdf} />}
         submissions={quizSubmissions}
-        title="نتائج الطلاب في هذا الاختبار"
-        subtitle="يمكنك فتح ورقة إجابة أي طالب أو منحه صلاحية إعادة المحاولة"
+        title={t('نتائج الطلاب في هذا الاختبار')}
+        subtitle={t('يمكنك فتح ورقة إجابة أي طالب أو منحه صلاحية إعادة المحاولة')}
       />
     </div>
   );

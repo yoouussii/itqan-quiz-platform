@@ -50,7 +50,7 @@ def add_import(s: str, path: str) -> str:
 
 
 # --literals: يغلّف أيضاً النصوص العربية بين علامتي ' ' داخل الكود (راجع الفرق: لا تغلّف بيانات تُقارن أو تُحفظ)
-LITERAL = re.compile(r"(?<![\w.])(?<!t\()'((?:[^'\\\n]|\\.)*" + AR + r"(?:[^'\\\n]|\\.)*)'")
+LITERAL = re.compile(r"(?<![\w.])(?<!(?<![\w$.])t\()'((?:[^'\\\n]|\\.)*" + AR + r"(?:[^'\\\n]|\\.)*)'")
 literals = "--literals" in sys.argv
 for path in [a for a in sys.argv[1:] if not a.startswith("--")]:
     s = open(path, encoding="utf-8").read()

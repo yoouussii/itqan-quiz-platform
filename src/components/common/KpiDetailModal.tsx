@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { X, Search } from 'lucide-react';
 import { KpiSection } from '../../utils/kpiSections';
-import { uiDir } from '../../i18n';
+import { uiDir, t } from '../../i18n';
 
 const MAX_ROWS = 300;
 
@@ -24,8 +24,8 @@ const SectionTable: React.FC<{ section: KpiSection }> = ({ section }) => {
               type="text"
               value={q}
               onChange={(e) => setQ(e.target.value)}
-              placeholder="بحث في الجدول..."
-              aria-label={`بحث في ${section.title}`}
+              placeholder={t('بحث في الجدول...')}
+              aria-label={t('بحث في {title}', { title: section.title })}
               className="ps-8 pe-3 py-1.5 text-xs rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
             />
           </div>
@@ -34,7 +34,7 @@ const SectionTable: React.FC<{ section: KpiSection }> = ({ section }) => {
 
       {rows.length === 0 ? (
         <p className="text-xs text-slate-400 py-6 text-center border border-dashed border-slate-200 dark:border-slate-700 rounded-xl">
-          {term ? 'لا نتائج مطابقة للبحث' : section.emptyText || 'لا توجد بيانات'}
+          {term ? t('لا نتائج مطابقة للبحث') : section.emptyText || t('لا توجد بيانات')}
         </p>
       ) : (
         <div className="overflow-x-auto rounded-xl border border-slate-200 dark:border-slate-700">
@@ -61,7 +61,7 @@ const SectionTable: React.FC<{ section: KpiSection }> = ({ section }) => {
         </div>
       )}
       {rows.length > MAX_ROWS && (
-        <p className="text-[11px] text-slate-400">يُعرض أول {MAX_ROWS} صف من {rows.length} — استخدم البحث لتضييق النتائج.</p>
+        <p className="text-[11px] text-slate-400">{t('يُعرض أول')}{' '}{MAX_ROWS}{' '}{t('صف من')}{' '}{rows.length}{' '}{t('— استخدم البحث لتضييق النتائج.')}</p>
       )}
     </div>
   );
@@ -98,7 +98,7 @@ export const KpiDetailModal: React.FC<{
           </div>
           <button
             onClick={onClose}
-            aria-label="إغلاق"
+            aria-label={t('إغلاق')}
             className="p-1.5 text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800"
           >
             <X className="w-5 h-5" />

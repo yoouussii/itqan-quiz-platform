@@ -290,8 +290,8 @@ const AppContent: React.FC = () => {
   );
 };
 
-/** لغة الواجهة: اختيار المستخدم على جهازه. المرحلة الأولى: الطاقم بالعربية فقط حتى تكتمل ترجمة صفحاتهم */
-const STAFF_ROLES = ['admin', 'teacher', 'supervisor'];
+/** لغة الواجهة: اختيار المستخدم على جهازه. المدير بالعربية حتى تكتمل ترجمة صفحات الإدارة (المرحلة 3) */
+const STAFF_ROLES = ['admin'];
 const LangRoot: React.FC = () => {
   const { currentUser, currentView } = useApp();
   const [pref, setPref] = React.useState<Lang>(loadLangPref);

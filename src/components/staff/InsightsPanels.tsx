@@ -9,6 +9,7 @@ import {
   activeStudentsSection, inactiveStudentsSection,
 } from '../../utils/kpiSections';
 import { Submission, User, QuizWithDetails } from '../../types';
+import { t } from '../../i18n';
 
 type ModalKind = 'students' | 'teachers' | 'quizzes' | 'avg' | 'participation' | 'risk' | null;
 const avg = (n: number[]) => (n.length ? Math.round(n.reduce((a, b) => a + b, 0) / n.length) : 0);
@@ -85,48 +86,48 @@ export const InsightsPanels: React.FC<Props> = ({ mode, students, teachers, quiz
   const content = (): { title: string; subtitle?: string; sections: KpiSection[] } | null => {
     switch (modal) {
       case 'students':
-        return { title: 'الطلاب ضمن نطاقك', sections: [studentsSection('قائمة الطلاب', students, subs, classes)] };
+        return { title: t('الطلاب ضمن نطاقك'), sections: [studentsSection(t('قائمة الطلاب'), students, subs, classes)] };
       case 'teachers':
         return {
-          title: 'المعلمون ضمن نطاقك',
+          title: t('المعلمون ضمن نطاقك'),
           sections: [{
-            title: 'قائمة المعلمين',
-            headers: showTeacherPerformance ? ['المعلم', 'الاختبارات', 'التسليمات', 'المتوسط', 'نسبة النجاح'] : ['المعلم', 'الاختبارات'],
+            title: t('قائمة المعلمين'),
+            headers: showTeacherPerformance ? [t('المعلم'), t('الاختبارات'), t('التسليمات'), t('المتوسط'), t('نسبة النجاح')] : [t('المعلم'), t('الاختبارات')],
             rows: teacherRows.map((r) => showTeacherPerformance
               ? [r.name, r.quizzes, r.subs, r.avg === null ? '—' : `${r.avg}%`, r.pass === null ? '—' : `${r.pass}%`]
               : [r.name, r.quizzes]),
-            emptyText: 'لا يوجد معلمون ضمن نطاقك',
+            emptyText: t('لا يوجد معلمون ضمن نطاقك'),
           }],
         };
       case 'quizzes':
-        return { title: 'الاختبارات ضمن نطاقك', sections: [quizzesSection('قائمة الاختبارات', quizzes, subs, subjects, users, classes)] };
+        return { title: t('الاختبارات ضمن نطاقك'), sections: [quizzesSection(t('قائمة الاختبارات'), quizzes, subs, subjects, users, classes)] };
       case 'avg':
         return {
-          title: 'متوسط الأداء ونسبة النجاح',
-          subtitle: `المتوسط ${avgAll}% • نسبة النجاح ${passRate}%`,
-          sections: [perQuizSection('حسب الاختبار', quizzes, subs), perSubjectSection('حسب المادة', quizzes, subs, subjects)],
+          title: t('متوسط الأداء ونسبة النجاح'),
+          subtitle: t('المتوسط {avg}% • نسبة النجاح {pass}%', { avg: avgAll, pass: passRate }),
+          sections: [perQuizSection(t('حسب الاختبار'), quizzes, subs), perSubjectSection(t('حسب المادة'), quizzes, subs, subjects)],
         };
       case 'participation':
         return {
-          title: 'مشاركة الطلاب',
-          subtitle: `${participation}% من الطلاب أدّوا اختباراً واحداً على الأقل`,
+          title: t('مشاركة الطلاب'),
+          subtitle: t('{p}% من الطلاب أدّوا اختباراً واحداً على الأقل', { p: participation }),
           sections: [
-            inactiveStudentsSection('لم يؤدوا أي اختبار خلال آخر 7 أيام', students, subs, classes),
-            activeStudentsSection('نشطون خلال آخر 7 أيام', students, subs, classes),
+            inactiveStudentsSection(t('لم يؤدوا أي اختبار خلال آخر 7 أيام'), students, subs, classes),
+            activeStudentsSection(t('نشطون خلال آخر 7 أيام'), students, subs, classes),
           ],
         };
       case 'risk':
         return {
-          title: 'طلاب يحتاجون متابعة',
-          subtitle: 'متوسطهم أقل من 50% أو لم يؤدوا أي اختبار بعد',
+          title: t('طلاب يحتاجون متابعة'),
+          subtitle: t('متوسطهم أقل من 50% أو لم يؤدوا أي اختبار بعد'),
           sections: [{
-            title: 'القائمة',
-            headers: ['الطالب', 'الصف', 'المتوسط', 'اختبارات مؤداة'],
+            title: t('القائمة'),
+            headers: [t('الطالب'), t('الصف'), t('المتوسط'), t('اختبارات مؤداة')],
             rows: atRisk.map((s) => {
               const a = studentAvg(s.id);
-              return [s.name, classes.find((c) => c.id === classOf(s))?.name || 'بدون صف', a === null ? 'لم يؤدِّ' : `${a}%`, subs.filter((x) => x.student_id === s.id).length];
+              return [s.name, classes.find((c) => c.id === classOf(s))?.name || t('بدون صف'), a === null ? t('لم يؤدِّ') : `${a}%`, subs.filter((x) => x.student_id === s.id).length];
             }),
-            emptyText: 'لا يوجد طلاب بحاجة لمتابعة',
+            emptyText: t('لا يوجد طلاب بحاجة لمتابعة'),
           }],
         };
       default:
@@ -140,35 +141,35 @@ export const InsightsPanels: React.FC<Props> = ({ mode, students, teachers, quiz
       <div className={`grid grid-cols-1 sm:grid-cols-2 ${mode === 'full' ? 'lg:grid-cols-3' : ''} gap-4`}>
         {mode === 'full' && (
           <>
-            <KPICard title="الطلاب ضمن نطاقك" value={students.length} subtitle="اضغط لعرض القائمة" icon={Users} colorScheme="indigo" onClick={() => setModal('students')} />
-            <KPICard title="المعلمون ضمن نطاقك" value={teachers.length} subtitle="المعلمون المرتبطون بنطاقك" icon={UserCog} colorScheme="cyan" onClick={() => setModal('teachers')} />
-            <KPICard title="الاختبارات ضمن نطاقك" value={quizzes.length} subtitle="بمختلف المواد" icon={ClipboardList} colorScheme="purple" onClick={() => setModal('quizzes')} />
+            <KPICard title={t('الطلاب ضمن نطاقك')} value={students.length} subtitle={t('اضغط لعرض القائمة')} icon={Users} colorScheme="indigo" onClick={() => setModal('students')} />
+            <KPICard title={t('المعلمون ضمن نطاقك')} value={teachers.length} subtitle={t('المعلمون المرتبطون بنطاقك')} icon={UserCog} colorScheme="cyan" onClick={() => setModal('teachers')} />
+            <KPICard title={t('الاختبارات ضمن نطاقك')} value={quizzes.length} subtitle={t('بمختلف المواد')} icon={ClipboardList} colorScheme="purple" onClick={() => setModal('quizzes')} />
             <KPICard
-              title="متوسط الأداء"
+              title={t('متوسط الأداء')}
               value={`${avgAll}%`}
-              subtitle={`نسبة النجاح ${passRate}% • ${subs.length} تسليم`}
+              subtitle={t('نسبة النجاح {pass}% • {n} تسليم', { pass: passRate, n: subs.length })}
               icon={Award}
               colorScheme="emerald"
-              trend={{ value: `${passRate}% نجاح`, isPositive: avgAll >= 60 }}
+              trend={{ value: t('{pass}% نجاح', { pass: passRate }), isPositive: avgAll >= 60 }}
               onClick={() => setModal('avg')}
             />
           </>
         )}
-        <KPICard title="نسبة المشاركة" value={`${participation}%`} subtitle="طلاب أدّوا اختباراً على الأقل" icon={Activity} colorScheme="amber" onClick={() => setModal('participation')} />
-        <KPICard title="يحتاجون متابعة" value={atRisk.length} subtitle="متوسط أقل من 50% أو بلا محاولات" icon={AlertTriangle} colorScheme="rose" onClick={() => setModal('risk')} />
+        <KPICard title={t('نسبة المشاركة')} value={`${participation}%`} subtitle={t('طلاب أدّوا اختباراً على الأقل')} icon={Activity} colorScheme="amber" onClick={() => setModal('participation')} />
+        <KPICard title={t('يحتاجون متابعة')} value={atRisk.length} subtitle={t('متوسط أقل من 50% أو بلا محاولات')} icon={AlertTriangle} colorScheme="rose" onClick={() => setModal('risk')} />
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <section className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200/80 dark:border-slate-800 p-6 space-y-3">
-          <h2 className="font-bold text-base text-slate-900 dark:text-white">أداء الصفوف</h2>
+          <h2 className="font-bold text-base text-slate-900 dark:text-white">{t('أداء الصفوف')}</h2>
           {classRows.length === 0 ? (
-            <p className="text-xs text-slate-400">لا توجد بيانات صفوف</p>
+            <p className="text-xs text-slate-400">{t('لا توجد بيانات صفوف')}</p>
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full text-start text-xs">
                 <thead>
                   <tr className="text-slate-500 dark:text-slate-400 font-bold border-b border-slate-100 dark:border-slate-800">
-                    <th className="py-2 px-2">الصف</th><th className="py-2 px-2">الطلاب</th><th className="py-2 px-2">المشاركة</th><th className="py-2 px-2">المتوسط</th><th className="py-2 px-2">النجاح</th>
+                    <th className="py-2 px-2">{t('الصف')}</th><th className="py-2 px-2">{t('الطلاب')}</th><th className="py-2 px-2">{t('المشاركة')}</th><th className="py-2 px-2">{t('المتوسط')}</th><th className="py-2 px-2">{t('النجاح')}</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
@@ -189,10 +190,10 @@ export const InsightsPanels: React.FC<Props> = ({ mode, students, teachers, quiz
 
         <section className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200/80 dark:border-slate-800 p-6 space-y-3">
           <h2 className="font-bold text-base text-slate-900 dark:text-white flex items-center gap-2">
-            <Trophy className="w-4 h-4 text-amber-500" /> الأوائل
+            <Trophy className="w-4 h-4 text-amber-500" />{' '}{t('الأوائل')}
           </h2>
           {topStudents.length === 0 ? (
-            <p className="text-xs text-slate-400">لا توجد نتائج بعد</p>
+            <p className="text-xs text-slate-400">{t('لا توجد نتائج بعد')}</p>
           ) : (
             <ol className="space-y-2">
               {topStudents.map((x, i) => (
@@ -212,15 +213,15 @@ export const InsightsPanels: React.FC<Props> = ({ mode, students, teachers, quiz
 
       {showTeacherPerformance && (
         <section className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200/80 dark:border-slate-800 p-6 space-y-3">
-          <h2 className="font-bold text-base text-slate-900 dark:text-white">أداء المعلمين</h2>
+          <h2 className="font-bold text-base text-slate-900 dark:text-white">{t('أداء المعلمين')}</h2>
           {teacherRows.length === 0 ? (
-            <p className="text-xs text-slate-400">لا يوجد معلمون ضمن نطاقك</p>
+            <p className="text-xs text-slate-400">{t('لا يوجد معلمون ضمن نطاقك')}</p>
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full text-start text-xs">
                 <thead>
                   <tr className="text-slate-500 dark:text-slate-400 font-bold border-b border-slate-100 dark:border-slate-800">
-                    <th className="py-2 px-2">المعلم</th><th className="py-2 px-2">اختباراته</th><th className="py-2 px-2">التسليمات</th><th className="py-2 px-2">المتوسط</th><th className="py-2 px-2">النجاح</th><th className="py-2 px-2">آخر نشاط</th>
+                    <th className="py-2 px-2">{t('المعلم')}</th><th className="py-2 px-2">{t('اختباراته')}</th><th className="py-2 px-2">{t('التسليمات')}</th><th className="py-2 px-2">{t('المتوسط')}</th><th className="py-2 px-2">{t('النجاح')}</th><th className="py-2 px-2">{t('آخر نشاط')}</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
