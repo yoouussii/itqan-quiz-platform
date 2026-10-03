@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { Library, Search, Trash2, Pencil, Lock, Users as UsersIcon, Plus, Shuffle, Download, X, CheckCircle2, ChevronDown } from 'lucide-react';
+import { Library, Target, Search, Trash2, Pencil, Lock, Users as UsersIcon, Plus, Shuffle, Download, X, CheckCircle2, ChevronDown } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 import { PageHeader, Button, Card, Chip } from '../common/ui';
 import { RichText } from '../common/RichText';
@@ -39,6 +39,7 @@ interface Filters {
   unit: string;
   difficulty: '' | Difficulty;
   type: string;
+  outcome: string;
   q: string;
   mine: boolean;
 }
@@ -63,6 +64,10 @@ const BankList: React.FC<{
     () => Array.from(new Set(items.filter((b) => !filters.subject || b.subject_id === filters.subject).map((b) => b.unit).filter(Boolean))).sort(),
     [items, filters.subject]
   );
+  const outcomes = useMemo(
+    () => Array.from(new Set(items.filter((b) => !filters.subject || b.subject_id === filters.subject).map((b) => b.outcome).filter(Boolean))).sort(),
+    [items, filters.subject]
+  );
   const subjectName = (id: string | null) => subjects.find((s) => s.id === id)?.name || t('بدون مادة');
   const userName = (id: string) => users.find((u) => u.id === id)?.name || '—';
 
@@ -85,6 +90,12 @@ const BankList: React.FC<{
           <option value="">{t('كل الوحدات')}</option>
           {units.map((u) => <option key={u} value={u}>{u}</option>)}
         </select>
+        {outcomes.length > 0 && (
+          <select aria-label={t('ناتج التعلم')} value={filters.outcome} onChange={(e) => setFilters({ ...filters, outcome: e.target.value })} className={`${inputCls} max-w-[200px]`}>
+            <option value="">{t('كل نواتج التعلم')}</option>
+            {outcomes.map((o) => <option key={o} value={o}>{o}</option>)}
+          </select>
+        )}
         <select aria-label={t('الصعوبة')} value={filters.difficulty} onChange={(e) => setFilters({ ...filters, difficulty: e.target.value as Filters['difficulty'] })} className={inputCls}>
           <option value="">{t('كل المستويات')}</option>
           {(Object.keys(DIFFICULTIES) as Difficulty[]).map((d) => <option key={d} value={d}>{t(DIFFICULTIES[d])}</option>)}
@@ -130,6 +141,7 @@ const BankList: React.FC<{
                       <Chip tone={DIFF_TONE[b.difficulty]}>{t(DIFFICULTIES[b.difficulty])}</Chip>
                       <Chip>{marksCount(b.marks)}</Chip>
                       <Chip>{subjectName(b.subject_id)}{b.unit ? ` · ${b.unit}` : ''}</Chip>
+                      {b.outcome && <Chip tone="info"><Target className="w-3 h-3" />{b.outcome}</Chip>}
                       <span className="inline-flex items-center gap-1 text-xs text-slate-500 dark:text-slate-400">
                         {b.shared ? <UsersIcon className="w-3.5 h-3.5" /> : <Lock className="w-3.5 h-3.5" />}
                         {b.created_by === me ? t('أنت') : userName(b.created_by)}
@@ -185,19 +197,20 @@ export function filterBank(items: BankItem[], f: Filters, me: string): BankItem[
   const q = f.q.trim().toLowerCase();
   return items
     .filter((b) => (!f.subject || b.subject_id === f.subject) && (!f.unit || b.unit === f.unit) && (!f.difficulty || b.difficulty === f.difficulty)
-      && (!f.type || b.type === f.type) && (!f.mine || b.created_by === me) && (!q || b.search_text.toLowerCase().includes(q) || b.unit.toLowerCase().includes(q)))
+      && (!f.type || b.type === f.type) && (!f.outcome || b.outcome === f.outcome) && (!f.mine || b.created_by === me) && (!q || b.search_text.toLowerCase().includes(q) || b.unit.toLowerCase().includes(q)))
     .sort((a, b) => (b.updated_at || '').localeCompare(a.updated_at || ''));
 }
 
-const emptyFilters = (subject = ''): Filters => ({ subject, unit: '', difficulty: '', type: '', q: '', mine: false });
+const emptyFilters = (subject = '', outcome = ''): Filters => ({ subject, unit: '', difficulty: '', type: '', outcome, q: '', mine: false });
 
 /** تعديل تصنيف سؤال أو مجموعة أسئلة (المادة، الوحدة، الصعوبة، المشاركة) */
-const MetaModal: React.FC<{ items: BankItem[]; units: string[]; onClose: () => void; onSaved: () => void }> = ({ items, units, onClose, onSaved }) => {
+const MetaModal: React.FC<{ items: BankItem[]; units: string[]; outcomes: string[]; onClose: () => void; onSaved: () => void }> = ({ items, units, outcomes, onClose, onSaved }) => {
   const { subjects, showToast } = useApp();
   const first = items[0];
   const many = items.length > 1;
   const [subject, setSubject] = useState(first?.subject_id || '');
   const [unit, setUnit] = useState(many ? '' : first?.unit || '');
+  const [outcome, setOutcome] = useState(many ? '' : first?.outcome || '');
   const [difficulty, setDifficulty] = useState<Difficulty | ''>(many ? '' : first?.difficulty || 'medium');
   const [shared, setShared] = useState(first?.shared ?? true);
   const [busy, setBusy] = useState(false);
@@ -207,6 +220,8 @@ const MetaModal: React.FC<{ items: BankItem[]; units: string[]; onClose: () => v
       ...b,
       subject_id: subject || null,
       unit: many && !unit.trim() ? b.unit : unit.trim(),
+      outcome: many && !outcome.trim() ? b.outcome : outcome.trim(),
+      question: { ...b.question, outcome: many && !outcome.trim() ? b.outcome : outcome.trim() },
       difficulty: (difficulty || b.difficulty) as Difficulty,
       shared,
     }));
@@ -234,6 +249,11 @@ const MetaModal: React.FC<{ items: BankItem[]; units: string[]; onClose: () => v
           <span className="text-sm font-semibold text-slate-700 dark:text-slate-300">{t('الوحدة أو الدرس')}</span>
           <input value={unit} onChange={(e) => setUnit(e.target.value)} list="bank-units" placeholder={many ? t('اتركه فارغاً للإبقاء على الحالي') : t('مثال: الوحدة الثانية - الكسور')} className={`${inputCls} w-full`} />
           <datalist id="bank-units">{units.map((u) => <option key={u} value={u} />)}</datalist>
+        </label>
+        <label className="block space-y-1">
+          <span className="text-sm font-semibold text-slate-700 dark:text-slate-300">{t('ناتج التعلم / المهارة')}</span>
+          <input value={outcome} onChange={(e) => setOutcome(e.target.value)} list="bank-outcomes" placeholder={many ? t('اتركه فارغاً للإبقاء على الحالي') : t('مثال: جمع الكسور')} className={`${inputCls} w-full`} />
+          <datalist id="bank-outcomes">{outcomes.map((u) => <option key={u} value={u} />)}</datalist>
         </label>
         <div className="space-y-1">
           <span className="text-sm font-semibold text-slate-700 dark:text-slate-300">{t('الصعوبة')}</span>
@@ -327,6 +347,7 @@ export const QuestionBankPage: React.FC = () => {
   const [metaFor, setMetaFor] = useState<BankItem[] | null>(null);
   const [importing, setImporting] = useState(false);
   const units = useMemo(() => Array.from(new Set(items.map((b) => b.unit).filter(Boolean))).sort(), [items]);
+  const outcomes = useMemo(() => Array.from(new Set(items.map((b) => b.outcome).filter(Boolean))).sort(), [items]);
   const selItems = items.filter((b) => selected.includes(b.id));
   const editable = selItems.filter((b) => currentUser?.role === 'admin' || b.created_by === me);
 
@@ -384,7 +405,7 @@ export const QuestionBankPage: React.FC = () => {
           onEdit={(b) => setMetaFor([b])} onDelete={(b) => void remove([b])} />
       )}
 
-      {metaFor && <MetaModal items={metaFor} units={units} onClose={() => setMetaFor(null)} onSaved={() => { setMetaFor(null); setItems(); }} />}
+      {metaFor && <MetaModal items={metaFor} units={units} outcomes={outcomes} onClose={() => setMetaFor(null)} onSaved={() => { setMetaFor(null); setItems(); }} />}
       {importing && <ImportModal existing={items} onClose={() => setImporting(false)} onDone={() => { setImporting(false); void reload(); }} />}
     </div>
   );

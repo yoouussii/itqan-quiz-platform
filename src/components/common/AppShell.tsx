@@ -4,6 +4,7 @@ import {
   Layers, ChevronDown, UserCheck, ClipboardCheck, Trophy, ScrollText, Settings as SettingsIcon,
   ExternalLink, Sparkles, Images, Bell, Home, LucideIcon,
   Library,
+  Target,
 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 import { Avatar } from './Avatar';
@@ -47,6 +48,7 @@ const staffGroups = (u: User, pendingApprovals: number, preparationsUrl: string)
   if (u.role === 'teacher') quizzes.push({ id: 'create_quiz', label: t('اختبار جديد'), icon: PlusCircle });
   if (hasPerm(u, 'can_approve_quizzes')) quizzes.push({ id: 'approvals', label: t('بانتظار الاعتماد'), icon: ClipboardCheck, badge: pendingApprovals });
   quizzes.push({ id: 'question_bank', label: t('بنك الأسئلة'), icon: Library });
+  quizzes.push({ id: 'outcomes', label: t('نواتج التعلم'), icon: Target });
   quizzes.push({ id: 'analytics', label: u.role === 'teacher' ? t('نتائج طلابي') : t('النتائج والتحليلات'), icon: BarChart2 });
   if (u.role === 'teacher' && p.can_view_all_reports) quizzes.push({ id: 'reports', label: t('التقارير الشاملة'), icon: BarChart2 });
 

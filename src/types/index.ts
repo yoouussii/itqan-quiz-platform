@@ -144,6 +144,9 @@ export interface Question {
 
   // الأسئلة الفرعية (خاصة بأسئلة القطعة)
   sub_questions?: SubQuestion[];
+
+  /** ناتج التعلم أو المهارة التي يقيسها السؤال (أسئلة القطعة الفرعية ترثه) */
+  outcome?: string;
 }
 
 export type TargetType = 'all' | 'class' | 'specific_students' | 'assigned_teacher';

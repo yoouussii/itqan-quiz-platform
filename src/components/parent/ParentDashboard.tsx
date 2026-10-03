@@ -11,6 +11,7 @@ import { BannerStrip } from '../common/BannerStrip';
 import { Card, Chip, scoreTone, timeAgo } from '../common/ui';
 import { uiDir, t, dateLocale } from '../../i18n';
 import { minutesCount } from '../../i18n/count';
+import { SkillsCard } from '../analytics/OutcomesPage';
 
 /** موعد الانتهاء مختصراً: «ينتهي اليوم» أو «ينتهي 4 أكتوبر» */
 const shortEnd = (end?: string) => {
@@ -178,6 +179,8 @@ export const ParentDashboard: React.FC<{ onViewReview: (submissionId: string) =>
           )}
         </Card>
       </div>
+
+      <SkillsCard studentId={child.id} quizzes={quizzes} submissions={submissions} title={t('مستوى {who} في المهارات', { who: word })} />
     </div>
   );
 };
