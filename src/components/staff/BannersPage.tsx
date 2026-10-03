@@ -1,7 +1,8 @@
 import React, { useMemo, useRef, useState } from 'react';
-import { Image as ImageIcon, Images, Plus, Pencil, Trash2, Eye, EyeOff, ArrowUp, ArrowDown, Upload, X } from 'lucide-react';
+import { Image as ImageIcon, Images, Plus, Pencil, Trash2, Eye, EyeOff, ArrowUp, ArrowDown, Upload, X, Pin, Sparkles, Play } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
-import { Banner, BANNER_THEMES, BannerAudience, fileToBannerDataUrl, newBanner } from '../../services/bannerService';
+import { Banner, BANNER_THEMES, BANNER_EFFECTS, BannerAudience, BannerEffect, fileToBannerDataUrl, newBanner } from '../../services/bannerService';
+import { BannerEffects } from '../common/BannerEffects';
 import { fileToAvatarDataUrl } from '../../services/avatarService';
 import { toInputValue, inputToIso } from '../../utils/quizWindow';
 import { BannerCard, EDIT_BANNER_KEY } from '../common/BannerStrip';
@@ -23,6 +24,7 @@ const Editor: React.FC<{ initial: Banner; onDone: () => void }> = ({ initial, on
   const { saveBanner, showToast } = useApp();
   const [b, setB] = useState<Banner>(initial);
   const [busy, setBusy] = useState(false);
+  const [fxPlay, setFxPlay] = useState(0);
   const fileRef = useRef<HTMLInputElement>(null);
   const set = (patch: Partial<Banner>) => setB((prev) => ({ ...prev, ...patch }));
   const sizeKb = Math.round(JSON.stringify(b.images).length / 1024);
@@ -143,6 +145,23 @@ const Editor: React.FC<{ initial: Banner; onDone: () => void }> = ({ initial, on
           </div>
         </div>
 
+        <div>
+          <span className={labelCls}>تأثير احتفالي عند ظهور البانر</span>
+          <div className="flex flex-wrap gap-2" role="radiogroup" aria-label="تأثير البانر">
+            {(Object.keys(BANNER_EFFECTS) as BannerEffect[]).map((k) => {
+              const on = (b.effect || 'none') === k;
+              return (
+                <button key={k} type="button" role="radio" aria-checked={on}
+                  onClick={() => { set({ effect: k }); setFxPlay((n) => n + 1); }}
+                  className={`h-10 px-3 rounded-xl border text-xs font-bold ${on ? 'border-indigo-600 bg-indigo-50 dark:bg-indigo-950/60 text-indigo-800 dark:text-indigo-200' : 'border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200'}`}>
+                  {BANNER_EFFECTS[k]}
+                </button>
+              );
+            })}
+          </div>
+          <p className="text-[11px] text-slate-400 mt-1">يخرج التأثير من البانر كلما ظهر في الصفحة الرئيسية. لا يظهر لمن فعّل «تقليل الحركة» في جهازه.</p>
+        </div>
+
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <div>
             <label className={labelCls}>يظهر لـ</label>
@@ -153,6 +172,13 @@ const Editor: React.FC<{ initial: Banner; onDone: () => void }> = ({ initial, on
           <label className="flex items-center gap-2 text-xs font-bold text-slate-700 dark:text-slate-300 sm:pt-6">
             <input type="checkbox" className="accent-indigo-600 w-4 h-4" checked={b.is_active} onChange={(e) => set({ is_active: e.target.checked })} />
             ظاهر (يمكن إخفاؤه مؤقتاً دون حذفه)
+          </label>
+          <label className="sm:col-span-2 flex items-start gap-2 text-xs font-bold text-slate-700 dark:text-slate-300">
+            <input type="checkbox" className="accent-indigo-600 w-4 h-4 mt-0.5" checked={!!b.pinned} onChange={(e) => set({ pinned: e.target.checked })} />
+            <span>
+              <Pin className="inline w-3.5 h-3.5 ml-1" />دائم: بدون زر إخفاء (×)
+              <span className="block font-normal text-slate-500 dark:text-slate-400 mt-0.5">يبقى ظاهراً للجميع ولا يستطيع أحد إخفاءه، مناسب للإعلانات المهمة.</span>
+            </span>
           </label>
           <div>
             <label className={labelCls}>يبدأ الظهور (اختياري)</label>
@@ -173,8 +199,18 @@ const Editor: React.FC<{ initial: Banner; onDone: () => void }> = ({ initial, on
       </div>
 
       <div className="space-y-2">
-        <p className="text-xs font-bold text-slate-500 dark:text-slate-400">معاينة كما سيظهر في الصفحة الرئيسية:</p>
-        <BannerCard banner={b} />
+        <div className="flex items-center justify-between gap-2">
+          <p className="text-xs font-bold text-slate-500 dark:text-slate-400">معاينة كما سيظهر في الصفحة الرئيسية:</p>
+          {(b.effect || 'none') !== 'none' && (
+            <button type="button" onClick={() => setFxPlay((n) => n + 1)} className="inline-flex items-center gap-1.5 text-xs font-bold text-indigo-700 dark:text-indigo-400 hover:underline">
+              <Play className="w-3.5 h-3.5" />تشغيل التأثير
+            </button>
+          )}
+        </div>
+        <div className="relative pt-2">
+          <BannerCard banner={b} />
+          <BannerEffects effect={b.effect} playKey={fxPlay} />
+        </div>
       </div>
     </div>
   );
@@ -233,6 +269,8 @@ export const BannersPage: React.FC = () => {
                   <div className="flex items-center gap-2">
                     <span className={`px-2 py-0.5 rounded-lg text-[11px] font-bold ${st.cls}`}>{st.label}</span>
                     <span className="text-[11px] text-slate-500">{AUDIENCE[b.audience]} • {b.kind === 'wide' ? 'صورة عريضة' : `معرض (${b.images.length} صور)`}</span>
+                    {b.pinned && <span className="inline-flex items-center gap-1 text-[11px] font-bold px-2 py-0.5 rounded-full bg-amber-50 dark:bg-amber-950/60 text-amber-800 dark:text-amber-300"><Pin className="w-3 h-3" />دائم</span>}
+                    {(b.effect || 'none') !== 'none' && <span className="inline-flex items-center gap-1 text-[11px] font-bold px-2 py-0.5 rounded-full bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300"><Sparkles className="w-3 h-3" />{BANNER_EFFECTS[b.effect!].replace(/^\S+\s/, '')}</span>}
                   </div>
                   <div className="flex items-center gap-1">
                     <button aria-label="تحريك لأعلى" disabled={i === 0} onClick={() => void move(i, -1)} className="p-1.5 rounded-lg text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 disabled:opacity-30"><ArrowUp className="w-4 h-4" /></button>
