@@ -5,6 +5,8 @@ import {
   ExternalLink, Sparkles, Images, Bell, Home, LucideIcon,
   Library,
   Target,
+  Award,
+  PenLine,
 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 import { Avatar } from './Avatar';
@@ -13,6 +15,7 @@ import { ProfileModal } from './ProfileModal';
 import { NotificationBell } from './NotificationBell';
 import { Footer } from './Footer';
 import { pathFor } from '../../utils/router';
+import { ungradedSummary } from '../../utils/grading';
 import { LangToggle } from '../../i18n/LangContext';
 
 /** رابط حقيقي للصفحة: الضغط العادي يتنقل داخل الموقع، وCtrl/الزر الأوسط يفتحها في تبويب جديد */
@@ -37,7 +40,7 @@ const perms = (u: User): Record<string, boolean | undefined> =>
   (u.teacher_permissions || (u as any).permissions || {}) as Record<string, boolean | undefined>;
 
 /** أقسام القائمة الجانبية للطاقم حسب الدور والصلاحيات (كل الأقسام ظاهرة، بلا «المزيد») */
-const staffGroups = (u: User, pendingApprovals: number, preparationsUrl: string): NavGroup[] => {
+const staffGroups = (u: User, pendingApprovals: number, preparationsUrl: string, pendingGrading = 0): NavGroup[] => {
   const p = perms(u);
   const isAdmin = u.role === 'admin';
   const quizzes: NavItem[] = [];
@@ -47,6 +50,7 @@ const staffGroups = (u: User, pendingApprovals: number, preparationsUrl: string)
   if (isAdmin) quizzes.push({ id: 'quizzes', label: t('بنك الاختبارات'), icon: FileQuestion });
   if (u.role === 'teacher') quizzes.push({ id: 'create_quiz', label: t('اختبار جديد'), icon: PlusCircle });
   if (hasPerm(u, 'can_approve_quizzes')) quizzes.push({ id: 'approvals', label: t('بانتظار الاعتماد'), icon: ClipboardCheck, badge: pendingApprovals });
+  if (isAdmin || u.role === 'teacher') quizzes.push({ id: 'grading', label: t('التصحيح'), icon: PenLine, badge: pendingGrading });
   quizzes.push({ id: 'question_bank', label: t('بنك الأسئلة'), icon: Library });
   quizzes.push({ id: 'outcomes', label: t('نواتج التعلم'), icon: Target });
   quizzes.push({ id: 'analytics', label: u.role === 'teacher' ? t('نتائج طلابي') : t('النتائج والتحليلات'), icon: BarChart2 });
@@ -57,6 +61,7 @@ const staffGroups = (u: User, pendingApprovals: number, preparationsUrl: string)
   if (isAdmin || p.can_add_custom_subjects || p.can_manage_classes) school.push({ id: 'subjects_classes', label: t('المواد والشعب'), icon: Layers });
   if (isAdmin) school.push({ id: 'banners', label: t('الإعلانات والبانرات'), icon: Images });
   if (hasPerm(u, 'can_view_leaderboard')) school.push({ id: 'leaderboard', label: t('لوحة الشرف'), icon: Trophy });
+  if (hasPerm(u, 'can_award_badges')) school.push({ id: 'certificates', label: t('الشهادات'), icon: Award });
 
   system.push({ id: 'notifications', label: t('الإشعارات'), icon: Bell });
   if (hasPerm(u, 'can_view_activity_log')) system.push({ id: 'activity_log', label: t('سجل النشاط'), icon: ScrollText });
@@ -174,9 +179,15 @@ const NavLink: React.FC<{ item: NavItem; active: boolean; onGo: (id: string) => 
 };
 
 const SidebarBody: React.FC<{ onNavigate?: () => void; onProfile: () => void }> = ({ onNavigate, onProfile }) => {
-  const { currentUser, currentView, setCurrentView, logout, pendingApprovalsCount, settings } = useApp();
+  const { currentUser, currentView, setCurrentView, logout, pendingApprovalsCount, settings, submissions, quizzes } = useApp();
+  // عدد الإجابات المقالية بانتظار التصحيح (المعلم: اختباراته فقط)
+  const pendingGrading = React.useMemo(() => {
+    if (!currentUser || (currentUser.role !== 'teacher' && currentUser.role !== 'admin')) return 0;
+    const mine = new Set(quizzes.filter((q) => !q.is_deleted && (currentUser.role === 'admin' || q.teacher_id === currentUser.id || q.created_by === currentUser.id)).map((q) => q.id));
+    return ungradedSummary((submissions || []).filter((x) => mine.has(x.quiz_id))).essays;
+  }, [currentUser, quizzes, submissions]);
   if (!currentUser) return null;
-  const groups = staffGroups(currentUser, pendingApprovalsCount, settings.preparations_url);
+  const groups = staffGroups(currentUser, pendingApprovalsCount, settings.preparations_url, pendingGrading);
   const go = (id: string) => { setCurrentView(id); onNavigate?.(); };
   const activeId = currentView === 'students_management' ? 'users_management' : currentView;
   return (

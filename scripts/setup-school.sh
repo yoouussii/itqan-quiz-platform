@@ -37,6 +37,8 @@ for f in $(ls supabase/migrations/[0-9][0-9][0-9]_*.sql | grep -v rollback | sor
     "${PSQL[@]}" --single-transaction -f "$f" >/dev/null
   fi
 done
+# شعارات الشهادات الافتراضية (018) خاصة بالمدرسة الأساسية: المدرسة الجديدة ترفع شعاراتها من الإعدادات
+"${PSQL[@]}" -qc "delete from public.app_settings where key in ('cert_company_logo', 'cert_school_logo')" >/dev/null
 
 echo "▶ إنشاء مدير النظام واسم المدرسة"
 "${PSQL[@]}" -v admin_id="$ADMIN_ID" -v admin_name="$ADMIN_NAME" -v school="$SCHOOL_NAME" <<'SQL'

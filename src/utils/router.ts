@@ -28,6 +28,8 @@ const SIMPLE: Record<string, string> = {
   banners: '/banners',
   question_bank: '/bank',
   outcomes: '/outcomes',
+  certificates: '/certificates',
+  grading: '/grading',
   privacy: '/privacy',
   terms: '/terms',
 };

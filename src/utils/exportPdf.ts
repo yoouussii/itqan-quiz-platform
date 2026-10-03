@@ -94,8 +94,11 @@ export function buildPdfHtml(opts: PdfExportOptions): string {
 }
 
 export async function exportElementToPdf(opts: PdfExportOptions): Promise<void> {
-  const html = buildPdfHtml(opts);
+  await printHtmlDocument(buildPdfHtml(opts));
+}
 
+/** طباعة مستند HTML كامل من إطار مخفي (يحفظه المستخدم PDF من نافذة الطباعة) */
+export async function printHtmlDocument(html: string): Promise<void> {
   // حدث اختياري يسمح بالاختبار الآلي ومراجعة المحتوى قبل الطباعة
   window.dispatchEvent(new CustomEvent('itqan:pdf-prepared', { detail: { html } }));
 
