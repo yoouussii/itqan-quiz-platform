@@ -358,7 +358,7 @@ function allowedViews(u: User | null): string[] {
   // صفحة الاختبار تُستعاد بعد التحديث فقط إذا كانت هناك محاولة جارية محفوظة (المؤقت محفوظ معها)
   if (u.role === 'student') return [...base, 'my_points', 'take_quiz'];
   if (u.role === 'parent') return ['dashboard', 'quiz_review', 'notifications', 'privacy', 'terms'];
-  const out = [...base];
+  const out = [...base, 'question_bank'];
   if (u.role === 'admin') {
     out.push('users', 'users_management', 'students_management', 'subjects_classes', 'reports', 'create_quiz', 'quiz_results', 'quiz_preview', 'settings', 'banners');
   } else {

@@ -13,11 +13,15 @@ import {
   ArrowDown,
   Copy,
   ShieldCheck,
+  Library,
+  BookmarkPlus,
 } from 'lucide-react';
 import { TargetType } from '../../types';
 import { useApp } from '../../context/AppContext';
 import { StorageService } from '../../services/storage';
 import { RichTextEditor } from '../common/RichTextEditor';
+import { BankPickerModal, BANK_TO_EDITOR_KEY } from './QuestionBank';
+import { loadBankCache, syncBank, newBankItem, saveBankItems, sameQuestion, toQuizQuestion, markBankUsed } from '../../services/bankService';
 import { toLocalInputValue, toInputValue, inputToIso, defaultEndInput } from '../../utils/quizWindow';
 import { stripHtml } from '../common/RichText';
 import { uiDir, optionLetters, t, isEn } from '../../i18n';
@@ -88,6 +92,7 @@ export const QuizEditor: React.FC = () => {
     setCurrentView,
     duplicateQuizId,
     setDuplicateQuizId,
+    showToast,
   } = useApp();
 
   const isEditing = Boolean(editingQuizId);
@@ -149,6 +154,41 @@ export const QuizEditor: React.FC = () => {
 
   // Questions State
   const [questions, setQuestions] = useState<QuestionItem[]>(() => [blankQuestion('mcq')]);
+
+  // بنك الأسئلة
+  const [bankOpen, setBankOpen] = useState(false);
+  const canUseBank = currentUser?.role === 'admin' || currentUser?.role === 'teacher';
+  /** إضافة أسئلة (من البنك) مع استبدال السؤال الفارغ الوحيد إن وُجد */
+  const appendQuestions = (qs: QuestionItem[]) =>
+    setQuestions((prev) => {
+      const onlyBlank = prev.length === 1 && !stripHtml(prev[0].question_text).trim();
+      return onlyBlank ? qs : [...prev, ...qs];
+    });
+  // «اختبار جديد من المحدد» في صفحة البنك
+  useEffect(() => {
+    if (editingQuizId) return;
+    let req: { ids: string[]; subject_id?: string } | null = null;
+    try {
+      req = JSON.parse(sessionStorage.getItem(BANK_TO_EDITOR_KEY) || 'null');
+      sessionStorage.removeItem(BANK_TO_EDITOR_KEY);
+    } catch { /* ignore */ }
+    if (!req?.ids?.length) return;
+    const picked = loadBankCache().filter((b) => req!.ids.includes(b.id));
+    if (!picked.length) return;
+    if (req.subject_id) setSubjectId(req.subject_id);
+    appendQuestions(picked.map(toQuizQuestion));
+    markBankUsed(picked.map((b) => b.id));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const saveToBank = async (q: QuestionItem) => {
+    if (!stripHtml(q.question_text).trim()) return showToast(t('اكتب نص السؤال أولاً'), 'info');
+    const synced = await syncBank();
+    if (!synced.ok) return showToast(t('تعذر الوصول لبنك الأسئلة. إذا كانت هذه أول مرة، شغّل تحديث قاعدة البيانات 015.'), 'error');
+    if (loadBankCache().some((b) => sameQuestion(b.question, q))) return showToast(t('هذا السؤال موجود في البنك'), 'info');
+    const r = await saveBankItems([newBankItem(q, { subject_id: subjectId || null, created_by: currentUser?.id || '' })]);
+    showToast(r.ok ? t('حُفظ السؤال في البنك. صنّفه بالوحدة والصعوبة من صفحة «بنك الأسئلة».') : t('تعذر الحفظ: {error}', { error: r.error || '' }), r.ok ? 'success' : 'error');
+  };
 
   // ضمان أن المادة المختارة في الـ state موجودة فعلاً في القائمة المعروضة
   // (الحالة الابتدائية قد تكون فارغة لأن المواد تُحمَّل بعد أول رندر)
@@ -1081,6 +1121,13 @@ export const QuizEditor: React.FC = () => {
                       className="p-1.5 rounded-lg text-slate-500 hover:bg-slate-200 dark:hover:bg-slate-700 disabled:opacity-30">
                       <ArrowDown className="w-4 h-4" />
                     </button>
+                    {canUseBank && (
+                      <button type="button" aria-label={t('حفظ في البنك')} title={t('حفظ في البنك')}
+                        onClick={() => void saveToBank(q)}
+                        className="p-1.5 rounded-lg text-slate-500 hover:bg-slate-200 dark:hover:bg-slate-700">
+                        <BookmarkPlus className="w-4 h-4" />
+                      </button>
+                    )}
                     <button type="button" aria-label={t('تكرار السؤال')} title={t('تكرار السؤال')}
                       onClick={() => handleDuplicateQuestion(qIdx)}
                       className="p-1.5 rounded-lg text-slate-500 hover:bg-slate-200 dark:hover:bg-slate-700">
@@ -1305,7 +1352,14 @@ export const QuizEditor: React.FC = () => {
                 {t(qt.label)}
               </button>
             ))}
+            {canUseBank && (
+              <button type="button" onClick={() => setBankOpen(true)}
+                className="px-3.5 py-2 rounded-xl text-xs font-bold bg-indigo-600 text-white hover:bg-indigo-700 inline-flex items-center gap-1.5">
+                <Library className="w-4 h-4" />{t('من بنك الأسئلة')}
+              </button>
+            )}
           </div>
+          {bankOpen && <BankPickerModal subjectId={subjectId} onClose={() => setBankOpen(false)} onAdd={appendQuestions} />}
         </div>
 
         {/* Footer Actions: شريط ثابت أسفل الشاشة */}

@@ -36,13 +36,14 @@ const SettingsPage = React.lazy(() => import('./components/staff/SettingsPage').
 const QuizPreview = React.lazy(() => import('./components/common/QuizPreview').then((m) => ({ default: m.QuizPreview })));
 const BannersPage = React.lazy(() => import('./components/staff/BannersPage').then((m) => ({ default: m.BannersPage })));
 const LegalPage = React.lazy(() => import('./components/legal/LegalPage').then((m) => ({ default: m.LegalPage })));
+const QuestionBankPage = React.lazy(() => import('./components/teacher/QuestionBank').then((m) => ({ default: m.QuestionBankPage })));
 const NotificationsPage = React.lazy(() => import('./components/common/NotificationsPage').then((m) => ({ default: m.NotificationsPage })));
 
 const KNOWN_VIEWS = [
   'take_quiz', 'quiz_review', 'create_quiz', 'users', 'users_management',
   'students_management', 'subjects_classes', 'analytics', 'reports',
   'quiz_results', 'quiz_preview', 'quizzes', 'dashboard',
-  'my_points', 'leaderboard', 'approvals', 'activity_log', 'settings', 'notifications', 'banners',
+  'my_points', 'leaderboard', 'approvals', 'activity_log', 'settings', 'notifications', 'banners', 'question_bank',
   'privacy', 'terms',
 ];
 
@@ -232,6 +233,7 @@ const AppContent: React.FC = () => {
         {currentView === 'activity_log' && hasPerm(currentUser, 'can_view_activity_log') && <ActivityLogPage />}
         {currentView === 'settings' && currentUser.role === 'admin' && <SettingsPage />}
         {currentView === 'banners' && currentUser.role === 'admin' && <BannersPage />}
+        {currentView === 'question_bank' && isStaff && <QuestionBankPage />}
 
         {/* View 6b: نتائج وتحليلات اختبار واحد (زر التحليلات عند الآدمن/المعلم) */}
         {currentView === 'quiz_results' && isStaff && <QuizResults />}
