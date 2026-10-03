@@ -7,8 +7,8 @@ import { t, isEn } from '../../i18n';
 export const MaintenanceScreen: React.FC<{ onAdminLogin: () => void }> = ({ onAdminLogin }) => {
   const { settings } = useApp();
   const m = settings.maintenance || {};
-  const school = settings.login_title || settings.cert_school_name || settings.school_name || '';
-  const logo = settings.login_logo || settings.cert_school_logo || settings.school_logo || '';
+  const school = settings.login_title || settings.school_name || '';
+  const logo = settings.login_logo || settings.school_logo || '';
   const until = m.until ? new Date(m.until) : null;
   const untilText = until && !isNaN(until.getTime())
     ? until.toLocaleString(isEn() ? 'en-GB' : 'ar-u-nu-latn', { weekday: 'long', day: 'numeric', month: 'long', hour: 'numeric', minute: '2-digit' })
