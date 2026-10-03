@@ -24,6 +24,8 @@ const SIMPLE: Record<string, string> = {
   activity_log: '/activity',
   settings: '/settings',
   banners: '/banners',
+  privacy: '/privacy',
+  terms: '/terms',
 };
 
 const enc = encodeURIComponent;
@@ -44,6 +46,15 @@ export function pathFor(s: RouteState): string {
     default:
       return SIMPLE[s.view] || '/';
   }
+}
+
+/** صفحات متاحة قبل تسجيل الدخول أيضاً */
+export const PUBLIC_PATHS: Record<string, 'privacy' | 'terms'> = { '/privacy': 'privacy', '/terms': 'terms' };
+
+/** تنقّل داخل الموقع من رابط عادي (يعمل قبل الدخول وبعده) */
+export function navigateTo(path: string) {
+  if (path !== window.location.pathname) window.history.pushState(null, '', path);
+  window.dispatchEvent(new PopStateEvent('popstate'));
 }
 
 /** رابط الاختبار الكامل الذي يرسله المعلم للطلاب */

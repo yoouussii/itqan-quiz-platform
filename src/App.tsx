@@ -10,7 +10,7 @@ import { hasPerm } from './utils/permissions';
 import { ForcePasswordChange } from './components/common/ForcePasswordChange';
 import { BannerStrip } from './components/common/BannerStrip';
 import { PageHeader } from './components/common/ui';
-import { replaceNextNavigation } from './utils/router';
+import { replaceNextNavigation, PUBLIC_PATHS } from './utils/router';
 
 // الصفحات تُحمَّل عند فتحها فقط: كل مستخدم ينزّل كود صفحاته (أسرع على الجوال)
 const AdminDashboard = React.lazy(() => import('./components/admin/AdminDashboard').then((m) => ({ default: m.AdminDashboard })));
@@ -33,6 +33,7 @@ const ActivityLogPage = React.lazy(() => import('./components/staff/ActivityLogP
 const SettingsPage = React.lazy(() => import('./components/staff/SettingsPage').then((m) => ({ default: m.SettingsPage })));
 const QuizPreview = React.lazy(() => import('./components/common/QuizPreview').then((m) => ({ default: m.QuizPreview })));
 const BannersPage = React.lazy(() => import('./components/staff/BannersPage').then((m) => ({ default: m.BannersPage })));
+const LegalPage = React.lazy(() => import('./components/legal/LegalPage').then((m) => ({ default: m.LegalPage })));
 const NotificationsPage = React.lazy(() => import('./components/common/NotificationsPage').then((m) => ({ default: m.NotificationsPage })));
 
 const KNOWN_VIEWS = [
@@ -40,7 +41,25 @@ const KNOWN_VIEWS = [
   'students_management', 'subjects_classes', 'analytics', 'reports',
   'quiz_results', 'quiz_preview', 'quizzes', 'dashboard',
   'my_points', 'leaderboard', 'approvals', 'activity_log', 'settings', 'notifications', 'banners',
+  'privacy', 'terms',
 ];
+
+/** المسار الحالي، ويتحدّث مع زر الرجوع والروابط الداخلية (لصفحات ما قبل الدخول) */
+const usePathname = () => {
+  const [path, setPath] = React.useState(window.location.pathname);
+  React.useEffect(() => {
+    const on = () => setPath(window.location.pathname);
+    window.addEventListener('popstate', on);
+    return () => window.removeEventListener('popstate', on);
+  }, []);
+  return path;
+};
+
+const Spinner: React.FC = () => (
+  <div className="flex items-center justify-center py-24" role="status" aria-label="جارٍ التحميل">
+    <div className="w-10 h-10 rounded-full border-4 border-indigo-200 border-t-indigo-600 animate-spin" />
+  </div>
+);
 
 /** يُعيد المستخدم للوحة التحكم إذا وصل لصفحة غير موجودة بدلاً من إظهار شاشة فارغة */
 const UnknownViewRedirect: React.FC = () => {
@@ -71,13 +90,15 @@ const AppContent: React.FC = () => {
     quizzes,
     editingQuizId,
   } = useApp();
+  const pathname = usePathname();
 
   // If user is not logged in or in login view
   if (!currentUser || currentView === 'login') {
+    const legal = PUBLIC_PATHS[pathname];
     return (
       <div className="min-h-screen flex flex-col bg-slate-50 dark:bg-[#0b0f19] text-slate-900 dark:text-white transition-colors duration-200" dir="rtl">
         <div className="flex-1">
-          <AuthScreen />
+          {legal ? <React.Suspense fallback={<Spinner />}><LegalPage doc={legal} /></React.Suspense> : <AuthScreen />}
         </div>
         <Footer />
         <Toast />
@@ -100,7 +121,7 @@ const AppContent: React.FC = () => {
     quiz_preview: isStaff,
   };
   // ولي الأمر: الرئيسية (متابعة الأبناء) وأوراق إجاباتهم والإشعارات فقط
-  const parentOk = currentUser.role !== 'parent' || ['dashboard', 'quiz_review', 'notifications'].includes(currentView);
+  const parentOk = currentUser.role !== 'parent' || ['dashboard', 'quiz_review', 'notifications', 'privacy', 'terms'].includes(currentView);
   const viewAvailable = KNOWN_VIEWS.includes(currentView) && viewGuards[currentView] !== false && parentOk;
 
   // رابط مباشر لاختبار أو ورقة إجابة: ننتظر أول تحميل للبيانات بدل إظهار «غير موجود»
@@ -202,6 +223,7 @@ const AppContent: React.FC = () => {
 
         {/* الصفحات الجديدة: كل صفحة محمية بالصلاحية المناسبة */}
         {currentView === 'notifications' && <NotificationsPage />}
+        {(currentView === 'privacy' || currentView === 'terms') && <LegalPage doc={currentView} />}
         {currentView === 'my_points' && currentUser.role === 'student' && <MyPoints />}
         {currentView === 'leaderboard' && hasPerm(currentUser, 'can_view_leaderboard') && <Leaderboard />}
         {currentView === 'approvals' && hasPerm(currentUser, 'can_approve_quizzes') && <ApprovalsPage />}

@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Info, Check, Moon, Sun, Eye, EyeOff } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 import { Logo } from '../common/Logo';
+import { navigateTo } from '../../utils/router';
 
 /** تسجيل الدخول برقم الهوية (لا يوجد تسجيل ذاتي: الحسابات تُنشأ من إدارة المدرسة) */
 export const AuthScreen: React.FC = () => {
@@ -92,6 +93,12 @@ export const AuthScreen: React.FC = () => {
             >
               {isLoading ? <span className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" /> : 'دخول'}
             </button>
+            <p className="text-center text-[13px] text-slate-500 dark:text-slate-400">
+              بتسجيل الدخول توافق على{' '}
+              <a href="/terms" onClick={(e) => { e.preventDefault(); navigateTo('/terms'); }} className="text-indigo-700 dark:text-indigo-400 font-semibold hover:underline">شروط الاستخدام</a>
+              {' '}و{' '}
+              <a href="/privacy" onClick={(e) => { e.preventDefault(); navigateTo('/privacy'); }} className="text-indigo-700 dark:text-indigo-400 font-semibold hover:underline">سياسة الخصوصية</a>
+            </p>
           </form>
 
           <div className="flex gap-3 items-start rounded-xl bg-slate-50 dark:bg-slate-900 px-4 py-3.5">
