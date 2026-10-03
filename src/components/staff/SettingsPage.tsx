@@ -1,21 +1,49 @@
-import React, { useState } from 'react';
-import { Settings } from 'lucide-react';
+import React, { useRef, useState } from 'react';
+import { Settings, ImagePlus, Trash2, Check } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
+import { BRAND_PRESETS, applyBrandColor, resizeLogo } from '../../utils/brand';
 
 /** إعدادات النظام (لمدير النظام) */
 export const SettingsPage: React.FC = () => {
   const { settings, updateSettings } = useApp();
   const [approval, setApproval] = useState(settings.require_quiz_approval);
   const [url, setUrl] = useState(settings.preparations_url);
+  const [schoolName, setSchoolName] = useState(settings.school_name || '');
+  const [logo, setLogo] = useState(settings.school_logo || '');
+  const [color, setColor] = useState(settings.brand_color || 'indigo');
   const [busy, setBusy] = useState(false);
+  const fileRef = useRef<HTMLInputElement>(null);
+
+  const pickLogo = async (file?: File) => {
+    if (!file) return;
+    try {
+      const data = await resizeLogo(file);
+      if (data.length > 300_000) return alert('الصورة كبيرة جداً بعد التصغير، جرّب شعاراً أبسط أو بصيغة PNG');
+      setLogo(data);
+    } catch (e: any) {
+      alert(e?.message || 'تعذرت قراءة الصورة');
+    }
+  };
+
+  // معاينة اللون فوراً، والرجوع للون المحفوظ إن خرج المدير بلا حفظ
+  const previewColor = (id: string) => { setColor(id); applyBrandColor(id); };
+  React.useEffect(() => () => applyBrandColor(settings.brand_color), [settings.brand_color]);
 
   const save = async () => {
     const clean = url.trim();
     if (clean && !/^https?:\/\//i.test(clean)) return alert('الرابط يجب أن يبدأ بـ https://');
     setBusy(true);
-    await updateSettings({ require_quiz_approval: approval, preparations_url: clean || settings.preparations_url });
+    await updateSettings({
+      require_quiz_approval: approval,
+      preparations_url: clean || settings.preparations_url,
+      school_name: schoolName.trim(),
+      school_logo: logo,
+      brand_color: color,
+    });
     setBusy(false);
   };
+
+  const card = 'bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800 p-5';
 
   return (
     <div className="max-w-2xl mx-auto py-8 px-4 sm:px-6 space-y-6" dir="rtl">
@@ -23,7 +51,60 @@ export const SettingsPage: React.FC = () => {
         <h1 className="text-2xl font-black text-slate-900 dark:text-white font-cairo flex items-center gap-2"><Settings className="w-6 h-6 text-indigo-600" /> إعدادات النظام</h1>
       </div>
 
-      <label className="flex items-start gap-3 bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800 p-5 cursor-pointer">
+      <section className={`${card} space-y-5`} aria-labelledby="brand-title">
+        <div>
+          <h2 id="brand-title" className="text-base font-bold text-slate-900 dark:text-white">هوية المدرسة</h2>
+          <p className="text-[13px] text-slate-500 dark:text-slate-400 mt-1">تظهر في شاشة الدخول وأعلى الصفحات وعنوان التبويب. اتركها فارغة لاستخدام هوية «منصة إتقان».</p>
+        </div>
+
+        <div className="space-y-1.5">
+          <label htmlFor="school-name" className="block text-sm font-bold text-slate-900 dark:text-white">اسم المدرسة</label>
+          <input id="school-name" value={schoolName} onChange={(e) => setSchoolName(e.target.value)} maxLength={60} placeholder="مثال: مدارس المستقبل الأهلية"
+            className="w-full h-11 px-3 text-[15px] rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white" />
+        </div>
+
+        <div className="space-y-1.5">
+          <span className="block text-sm font-bold text-slate-900 dark:text-white">الشعار</span>
+          <div className="flex items-center gap-4">
+            <div className="w-20 h-20 rounded-2xl border border-dashed border-slate-300 dark:border-slate-700 flex items-center justify-center bg-slate-50 dark:bg-slate-800 overflow-hidden shrink-0">
+              {logo ? <img src={logo} alt="شعار المدرسة" className="max-w-full max-h-full object-contain" /> : <ImagePlus className="w-7 h-7 text-slate-400" />}
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <button type="button" onClick={() => fileRef.current?.click()} className="h-10 px-4 rounded-xl border border-slate-300 dark:border-slate-700 text-sm font-semibold text-slate-800 dark:text-slate-100 hover:bg-slate-50 dark:hover:bg-slate-800">
+                {logo ? 'تغيير الشعار' : 'رفع شعار'}
+              </button>
+              {logo && (
+                <button type="button" onClick={() => setLogo('')} className="h-10 px-3 rounded-xl text-sm font-semibold text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/50 inline-flex items-center gap-1.5">
+                  <Trash2 className="w-4 h-4" />إزالة
+                </button>
+              )}
+              <input ref={fileRef} type="file" accept="image/png,image/jpeg,image/webp,image/svg+xml" className="hidden" aria-label="ملف الشعار"
+                onChange={(e) => { void pickLogo(e.target.files?.[0]); e.target.value = ''; }} />
+            </div>
+          </div>
+          <p className="text-[13px] text-slate-500 dark:text-slate-400">يفضّل PNG بخلفية شفافة. يُصغَّر تلقائياً.</p>
+        </div>
+
+        <div className="space-y-2">
+          <span className="block text-sm font-bold text-slate-900 dark:text-white">لون الواجهة</span>
+          <div className="flex flex-wrap gap-2" role="radiogroup" aria-label="لون الواجهة">
+            {BRAND_PRESETS.map((p) => {
+              const on = color === p.id;
+              return (
+                <button key={p.id} type="button" role="radio" aria-checked={on} onClick={() => previewColor(p.id)}
+                  className={`h-11 pl-4 pr-2 rounded-xl border inline-flex items-center gap-2 text-sm font-semibold ${on ? 'border-slate-900 dark:border-white' : 'border-slate-200 dark:border-slate-700'} text-slate-800 dark:text-slate-100`}>
+                  <span className="w-7 h-7 rounded-lg flex items-center justify-center" style={{ backgroundColor: p.shades[600] }}>
+                    {on && <Check className="w-4 h-4 text-white" />}
+                  </span>
+                  {p.label}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      </section>
+
+      <label className={`flex items-start gap-3 ${card} cursor-pointer`}>
         <input type="checkbox" aria-label="اشتراط اعتماد الاختبارات" checked={approval} onChange={(e) => setApproval(e.target.checked)} className="accent-indigo-600 w-4 h-4 mt-1" />
         <span>
           <b className="text-sm text-slate-900 dark:text-white">اشتراط اعتماد الاختبارات قبل نشرها</b>
@@ -33,7 +114,7 @@ export const SettingsPage: React.FC = () => {
         </span>
       </label>
 
-      <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800 p-5 space-y-2">
+      <div className={`${card} space-y-2`}>
         <label className="block text-sm font-bold text-slate-900 dark:text-white">رابط متابعة التحضيرات</label>
         <input aria-label="رابط متابعة التحضيرات" dir="ltr" value={url} onChange={(e) => setUrl(e.target.value)}
           className="w-full px-3 py-2 text-xs rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white" />

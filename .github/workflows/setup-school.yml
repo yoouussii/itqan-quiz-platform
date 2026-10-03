@@ -1,0 +1,50 @@
+# إعداد مدرسة جديدة بزر واحد على قاعدة بيانات Supabase فارغة
+# Actions ← Setup new school ← Run workflow
+#
+# قبل التشغيل: أضف رابط قاعدة بيانات المدرسة سرّاً جديداً
+#   Settings ← Secrets and variables ← Actions ← New repository secret
+#   الاسم مثلاً: DB_URL_SCHOOL2   القيمة: رابط Session pooler من Supabase (مع كلمة مرور قاعدة البيانات)
+# ثم اكتب اسم السر نفسه في خانة db_secret هنا. التفاصيل في docs/NEW_SCHOOL.md
+name: Setup new school
+
+on:
+  workflow_dispatch:
+    inputs:
+      db_secret:
+        description: 'اسم السر الذي فيه رابط قاعدة بيانات المدرسة (مثل DB_URL_SCHOOL2)'
+        required: true
+        type: string
+      school_name:
+        description: 'اسم المدرسة (يظهر في الموقع ويمكن تغييره لاحقاً من الإعدادات)'
+        required: false
+        type: string
+      admin_national_id:
+        description: 'رقم هوية مدير النظام (كلمة المرور الأولى itqan123)'
+        required: true
+        type: string
+      admin_name:
+        description: 'اسم مدير النظام'
+        required: false
+        default: 'مدير النظام'
+        type: string
+      force:
+        description: 'إعادة التشغيل على قاعدة فيها مستخدمون (للإصلاح فقط)'
+        required: false
+        default: false
+        type: boolean
+
+jobs:
+  setup:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup school
+        env:
+          DATABASE_URL: ${{ secrets[inputs.db_secret] }}
+          SCHOOL_NAME: ${{ inputs.school_name }}
+          ADMIN_ID: ${{ inputs.admin_national_id }}
+          ADMIN_NAME: ${{ inputs.admin_name }}
+          FORCE: ${{ inputs.force && '1' || '0' }}
+        run: |
+          test -n "$DATABASE_URL" || { echo "::error::السر «${{ inputs.db_secret }}» غير موجود. أضفه من Settings ← Secrets and variables ← Actions"; exit 1; }
+          bash scripts/setup-school.sh

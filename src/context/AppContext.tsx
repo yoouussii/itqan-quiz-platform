@@ -37,13 +37,14 @@ import {
 import { logActivity } from '../services/activityService';
 import { Banner, loadBannerCache, syncBanners, saveBannerRemote, deleteBannerRemote } from '../services/bannerService';
 import { loadAwardsCache, makeAward, pushAward, pullAwards } from '../services/awardsService';
-import { AppSettings, loadSettings, syncSettings, saveSettings } from '../services/settingsService';
+import { AppSettings, loadSettings, syncSettings, saveSettings, syncPublicBranding } from '../services/settingsService';
+import { applyBrandColor } from '../utils/brand';
 import { loadBranchCache, syncBranches, saveBranchRemote, deleteBranchRemote, newBranch } from '../services/branchService';
 import { StudentAward } from '../utils/points';
 import { describeQuizTarget } from '../utils/quizTarget';
 import { targetStudents } from '../utils/quizAudience';
 import { loadAttempt } from '../utils/activeAttempt';
-import { RouteState, parsePath, pathFor, replaceNextNavigation, takeReplaceFlag } from '../utils/router';
+import { RouteState, parsePath, pathFor, replaceNextNavigation, takeReplaceFlag, PUBLIC_PATHS } from '../utils/router';
 import { formatQuizDateTime } from '../utils/quizWindow';
 import {
   supabase,
@@ -349,10 +350,10 @@ function isSessionExpired(): boolean {
 
 function allowedViews(u: User | null): string[] {
   if (!u) return [];
-  const base = ['dashboard', 'quizzes', 'analytics', 'quiz_review', 'notifications'];
+  const base = ['dashboard', 'quizzes', 'analytics', 'quiz_review', 'notifications', 'privacy', 'terms'];
   // صفحة الاختبار تُستعاد بعد التحديث فقط إذا كانت هناك محاولة جارية محفوظة (المؤقت محفوظ معها)
   if (u.role === 'student') return [...base, 'my_points', 'take_quiz'];
-  if (u.role === 'parent') return ['dashboard', 'quiz_review', 'notifications'];
+  if (u.role === 'parent') return ['dashboard', 'quiz_review', 'notifications', 'privacy', 'terms'];
   const out = [...base];
   if (u.role === 'admin') {
     out.push('users', 'users_management', 'students_management', 'subjects_classes', 'reports', 'create_quiz', 'quiz_results', 'quiz_preview', 'settings', 'banners');
@@ -606,6 +607,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [settings, setSettings] = useState<AppSettings>(() => loadSettings());
   const [branches, setBranches] = useState<Branch[]>(() => loadBranchCache());
   const seenNotifRef = useRef<Set<string> | null>(null);
+  // هوية المدرسة: اللون وعنوان التبويب
+  useEffect(() => {
+    applyBrandColor(settings.brand_color);
+    document.title = settings.school_name ? `${settings.school_name} | منصة إتقان` : 'منصة إتقان التعليمية | نظام إدارة الاختبارات والتقييم الذكي';
+  }, [settings.brand_color, settings.school_name]);
   const [syncedUserId, setSyncedUserId] = useState<string | null>(null);
 
   const notifications = useMemo(
@@ -745,6 +751,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         }
       }
       if (isSupabaseConfigured()) {
+        // شاشة الدخول: اسم المدرسة وشعارها ولونها فقط
+        if (!currentUserRef.current) await syncPublicBranding();
         if (slow) try {
           await syncUsersFromSupabase();
           await syncSubjectsFromSupabase();
@@ -907,7 +915,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setCurrentUserState(user);
     // رابط مباشر فُتح قبل الدخول (مثل رابط اختبار): يُفتح بعد الدخول
     replaceNextNavigation();
-    applyRoute(routeForUser(normalizeUser(user), window.location.pathname));
+    // (صفحة الخصوصية/الشروط المفتوحة قبل الدخول لا تُعاد بعده: الرئيسية)
+    applyRoute(PUBLIC_PATHS[window.location.pathname] ? { view: 'dashboard' } : routeForUser(normalizeUser(user), window.location.pathname));
     showToast(`مرحباً بك يا ${user.name}`, 'success');
   };
 

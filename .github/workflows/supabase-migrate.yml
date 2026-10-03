@@ -26,7 +26,13 @@ on:
           - supabase/migrations/009_branches_parents.sql
           - supabase/migrations/010_unassigned_classes_visible.sql
           - supabase/migrations/011_shared_classes.sql
+          - supabase/migrations/012_school_branding.sql
           - supabase/migrations/003_rollback.sql
+      db_secret:
+        description: 'اسم سر قاعدة البيانات (اتركه كما هو للمدرسة الأساسية، أو اكتب سر مدرسة أخرى مثل DB_URL_SCHOOL2)'
+        required: false
+        default: SUPABASE_DB_URL
+        type: string
 
 jobs:
   migrate:
@@ -35,13 +41,13 @@ jobs:
       - uses: actions/checkout@v4
       - name: Check connection
         env:
-          DATABASE_URL: ${{ secrets.SUPABASE_DB_URL }}
+          DATABASE_URL: ${{ secrets[inputs.db_secret || 'SUPABASE_DB_URL'] }}
         run: |
-          test -n "$DATABASE_URL" || { echo "::error::السر SUPABASE_DB_URL غير موجود"; exit 1; }
+          test -n "$DATABASE_URL" || { echo "::error::السر ${{ inputs.db_secret || 'SUPABASE_DB_URL' }} غير موجود"; exit 1; }
           psql "$DATABASE_URL" -tAc "select 'connected as ' || current_user"
       - name: Run ${{ inputs.file }}
         env:
-          DATABASE_URL: ${{ secrets.SUPABASE_DB_URL }}
+          DATABASE_URL: ${{ secrets[inputs.db_secret || 'SUPABASE_DB_URL'] }}
         run: |
           # 002 فيه ALTER TYPE الذي لا يعمل داخل معاملة، فيُشغَّل بدونها (وهو آمن لإعادة التشغيل)
           if [ "${{ inputs.file }}" = "supabase/migrations/002_users_columns.sql" ]; then
@@ -52,7 +58,7 @@ jobs:
       - name: Verify
         if: inputs.file != 'supabase/migrations/002_users_columns.sql' && inputs.file != 'supabase/migrations/003_rollback.sql'
         env:
-          DATABASE_URL: ${{ secrets.SUPABASE_DB_URL }}
+          DATABASE_URL: ${{ secrets[inputs.db_secret || 'SUPABASE_DB_URL'] }}
         run: |
           psql "$DATABASE_URL" -tA <<'SQL'
           select 'users with plaintext password: ' || count(*) filter (where password is not null) || ' / ' || count(*) from public.users;
@@ -62,6 +68,7 @@ jobs:
           select 'quiz timer function (004): ' || (to_regproc('public.itqan_start_quiz') is not null);
           select 'banners (006): ' || (to_regclass('public.banners') is not null);
           select 'branches & parents (009): ' || (to_regclass('public.branches') is not null);
+          select 'school branding function (012): ' || (to_regproc('public.itqan_public_branding') is not null);
           select 'classes tied to a branch (0 after 011): ' || count(*) filter (where nullif(branch_id, '') is not null) from public.classes;
           select 'quiz approval enforced (008): ' || (to_regproc('itqan.approval_required') is not null);
           select 'delete submissions (007): ' || exists(select 1 from pg_policies where schemaname = 'public' and tablename = 'submissions' and policyname = 'submissions_delete');
