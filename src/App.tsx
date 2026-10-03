@@ -10,6 +10,7 @@ import { hasPerm } from './utils/permissions';
 import { ForcePasswordChange } from './components/common/ForcePasswordChange';
 import { BannerStrip } from './components/common/BannerStrip';
 import { PageHeader } from './components/common/ui';
+import { replaceNextNavigation } from './utils/router';
 
 // الصفحات تُحمَّل عند فتحها فقط: كل مستخدم ينزّل كود صفحاته (أسرع على الجوال)
 const AdminDashboard = React.lazy(() => import('./components/admin/AdminDashboard').then((m) => ({ default: m.AdminDashboard })));
@@ -45,6 +46,7 @@ const KNOWN_VIEWS = [
 const UnknownViewRedirect: React.FC = () => {
   const { setCurrentView } = useApp();
   React.useEffect(() => {
+    replaceNextNavigation();
     setCurrentView('dashboard');
   }, [setCurrentView]);
   return null;
@@ -65,6 +67,9 @@ const AppContent: React.FC = () => {
     passwordIsDefault,
     isPreview,
     exitPreview,
+    dataReady,
+    quizzes,
+    editingQuizId,
   } = useApp();
 
   // If user is not logged in or in login view
@@ -98,6 +103,14 @@ const AppContent: React.FC = () => {
   const parentOk = currentUser.role !== 'parent' || ['dashboard', 'quiz_review', 'notifications'].includes(currentView);
   const viewAvailable = KNOWN_VIEWS.includes(currentView) && viewGuards[currentView] !== false && parentOk;
 
+  // رابط مباشر لاختبار أو ورقة إجابة: ننتظر أول تحميل للبيانات بدل إظهار «غير موجود»
+  const quizInView = ['take_quiz', 'quiz_preview', 'quiz_results'].includes(currentView) ? activeQuizId
+    : currentView === 'create_quiz' ? editingQuizId : null;
+  const waitingForData = !dataReady && (
+    (!!quizInView && !(quizzes || []).some((q) => q.id === quizInView)) ||
+    (currentView === 'quiz_review' && !!activeSubmissionId && !(submissions || []).some((s) => s.id === activeSubmissionId))
+  );
+
   // Handle student starting a quiz
   const handleStartQuiz = (quizId: string) => {
     setActiveQuizId(quizId);
@@ -106,6 +119,8 @@ const AppContent: React.FC = () => {
 
   // Handle student completing a quiz
   const handleFinishQuiz = (submissionId: string) => {
+    // زر الرجوع بعد التسليم لا يعيد لصفحة الاختبار
+    replaceNextNavigation();
     setActiveSubmissionId(submissionId);
     setCurrentView('quiz_review');
   };
@@ -134,6 +149,11 @@ const AppContent: React.FC = () => {
             </div>
           }
         >
+        {waitingForData ? (
+          <div className="flex items-center justify-center py-24" role="status" aria-label="جارٍ التحميل">
+            <div className="w-10 h-10 rounded-full border-4 border-indigo-200 border-t-indigo-600 animate-spin" />
+          </div>
+        ) : (<>
         {/* View 1: Quiz Taker Engine (Interactive testing) */}
         {currentView === 'take_quiz' && activeQuizId && (
           <QuizTaker
@@ -233,6 +253,7 @@ const AppContent: React.FC = () => {
             )}
           </>
         )}
+        </>)}
         </React.Suspense>
       </AppShell>
 

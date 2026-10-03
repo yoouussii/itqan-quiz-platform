@@ -1,5 +1,6 @@
 import React, { useMemo, useState } from 'react';
-import { ArrowRightLeft, Eye, Edit3, BarChart2, Trash2, Copy as CopyIcon, PlusCircle, Search, Undo2 } from 'lucide-react';
+import { ArrowRightLeft, Eye, Edit3, BarChart2, Trash2, Copy as CopyIcon, PlusCircle, Search, Undo2, Link2 } from 'lucide-react';
+import { copyQuizLink } from '../../utils/router';
 import { useApp } from '../../context/AppContext';
 import { ReassignQuizModal } from '../common/ReassignQuizModal';
 import { QuizWithDetails } from '../../types';
@@ -22,7 +23,7 @@ const statusOf = (q: QuizWithDetails): { label: string; tone: Tone } => {
 /** بنك الاختبارات المدرسي (للمدير): معاينة، تعديل، نتائج، نسخ، نقل لمعلم آخر، حذف */
 export const AdminQuizBank: React.FC = () => {
   const {
-    quizzes = [], users = [], classes = [], deleteQuizItem, updateQuizInfo, setActiveQuizId, setEditingQuizId, setDuplicateQuizId, setCurrentView,
+    quizzes = [], users = [], classes = [], deleteQuizItem, updateQuizInfo, setActiveQuizId, setEditingQuizId, setDuplicateQuizId, setCurrentView, showToast,
   } = useApp();
   const [reassign, setReassign] = useState<QuizWithDetails | null>(null);
   const [term, setTerm] = useState('');
@@ -110,6 +111,9 @@ export const AdminQuizBank: React.FC = () => {
                         <button type="button" onClick={() => { setEditingQuizId?.(quiz.id); setCurrentView?.('create_quiz'); }} className={iconBtn} title="تعديل" aria-label="تعديل"><Edit3 className="w-[18px] h-[18px]" /></button>
                         <button type="button" onClick={() => open(quiz.id, 'quiz_results')} className={iconBtn} title="النتائج" aria-label="النتائج"><BarChart2 className="w-[18px] h-[18px]" /></button>
                         <button type="button" onClick={() => { setEditingQuizId?.(null); setDuplicateQuizId?.(quiz.id); setCurrentView?.('create_quiz'); }} className={iconBtn} title="نسخ مع التعديل" aria-label="نسخ"><CopyIcon className="w-[18px] h-[18px]" /></button>
+                        {quiz.status === 'published' && (
+                          <button type="button" onClick={async () => { if (await copyQuizLink(quiz.id)) showToast?.('تم نسخ رابط الاختبار، أرسله للطلاب', 'success'); }} className={iconBtn} title="نسخ رابط الاختبار للطلاب" aria-label="نسخ رابط الاختبار"><Link2 className="w-[18px] h-[18px]" /></button>
+                        )}
                         {quiz.status === 'published' && (
                           <button type="button" onClick={() => pullBack(quiz)} className={iconBtn} title="سحب للمراجعة (إيقاف النشر)" aria-label="سحب للمراجعة"><Undo2 className="w-[18px] h-[18px]" /></button>
                         )}
