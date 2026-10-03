@@ -1,13 +1,19 @@
-import React, { useMemo, useState } from 'react';
+import React, { Fragment, useMemo, useState } from 'react';
+import { ChevronDown, AlertTriangle } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 import { StorageService } from '../../services/storage';
 import { stripHtml } from '../common/RichText';
 import { t } from '../../i18n';
+import { itemAnalysis } from '../../utils/analytics';
+
+/** تصنيف معامل التمييز (المعايير الشائعة في القياس التربوي) */
+const discLabel = (d: number) => (d >= 0.4 ? 'ممتاز' : d >= 0.3 ? 'جيد' : d >= 0.2 ? 'مقبول' : 'ضعيف');
 
 /** تحليل أسئلة اختبار واحد: نسبة الإجابات الصحيحة، الصعوبة، وأكثر خيار خاطئ شيوعاً */
 export const QuestionAnalysis: React.FC<{ quizId: string }> = ({ quizId }) => {
   const { submissions } = useApp();
   const [hardestFirst, setHardestFirst] = useState(true);
+  const [open, setOpen] = useState<number | null>(null);
 
   const rows = useMemo(() => {
     const questions = StorageService.getQuestionsByQuizId(quizId);
@@ -19,6 +25,7 @@ export const QuestionAnalysis: React.FC<{ quizId: string }> = ({ quizId }) => {
         const answers = subs
           .map((s) => (s.answers_json || []).find((a: any) => a.question_id === q.id))
           .filter(Boolean) as Array<{ selected_option?: number | null; is_correct: boolean }>;
+        const ia = itemAnalysis(q.id, subs, (q.options || []).length);
         const attempts = answers.length;
         const correct = answers.filter((a) => a.is_correct).length;
         const pct = attempts ? Math.round((correct / attempts) * 100) : null;
@@ -37,6 +44,9 @@ export const QuestionAnalysis: React.FC<{ quizId: string }> = ({ quizId }) => {
           attempts,
           pct,
           level: pct === null ? '—' : pct >= 80 ? t('سهل') : pct >= 50 ? t('متوسط') : t('صعب'),
+          disc: ia.discrimination,
+          options: (q.options || []).map((o, i) => ({ text: stripHtml(o).slice(0, 60) || `${i + 1}`, count: ia.choices[i], correct: i === q.correct_option_index })),
+          blank: ia.blank,
           wrong: wrongIdx >= 0 ? `${stripHtml(q.options?.[wrongIdx] || '').slice(0, 40)} (${wrongCount})` : '—',
         };
       });
@@ -67,12 +77,15 @@ export const QuestionAnalysis: React.FC<{ quizId: string }> = ({ quizId }) => {
             <thead>
               <tr className="bg-slate-50 dark:bg-slate-800/60 text-slate-500 dark:text-slate-400 font-bold">
                 <th className="py-2 px-3">#</th><th className="py-2 px-3">{t('السؤال')}</th><th className="py-2 px-3">{t('الإجابات')}</th>
-                <th className="py-2 px-3 min-w-[9rem]">{t('نسبة الصحيح')}</th><th className="py-2 px-3">{t('الصعوبة')}</th><th className="py-2 px-3">{t('أكثر خيار خاطئ')}</th>
+                <th className="py-2 px-3 min-w-[9rem]">{t('نسبة الصحيح')}</th><th className="py-2 px-3">{t('الصعوبة')}</th>
+                <th className="py-2 px-3" title={t('الفرق بين نسبة الصواب في أعلى 27% من الطلاب وأدنى 27%. كلما ارتفع كان السؤال أقدر على التمييز بين المتمكن وغيره.')}>{t('معامل التمييز')}</th>
+                <th className="py-2 px-3">{t('أكثر خيار خاطئ')}</th><th className="py-2 px-3"><span className="sr-only">{t('توزيع الاختيارات')}</span></th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
               {sorted.map((r) => (
-                <tr key={r.n}>
+                <Fragment key={r.n}>
+                <tr>
                   <td className="py-2 px-3 font-bold">{r.n}</td>
                   <td className="py-2 px-3 text-slate-700 dark:text-slate-200">{r.text}</td>
                   <td className="py-2 px-3">{r.attempts}</td>
@@ -87,8 +100,52 @@ export const QuestionAnalysis: React.FC<{ quizId: string }> = ({ quizId }) => {
                     )}
                   </td>
                   <td className="py-2 px-3">{r.level}</td>
+                  <td className="py-2 px-3">
+                    {r.disc === null ? <span className="text-slate-400" title={t('يحتاج 5 تسليمات على الأقل')}>—</span> : (
+                      <span className={`inline-flex items-center gap-1 font-bold ${r.disc < 0.2 ? 'text-rose-700 dark:text-rose-400' : 'text-slate-700 dark:text-slate-200'}`}>
+                        {r.disc < 0.2 && <AlertTriangle className="w-3.5 h-3.5" aria-hidden />}
+                        {r.disc.toFixed(2)} <span className="font-normal">({t(discLabel(r.disc))})</span>
+                      </span>
+                    )}
+                  </td>
                   <td className="py-2 px-3 text-slate-600 dark:text-slate-300">{r.wrong}</td>
+                  <td className="py-2 px-3">
+                    {r.options.length > 0 && (
+                      <button type="button" aria-expanded={open === r.n} onClick={() => setOpen(open === r.n ? null : r.n)}
+                        className="inline-flex items-center gap-1 text-[11px] font-bold text-indigo-600 dark:text-indigo-400 hover:underline whitespace-nowrap">
+                        {t('الاختيارات')}<ChevronDown className={`w-3.5 h-3.5 transition ${open === r.n ? 'rotate-180' : ''}`} />
+                      </button>
+                    )}
+                  </td>
                 </tr>
+                {open === r.n && (
+                  <tr className="bg-slate-50/70 dark:bg-slate-800/30">
+                    <td />
+                    <td colSpan={7} className="py-3 px-3">
+                      <div className="space-y-1.5 max-w-xl" data-testid="distractors">
+                        {r.options.map((o, i) => {
+                          const share = r.attempts ? Math.round((o.count / r.attempts) * 100) : 0;
+                          return (
+                            <div key={i} className="flex items-center gap-2">
+                              <span className={`w-48 shrink-0 truncate ${o.correct ? 'font-bold text-emerald-700 dark:text-emerald-400' : 'text-slate-600 dark:text-slate-300'}`} title={o.text}>
+                                {o.correct ? '✓ ' : ''}{o.text}
+                              </span>
+                              <div className="flex-1 h-2 rounded-full bg-slate-200/70 dark:bg-slate-700 overflow-hidden">
+                                <div className={`h-full ${o.correct ? 'bg-emerald-500' : 'bg-slate-400 dark:bg-slate-500'}`} style={{ width: `${share}%` }} />
+                              </div>
+                              <span className="w-20 text-end font-bold text-slate-700 dark:text-slate-200">{share}% ({o.count})</span>
+                            </div>
+                          );
+                        })}
+                        {r.blank > 0 && <p className="text-[11px] text-slate-500">{t('بدون إجابة: {n}', { n: r.blank })}</p>}
+                        {r.options.some((o) => !o.correct && o.count === 0) && r.attempts >= 5 && (
+                          <p className="text-[11px] text-slate-500">{t('خيار لم يختره أحد لا يعمل كمشتّت؛ فكّر في استبداله بخيار أقرب.')}</p>
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                )}
+                </Fragment>
               ))}
             </tbody>
           </table>
