@@ -29,6 +29,7 @@ import { FileText as FileTextIcon } from 'lucide-react';
 import { Role, User, TeacherPermissions, Gender } from '../../types';
 import { normalizeClassName } from '../../utils/classMatch';
 import { Avatar } from '../common/Avatar';
+import { uiDir } from '../../i18n';
 
 export const UsersManagement: React.FC = () => {
   const {
@@ -578,7 +579,7 @@ export const UsersManagement: React.FC = () => {
   ).length;
 
   return (
-    <div className="max-w-7xl mx-auto py-8 px-4 sm:px-6 lg:px-8 space-y-6" dir="rtl">
+    <div className="max-w-7xl mx-auto py-8 px-4 sm:px-6 lg:px-8 space-y-6" dir={uiDir()}>
       <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4">
         <div>
           <h1 className="text-2xl sm:text-[28px] font-extrabold text-slate-900 dark:text-white">{isTeacher ? 'طلابي' : 'المستخدمون'}</h1>
@@ -719,7 +720,7 @@ export const UsersManagement: React.FC = () => {
       {selectedIds.length > 0 && (() => {
         const selectedStudents = selectedIds.filter((id) => users.find((u) => u.id === id)?.role === 'student');
         return (
-          <div className="sticky top-[72px] z-20 p-2.5 pr-4 rounded-2xl bg-slate-900 dark:bg-slate-800 text-white shadow-lg flex flex-wrap items-center gap-2" role="region" aria-label="إجراءات على المحدد">
+          <div className="sticky top-[72px] z-20 p-2.5 ps-4 rounded-2xl bg-slate-900 dark:bg-slate-800 text-white shadow-lg flex flex-wrap items-center gap-2" role="region" aria-label="إجراءات على المحدد">
             <span className="text-[15px] font-semibold flex-1 min-w-[8rem]">تم تحديد {selectedIds.length}</span>
             <select aria-label="نقل إلى صف" value={moveClassId} onChange={(e) => setMoveClassId(e.target.value)}
               className="h-10 px-3 text-sm rounded-xl border-0 bg-white/10 text-white [&>option]:text-slate-900">
@@ -783,10 +784,10 @@ export const UsersManagement: React.FC = () => {
       {/* Users Table */}
       <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 overflow-hidden">
         <div className="overflow-x-auto">
-          <table className="w-full text-right text-[14.5px]">
+          <table className="w-full text-start text-[14.5px]">
             <thead>
               <tr className="bg-slate-50 dark:bg-slate-800/60 text-slate-500 dark:text-slate-400 font-bold border-b border-slate-100 dark:border-slate-800">
-                <th className="py-3 pr-4 w-8">
+                <th className="py-3 ps-4 w-8">
                   {(() => {
                     const selectable = filteredUsers.filter((u) => u.id !== currentUser?.id).map((u) => u.id);
                     const all = selectable.length > 0 && selectable.every((id) => selectedIds.includes(id));
@@ -830,7 +831,7 @@ export const UsersManagement: React.FC = () => {
                     key={u.id}
                     className={`transition-colors ${selectedIds.includes(u.id) ? 'bg-indigo-50/60 dark:bg-indigo-950/30' : 'hover:bg-indigo-50/20 dark:hover:bg-slate-800/40'}`}
                   >
-                    <td className="py-3.5 pr-4">
+                    <td className="py-3.5 ps-4">
                       {u.id !== currentUser?.id && (
                         <input type="checkbox" aria-label={`تحديد ${u.name}`} className="accent-indigo-600 w-4 h-4"
                           checked={selectedIds.includes(u.id)}
@@ -910,7 +911,7 @@ export const UsersManagement: React.FC = () => {
                       {isStaffRole(u.role) && (
                         <div className="space-y-1.5">
                           <div className="flex flex-wrap items-center gap-1">
-                            <span className="text-[10px] font-bold text-slate-400 ml-1">المواد:</span>
+                            <span className="text-[10px] font-bold text-slate-400 me-1">المواد:</span>
                             {assignedSubs.length > 0 ? (
                               assignedSubs.map((sName, idx) => (
                                 <span
@@ -925,7 +926,7 @@ export const UsersManagement: React.FC = () => {
                             )}
                           </div>
                           <div className="flex flex-wrap items-center gap-1">
-                            <span className="text-[10px] font-bold text-slate-400 ml-1">الفصول:</span>
+                            <span className="text-[10px] font-bold text-slate-400 me-1">الفصول:</span>
                             {assignedCls.length > 0 ? (
                               assignedCls.map((cName, idx) => (
                                 <span
@@ -1422,7 +1423,7 @@ export const UsersManagement: React.FC = () => {
 
       {/* Import Error Display */}
       {importError && (
-        <div className="fixed bottom-6 left-6 right-6 sm:left-auto sm:right-6 sm:w-96 z-50 bg-rose-600 text-white p-4 rounded-2xl shadow-2xl flex items-center justify-between gap-3 animate-in slide-in-from-bottom">
+        <div className="fixed bottom-6 end-6 start-6 sm:end-auto sm:start-6 sm:w-96 z-50 bg-rose-600 text-white p-4 rounded-2xl shadow-2xl flex items-center justify-between gap-3 animate-in slide-in-from-bottom">
           <span className="text-xs font-bold">{importError}</span>
           <button onClick={() => setImportError('')} className="p-1 hover:bg-rose-700 rounded-lg">
             <X className="w-4 h-4" />
@@ -1470,7 +1471,7 @@ export const UsersManagement: React.FC = () => {
 
             {importPreview.length > 0 && (
               <div className="overflow-x-auto mb-4">
-                <table className="w-full text-right text-xs">
+                <table className="w-full text-start text-xs">
                   <thead>
                     <tr className="bg-slate-50 dark:bg-slate-800/60 text-slate-500 dark:text-slate-400 font-bold border-b border-slate-100 dark:border-slate-800">
                       <th className="py-2 px-3">#</th>

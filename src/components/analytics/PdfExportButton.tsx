@@ -1,9 +1,10 @@
 import React from 'react';
 import { FileDown } from 'lucide-react';
+import { t } from '../../i18n';
 
 export const PdfExportButton: React.FC<{ onClick: () => void; label?: string }> = ({
   onClick,
-  label = 'تصدير الرسوم البيانية PDF',
+  label = t('تصدير الرسوم البيانية PDF'),
 }) => (
   <button
     type="button"

@@ -1,6 +1,7 @@
 import React from 'react';
 import { AnswerItem, Question } from '../../types';
 import { RichText } from './RichText';
+import { t, optionLetters } from '../../i18n';
 
 export type AnswerStatus = 'correct' | 'partial' | 'wrong' | 'pending';
 
@@ -25,13 +26,13 @@ export function answerStatus(question: Question, ans?: AnswerItem): AnswerStatus
 }
 
 export const STATUS_LABEL: Record<AnswerStatus, (awarded: number, marks: number) => string> = {
-  correct: (_a, m) => `+${m} درجات`,
-  partial: (a, m) => `${a} من ${m}`,
-  wrong: (_a, m) => `0 من ${m}`,
-  pending: (_a, m) => `بانتظار التصحيح (${m})`,
+  correct: (_a, m) => t('+{m} درجات', { m }),
+  partial: (a, m) => t('{a} من {m}', { a, m }),
+  wrong: (_a, m) => t('0 من {m}', { m }),
+  pending: (_a, m) => t('بانتظار التصحيح ({m})', { m }),
 };
 
-const letters = ['أ', 'ب', 'ج', 'د', 'هـ', 'و'];
+const letters = optionLetters;
 
 type GradeFn = (subQuestionId: string | null, marks: number) => Promise<boolean> | void;
 
@@ -41,31 +42,31 @@ const GradeBox: React.FC<{ max: number; current?: number; graded?: boolean; onSa
   const [busy, setBusy] = React.useState(false);
   return (
     <div data-pdf-hide className="flex flex-wrap items-center gap-2 mt-2 pt-2 border-t border-slate-200 dark:border-slate-700">
-      <label className="text-[11px] font-bold text-slate-600 dark:text-slate-300">الدرجة:</label>
+      <label className="text-[11px] font-bold text-slate-600 dark:text-slate-300">{t('الدرجة:')}</label>
       <input type="number" min={0} max={max} step={0.5} value={val} onChange={(e) => setVal(e.target.value)}
-        aria-label="درجة السؤال المقالي"
+        aria-label={t('درجة السؤال المقالي')}
         className="w-20 px-2 py-1 text-xs rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-900 dark:text-white" />
-      <span className="text-[11px] text-slate-500">من {max}</span>
+      <span className="text-[11px] text-slate-500">{t('من')}{' '}{max}</span>
       <button type="button" disabled={busy || val === ''}
         onClick={async () => { setBusy(true); await onSave(Number(val)); setBusy(false); }}
         className="px-3 py-1 rounded-lg text-[11px] font-bold bg-indigo-600 hover:bg-indigo-700 text-white disabled:opacity-50">
-        {graded ? 'تحديث الدرجة' : 'حفظ الدرجة'}
+        {graded ? t('تحديث الدرجة') : t('حفظ الدرجة')}
       </button>
-      {graded && <span className="text-[11px] font-bold text-emerald-600">✓ مصحَّح</span>}
+      {graded && <span className="text-[11px] font-bold text-emerald-600">{t('✓ مصحَّح')}</span>}
     </div>
   );
 };
 
 const TextAnswer: React.FC<{ text?: string; graded?: boolean; awarded?: number; max?: number; onGrade?: (m: number) => Promise<boolean> | void }> = ({ text, graded, awarded, max = 0, onGrade }) => (
   <div className="p-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50/70 dark:bg-slate-800/60 text-xs">
-    <div className="font-bold text-slate-500 dark:text-slate-400 mb-1">الإجابة المكتوبة:</div>
+    <div className="font-bold text-slate-500 dark:text-slate-400 mb-1">{t('الإجابة المكتوبة:')}</div>
     <p className="whitespace-pre-wrap text-slate-800 dark:text-slate-200 leading-relaxed">
-      {text?.trim() || <span className="text-slate-400">لم تتم الإجابة</span>}
+      {text?.trim() || <span className="text-slate-400">{t('لم تتم الإجابة')}</span>}
     </p>
     {graded ? (
-      <div className="text-[10px] font-bold text-emerald-700 dark:text-emerald-300 mt-2">صحّحه المعلم: {awarded ?? 0} من {max}</div>
+      <div className="text-[10px] font-bold text-emerald-700 dark:text-emerald-300 mt-2">{t('صحّحه المعلم: {a} من {m}', { a: awarded ?? 0, m: max })}</div>
     ) : (
-      <div className="text-[10px] font-bold text-amber-700 dark:text-amber-300 mt-2">سؤال مقالي: بانتظار تصحيح المعلم</div>
+      <div className="text-[10px] font-bold text-amber-700 dark:text-amber-300 mt-2">{t('سؤال مقالي: بانتظار تصحيح المعلم')}</div>
     )}
     {onGrade && <GradeBox max={max} current={awarded} graded={graded} onSave={onGrade} />}
   </div>
@@ -124,11 +125,11 @@ export const AnswerExtras: React.FC<{ question: Question; answer?: AnswerItem; o
                     <div key={optIdx} className={`p-2.5 rounded-xl border text-xs flex items-center justify-between gap-2 ${cls}`}>
                       <div className="flex items-center gap-2">
                         <span className="w-5 h-5 rounded-md bg-white/80 dark:bg-slate-700 border text-[11px] font-bold flex items-center justify-center shrink-0">
-                          {letters[optIdx] || optIdx + 1}
+                          {letters()[optIdx] || optIdx + 1}
                         </span>
                         <RichText html={opt} inline />
                       </div>
-                      {isSelected && <span className="text-[10px] font-bold">الإجابة المختارة</span>}
+                      {isSelected && <span className="text-[10px] font-bold">{t('الإجابة المختارة')}</span>}
                     </div>
                   );
                 })}

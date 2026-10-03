@@ -8,6 +8,7 @@ import { Avatar } from '../common/Avatar';
 import { describeQuizTarget } from '../../utils/quizTarget';
 import { getWindowState } from '../../utils/quizWindow';
 import { Button, Card, Chip, PageHeader, Tone } from '../common/ui';
+import { uiDir } from '../../i18n';
 
 const statusOf = (q: QuizWithDetails): { label: string; tone: Tone } => {
   if (q.status === 'draft') return { label: 'مسودة', tone: 'muted' };
@@ -51,7 +52,7 @@ export const AdminQuizBank: React.FC = () => {
   const iconBtn = 'w-9 h-9 flex items-center justify-center rounded-lg text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800';
 
   return (
-    <div className="max-w-7xl mx-auto py-8 px-4 sm:px-6 lg:px-8 space-y-6" dir="rtl">
+    <div className="max-w-7xl mx-auto py-8 px-4 sm:px-6 lg:px-8 space-y-6" dir={uiDir()}>
       <PageHeader
         title="بنك الاختبارات"
         subtitle={`${list.length} اختباراً · معاينة وتعديل ونقل الملكية بين المعلمين`}
@@ -69,7 +70,7 @@ export const AdminQuizBank: React.FC = () => {
 
       <Card className="overflow-hidden">
         <div className="overflow-x-auto">
-          <table className="w-full text-right text-[14.5px]">
+          <table className="w-full text-start text-[14.5px]">
             <thead>
               <tr className="bg-slate-50 dark:bg-slate-800/60 text-slate-500 dark:text-slate-400 text-[13px] border-b border-slate-200 dark:border-slate-800">
                 <th className="py-3 px-4 font-semibold">الاختبار</th>

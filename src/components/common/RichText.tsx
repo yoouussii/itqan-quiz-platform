@@ -127,6 +127,7 @@ interface RichTextProps {
   inline?: boolean;
 }
 
+// dir="auto": محتوى الأسئلة يأخذ اتجاه لغته (سؤال عربي يبقى من اليمين حتى في الواجهة الإنجليزية)
 export const RichText: React.FC<RichTextProps> = ({ html, className = '', inline = false }) => {
   const text = html ?? '';
   const isHtml = looksLikeHtml(text);
@@ -136,16 +137,16 @@ export const RichText: React.FC<RichTextProps> = ({ html, className = '', inline
 
   if (!isHtml) {
     return inline ? (
-      <span className={className}>{text}</span>
+      <span dir="auto" className={className}>{text}</span>
     ) : (
-      <div className={`whitespace-pre-wrap ${className}`}>{text}</div>
+      <div dir="auto" className={`whitespace-pre-wrap ${className}`}>{text}</div>
     );
   }
 
   return inline ? (
-    <span className={`rich-text ${className}`} dangerouslySetInnerHTML={{ __html: safe }} />
+    <span dir="auto" className={`rich-text ${className}`} dangerouslySetInnerHTML={{ __html: safe }} />
   ) : (
-    <div className={`rich-text ${className}`} dangerouslySetInnerHTML={{ __html: safe }} />
+    <div dir="auto" className={`rich-text ${className}`} dangerouslySetInnerHTML={{ __html: safe }} />
   );
 };
 

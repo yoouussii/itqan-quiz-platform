@@ -1,5 +1,6 @@
 import React from 'react';
 import { useApp } from '../../context/AppContext';
+import { t } from '../../i18n';
 
 interface LogoProps {
   size?: 'sm' | 'md' | 'lg' | 'xl';
@@ -31,7 +32,7 @@ export const Logo: React.FC<LogoProps> = ({
       <div className="relative flex items-center justify-center shrink-0">
         <img
           src={schoolLogo || (isDark ? '/itqan-logo-dark.png' : '/itqan-logo-light.png')}
-          alt={schoolName ? `شعار ${schoolName}` : 'شعار منصة إتقان التعليمية'}
+          alt={schoolName ? t('شعار {name}', { name: schoolName }) : t('شعار منصة إتقان التعليمية')}
           className={`${sizeClasses.img} object-contain transition-transform duration-200 hover:scale-105 filter drop-shadow-xs`}
           onError={(e) => {
             // Fallback to light logo if dark fails or vice versa
@@ -49,16 +50,16 @@ export const Logo: React.FC<LogoProps> = ({
               className={`font-black tracking-tight font-cairo leading-tight text-slate-900 dark:text-white truncate max-w-[12rem] ${sizeClasses.text}`}
               title={schoolName || undefined}
             >
-              {schoolName || 'منصة إتقان'}
+              {schoolName || t('منصة إتقان')}
             </span>
             {!schoolName && <span className="text-[10px] px-1.5 py-0.5 font-bold rounded-md bg-amber-50 dark:bg-amber-950/80 text-amber-700 dark:text-amber-400 border border-amber-300/80 dark:border-amber-700 hidden 2xl:inline-block whitespace-nowrap">
-              التقييم الذكي
+              {t('التقييم الذكي')}
             </span>}
           </div>
           <p
             className={`text-slate-500 dark:text-slate-400 leading-tight whitespace-nowrap hidden sm:block ${sizeClasses.sub}`}
           >
-            {schoolName ? 'منصة إتقان للاختبارات' : 'منظومة الاختبارات والتقييم الذكي'}
+            {schoolName ? t('منصة إتقان للاختبارات') : t('منظومة الاختبارات والتقييم الذكي')}
           </p>
         </div>
       )}

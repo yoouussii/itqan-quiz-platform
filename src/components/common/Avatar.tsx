@@ -4,6 +4,7 @@ import { ShieldCheck, UserCheck, GraduationCap, UserCog } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 import { parsePreset } from '../../utils/avatarPresets';
 import { CharacterSvg, findCharacter } from './CharacterAvatar';
+import { t } from '../../i18n';
 
 interface AvatarProps {
   name: string;
@@ -38,7 +39,7 @@ const badgeColors: Record<Role, string> = {
   supervisor: 'bg-sky-600 text-white',
   parent: 'bg-rose-500 text-white',
 };
-const badgeTitles: Record<Role, string> = { admin: 'مدير نظام', teacher: 'معلم', student: 'طالب', supervisor: 'مشرف', parent: 'ولي أمر' };
+const badgeTitles = (): Record<Role, string> => ({ admin: t('مدير نظام'), teacher: t('معلم'), student: t('طالب'), supervisor: t('مشرف'), parent: t('ولي أمر') });
 
 export const Avatar: React.FC<AvatarProps> = ({
   name,
@@ -55,10 +56,10 @@ export const Avatar: React.FC<AvatarProps> = ({
   const isImage = !!custom && custom.startsWith('data:');
 
   const getInitials = (n: string) => {
-    if (!n) return 'م';
+    if (!n) return t('م');
     const parts = n.trim().split(' ').filter(Boolean);
     if (parts.length >= 2) return `${parts[0][0]}${parts[1][0]}`;
-    return parts[0][0] || 'م';
+    return parts[0][0] || t('م');
   };
 
   const gradient = roleGradients[role] || 'from-slate-600 to-slate-700 text-white';
@@ -87,8 +88,8 @@ export const Avatar: React.FC<AvatarProps> = ({
 
       {showBadge && (
         <span
-          className={`absolute -bottom-1 -left-1 p-0.5 rounded-full border-2 border-white dark:border-slate-900 ${badgeColors[role] || badgeColors.student}`}
-          title={badgeTitles[role] || 'مستخدم'}
+          className={`absolute -bottom-1 -end-1 p-0.5 rounded-full border-2 border-white dark:border-slate-900 ${badgeColors[role] || badgeColors.student}`}
+          title={badgeTitles()[role] || t('مستخدم')}
         >
           {role === 'admin' && <ShieldCheck className="w-2.5 h-2.5" />}
           {role === 'teacher' && <UserCheck className="w-2.5 h-2.5" />}

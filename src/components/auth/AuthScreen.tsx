@@ -3,6 +3,8 @@ import { Info, Check, Moon, Sun, Eye, EyeOff } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 import { Logo } from '../common/Logo';
 import { navigateTo } from '../../utils/router';
+import { LangToggle } from '../../i18n/LangContext';
+import { t } from '../../i18n';
 
 /** تسجيل الدخول برقم الهوية (لا يوجد تسجيل ذاتي: الحسابات تُنشأ من إدارة المدرسة) */
 export const AuthScreen: React.FC = () => {
@@ -28,27 +30,30 @@ export const AuthScreen: React.FC = () => {
   return (
     <div className="w-full min-h-[calc(100vh-72px)] grid lg:grid-cols-2">
       <div className="relative flex flex-col justify-center px-5 sm:px-12 xl:px-24 py-12 bg-white dark:bg-slate-950">
-        <button
-          type="button"
-          onClick={toggleTheme}
-          className="absolute top-4 left-4 w-11 h-11 flex items-center justify-center rounded-xl border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800"
-          title={theme === 'dark' ? 'الوضع النهاري' : 'الوضع الليلي'}
-          aria-label="تبديل مظهر العرض"
-        >
-          {theme === 'dark' ? <Sun className="w-5 h-5 text-amber-400" /> : <Moon className="w-5 h-5" />}
-        </button>
+        <div className="absolute top-4 end-4 flex items-center gap-2">
+          <LangToggle className="h-11 border border-slate-200 dark:border-slate-700" />
+          <button
+            type="button"
+            onClick={toggleTheme}
+            className="w-11 h-11 flex items-center justify-center rounded-xl border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800"
+            title={theme === 'dark' ? t('الوضع النهاري') : t('الوضع الليلي')}
+            aria-label={t('تبديل مظهر العرض')}
+          >
+            {theme === 'dark' ? <Sun className="w-5 h-5 text-amber-400" /> : <Moon className="w-5 h-5" />}
+          </button>
+        </div>
 
         <div className="w-full max-w-md mx-auto space-y-7">
           <Logo size="md" />
           <div>
-            <h1 className="text-[32px] sm:text-[38px] font-extrabold text-slate-900 dark:text-white leading-tight">أهلاً بعودتك</h1>
-            <p className="mt-2 text-[17px] text-slate-500 dark:text-slate-400">ادخل برقم الهوية وكلمة المرور التي استلمتها من المدرسة.</p>
+            <h1 className="text-[32px] sm:text-[38px] font-extrabold text-slate-900 dark:text-white leading-tight">{t('أهلاً بعودتك')}</h1>
+            <p className="mt-2 text-[17px] text-slate-500 dark:text-slate-400">{t('ادخل برقم الهوية وكلمة المرور التي استلمتها من المدرسة.')}</p>
           </div>
 
           <form onSubmit={handleStandardLogin} className="space-y-5">
             <div className="space-y-2">
               <label htmlFor="login-id" className="block text-[15px] font-semibold text-slate-800 dark:text-slate-200">
-                رقم الهوية أو الرقم الأكاديمي
+                {t('رقم الهوية أو الرقم الأكاديمي')}
               </label>
               <input
                 id="login-id"
@@ -64,7 +69,7 @@ export const AuthScreen: React.FC = () => {
             </div>
 
             <div className="space-y-2">
-              <label htmlFor="login-pw" className="block text-[15px] font-semibold text-slate-800 dark:text-slate-200">كلمة المرور</label>
+              <label htmlFor="login-pw" className="block text-[15px] font-semibold text-slate-800 dark:text-slate-200">{t('كلمة المرور')}</label>
               <div className="relative">
                 <input
                   id="login-pw"
@@ -73,13 +78,13 @@ export const AuthScreen: React.FC = () => {
                   required
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  className={`${input} pl-12`}
+                  className={`${input} pe-12`}
                 />
                 <button
                   type="button"
                   onClick={() => setShowPw(!showPw)}
-                  aria-label={showPw ? 'إخفاء كلمة المرور' : 'إظهار كلمة المرور'}
-                  className="absolute left-1.5 top-1/2 -translate-y-1/2 w-10 h-10 flex items-center justify-center rounded-lg text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800"
+                  aria-label={showPw ? t('إخفاء كلمة المرور') : t('إظهار كلمة المرور')}
+                  className="absolute end-1.5 top-1/2 -translate-y-1/2 w-10 h-10 flex items-center justify-center rounded-lg text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800"
                 >
                   {showPw ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
                 </button>
@@ -91,35 +96,35 @@ export const AuthScreen: React.FC = () => {
               disabled={isLoading}
               className="w-full h-[54px] bg-indigo-600 hover:bg-indigo-700 disabled:opacity-60 text-white rounded-xl text-[17px] font-bold flex items-center justify-center"
             >
-              {isLoading ? <span className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" /> : 'دخول'}
+              {isLoading ? <span className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" /> : t('دخول')}
             </button>
             <p className="text-center text-[13px] text-slate-500 dark:text-slate-400">
-              بتسجيل الدخول توافق على{' '}
-              <a href="/terms" onClick={(e) => { e.preventDefault(); navigateTo('/terms'); }} className="text-indigo-700 dark:text-indigo-400 font-semibold hover:underline">شروط الاستخدام</a>
-              {' '}و{' '}
-              <a href="/privacy" onClick={(e) => { e.preventDefault(); navigateTo('/privacy'); }} className="text-indigo-700 dark:text-indigo-400 font-semibold hover:underline">سياسة الخصوصية</a>
+              {t('بتسجيل الدخول توافق على')}{' '}
+              <a href="/terms" onClick={(e) => { e.preventDefault(); navigateTo('/terms'); }} className="text-indigo-700 dark:text-indigo-400 font-semibold hover:underline">{t('شروط الاستخدام')}</a>
+              {' '}{t('و')}{' '}
+              <a href="/privacy" onClick={(e) => { e.preventDefault(); navigateTo('/privacy'); }} className="text-indigo-700 dark:text-indigo-400 font-semibold hover:underline">{t('سياسة الخصوصية')}</a>
             </p>
           </form>
 
           <div className="flex gap-3 items-start rounded-xl bg-slate-50 dark:bg-slate-900 px-4 py-3.5">
             <Info className="w-5 h-5 text-indigo-600 dark:text-indigo-400 shrink-0 mt-0.5" />
             <p className="text-[14px] leading-relaxed text-slate-600 dark:text-slate-400">
-              لا يوجد تسجيل ذاتي. إذا نسيت كلمة المرور أو لم يصلك حساب، تواصل مع إدارة المدرسة لإعادة تعيينها.
+              {t('لا يوجد تسجيل ذاتي. إذا نسيت كلمة المرور أو لم يصلك حساب، تواصل مع إدارة المدرسة لإعادة تعيينها.')}
             </p>
           </div>
         </div>
       </div>
 
       <div className="hidden lg:flex relative overflow-hidden bg-indigo-600 text-white flex-col justify-center px-16 xl:px-24 gap-7">
-        <span className="pointer-events-none absolute -left-20 -top-20 w-80 h-80 rounded-full border-[48px]" style={{ borderColor: 'rgba(255,255,255,.07)' }} />
-        <span className="pointer-events-none absolute right-16 -bottom-28 w-64 h-64 rounded-[40px] rotate-[24deg] bg-white/[0.06]" />
-        <h2 className="relative text-[44px] font-extrabold leading-[1.35]">اختبارات المدرسة<br />في مكان واحد</h2>
+        <span className="pointer-events-none absolute -end-20 -top-20 w-80 h-80 rounded-full border-[48px]" style={{ borderColor: 'rgba(255,255,255,.07)' }} />
+        <span className="pointer-events-none absolute start-16 -bottom-28 w-64 h-64 rounded-[40px] rotate-[24deg] bg-white/[0.06]" />
+        <h2 className="relative text-[44px] font-extrabold leading-[1.35]">{t('اختبارات المدرسة')}<br />{t('في مكان واحد')}</h2>
         <ul className="relative space-y-4 text-[17px]">
-          {['اختبارات إلكترونية بنتيجة فورية', 'نقاط وأوسمة تحفّز الطلاب', 'تقارير دقيقة للمعلم والإدارة'].map((t) => (
-            <li key={t} className="flex items-center gap-3"><Check className="w-[22px] h-[22px] text-amber-300" strokeWidth={2.5} />{t}</li>
+          {[t('اختبارات إلكترونية بنتيجة فورية'), t('نقاط وأوسمة تحفّز الطلاب'), t('تقارير دقيقة للمعلم والإدارة')].map((item) => (
+            <li key={item} className="flex items-center gap-3"><Check className="w-[22px] h-[22px] text-amber-300" strokeWidth={2.5} />{item}</li>
           ))}
         </ul>
-        <p className="relative text-[13px] text-white/80">منظومة الاختبارات والتقييم الذكي</p>
+        <p className="relative text-[13px] text-white/80">{t('منظومة الاختبارات والتقييم الذكي')}</p>
       </div>
     </div>
   );

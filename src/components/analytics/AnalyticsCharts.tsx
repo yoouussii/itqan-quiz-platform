@@ -20,6 +20,7 @@ import {
   FileText,
 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
+import { uiDir } from '../../i18n';
 
 interface ScoreDistributionItem {
   name: string;
@@ -163,7 +164,7 @@ export const AnalyticsCharts: React.FC<AnalyticsChartsProps> = ({
                       return (
                         <div
                           className="bg-slate-900 text-white p-3 rounded-xl shadow-xl text-xs font-cairo border border-slate-700"
-                          dir="rtl"
+                          dir={uiDir()}
                         >
                           <p className="font-bold text-sm mb-1">{data.name}</p>
                           <p className="text-slate-300">
@@ -246,7 +247,7 @@ export const AnalyticsCharts: React.FC<AnalyticsChartsProps> = ({
                       return (
                         <div
                           className="bg-slate-900 text-white p-3 rounded-xl shadow-xl text-xs font-cairo border border-slate-700"
-                          dir="rtl"
+                          dir={uiDir()}
                         >
                           <p className="font-bold text-sm mb-1">{data.dateLabel}</p>
                           <p className="text-slate-300">
@@ -421,7 +422,7 @@ export const AnalyticsCharts: React.FC<AnalyticsChartsProps> = ({
                           </p>
                           <p className="text-[10px] text-slate-400">{count} محاولة</p>
                         </div>
-                        <div className="flex items-center gap-3 shrink-0 mr-3">
+                        <div className="flex items-center gap-3 shrink-0 ms-3">
                           <div className="text-center">
                             <p className="text-xs font-black" style={{ color: selectedSubject.color }}>
                               {avg}%
@@ -467,7 +468,7 @@ export const AnalyticsCharts: React.FC<AnalyticsChartsProps> = ({
                     لا توجد بيانات طلاب بعد
                   </p>
                 ) : (
-                  <div className="max-h-72 overflow-y-auto space-y-2 pl-1">
+                  <div className="max-h-72 overflow-y-auto space-y-2 pe-1">
                     {subjectDetailData.studentResults.map((student, idx) => (
                       <div
                         key={student.id}
@@ -513,7 +514,7 @@ export const AnalyticsCharts: React.FC<AnalyticsChartsProps> = ({
                             />
                           </div>
                           <span
-                            className={`text-xs font-black w-10 text-right ${
+                            className={`text-xs font-black w-10 text-start ${
                               student.avgScore >= 85
                                 ? 'text-emerald-600 dark:text-emerald-400'
                                 : student.avgScore >= 60

@@ -19,6 +19,7 @@ import { StorageService } from '../../services/storage';
 import { RichTextEditor } from '../common/RichTextEditor';
 import { toLocalInputValue, toInputValue, inputToIso, defaultEndInput } from '../../utils/quizWindow';
 import { stripHtml } from '../common/RichText';
+import { uiDir, optionLetters } from '../../i18n';
 
 export type QuestionType = 'mcq' | 'true_false' | 'essay' | 'passage';
 
@@ -632,7 +633,7 @@ export const QuizEditor: React.FC = () => {
   };
 
   return (
-    <div className="max-w-5xl mx-auto py-8 px-4 sm:px-6" dir="rtl">
+    <div className="max-w-5xl mx-auto py-8 px-4 sm:px-6" dir={uiDir()}>
       {/* Header */}
       <div className="flex items-center justify-between mb-8 pb-4 border-b border-slate-200 dark:border-slate-800">
         <div>
@@ -644,7 +645,7 @@ export const QuizEditor: React.FC = () => {
             }}
             className="inline-flex items-center gap-1.5 text-xs text-slate-500 dark:text-slate-400 hover:text-indigo-600 mb-2 font-bold transition-colors"
           >
-            <ArrowRight className="w-4 h-4" />
+            <ArrowRight className="w-4 h-4 dir-icon" />
             <span>العودة إلى قائمة الاختبارات</span>
           </button>
           <h1 className="text-2xl font-black text-slate-900 dark:text-white font-cairo">
@@ -658,7 +659,7 @@ export const QuizEditor: React.FC = () => {
         </div>
 
         <div className="flex items-center gap-3">
-          <div className="text-left bg-indigo-50 dark:bg-indigo-950 px-4 py-2 rounded-2xl border border-indigo-100 dark:border-indigo-900">
+          <div className="text-end bg-indigo-50 dark:bg-indigo-950 px-4 py-2 rounded-2xl border border-indigo-100 dark:border-indigo-900">
             <span className="text-[11px] text-indigo-700 dark:text-indigo-300 block font-bold">
               الدرجة الإجمالية
             </span>
@@ -718,14 +719,14 @@ export const QuizEditor: React.FC = () => {
                   مدة الاختبار (بالدقائق) *
                 </label>
                 <div className="relative">
-                  <Clock className="w-4 h-4 text-slate-400 absolute right-3.5 top-1/2 -translate-y-1/2" />
+                  <Clock className="w-4 h-4 text-slate-400 absolute start-3.5 top-1/2 -translate-y-1/2" />
                   <input
                     type="number"
                     min={5}
                     max={180}
                     value={durationMinutes}
                     onChange={(e) => setDurationMinutes(Number(e.target.value))}
-                    className="w-full pr-10 pl-3 py-2.5 text-xs rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                    className="w-full ps-10 pe-3 py-2.5 text-xs rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
                   />
                 </div>
               </div>
@@ -735,14 +736,14 @@ export const QuizEditor: React.FC = () => {
                   نسبة النجاح (%) *
                 </label>
                 <div className="relative">
-                  <Award className="w-4 h-4 text-slate-400 absolute right-3.5 top-1/2 -translate-y-1/2" />
+                  <Award className="w-4 h-4 text-slate-400 absolute start-3.5 top-1/2 -translate-y-1/2" />
                   <input
                     type="number"
                     min={40}
                     max={100}
                     value={passPercentage}
                     onChange={(e) => setPassPercentage(Number(e.target.value))}
-                    className="w-full pr-10 pl-3 py-2.5 text-xs rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                    className="w-full ps-10 pe-3 py-2.5 text-xs rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
                   />
                 </div>
                 <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-1 leading-relaxed">
@@ -1020,7 +1021,7 @@ export const QuizEditor: React.FC = () => {
                   </div>
 
                   <div className="flex items-center gap-1">
-                    <div className="flex items-center gap-1.5 ml-2">
+                    <div className="flex items-center gap-1.5 me-2">
                       <span className="text-xs font-bold text-slate-500">الدرجة:</span>
                       <input
                         type="number"
@@ -1092,7 +1093,7 @@ export const QuizEditor: React.FC = () => {
                             <span className={`mt-1.5 w-7 h-7 shrink-0 rounded-lg text-xs font-black flex items-center justify-center ${
                               correct ? 'bg-emerald-600 text-white' : 'bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300'
                             }`}>
-                              {['أ', 'ب', 'ج', 'د', 'هـ', 'و'][optIdx] || optIdx + 1}
+                              {optionLetters()[optIdx] || optIdx + 1}
                             </span>
                             <div className="flex-1 min-w-0">
                               <RichTextEditor
@@ -1258,7 +1259,7 @@ export const QuizEditor: React.FC = () => {
 
           {/* إضافة سؤال حسب النوع */}
           <div className="mt-6 p-4 rounded-2xl border-2 border-dashed border-slate-300 dark:border-slate-700 flex flex-wrap items-center justify-center gap-2">
-            <span className="text-xs font-bold text-slate-500 dark:text-slate-400 ml-1">
+            <span className="text-xs font-bold text-slate-500 dark:text-slate-400 me-1">
               <Plus className="w-4 h-4 inline -mt-0.5" /> أضف سؤالاً:
             </span>
             {QUESTION_TYPES.map((t) => (

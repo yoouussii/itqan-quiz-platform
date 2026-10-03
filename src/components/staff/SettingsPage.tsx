@@ -2,6 +2,7 @@ import React, { useRef, useState } from 'react';
 import { Settings, ImagePlus, Trash2, Check } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 import { BRAND_PRESETS, applyBrandColor, resizeLogo } from '../../utils/brand';
+import { uiDir } from '../../i18n';
 
 /** إعدادات النظام (لمدير النظام) */
 export const SettingsPage: React.FC = () => {
@@ -46,7 +47,7 @@ export const SettingsPage: React.FC = () => {
   const card = 'bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800 p-5';
 
   return (
-    <div className="max-w-2xl mx-auto py-8 px-4 sm:px-6 space-y-6" dir="rtl">
+    <div className="max-w-2xl mx-auto py-8 px-4 sm:px-6 space-y-6" dir={uiDir()}>
       <div className="pb-4 border-b border-slate-200 dark:border-slate-800">
         <h1 className="text-2xl font-black text-slate-900 dark:text-white font-cairo flex items-center gap-2"><Settings className="w-6 h-6 text-indigo-600" /> إعدادات النظام</h1>
       </div>
@@ -92,7 +93,7 @@ export const SettingsPage: React.FC = () => {
               const on = color === p.id;
               return (
                 <button key={p.id} type="button" role="radio" aria-checked={on} onClick={() => previewColor(p.id)}
-                  className={`h-11 pl-4 pr-2 rounded-xl border inline-flex items-center gap-2 text-sm font-semibold ${on ? 'border-slate-900 dark:border-white' : 'border-slate-200 dark:border-slate-700'} text-slate-800 dark:text-slate-100`}>
+                  className={`h-11 pe-4 ps-2 rounded-xl border inline-flex items-center gap-2 text-sm font-semibold ${on ? 'border-slate-900 dark:border-white' : 'border-slate-200 dark:border-slate-700'} text-slate-800 dark:text-slate-100`}>
                   <span className="w-7 h-7 rounded-lg flex items-center justify-center" style={{ backgroundColor: p.shades[600] }}>
                     {on && <Check className="w-4 h-4 text-white" />}
                   </span>

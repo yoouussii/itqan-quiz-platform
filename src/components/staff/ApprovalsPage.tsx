@@ -4,6 +4,7 @@ import { useApp } from '../../context/AppContext';
 import { describeQuizTarget } from '../../utils/quizTarget';
 import { formatQuizDateTime } from '../../utils/quizWindow';
 import { timeAgo } from '../common/NotificationBell';
+import { uiDir } from '../../i18n';
 
 /** اعتماد الاختبارات: قائمة الاختبارات التي أرسلها المعلمون وتنتظر الموافقة قبل أن تظهر للطلاب */
 export const ApprovalsPage: React.FC = () => {
@@ -26,7 +27,7 @@ export const ApprovalsPage: React.FC = () => {
   };
 
   return (
-    <div className="max-w-5xl mx-auto py-8 px-4 sm:px-6 lg:px-8 space-y-6" dir="rtl">
+    <div className="max-w-5xl mx-auto py-8 px-4 sm:px-6 lg:px-8 space-y-6" dir={uiDir()}>
       <div className="pb-4 border-b border-slate-200 dark:border-slate-800">
         <h1 className="text-2xl font-black text-slate-900 dark:text-white font-cairo flex items-center gap-2"><ClipboardCheck className="w-6 h-6 text-indigo-600" /> اعتماد الاختبارات</h1>
         <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">

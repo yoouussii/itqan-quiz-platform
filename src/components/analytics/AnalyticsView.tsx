@@ -6,8 +6,9 @@ import { PdfExportButton } from './PdfExportButton';
 import { exportElementToPdf } from '../../utils/exportPdf';
 import { InsightsPanels } from '../staff/InsightsPanels';
 import { StorageService } from '../../services/storage';
+import { t } from '../../i18n';
 
-const MONTHS = ['يناير','فبراير','مارس','أبريل','مايو','يونيو','يوليو','أغسطس','سبتمبر','أكتوبر','نوفمبر','ديسمبر'];
+const MONTHS = () => [t('يناير'),t('فبراير'),t('مارس'),t('أبريل'),t('مايو'),t('يونيو'),t('يوليو'),t('أغسطس'),t('سبتمبر'),t('أكتوبر'),t('نوفمبر'),t('ديسمبر')];
 
 /** بيانات الرسوم لاختبار واحد بنفس شكل بيانات لوحة المؤشرات العامة */
 function buildQuizChartData(
@@ -15,11 +16,11 @@ function buildQuizChartData(
   subject?: { id: string; name: string; color: string }
 ) {
   const bands = [
-    { name: 'ممتاز (≥85%)', shortName: 'ممتاز', color: '#10b981', test: (p: number) => p >= 85 },
-    { name: 'جيد جداً (75-84%)', shortName: 'جيد جداً', color: '#6366f1', test: (p: number) => p >= 75 && p < 85 },
-    { name: 'جيد (65-74%)', shortName: 'جيد', color: '#0ea5e9', test: (p: number) => p >= 65 && p < 75 },
-    { name: 'مقبول (50-64%)', shortName: 'مقبول', color: '#f59e0b', test: (p: number) => p >= 50 && p < 65 },
-    { name: 'دون التمرير (<50%)', shortName: 'راسب', color: '#f43f5e', test: (p: number) => p < 50 },
+    { name: t('ممتاز (≥85%)'), shortName: t('ممتاز'), color: '#10b981', test: (p: number) => p >= 85 },
+    { name: t('جيد جداً (75-84%)'), shortName: t('جيد جداً'), color: '#6366f1', test: (p: number) => p >= 75 && p < 85 },
+    { name: t('جيد (65-74%)'), shortName: t('جيد'), color: '#0ea5e9', test: (p: number) => p >= 65 && p < 75 },
+    { name: t('مقبول (50-64%)'), shortName: t('مقبول'), color: '#f59e0b', test: (p: number) => p >= 50 && p < 65 },
+    { name: t('دون التمرير (<50%)'), shortName: t('راسب'), color: '#f43f5e', test: (p: number) => p < 50 },
   ];
   const scoreDistribution = bands.map((b) => ({
     name: b.name,
@@ -35,7 +36,7 @@ function buildQuizChartData(
     const key = d.toISOString().slice(0, 10);
     completionTimeline.push({
       dateKey: key,
-      dateLabel: `${d.getDate()} ${MONTHS[d.getMonth()]}`,
+      dateLabel: `${d.getDate()} ${MONTHS()[d.getMonth()]}`,
       submissionsCount: subs.filter((s) => (s.completed_at || '').slice(0, 10) === key).length,
     });
   }
@@ -119,13 +120,13 @@ export const AnalyticsView: React.FC = () => {
     try {
       await exportElementToPdf({
         element: exportRef.current,
-        title: selectedQuiz ? `تحليلات اختبار: ${selectedQuiz.title}` : 'التحليلات الشاملة لجميع الاختبارات',
-        subtitle: `${total} تسليم • المتوسط ${avg}% • نسبة النجاح ${passRate}%`,
-        table: { headers: ['#', 'الطالب', 'الصف', 'الاختبار', 'الدرجة', 'النسبة'], rows },
-        tableTitle: 'نتائج الطلاب',
+        title: selectedQuiz ? t('تحليلات اختبار: {title}', { title: selectedQuiz.title }) : t('التحليلات الشاملة لجميع الاختبارات'),
+        subtitle: t('{total} تسليم • المتوسط {avg}% • نسبة النجاح {pass}%', { total, avg, pass: passRate }),
+        table: { headers: ['#', t('الطالب'), t('الصف'), t('الاختبار'), t('الدرجة'), t('النسبة')], rows },
+        tableTitle: t('نتائج الطلاب'),
       });
     } catch (e: any) {
-      alert(e?.message || 'تعذر تصدير PDF');
+      alert(e?.message || t('تعذر تصدير PDF'));
     }
   };
 
@@ -134,14 +135,14 @@ export const AnalyticsView: React.FC = () => {
   return (
     <div className="space-y-8">
       <div className="flex flex-wrap items-center gap-3">
-        <label className="text-xs font-bold text-slate-700 dark:text-slate-300">عرض تحليلات:</label>
+        <label className="text-xs font-bold text-slate-700 dark:text-slate-300">{t('عرض تحليلات:')}</label>
         <select
-          aria-label="اختيار الاختبار"
+          aria-label={t('اختيار الاختبار')}
           value={selectedQuiz ? quizId : 'all'}
           onChange={(e) => setQuizId(e.target.value)}
           className="min-w-[16rem] p-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white text-xs font-bold focus:outline-none focus:ring-2 focus:ring-indigo-500"
         >
-          <option value="all">كل الاختبارات</option>
+          <option value="all">{t('كل الاختبارات')}</option>
           {visibleQuizzes.map((q) => (
             <option key={q.id} value={q.id}>{q.title}</option>
           ))}
@@ -151,11 +152,11 @@ export const AnalyticsView: React.FC = () => {
       <div ref={exportRef} className="space-y-6">
         <div className="flex flex-wrap items-center gap-x-6 gap-y-1 text-xs text-slate-600 dark:text-slate-300">
           <span className="font-black text-sm text-slate-900 dark:text-white">
-            {selectedQuiz ? selectedQuiz.title : 'جميع الاختبارات'}
+            {selectedQuiz ? selectedQuiz.title : t('جميع الاختبارات')}
           </span>
-          <span>عدد التسليمات: <b>{total}</b></span>
-          <span>المتوسط: <b>{avg}%</b></span>
-          <span>نسبة النجاح: <b>{passRate}%</b></span>
+          <span>{t('عدد التسليمات:')}{' '}<b>{total}</b></span>
+          <span>{t('المتوسط:')}{' '}<b>{avg}%</b></span>
+          <span>{t('نسبة النجاح:')}{' '}<b>{passRate}%</b></span>
         </div>
         <AnalyticsCharts
           scoreDistribution={chartData.scoreDistribution}

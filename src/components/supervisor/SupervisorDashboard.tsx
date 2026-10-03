@@ -7,6 +7,7 @@ import { SubmissionsTable } from '../analytics/SubmissionsTable';
 import { Avatar } from '../common/Avatar';
 import { InsightsPanels } from '../staff/InsightsPanels';
 import { hasPerm } from '../../utils/permissions';
+import { uiDir } from '../../i18n';
 
 export const SupervisorDashboard: React.FC = () => {
   const { currentUser, quizzes, submissions, users, kpis, setCurrentView, settings, pendingApprovalsCount } = useApp();
@@ -20,7 +21,7 @@ export const SupervisorDashboard: React.FC = () => {
   const { scope } = data;
 
   return (
-    <div className="max-w-7xl mx-auto py-8 px-4 sm:px-6 lg:px-8 space-y-8" dir="rtl">
+    <div className="max-w-7xl mx-auto py-8 px-4 sm:px-6 lg:px-8 space-y-8" dir={uiDir()}>
       <div className="bg-gradient-to-r from-sky-700 via-sky-800 to-cyan-900 rounded-3xl p-6 sm:p-8 text-white shadow-xl">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div className="flex items-center gap-4">
@@ -69,7 +70,7 @@ export const SupervisorDashboard: React.FC = () => {
       {pendingApprovalsCount > 0 && (
         <button
           onClick={() => setCurrentView('approvals')}
-          className="w-full text-right px-5 py-3 rounded-2xl bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800 text-xs font-bold text-amber-800 dark:text-amber-300 hover:bg-amber-100"
+          className="w-full text-start px-5 py-3 rounded-2xl bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800 text-xs font-bold text-amber-800 dark:text-amber-300 hover:bg-amber-100"
         >
           🕓 {pendingApprovalsCount} اختبار بانتظار اعتمادك — اضغط للمراجعة
         </button>

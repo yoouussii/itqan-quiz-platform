@@ -1,5 +1,6 @@
 import React from 'react';
 import { LucideIcon } from 'lucide-react';
+import { t, isEn, dateLocale } from '../../i18n';
 
 /** عناصر الواجهة الموحدة (إتقان 2.0): بطاقة، عنوان صفحة، مؤشر رقمي، شارة حالة */
 
@@ -101,7 +102,7 @@ export const StatTile: React.FC<{
       )}
     </>
   );
-  const cls = 'text-right bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5';
+  const cls = 'text-start bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5';
   return onClick ? (
     <button type="button" onClick={onClick} className={`${cls} hover:border-indigo-300 dark:hover:border-indigo-700 transition-colors`}>
       {body}
@@ -119,15 +120,25 @@ export const SectionTitle: React.FC<{ children: React.ReactNode; action?: React.
 );
 
 /** تحية حسب الوقت + تاريخ اليوم بالأرقام اللاتينية */
-export const greeting = () => (new Date().getHours() < 12 ? 'صباح الخير' : 'مساء الخير');
+export const greeting = () => (new Date().getHours() < 12 ? t('صباح الخير') : t('مساء الخير'));
 export const todayLabel = () =>
-  new Date().toLocaleDateString('ar-SA-u-ca-gregory-nu-latn', { weekday: 'long', day: 'numeric', month: 'long' });
+  new Date().toLocaleDateString(dateLocale(), { weekday: 'long', day: 'numeric', month: 'long' });
 
 /** «منذ 5 دقائق» بالعربية */
 export const timeAgo = (iso?: string): string => {
   if (!iso) return '';
   const diff = Math.max(0, Date.now() - new Date(iso).getTime());
   const m = Math.floor(diff / 60000);
+  if (isEn()) {
+    if (m < 1) return 'just now';
+    if (m < 60) return m === 1 ? 'a minute ago' : `${m} minutes ago`;
+    const h = Math.floor(m / 60);
+    if (h < 24) return h === 1 ? 'an hour ago' : `${h} hours ago`;
+    const d = Math.floor(h / 24);
+    if (d === 1) return 'yesterday';
+    if (d < 7) return `${d} days ago`;
+    return new Date(iso).toLocaleDateString(dateLocale(), { day: 'numeric', month: 'long' });
+  }
   if (m < 1) return 'الآن';
   if (m < 60) return m <= 2 ? 'منذ دقيقة' : m <= 10 ? `منذ ${m} دقائق` : `منذ ${m} دقيقة`;
   const h = Math.floor(m / 60);

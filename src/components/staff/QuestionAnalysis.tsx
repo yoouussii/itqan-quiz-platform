@@ -62,7 +62,7 @@ export const QuestionAnalysis: React.FC<{ quizId: string }> = ({ quizId }) => {
         <p className="text-xs text-slate-400">لا توجد أسئلة قابلة للتحليل (الاختيار من متعدد / صح وخطأ).</p>
       ) : (
         <div className="overflow-x-auto rounded-xl border border-slate-200 dark:border-slate-700">
-          <table className="w-full text-right text-xs">
+          <table className="w-full text-start text-xs">
             <thead>
               <tr className="bg-slate-50 dark:bg-slate-800/60 text-slate-500 dark:text-slate-400 font-bold">
                 <th className="py-2 px-3">#</th><th className="py-2 px-3">السؤال</th><th className="py-2 px-3">الإجابات</th>

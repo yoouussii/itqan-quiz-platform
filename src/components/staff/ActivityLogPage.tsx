@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { ScrollText, RefreshCw } from 'lucide-react';
 import { ACTION_LABELS, ActivityEntry, fetchActivity } from '../../services/activityService';
 import { formatFullArabicDate } from '../../utils/dateUtils';
+import { uiDir } from '../../i18n';
 
 const ROLE_TEXT: Record<string, string> = { admin: 'مدير', teacher: 'معلم', supervisor: 'مشرف', student: 'طالب', parent: 'ولي أمر' };
 
@@ -33,7 +34,7 @@ export const ActivityLogPage: React.FC = () => {
   }, [rows, action, days, q]);
 
   return (
-    <div className="max-w-6xl mx-auto py-8 px-4 sm:px-6 lg:px-8 space-y-6" dir="rtl">
+    <div className="max-w-6xl mx-auto py-8 px-4 sm:px-6 lg:px-8 space-y-6" dir={uiDir()}>
       <div className="flex flex-wrap items-end justify-between gap-3 pb-4 border-b border-slate-200 dark:border-slate-800">
         <div>
           <h1 className="text-2xl font-black text-slate-900 dark:text-white font-cairo flex items-center gap-2"><ScrollText className="w-6 h-6 text-indigo-600" /> سجل النشاط</h1>
@@ -57,7 +58,7 @@ export const ActivityLogPage: React.FC = () => {
         </p>
       )}
       <div className="overflow-x-auto rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900">
-        <table className="w-full text-right text-xs">
+        <table className="w-full text-start text-xs">
           <thead><tr className="bg-slate-50 dark:bg-slate-800/60 text-slate-500 font-bold"><th className="py-3 px-3">الوقت</th><th className="py-3 px-3">المنفّذ</th><th className="py-3 px-3">الإجراء</th><th className="py-3 px-3">الهدف</th><th className="py-3 px-3">تفاصيل</th></tr></thead>
           <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
             {loading && <tr><td colSpan={5} className="py-10 text-center text-slate-400">جاري التحميل...</td></tr>}

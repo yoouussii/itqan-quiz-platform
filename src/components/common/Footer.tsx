@@ -1,6 +1,7 @@
 import React from 'react';
 import { MessageCircle } from 'lucide-react';
 import { navigateTo } from '../../utils/router';
+import { uiDir, t } from '../../i18n';
 
 const FooterLink: React.FC<{ path: string; children: React.ReactNode }> = ({ path, children }) => (
   <a href={path} onClick={(e) => { if (e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey) return; e.preventDefault(); navigateTo(path); }}
@@ -10,18 +11,18 @@ const FooterLink: React.FC<{ path: string; children: React.ReactNode }> = ({ pat
 export const Footer: React.FC = () => {
   return (
     <footer className="w-full bg-white dark:bg-slate-900 border-t border-slate-200 dark:border-slate-800 py-5 px-4 text-center transition-colors duration-200 mt-auto">
-      <div className="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-slate-500 dark:text-slate-400 font-medium" dir="rtl">
+      <div className="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-slate-500 dark:text-slate-400 font-medium" dir={uiDir()}>
         <div className="flex flex-col sm:flex-row items-center gap-1 sm:gap-3">
-          <span>جميع الحقوق محفوظة © تصميم وتطوير: <strong className="text-slate-800 dark:text-slate-200 font-bold">يوسف العزب</strong></span>
+          <span>{t('جميع الحقوق محفوظة © تصميم وتطوير:')}{' '}<strong className="text-slate-800 dark:text-slate-200 font-bold">{t('يوسف العزب')}</strong></span>
           <span className="flex items-center gap-2">
-            <FooterLink path="/privacy">سياسة الخصوصية</FooterLink>
+            <FooterLink path="/privacy">{t('سياسة الخصوصية')}</FooterLink>
             <span aria-hidden="true">·</span>
-            <FooterLink path="/terms">شروط الاستخدام</FooterLink>
+            <FooterLink path="/terms">{t('شروط الاستخدام')}</FooterLink>
           </span>
         </div>
         
         <div className="flex items-center gap-2">
-          <span>للتواصل واتساب:</span>
+          <span>{t('للتواصل واتساب:')}</span>
           <a
             href="https://wa.me/966543119854"
             target="_blank"

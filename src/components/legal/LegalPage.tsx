@@ -2,6 +2,7 @@ import React from 'react';
 import { ArrowRight, ShieldCheck, FileText } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 import { navigateTo } from '../../utils/router';
+import { uiDir } from '../../i18n';
 
 type Doc = 'privacy' | 'terms';
 
@@ -14,7 +15,7 @@ const Para: React.FC<{ children: React.ReactNode }> = ({ children }) => (
   <p className="text-[15.5px] leading-[1.95] text-slate-700 dark:text-slate-300">{children}</p>
 );
 const List: React.FC<{ items: React.ReactNode[] }> = ({ items }) => (
-  <ul className="list-disc pr-5 space-y-1.5 text-[15.5px] leading-[1.9] text-slate-700 dark:text-slate-300 marker:text-indigo-600">
+  <ul className="list-disc ps-5 space-y-1.5 text-[15.5px] leading-[1.9] text-slate-700 dark:text-slate-300 marker:text-indigo-600">
     {items.map((it, i) => <li key={i}>{it}</li>)}
   </ul>
 );
@@ -95,10 +96,10 @@ export const LegalPage: React.FC<{ doc: Doc }> = ({ doc }) => {
   const other = isPrivacy ? { path: '/terms', label: 'شروط الاستخدام' } : { path: '/privacy', label: 'سياسة الخصوصية' };
 
   return (
-    <div className="max-w-3xl mx-auto py-8 sm:py-10 px-4 sm:px-6" dir="rtl">
+    <div className="max-w-3xl mx-auto py-8 sm:py-10 px-4 sm:px-6" dir={uiDir()}>
       <a href="/" onClick={(e) => { e.preventDefault(); navigateTo('/'); }}
         className="inline-flex items-center gap-1.5 text-sm font-semibold text-indigo-700 dark:text-indigo-400 hover:underline mb-6">
-        <ArrowRight className="w-4 h-4" />{currentUser ? 'العودة للرئيسية' : 'العودة لتسجيل الدخول'}
+        <ArrowRight className="w-4 h-4 dir-icon" />{currentUser ? 'العودة للرئيسية' : 'العودة لتسجيل الدخول'}
       </a>
       <header className="flex items-start gap-4 mb-8">
         <span className="w-12 h-12 rounded-2xl bg-indigo-50 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-300 flex items-center justify-center shrink-0"><Icon className="w-6 h-6" /></span>

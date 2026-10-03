@@ -3,6 +3,7 @@ import { ChevronRight, ChevronLeft, X, Pencil, Trash2 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 import { Banner, BANNER_THEMES, isBannerVisible } from '../../services/bannerService';
 import { BannerEffects } from './BannerEffects';
+import { uiDir, isEn, t } from '../../i18n';
 
 const themeBg = (theme: string) => {
   const t = BANNER_THEMES[theme] || BANNER_THEMES.indigo;
@@ -26,7 +27,7 @@ export const BannerCard: React.FC<{ banner: Banner }> = ({ banner: b }) => {
           <div className="flex flex-wrap justify-center gap-4 sm:gap-6 mt-5">
             {b.images.map((img, i) => (
               <figure key={i} className="w-20 sm:w-28">
-                <img src={img.src} alt={img.caption || b.title || 'صورة'}
+                <img src={img.src} alt={img.caption || b.title || t('صورة')}
                   className="w-20 h-20 sm:w-28 sm:h-28 rounded-2xl object-cover ring-4 ring-white/30 shadow-md mx-auto" />
                 {img.caption && <figcaption className="text-[11px] sm:text-xs font-bold mt-2 leading-tight">{img.caption}</figcaption>}
               </figure>
@@ -42,7 +43,7 @@ export const BannerCard: React.FC<{ banner: Banner }> = ({ banner: b }) => {
     return <div className="rounded-3xl p-6 sm:p-8 text-white shadow-lg" style={themeBg(b.theme)}>{text}</div>;
   }
   // الصورة تظهر كاملة بنسبتها الطبيعية (دون قص)، بحد أقصى للارتفاع
-  const image = <img src={img.src} alt={b.title || 'بانر'} className="block w-full h-auto max-h-[440px] object-cover" draggable={false} />;
+  const image = <img src={img.src} alt={b.title || t('بانر')} className="block w-full h-auto max-h-[440px] object-cover" draggable={false} />;
   if (b.text_position === 'below' || !text) {
     return (
       <div className="rounded-3xl overflow-hidden shadow-lg bg-white dark:bg-slate-900">
@@ -115,7 +116,7 @@ export const BannerStrip: React.FC<{ embedded?: boolean }> = ({ embedded = false
   const isAdmin = currentUser?.role === 'admin';
 
   return (
-    <section className={embedded ? '' : 'max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-6'} dir="rtl" aria-label="إعلانات المدرسة"
+    <section className={embedded ? '' : 'max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-6'} dir={uiDir()} aria-label={t('إعلانات المدرسة')}
       onPointerEnter={(e) => e.pointerType === 'mouse' && setHovering(true)}
       onPointerLeave={(e) => e.pointerType === 'mouse' && setHovering(false)}>
       <div className="relative">
@@ -126,17 +127,17 @@ export const BannerStrip: React.FC<{ embedded?: boolean }> = ({ embedded = false
           if (touchX.current === null || count < 2) return;
           const dx = e.changedTouches[0].clientX - touchX.current;
           touchX.current = null;
-          // في الواجهة العربية: السحب لليمين = التالي
-          if (Math.abs(dx) > 40) go(dx > 0 ? 1 : -1);
+          // في الواجهة العربية: السحب لليمين = التالي (وفي الإنجليزية العكس)
+          if (Math.abs(dx) > 40) go((dx > 0) !== isEn() ? 1 : -1);
         }}
       >
         <div key={`${current.id}-${safeIndex}`} className={dir === 1 ? 'banner-in' : 'banner-in-rev'}>
           <BannerCard banner={current} />
         </div>
-        <div className="absolute top-3 left-3 flex items-center gap-1.5">
+        <div className="absolute top-3 end-3 flex items-center gap-1.5">
           {isAdmin && (
             <>
-              <button type="button" aria-label="تعديل البانر" title="تعديل البانر"
+              <button type="button" aria-label={t('تعديل البانر')} title={t('تعديل البانر')}
                 onClick={() => {
                   try { sessionStorage.setItem(EDIT_BANNER_KEY, current.id); } catch { /* ignore */ }
                   setCurrentView('banners');
@@ -144,15 +145,15 @@ export const BannerStrip: React.FC<{ embedded?: boolean }> = ({ embedded = false
                 className="p-1.5 rounded-full bg-black/30 hover:bg-black/50 text-white backdrop-blur-sm">
                 <Pencil className="w-4 h-4" />
               </button>
-              <button type="button" aria-label="حذف البانر" title="حذف البانر"
-                onClick={() => window.confirm(`حذف البانر «${current.title || 'بدون عنوان'}» نهائياً؟`) && void deleteBanner(current.id)}
+              <button type="button" aria-label={t('حذف البانر')} title={t('حذف البانر')}
+                onClick={() => window.confirm(t('حذف البانر «{title}» نهائياً؟', { title: current.title || t('بدون عنوان') })) && void deleteBanner(current.id)}
                 className="p-1.5 rounded-full bg-black/30 hover:bg-rose-600 text-white backdrop-blur-sm">
                 <Trash2 className="w-4 h-4" />
               </button>
             </>
           )}
           {!current.pinned && (
-            <button type="button" aria-label="إخفاء البانر" title="إخفاء"
+            <button type="button" aria-label={t('إخفاء البانر')} title={t('إخفاء')}
               onClick={() => {
                 setDismissed(signature);
                 setIndex(0);
@@ -165,13 +166,13 @@ export const BannerStrip: React.FC<{ embedded?: boolean }> = ({ embedded = false
         </div>
         {count > 1 && (
           <>
-            <button type="button" aria-label="السابق" onClick={() => go(-1)}
-              className="absolute top-1/2 right-3 -translate-y-1/2 p-1.5 rounded-full bg-black/30 hover:bg-black/50 text-white backdrop-blur-sm">
-              <ChevronRight className="w-5 h-5" />
+            <button type="button" aria-label={t('السابق')} onClick={() => go(-1)}
+              className="absolute top-1/2 start-3 -translate-y-1/2 p-1.5 rounded-full bg-black/30 hover:bg-black/50 text-white backdrop-blur-sm">
+              <ChevronRight className="w-5 h-5 dir-icon" />
             </button>
-            <button type="button" aria-label="التالي" onClick={() => go(1)}
-              className="absolute top-1/2 left-3 -translate-y-1/2 p-1.5 rounded-full bg-black/30 hover:bg-black/50 text-white backdrop-blur-sm">
-              <ChevronLeft className="w-5 h-5" />
+            <button type="button" aria-label={t('التالي')} onClick={() => go(1)}
+              className="absolute top-1/2 end-3 -translate-y-1/2 p-1.5 rounded-full bg-black/30 hover:bg-black/50 text-white backdrop-blur-sm">
+              <ChevronLeft className="w-5 h-5 dir-icon" />
             </button>
           </>
         )}
@@ -181,7 +182,7 @@ export const BannerStrip: React.FC<{ embedded?: boolean }> = ({ embedded = false
       {count > 1 && (
         <div className="flex justify-center gap-1.5 mt-3">
           {visible.map((b, i) => (
-            <button key={b.id} type="button" aria-label={`البانر ${i + 1}`}
+            <button key={b.id} type="button" aria-label={t('البانر {n}', { n: i + 1 })}
               onClick={() => { setDir(i > safeIndex ? 1 : -1); setIndex(i); }}
               className={`h-2 rounded-full transition-all duration-300 ${i === safeIndex ? 'w-6 bg-indigo-600' : 'w-2 bg-slate-300 dark:bg-slate-600'}`} />
           ))}

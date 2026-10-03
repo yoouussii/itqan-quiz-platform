@@ -11,6 +11,7 @@ import { exportElementToPdf } from '../../utils/exportPdf';
 import { exportStudentReport } from '../../utils/studentReport';
 import { formatFullArabicDate } from '../../utils/dateUtils';
 import { User } from '../../types';
+import { uiDir } from '../../i18n';
 
 const PERIODS: Array<{ id: Period; label: string }> = [
   { id: 'week', label: 'آخر 7 أيام' },
@@ -34,7 +35,7 @@ const AwardModal: React.FC<{ student: User; onClose: () => void }> = ({ student,
     if (res.ok) onClose();
   };
   return (
-    <div className="fixed inset-0 z-[60] bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4" onClick={onClose} dir="rtl">
+    <div className="fixed inset-0 z-[60] bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4" onClick={onClose} dir={uiDir()}>
       <div role="dialog" aria-label="منح جائزة" onClick={(e) => e.stopPropagation()}
         className="bg-white dark:bg-slate-900 rounded-3xl w-full max-w-md p-6 shadow-2xl border border-slate-100 dark:border-slate-800 space-y-4">
         <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800">
@@ -125,7 +126,7 @@ export const Leaderboard: React.FC = () => {
   };
 
   return (
-    <div className="max-w-6xl mx-auto py-8 px-4 sm:px-6 lg:px-8 space-y-6" dir="rtl">
+    <div className="max-w-6xl mx-auto py-8 px-4 sm:px-6 lg:px-8 space-y-6" dir={uiDir()}>
       <div className="flex flex-wrap items-end justify-between gap-4 pb-4 border-b border-slate-200 dark:border-slate-800">
         <div>
           <h1 className="text-2xl font-black text-slate-900 dark:text-white font-cairo flex items-center gap-2"><Trophy className="w-6 h-6 text-amber-500" /> لوحة المتصدرين</h1>
@@ -168,7 +169,7 @@ export const Leaderboard: React.FC = () => {
         )}
 
         <div className="overflow-x-auto rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900">
-          <table className="w-full text-right text-xs">
+          <table className="w-full text-start text-xs">
             <thead>
               <tr className="bg-slate-50 dark:bg-slate-800/60 text-slate-500 dark:text-slate-400 font-bold">
                 <th className="py-3 px-3">#</th><th className="py-3 px-3">الطالب</th><th className="py-3 px-3">الصف</th>
