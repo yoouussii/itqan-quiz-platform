@@ -69,12 +69,20 @@ export const BannerCard: React.FC<{ banner: Banner }> = ({ banner: b }) => {
 const DISMISS_KEY = 'itqan_banners_dismissed';
 /** مدة عرض كل بانر قبل الانتقال للتالي */
 const ROTATE_MS = 5000;
+
+/** أنواع الانتقال بين البانرات (مثل انتقالات العروض التقديمية) */
+export const BANNER_TRANSITIONS: Record<string, string> = {
+  slide: 'انزلاق', fade: 'تلاشي', zoom: 'تكبير', flip: 'قلب', push: 'دفع لأعلى', wipe: 'مسح', blur: 'ضبابي', none: 'بدون',
+};
+const transitionClass = (tr: string, dir: 1 | -1) =>
+  tr === 'none' ? '' : tr && tr !== 'slide' && BANNER_TRANSITIONS[tr] ? `bn-${tr}` : dir === 1 ? 'banner-in' : 'banner-in-rev';
 /** فتح بانر محدد للتعديل في صفحة البانرات */
 export const EDIT_BANNER_KEY = 'itqan_edit_banner_id';
 
 /** شريط البانرات أعلى الصفحة الرئيسية (يتبدّل تلقائياً عند وجود أكثر من بانر) */
 export const BannerStrip: React.FC<{ embedded?: boolean }> = ({ embedded = false }) => {
-  const { currentUser, banners, deleteBanner, setCurrentView } = useApp();
+  const { currentUser, banners, deleteBanner, setCurrentView, settings } = useApp();
+  const slider = settings.banner_slider || {};
   const allVisible = useMemo(
     () => (currentUser ? banners.filter((b) => isBannerVisible(b, currentUser.role)).sort((a, b) => a.sort - b.sort || b.created_at.localeCompare(a.created_at)) : []),
     [banners, currentUser]
@@ -97,15 +105,17 @@ export const BannerStrip: React.FC<{ embedded?: boolean }> = ({ embedded = false
   const count = visible.length;
   const safeIndex = count ? index % count : 0;
 
+  // مدة البانر الحالي: مدته الخاصة، أو المدة العامة من إعدادات البانرات
+  const holdMs = Math.max(2, Math.min(120, Number(visible[safeIndex]?.duration_seconds) || Number(slider.seconds) || ROTATE_MS / 1000)) * 1000;
   // كل تغيير (تلقائي أو يدوي) يبدأ عدّاً جديداً، فيستمر التبديل بلا توقف
   useEffect(() => {
     if (count < 2 || hovering) return;
     const t = setTimeout(() => {
       setDir(1);
       setIndex((i) => (i + 1) % count);
-    }, ROTATE_MS);
+    }, holdMs);
     return () => clearTimeout(t);
-  }, [count, hovering, safeIndex]);
+  }, [count, hovering, safeIndex, holdMs]);
 
   if (!count) return null;
   const current = visible[safeIndex];
@@ -131,7 +141,7 @@ export const BannerStrip: React.FC<{ embedded?: boolean }> = ({ embedded = false
           if (Math.abs(dx) > 40) go((dx > 0) !== isEn() ? 1 : -1);
         }}
       >
-        <div key={`${current.id}-${safeIndex}`} className={dir === 1 ? 'banner-in' : 'banner-in-rev'}>
+        <div key={`${current.id}-${safeIndex}`} className={transitionClass(slider.transition || 'slide', dir)} data-transition={slider.transition || 'slide'}>
           <BannerCard banner={current} />
         </div>
         <div className="absolute top-3 end-3 flex items-center gap-1.5">

@@ -19,6 +19,20 @@ export const SettingsPage: React.FC = () => {
   const [loginStyle, setLoginStyle] = useState<LoginStyle>((LOGIN_STYLES.find((x) => x.id === settings.login_style)?.id || 'classic') as LoginStyle);
   const [loginImage, setLoginImage] = useState(settings.login_image || '');
   const [tagline, setTagline] = useState(settings.login_tagline || '');
+  const [loginTitle, setLoginTitle] = useState(settings.login_title || '');
+  const [loginLogo, setLoginLogo] = useState(settings.login_logo || '');
+  const [loginLogo2, setLoginLogo2] = useState(settings.login_logo2 || '');
+  const logo1Ref = useRef<HTMLInputElement>(null);
+  const logo2Ref = useRef<HTMLInputElement>(null);
+  const pickLoginLogo = async (file: File | undefined, set: (v: string) => void) => {
+    if (!file) return;
+    try {
+      const data = await resizeLogo(file, 480);
+      if (data.length > 400_000) return alert(t('الصورة كبيرة جداً بعد التصغير، جرّب شعاراً أبسط أو بصيغة PNG'));
+      set(data);
+    } catch (e: any) { alert(e?.message || t('تعذرت قراءة الصورة')); }
+  };
+  const loginDraft = { login_title: loginTitle.trim(), login_logo: loginLogo, login_logo2: loginLogo2, login_tagline: tagline.trim(), login_image: loginImage };
   const photoRef = useRef<HTMLInputElement>(null);
   // وضع الصيانة (019)
   const [mMessage, setMMessage] = useState(settings.maintenance?.message || '');
@@ -67,6 +81,9 @@ export const SettingsPage: React.FC = () => {
       login_style: loginStyle,
       login_image: loginImage,
       login_tagline: tagline.trim(),
+      login_title: loginTitle.trim(),
+      login_logo: loginLogo,
+      login_logo2: loginLogo2,
       ...(maintenanceOn ? { maintenance: { on: true, message: mMessage.trim(), until: mUntil } } : {}),
     });
     setBusy(false);
@@ -146,7 +163,7 @@ export const SettingsPage: React.FC = () => {
                 className={`text-start rounded-2xl border overflow-hidden transition ${on ? 'border-indigo-600 ring-2 ring-indigo-500/30' : 'border-slate-200 dark:border-slate-700 hover:border-slate-400'}`}>
                 <div className="relative h-36 overflow-hidden bg-slate-100 dark:bg-slate-800 pointer-events-none" aria-hidden>
                   <div className="absolute top-0 start-0 w-[720px] h-[520px] origin-top-left rtl:origin-top-right" style={{ transform: 'scale(0.38)' }}>
-                    <LoginHero style={s.id} preview />
+                    <LoginHero style={s.id} preview draft={loginDraft} />
                   </div>
                 </div>
                 <div className="p-3">
@@ -156,6 +173,30 @@ export const SettingsPage: React.FC = () => {
               </button>
             );
           })}
+        </div>
+        <div className="space-y-1.5">
+          <label htmlFor="login-name" className="block text-sm font-bold text-slate-900 dark:text-white">{t('اسم المدرسة في شاشة الدخول')}</label>
+          <input id="login-name" value={loginTitle} onChange={(e) => setLoginTitle(e.target.value)} maxLength={90} placeholder={settings.cert_school_name || settings.school_name || t('مثال: مدارس المستقبل الأهلية – فرع الشمال')}
+            className="w-full h-11 px-3 text-[15px] rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white" />
+          <p className="text-[12px] text-slate-500 dark:text-slate-400">{t('اتركه فارغاً لاستخدام اسم المدرسة من الشهادات أو هوية المدرسة. مفيد للفروع.')}</p>
+        </div>
+        <div className="space-y-1.5">
+          <span className="block text-sm font-bold text-slate-900 dark:text-white">{t('شعارا شاشة الدخول (اختياري)')}</span>
+          <div className="flex flex-wrap gap-4">
+            {([[loginLogo, setLoginLogo, logo1Ref, 'الشعار الأول'], [loginLogo2, setLoginLogo2, logo2Ref, 'الشعار الثاني']] as const).map(([val, set, ref, label]) => (
+              <div key={label} className="flex items-center gap-2">
+                <div className="w-20 h-16 rounded-xl border border-dashed border-slate-300 dark:border-slate-700 bg-white flex items-center justify-center overflow-hidden">
+                  {val ? <img src={val} alt={t(label)} className="max-w-full max-h-full object-contain" /> : <ImagePlus className="w-6 h-6 text-slate-400" />}
+                </div>
+                <div className="flex flex-col gap-1">
+                  <button type="button" onClick={() => ref.current?.click()} className="h-8 px-3 rounded-lg border border-slate-300 dark:border-slate-700 text-xs font-semibold text-slate-800 dark:text-slate-100 hover:bg-slate-50 dark:hover:bg-slate-800">{val ? t('تغيير') : t(label)}</button>
+                  {val && <button type="button" onClick={() => set('')} className="h-7 px-2 rounded-lg text-xs font-semibold text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/50">{t('إزالة')}</button>}
+                </div>
+                <input ref={ref} type="file" accept="image/png,image/jpeg,image/webp,image/svg+xml" className="hidden" aria-label={t(label)} onChange={(e) => { void pickLoginLogo(e.target.files?.[0], set); e.target.value = ''; }} />
+              </div>
+            ))}
+          </div>
+          <p className="text-[12px] text-slate-500 dark:text-slate-400">{t('بدونهما تُستخدم شعارات الشهادات. يظهران في شاشة الدخول وصفحة الصيانة.')}</p>
         </div>
         <div className="space-y-1.5">
           <label htmlFor="login-tagline" className="block text-sm font-bold text-slate-900 dark:text-white">{t('العبارة تحت اسم المدرسة')}</label>

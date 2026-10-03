@@ -3,6 +3,7 @@ import { Check, Timer, Award, BarChart3, Sparkles } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 import { greeting } from '../common/ui';
 import { t, isEn } from '../../i18n';
+import type { AppSettings } from '../../services/settingsService';
 
 /** تصاميم الجزء الجانبي لشاشة الدخول (يختارها المدير من الإعدادات) */
 export type LoginStyle = 'classic' | 'identity' | 'showcase' | 'pattern' | 'photo' | 'minimal';
@@ -30,11 +31,15 @@ const PATTERN = `url("data:image/svg+xml,${encodeURIComponent(
   '<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64"><g fill="none" stroke="#fff" stroke-opacity=".13" stroke-width="1.4"><path d="M32 6l7.5 18.5L58 32l-18.5 7.5L32 58l-7.5-18.5L6 32l18.5-7.5z"/><rect x="18" y="18" width="28" height="28" transform="rotate(45 32 32)"/><circle cx="32" cy="32" r="6"/></g></svg>'
 )}")`;
 
-export const LoginHero: React.FC<{ style: LoginStyle; preview?: boolean }> = ({ style, preview = false }) => {
-  const { settings } = useApp();
-  const school = settings.cert_school_name || settings.school_name || '';
+export const LoginHero: React.FC<{ style: LoginStyle; preview?: boolean; draft?: Partial<AppSettings> }> = ({ style, preview = false, draft }) => {
+  const app = useApp();
+  // المعاينة في الإعدادات تعرض القيم قبل حفظها
+  const settings = draft ? { ...app.settings, ...draft } : app.settings;
+  const school = settings.login_title || settings.cert_school_name || settings.school_name || '';
   const tagline = settings.login_tagline || t(DEFAULT_TAGLINE);
-  const logos = [settings.cert_school_logo || settings.school_logo, settings.cert_company_logo].filter(Boolean) as string[];
+  // شعارا شاشة الدخول إن حدّدهما المدير، وإلا شعارا الشهادات
+  const custom = [settings.login_logo, settings.login_logo2].filter(Boolean) as string[];
+  const logos = custom.length ? custom : ([settings.cert_school_logo || settings.school_logo, settings.cert_company_logo].filter(Boolean) as string[]);
 
   if (style === 'minimal') return preview ? (
     <div className="h-full flex items-center justify-center bg-slate-50 dark:bg-slate-950">

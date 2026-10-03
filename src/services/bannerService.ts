@@ -37,6 +37,8 @@ export interface Banner {
   pinned?: boolean;
   /** تأثير احتفالي يخرج من البانر عند ظهوره (013) */
   effect?: BannerEffect;
+  /** مدة عرض هذا البانر بالثواني (020)؛ فارغة = المدة العامة */
+  duration_seconds?: number | null;
   starts_at?: string | null;
   ends_at?: string | null;
   sort: number;
@@ -113,8 +115,14 @@ export async function saveBannerRemote(b: Banner): Promise<{ ok: boolean; error?
   let res = await safe(() => supabase.from('banners').upsert(row, { onConflict: 'id' }) as any);
   // قبل تشغيل 013: الأعمدة الجديدة غير موجودة، فنحفظ البانر بدونها
   let needsMigration = false;
+  if (!res.ok && /duration_seconds/.test(res.error || '')) {
+    // قبل تشغيل 020: نحفظ بدون مدة البانر الخاصة
+    const { duration_seconds: _d, ...rest } = row;
+    res = await safe(() => supabase.from('banners').upsert(rest, { onConflict: 'id' }) as any);
+    needsMigration = res.ok && !!row.duration_seconds;
+  }
   if (!res.ok && /pinned|effect/.test(res.error || '')) {
-    const { pinned: _p, effect: _e, ...legacy } = row;
+    const { pinned: _p, effect: _e, duration_seconds: _d2, ...legacy } = row;
     res = await safe(() => supabase.from('banners').upsert(legacy, { onConflict: 'id' }) as any);
     needsMigration = res.ok && (row.pinned || row.effect !== 'none');
   }
