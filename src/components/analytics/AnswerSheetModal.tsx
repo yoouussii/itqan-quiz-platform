@@ -8,6 +8,7 @@ import { exportElementToPdf } from '../../utils/exportPdf';
 import { useApp } from '../../context/AppContext';
 import { AnswerExtras, answerStatus, STATUS_LABEL } from '../common/AnswerExtras';
 import { uiDir, optionLetters, t, isEn } from '../../i18n';
+import { IntegrityBadge } from '../common/IntegrityBadge';
 
 interface AnswerSheetModalProps {
   submission: SubmissionWithDetails | null;
@@ -154,6 +155,7 @@ export const AnswerSheetModal: React.FC<AnswerSheetModalProps> = ({ submission: 
                 <Award className="w-4 h-4 text-emerald-500" />
                 <span>{t('نسبة النجاح:')}{' '}{submission.quiz?.pass_percentage}%</span>
               </div>
+              {submission.integrity && <div className="col-span-2 sm:col-span-4"><IntegrityBadge integrity={submission.integrity} /></div>}
             </div>
           </div>
 

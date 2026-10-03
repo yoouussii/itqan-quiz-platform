@@ -16,6 +16,7 @@ import {
   QuizStatus,
   TargetType,
   User,
+  QuizIntegrity,
 } from '../types';
 
 export interface SyncResult {
@@ -79,6 +80,9 @@ function quizToRow(
     is_deleted: quiz.is_deleted ?? false,
     deleted_at: quiz.deleted_at ?? null,
     allowed_retake_student_ids: quiz.allowed_retake_student_ids ?? [],
+    shuffle_questions: quiz.shuffle_questions ?? false,
+    shuffle_options: quiz.shuffle_options ?? false,
+    require_fullscreen: quiz.require_fullscreen ?? false,
     target_type: targetType,
     class_id: targetType === 'class' ? primary?.target_id ?? null : null,
     student_ids:
@@ -155,6 +159,9 @@ function rowToBundle(row: any): {
     is_deleted: row.is_deleted ?? false,
     deleted_at: row.deleted_at ?? null,
     allowed_retake_student_ids: asArray<string>(row.allowed_retake_student_ids),
+    shuffle_questions: !!row.shuffle_questions,
+    shuffle_options: !!row.shuffle_options,
+    require_fullscreen: !!row.require_fullscreen,
   };
 
   return { quiz, questions, assignments };
@@ -307,6 +314,7 @@ function submissionToRow(s: Submission): Record<string, any> {
     status: s.status,
     time_spent_seconds: s.time_spent_seconds ?? null,
     is_retake: s.is_retake ?? false,
+    ...(s.integrity ? { integrity: s.integrity } : {}),
   };
 }
 
@@ -323,6 +331,7 @@ export function rowToSubmission(row: any): Submission {
     status: (row.status as Submission['status']) || 'completed',
     time_spent_seconds: row.time_spent_seconds ?? undefined,
     is_retake: row.is_retake ?? false,
+    integrity: row.integrity && typeof row.integrity === 'object' ? row.integrity : null,
   };
 }
 
@@ -335,6 +344,7 @@ export interface QuizAttempt {
   quiz_id: string;
   answers: any[];
   time_spent: number;
+  integrity?: QuizIntegrity;
 }
 
 export type AttemptResult =
@@ -367,12 +377,12 @@ function storeGraded(submission: Submission, questions: Question[]) {
 
 export async function submitAttemptRemote(a: QuizAttempt): Promise<AttemptResult> {
   try {
-    const { data, error } = await supabase.rpc('itqan_submit_quiz', {
-      p_quiz_id: a.quiz_id,
-      p_answers: a.answers,
-      p_time_spent: a.time_spent,
-      p_client_id: a.client_id,
-    });
+    const args = { p_quiz_id: a.quiz_id, p_answers: a.answers, p_time_spent: a.time_spent, p_client_id: a.client_id };
+    // سجل الخروج يحتاج 014؛ بدونه نسلّم بالدالة القديمة
+    let { data, error } = a.integrity
+      ? await supabase.rpc('itqan_submit_quiz_v2', { ...args, p_integrity: a.integrity })
+      : await supabase.rpc('itqan_submit_quiz', args);
+    if (error && a.integrity && isMissingRpc(error)) ({ data, error } = await supabase.rpc('itqan_submit_quiz', args));
     if (error) {
       if (isMissingRpc(error)) return { kind: 'legacy' };
       return { kind: 'offline', error: error.message };

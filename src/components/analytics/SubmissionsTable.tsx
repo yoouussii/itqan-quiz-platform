@@ -22,6 +22,7 @@ import { Avatar } from '../common/Avatar';
 import { formatArabicQuizDate } from '../../utils/dateUtils';
 import { SUBMISSIONS_FILTER_KEY, ungradedSummary } from '../../utils/grading';
 import { t, isEn } from '../../i18n';
+import { IntegrityBadge } from '../common/IntegrityBadge';
 
 interface SubmissionsTableProps {
   submissions: SubmissionWithDetails[];
@@ -501,6 +502,7 @@ export const SubmissionsTable: React.FC<SubmissionsTableProps> = ({
                       <CheckCircle className="w-3 h-3 text-emerald-500" />
                       <span>{t('مكتمل')}</span>
                     </span>
+                    {!isStudent && sub.integrity && <div className="mt-1"><IntegrityBadge integrity={sub.integrity} /></div>}
                   </td>
 
                   {/* Date */}

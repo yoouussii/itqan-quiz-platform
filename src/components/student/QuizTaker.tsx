@@ -1,10 +1,11 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { Clock, ArrowRight, ArrowLeft, CheckCircle2, Flag, Send, X } from 'lucide-react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
+import { Clock, ArrowRight, ArrowLeft, CheckCircle2, Flag, Send, X, Eye, Maximize } from 'lucide-react';
 import { StorageService } from '../../services/storage';
 import { useApp, QuizAttemptAnswer } from '../../context/AppContext';
 import { RichText } from '../common/RichText';
-import { Question } from '../../types';
-import { loadAttempt, saveAttempt, clearAttempt, secondsLeft } from '../../utils/activeAttempt';
+import { Question, QuizIntegrity } from '../../types';
+import { seededShuffle } from '../../utils/shuffle';
+import { loadAttempt, saveAttempt, clearAttempt, secondsLeft, markAttemptLeft } from '../../utils/activeAttempt';
 import { startAttemptRemote } from '../../services/quizSync';
 import { uiDir, t, optionLetters, isEn } from '../../i18n';
 import { questionsCount, marksCount, minutesCount } from '../../i18n/count';
@@ -20,8 +21,15 @@ interface QuizTakerProps {
 export const QuizTaker: React.FC<QuizTakerProps> = ({ quizId, onFinish, onCancel }) => {
   const { submitQuizAttempt, currentUser, showToast, isPreview } = useApp();
   const quiz = StorageService.getQuizWithDetails(quizId);
-  const questions = StorageService.getQuestionsByQuizId(quizId);
+  const rawQuestions = StorageService.getQuestionsByQuizId(quizId);
   const studentId = currentUser?.id || '';
+  // ترتيب ثابت لكل طالب عند تفعيل «ترتيب مختلف للأسئلة»
+  const shuffleKey = `${studentId}:${quizId}`;
+  const questions = useMemo(
+    () => (quiz?.shuffle_questions ? seededShuffle(rawQuestions, shuffleKey) : rawQuestions),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [rawQuestions.map((q) => q.id).join(','), quiz?.shuffle_questions, shuffleKey]
+  );
 
   // محاولة جارية محفوظة (تحديث الصفحة أثناء الاختبار يكمل من نفس المكان ونفس المؤقت)
   const [saved] = useState(() => (studentId ? loadAttempt(studentId, quizId) : null));
@@ -42,6 +50,87 @@ export const QuizTaker: React.FC<QuizTakerProps> = ({ quizId, onFinish, onCancel
   const [submitting, setSubmitting] = useState(false);
   const startTime = timing?.startedAt ? timing.startedAt - timing.offset : Date.now();
   const submittedRef = useRef(false);
+
+  // سجل الخروج من صفحة الاختبار (يُحفظ مع المحاولة ويُرسل مع التسليم)
+  const integrityRef = useRef<QuizIntegrity>({ leaves: 0, away_seconds: 0, fullscreen_exits: 0, ...(saved?.integrity || {}) });
+  const [integrity, setIntegrity] = useState<QuizIntegrity>(integrityRef.current);
+  const awaySinceRef = useRef<number | null>(null);
+  // نافذة تأكيد من المنصة نفسها (مثل «الخروج من الاختبار») لا تُحسب خروجاً
+  const ignoreAwayRef = useRef(false);
+  const outRef = useRef(false);
+  const wantsFullscreen = !!quiz?.require_fullscreen && !isPreview && typeof document !== 'undefined' && !!document.fullscreenEnabled;
+  const [outOfFullscreen, setOutOfFullscreen] = useState(false);
+  const bumpIntegrity = (patch: Partial<QuizIntegrity>) => {
+    integrityRef.current = { ...integrityRef.current, ...patch };
+    setIntegrity(integrityRef.current);
+  };
+  /** إنهاء فترة غياب جارية (تُحتسب إذا زادت عن ثانية، حتى لا تُحسب النقرات العابرة) */
+  const closeAway = (notify: boolean) => {
+    const since = awaySinceRef.current;
+    if (since == null) return;
+    awaySinceRef.current = null;
+    const secs = (Date.now() - since) / 1000;
+    if (secs < 1) return;
+    const leaves = integrityRef.current.leaves + 1;
+    bumpIntegrity({ leaves, away_seconds: Math.round(integrityRef.current.away_seconds + secs) });
+    if (notify) showToast(t('سُجّل خروجك من صفحة الاختبار ({n}). يظهر هذا لمعلمك.', { n: leaves }), 'info');
+  };
+
+  useEffect(() => {
+    if (!hasStarted || isPreview) return;
+    // العودة لمحاولة غادرها الطالب (أغلق التبويب أو خرج من الاختبار ثم رجع): الغياب يُحتسب
+    if (saved?.left_at && !submittedRef.current) {
+      const secs = (Date.now() - saved.left_at) / 1000;
+      if (secs >= 5) bumpIntegrity({ leaves: integrityRef.current.leaves + 1, away_seconds: Math.round(integrityRef.current.away_seconds + secs) });
+    }
+    const away = () => {
+      if (!submittedRef.current && !ignoreAwayRef.current && awaySinceRef.current == null) awaySinceRef.current = Date.now();
+    };
+    const back = () => closeAway(true);
+    const onVisibility = () => (document.visibilityState === 'hidden' ? away() : back());
+    const onLeave = () => {
+      if (!submittedRef.current && studentId) markAttemptLeft(studentId, quizId);
+    };
+    document.addEventListener('visibilitychange', onVisibility);
+    window.addEventListener('blur', away);
+    window.addEventListener('focus', back);
+    window.addEventListener('pagehide', onLeave);
+    return () => {
+      document.removeEventListener('visibilitychange', onVisibility);
+      window.removeEventListener('blur', away);
+      window.removeEventListener('focus', back);
+      window.removeEventListener('pagehide', onLeave);
+      onLeave();
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hasStarted, isPreview]);
+
+  // ملء الشاشة: الخروج منه يُسجَّل ويغطي الأسئلة حتى يعود الطالب
+  useEffect(() => {
+    if (!hasStarted || !wantsFullscreen) return;
+    const sync = () => {
+      const out = !document.fullscreenElement && !submittedRef.current;
+      if (out && !outRef.current) bumpIntegrity({ fullscreen_exits: (integrityRef.current.fullscreen_exits || 0) + 1 });
+      outRef.current = out;
+      setOutOfFullscreen(out);
+    };
+    document.addEventListener('fullscreenchange', sync);
+    // بعد تحديث الصفحة لا تكون الشاشة ممتلئة: نطلب العودة بدون احتساب خروج جديد
+    if (!document.fullscreenElement) {
+      outRef.current = true;
+      setOutOfFullscreen(true);
+    }
+    return () => document.removeEventListener('fullscreenchange', sync);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hasStarted, wantsFullscreen]);
+
+  const enterFullscreen = () => {
+    if (!wantsFullscreen || document.fullscreenElement) return;
+    void document.documentElement.requestFullscreen?.().catch(() => undefined);
+  };
+  const leaveFullscreen = () => {
+    if (document.fullscreenElement) void document.exitFullscreen?.().catch(() => undefined);
+  };
 
   // عند الاستئناف: مزامنة وقت النهاية مع الخادم (قد تكون ساعة الجهاز غير دقيقة)
   useEffect(() => {
@@ -74,8 +163,9 @@ export const QuizTaker: React.FC<QuizTakerProps> = ({ quizId, onFinish, onCancel
       texts: textAnswers,
       flagged: flaggedQuestions,
       index: currentQuestionIndex,
+      integrity,
     });
-  }, [hasStarted, timing, studentId, quizId, userAnswers, textAnswers, flaggedQuestions, currentQuestionIndex]);
+  }, [hasStarted, timing, studentId, quizId, userAnswers, textAnswers, flaggedQuestions, currentQuestionIndex, integrity]);
 
   const startMessages: Record<string, string> = {
     ended: t('انتهى وقت إتاحة هذا الاختبار'),
@@ -88,12 +178,15 @@ export const QuizTaker: React.FC<QuizTakerProps> = ({ quizId, onFinish, onCancel
 
   const handleStart = async () => {
     if (!quiz) return;
+    // يجب طلب ملء الشاشة مباشرة بعد ضغطة الزر (قبل انتظار الخادم)
+    enterFullscreen();
     setStarting(true);
     // في المعاينة لا نسجّل محاولة على الخادم باسم الطالب (مؤقت محلي للتصفح فقط)
     const r = isPreview ? ({ kind: 'legacy' } as const) : await startAttemptRemote(quizId);
     setStarting(false);
     if (r.kind === 'rejected') {
       showToast(startMessages[r.error] || t('تعذر بدء الاختبار ({error})', { error: r.error }), 'error');
+      leaveFullscreen();
       onCancel();
       return;
     }
@@ -170,6 +263,8 @@ export const QuizTaker: React.FC<QuizTakerProps> = ({ quizId, onFinish, onCancel
   const handleFinalSubmit = async () => {
     if (submittedRef.current) return; // منع التسليم المزدوج (زر + انتهاء الوقت)
     submittedRef.current = true;
+    // غياب جارٍ لحظة التسليم (مثل انتهاء الوقت والطالب خارج الصفحة)
+    closeAway(false);
     setSubmitting(true);
     const timeSpent = Math.round((Date.now() - startTime) / 1000);
     const answersArray: QuizAttemptAnswer[] = questions.map((q) => ({
@@ -187,7 +282,8 @@ export const QuizTaker: React.FC<QuizTakerProps> = ({ quizId, onFinish, onCancel
     }));
 
     try {
-      const submission = await submitQuizAttempt(quiz.id, answersArray, timeSpent);
+      const submission = await submitQuizAttempt(quiz.id, answersArray, timeSpent, isPreview ? undefined : integrityRef.current);
+      leaveFullscreen();
       // سُلّم أو حُفظ للإرسال لاحقاً: لم يعد اختباراً جارياً
       if (studentId) clearAttempt(studentId, quiz.id);
       // null: حُفظت المحاولة للإرسال لاحقاً أو رفضها الخادم (رسالة السبب ظاهرة)
@@ -203,9 +299,16 @@ export const QuizTaker: React.FC<QuizTakerProps> = ({ quizId, onFinish, onCancel
 
   const letters = optionLetters();
 
-  const renderOptions = (key: string, options: string[], compact = false) => (
+  // «ترتيب مختلف للاختيارات»: يتغيّر مكان العرض فقط، والإجابة تُحفظ برقم الاختيار الأصلي
+  const optionOrder = (key: string, count: number, type?: string) => {
+    const idx = Array.from({ length: count }, (_, i) => i);
+    return quiz?.shuffle_options && type !== 'true_false' ? seededShuffle(idx, `${shuffleKey}:${key}`) : idx;
+  };
+
+  const renderOptions = (key: string, options: string[], compact = false, type?: string) => (
     <div className={compact ? 'space-y-2' : 'space-y-2.5'} role="radiogroup">
-      {options.map((optionText, optIdx) => {
+      {optionOrder(key, options.length, type).map((optIdx, pos) => {
+        const optionText = options[optIdx];
         const isSelected = userAnswers[key] === optIdx;
         return (
           <button
@@ -225,7 +328,7 @@ export const QuizTaker: React.FC<QuizTakerProps> = ({ quizId, onFinish, onCancel
                 isSelected ? 'bg-indigo-600 border-indigo-600 text-white' : 'border-slate-300 dark:border-slate-600 text-slate-500 dark:text-slate-400'
               }`}
             >
-              {letters[optIdx] || optIdx + 1}
+              {letters[pos] || pos + 1}
             </span>
             <span className={`${compact ? 'text-[15px]' : 'text-[17px]'} font-semibold text-slate-900 dark:text-slate-100`}>
               <RichText html={optionText} inline />
@@ -279,6 +382,8 @@ export const QuizTaker: React.FC<QuizTakerProps> = ({ quizId, onFinish, onCancel
             <li className="flex gap-2.5"><Clock className="w-5 h-5 text-indigo-600 shrink-0 mt-0.5" />{t('المؤقت يبدأ عند الضغط على «ابدأ»، ولا يتوقف إذا خرجت أو حدّثت الصفحة.')}</li>
             <li className="flex gap-2.5"><Flag className="w-5 h-5 text-indigo-600 shrink-0 mt-0.5" />{t('تنقّل بين الأسئلة بحرية، وعلّم أي سؤال لتراجعه قبل التسليم.')}</li>
             <li className="flex gap-2.5"><CheckCircle2 className="w-5 h-5 text-indigo-600 shrink-0 mt-0.5" />{t('إجاباتك تُحفظ تلقائياً، ونتيجتك تظهر فور التسليم.')}</li>
+            <li className="flex gap-2.5"><Eye className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />{t('الخروج من صفحة الاختبار أو فتح تطبيق آخر يُسجَّل ويظهر لمعلمك.')}</li>
+            {wantsFullscreen && <li className="flex gap-2.5"><Maximize className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />{t('الاختبار يعمل بملء الشاشة، والخروج منها يُسجَّل.')}</li>}
           </ul>
 
           {isPreview && (
@@ -304,7 +409,15 @@ export const QuizTaker: React.FC<QuizTakerProps> = ({ quizId, onFinish, onCancel
   const isLast = currentQuestionIndex === questions.length - 1;
   const flagged = !!flaggedQuestions[currentQ.id];
   const exitQuiz = () => {
-    if (window.confirm(t('الخروج لا يوقف المؤقت. يمكنك العودة وإكمال الاختبار قبل انتهاء الوقت. هل تريد الخروج؟'))) onCancel();
+    ignoreAwayRef.current = true;
+    const ok = window.confirm(t('الخروج لا يوقف المؤقت. يمكنك العودة وإكمال الاختبار قبل انتهاء الوقت. هل تريد الخروج؟'));
+    ignoreAwayRef.current = false;
+    awaySinceRef.current = null;
+    if (ok) {
+      outRef.current = true; // الخروج بالزر يُحسب غياباً عند العودة، لا خروجاً من ملء الشاشة
+      leaveFullscreen();
+      onCancel();
+    }
   };
 
   return (
@@ -373,7 +486,7 @@ export const QuizTaker: React.FC<QuizTakerProps> = ({ quizId, onFinish, onCancel
                     </div>
                     <span className="shrink-0 text-[13px] font-semibold text-slate-500">{marksLabel(Number(sq.marks) || 0)}</span>
                   </div>
-                  {sq.type === 'essay' ? renderEssay(key, true) : renderOptions(key, sq.options || [], true)}
+                  {sq.type === 'essay' ? renderEssay(key, true) : renderOptions(key, sq.options || [], true, sq.type)}
                 </div>
               );
             })}
@@ -381,7 +494,7 @@ export const QuizTaker: React.FC<QuizTakerProps> = ({ quizId, onFinish, onCancel
         ) : currentQ.type === 'essay' ? (
           renderEssay(currentQ.id)
         ) : (
-          renderOptions(currentQ.id, currentQ.options || [])
+          renderOptions(currentQ.id, currentQ.options || [], false, currentQ.type)
         )}
 
         {/* خريطة الأسئلة */}
@@ -445,6 +558,19 @@ export const QuizTaker: React.FC<QuizTakerProps> = ({ quizId, onFinish, onCancel
           )}
         </div>
       </footer>
+
+      {outOfFullscreen && !submitting && (
+        <div className="fixed inset-0 z-40 bg-slate-900 flex items-center justify-center p-6" role="dialog" aria-modal="true" aria-labelledby="fs-title">
+          <div className="max-w-sm text-center text-white space-y-4">
+            <Maximize className="w-12 h-12 mx-auto text-amber-400" />
+            <h3 id="fs-title" className="text-xl font-bold">{t('هذا الاختبار يعمل بملء الشاشة')}</h3>
+            <p className="text-[15px] text-slate-300 leading-relaxed">{t('خرجت من ملء الشاشة، وسُجّل ذلك. المؤقت مستمر، فارجع لإكمال الاختبار.')}</p>
+            <button type="button" onClick={enterFullscreen} className="h-12 px-6 rounded-xl bg-indigo-600 hover:bg-indigo-700 font-bold inline-flex items-center gap-2">
+              <Maximize className="w-5 h-5" />{t('العودة لملء الشاشة')}
+            </button>
+          </div>
+        </div>
+      )}
 
       {submitting && !showConfirmModal && (
         <div className="fixed inset-0 z-50 bg-slate-900/60 flex items-center justify-center p-4">

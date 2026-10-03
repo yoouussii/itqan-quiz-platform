@@ -19,6 +19,7 @@ import {
   AnswerItem,
   SubAnswerItem,
   Branch,
+  QuizIntegrity,
 } from '../types';
 import {
   StorageService,
@@ -198,7 +199,9 @@ interface AppContextType {
   submitQuizAttempt: (
     quizId: string,
     answers: QuizAttemptAnswer[],
-    timeSpentSeconds: number
+    timeSpentSeconds: number,
+    /** سجل الخروج من صفحة الاختبار */
+    integrity?: QuizIntegrity
   ) => Promise<Submission | null>;
 
   /** حذف مشاركات طلاب نهائياً (المدير أو صاحب صلاحية «حذف مشاركات الطلاب») */
@@ -1139,7 +1142,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const submitQuizAttempt: AppContextType['submitQuizAttempt'] = async (
     quizId,
     answers,
-    timeSpentSeconds
+    timeSpentSeconds,
+    integrity
   ) => {
     const me = currentUserRef.current;
     if (!me) throw new Error('لا يوجد مستخدم مسجل');
@@ -1159,6 +1163,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         quiz_id: quizId,
         answers,
         time_spent: timeSpentSeconds,
+        ...(integrity ? { integrity } : {}),
       };
       const res = await submitAttemptRemote(attempt);
       if (res.kind === 'ok') {

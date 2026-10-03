@@ -14,6 +14,10 @@ export interface ActiveAttempt {
   texts: Record<string, string>;
   flagged: Record<string, boolean>;
   index: number;
+  /** سجل الخروج من صفحة الاختبار حتى الآن */
+  integrity?: { leaves: number; away_seconds: number; fullscreen_exits?: number };
+  /** وقت مغادرة صفحة الاختبار (إغلاق التبويب أو الخروج منه) لاحتساب الغياب عند العودة */
+  left_at?: number;
 }
 
 const KEY = 'itqan_active_attempt_v1';
@@ -46,3 +50,9 @@ export const clearAttempt = (studentId: string, quizId: string) =>
 /** الثواني المتبقية حسب ساعة الخادم */
 export const secondsLeft = (a: Pick<ActiveAttempt, 'ends_at' | 'offset'>): number =>
   Math.max(0, Math.round((a.ends_at - (Date.now() + a.offset)) / 1000));
+
+/** تسجيل وقت مغادرة صفحة الاختبار والمحاولة ما زالت جارية */
+export const markAttemptLeft = (studentId: string, quizId: string) => {
+  const a = loadAttempt(studentId, quizId);
+  if (a) saveAttempt({ ...a, left_at: Date.now() });
+};
