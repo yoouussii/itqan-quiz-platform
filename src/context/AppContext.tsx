@@ -761,7 +761,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       }
       if (isSupabaseConfigured()) {
         // شاشة الدخول: اسم المدرسة وشعارها ولونها فقط
-        if (!currentUserRef.current) await syncPublicBranding();
+        // + وضع الصيانة: يُقرأ للجميع حتى بعد تسجيل الدخول (دالة عامة خفيفة)
+        await syncPublicBranding();
         if (slow) try {
           await syncUsersFromSupabase();
           await syncSubjectsFromSupabase();
@@ -958,9 +959,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           showToast(
             data.error === 'locked'
               ? t('تم إيقاف الدخول مؤقتاً بسبب محاولات خاطئة متكررة. حاول بعد {n} دقائق', { n: Math.ceil((data.retry_after_seconds || 600) / 60) })
-              : t('رقم الهوية / الرقم الأكاديمي أو كلمة المرور غير صحيحة'),
+              : t('رقم الهوية أو كلمة المرور غير صحيحة'),
             'error'
           );
+          return false;
+        }
+        if (error && /maintenance/i.test(error.message || '')) {
+          await syncPublicBranding();
+          setSettings(loadSettings());
+          showToast(t('الموقع تحت الصيانة حالياً. الدخول متاح لمدير النظام فقط.'), 'info');
           return false;
         }
         if (error && !isMissingRpc(error)) {
@@ -999,7 +1006,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       }
     }
 
-    showToast(t('رقم الهوية / الرقم الأكاديمي أو كلمة المرور غير صحيحة'), 'error');
+    showToast(t('رقم الهوية أو كلمة المرور غير صحيحة'), 'error');
     return false;
   };
 
@@ -1021,6 +1028,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const exitPreview = () => {
     if (sessionOwnerId) switchUser(sessionOwnerId);
   };
+
+  // وضع الصيانة: يُخرج كل من ليس مديراً (المدير الذي يعاين بحساب آخر لا يخرج)
+  const maintenanceOn = !!settings.maintenance?.on;
+  useEffect(() => {
+    if (maintenanceOn && currentUser && currentUser.role !== 'admin' && !isPreview) logout(t('الموقع تحت الصيانة حالياً'));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [maintenanceOn, currentUser?.id, currentUser?.role, isPreview]);
 
   // ---------------- الاختبارات ----------------
   /** يرفع الاختبار لـ Supabase ويُظهر تنبيهاً واضحاً عند الفشل */

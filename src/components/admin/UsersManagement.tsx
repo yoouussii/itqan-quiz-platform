@@ -276,7 +276,7 @@ export const UsersManagement: React.FC = () => {
 
     const exists = users.some((u) => u.national_id === nationalId.trim());
     if (exists) {
-      alert(t('رقم الهوية / الرقم الأكاديمي مسجل مسبقاً لمستخدم آخر'));
+      alert(t('رقم الهوية مسجل مسبقاً لمستخدم آخر'));
       return;
     }
 
@@ -1058,7 +1058,7 @@ export const UsersManagement: React.FC = () => {
 
               <div>
                 <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
-                  {t('رقم الهوية الوطنية / الأكاديمية (Login Key)')} *
+                  {t('رقم الهوية (للدخول)')} *
                 </label>
                 <input
                   type="text"

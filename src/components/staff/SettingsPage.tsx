@@ -1,5 +1,6 @@
 import React, { useRef, useState } from 'react';
-import { Settings, ImagePlus, Trash2, Check } from 'lucide-react';
+import { Settings, ImagePlus, Trash2, Check, Wrench, LogIn } from 'lucide-react';
+import { LoginHero, LOGIN_STYLES, LoginStyle } from '../auth/LoginHero';
 import { useApp } from '../../context/AppContext';
 import { BRAND_PRESETS, applyBrandColor, resizeLogo } from '../../utils/brand';
 import { uiDir, t } from '../../i18n';
@@ -14,6 +15,29 @@ export const SettingsPage: React.FC = () => {
   const [color, setColor] = useState(settings.brand_color || 'indigo');
   const [busy, setBusy] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
+  // شاشة الدخول (019)
+  const [loginStyle, setLoginStyle] = useState<LoginStyle>((LOGIN_STYLES.find((x) => x.id === settings.login_style)?.id || 'classic') as LoginStyle);
+  const [loginImage, setLoginImage] = useState(settings.login_image || '');
+  const [tagline, setTagline] = useState(settings.login_tagline || '');
+  const photoRef = useRef<HTMLInputElement>(null);
+  // وضع الصيانة (019)
+  const [mMessage, setMMessage] = useState(settings.maintenance?.message || '');
+  const [mUntil, setMUntil] = useState(settings.maintenance?.until || '');
+  const maintenanceOn = !!settings.maintenance?.on;
+  const toggleMaintenance = async () => {
+    if (!maintenanceOn && !window.confirm(t('تفعيل الصيانة سيُخرج كل المستخدمين فوراً (عدا مدير النظام)، ولن يستطيع أحد الدخول حتى تُوقفها. متابعة؟'))) return;
+    setBusy(true);
+    await updateSettings({ maintenance: { on: !maintenanceOn, message: mMessage.trim(), until: mUntil } });
+    setBusy(false);
+  };
+  const pickPhoto = async (file?: File) => {
+    if (!file) return;
+    try {
+      const data = await resizeLogo(file, 1600, 'image/jpeg');
+      if (data.length > 700_000) return alert(t('الصورة كبيرة جداً، اختر صورة أصغر'));
+      setLoginImage(data);
+    } catch (e: any) { alert(e?.message || t('تعذرت قراءة الصورة')); }
+  };
 
   const pickLogo = async (file?: File) => {
     if (!file) return;
@@ -40,6 +64,10 @@ export const SettingsPage: React.FC = () => {
       school_name: schoolName.trim(),
       school_logo: logo,
       brand_color: color,
+      login_style: loginStyle,
+      login_image: loginImage,
+      login_tagline: tagline.trim(),
+      ...(maintenanceOn ? { maintenance: { on: true, message: mMessage.trim(), until: mUntil } } : {}),
     });
     setBusy(false);
   };
@@ -103,6 +131,71 @@ export const SettingsPage: React.FC = () => {
             })}
           </div>
         </div>
+      </section>
+
+      <section className={`${card} space-y-4`} aria-labelledby="login-title">
+        <div>
+          <h2 id="login-title" className="text-base font-bold text-slate-900 dark:text-white inline-flex items-center gap-2"><LogIn className="w-5 h-5 text-indigo-600" />{t('تصميم شاشة الدخول')}</h2>
+          <p className="text-[13px] text-slate-500 dark:text-slate-400 mt-1">{t('الجزء الجانبي الذي يراه الجميع قبل تسجيل الدخول (على الشاشات الكبيرة).')}</p>
+        </div>
+        <div className="grid sm:grid-cols-2 gap-3" role="radiogroup" aria-label={t('تصميم شاشة الدخول')}>
+          {LOGIN_STYLES.map((s) => {
+            const on = loginStyle === s.id;
+            return (
+              <button key={s.id} type="button" role="radio" aria-checked={on} onClick={() => setLoginStyle(s.id)}
+                className={`text-start rounded-2xl border overflow-hidden transition ${on ? 'border-indigo-600 ring-2 ring-indigo-500/30' : 'border-slate-200 dark:border-slate-700 hover:border-slate-400'}`}>
+                <div className="relative h-36 overflow-hidden bg-slate-100 dark:bg-slate-800 pointer-events-none" aria-hidden>
+                  <div className="absolute top-0 start-0 w-[720px] h-[520px] origin-top-left rtl:origin-top-right" style={{ transform: 'scale(0.38)' }}>
+                    <LoginHero style={s.id} preview />
+                  </div>
+                </div>
+                <div className="p-3">
+                  <span className="flex items-center justify-between text-sm font-bold text-slate-900 dark:text-white">{t(s.label)}{on && <Check className="w-4 h-4 text-indigo-600" />}</span>
+                  <span className="block text-[12px] text-slate-500 dark:text-slate-400 mt-0.5">{t(s.hint)}</span>
+                </div>
+              </button>
+            );
+          })}
+        </div>
+        <div className="space-y-1.5">
+          <label htmlFor="login-tagline" className="block text-sm font-bold text-slate-900 dark:text-white">{t('العبارة تحت اسم المدرسة')}</label>
+          <input id="login-tagline" value={tagline} onChange={(e) => setTagline(e.target.value)} maxLength={90} placeholder={t('منصة الاختبارات والتقييم')}
+            className="w-full h-11 px-3 text-[15px] rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white" />
+        </div>
+        {loginStyle === 'photo' && (
+          <div className="space-y-1.5">
+            <span className="block text-sm font-bold text-slate-900 dark:text-white">{t('صورة شاشة الدخول')}</span>
+            <div className="flex items-center gap-3">
+              <div className="w-32 h-20 rounded-xl border border-dashed border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 overflow-hidden flex items-center justify-center">
+                {loginImage ? <img src={loginImage} alt="" className="w-full h-full object-cover" /> : <ImagePlus className="w-6 h-6 text-slate-400" />}
+              </div>
+              <button type="button" onClick={() => photoRef.current?.click()} className="h-10 px-4 rounded-xl border border-slate-300 dark:border-slate-700 text-sm font-semibold text-slate-800 dark:text-slate-100 hover:bg-slate-50 dark:hover:bg-slate-800">{loginImage ? t('تغيير الصورة') : t('رفع صورة')}</button>
+              {loginImage && <button type="button" onClick={() => setLoginImage('')} className="h-10 px-3 rounded-xl text-sm font-semibold text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/50">{t('إزالة')}</button>}
+              <input ref={photoRef} type="file" accept="image/png,image/jpeg,image/webp" className="hidden" aria-label={t('صورة شاشة الدخول')} onChange={(e) => { void pickPhoto(e.target.files?.[0]); e.target.value = ''; }} />
+            </div>
+            <p className="text-[12px] text-slate-500 dark:text-slate-400">{t('صورة عرضية واضحة (مبنى المدرسة أو فصل دراسي). تُصغَّر تلقائياً.')}</p>
+          </div>
+        )}
+      </section>
+
+      <section className={`${card} space-y-3 ${maintenanceOn ? '!border-rose-300 dark:!border-rose-800' : ''}`} aria-labelledby="maint-title">
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <h2 id="maint-title" className="text-base font-bold text-slate-900 dark:text-white inline-flex items-center gap-2"><Wrench className="w-5 h-5 text-amber-600" />{t('وضع الصيانة')}</h2>
+            <p className="text-[13px] text-slate-500 dark:text-slate-400 mt-1">{t('أثناء الصيانة لا يدخل إلا مدير النظام، وباقي المستخدمين يرون صفحة «الموقع تحت الصيانة».')}</p>
+          </div>
+          <button type="button" role="switch" aria-checked={maintenanceOn} aria-label={t('وضع الصيانة')} onClick={() => void toggleMaintenance()} disabled={busy}
+            className={`shrink-0 w-14 h-8 rounded-full p-1 flex transition ${maintenanceOn ? 'bg-rose-600 justify-end' : 'bg-slate-300 dark:bg-slate-700 justify-start'}`}>
+            <span className="block w-6 h-6 rounded-full bg-white shadow" />
+          </button>
+        </div>
+        <textarea aria-label={t('رسالة الصيانة')} value={mMessage} onChange={(e) => setMMessage(e.target.value)} rows={2} maxLength={300}
+          placeholder={t('نعمل على تحسين المنصة، وسنعود قريباً. شكراً لصبركم.')}
+          className="w-full p-3 text-sm rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white" />
+        <label className="flex flex-wrap items-center gap-2 text-sm text-slate-700 dark:text-slate-300">{t('موعد العودة المتوقع (اختياري)')}
+          <input type="datetime-local" value={mUntil} onChange={(e) => setMUntil(e.target.value)} className="h-10 px-3 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white" />
+        </label>
+        {maintenanceOn && <p role="status" className="text-sm font-bold text-rose-700 dark:text-rose-400">{t('الصيانة مفعّلة الآن. عدّل الرسالة ثم «حفظ الإعدادات»، أو أوقفها من المفتاح.')}</p>}
       </section>
 
       <label className={`flex items-start gap-3 ${card} cursor-pointer`}>
