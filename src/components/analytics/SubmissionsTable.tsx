@@ -21,6 +21,7 @@ import { hasPerm } from '../../utils/permissions';
 import { Avatar } from '../common/Avatar';
 import { formatArabicQuizDate } from '../../utils/dateUtils';
 import { SUBMISSIONS_FILTER_KEY, ungradedSummary } from '../../utils/grading';
+import { t, isEn } from '../../i18n';
 
 interface SubmissionsTableProps {
   submissions: SubmissionWithDetails[];
@@ -32,8 +33,8 @@ interface SubmissionsTableProps {
 
 export const SubmissionsTable: React.FC<SubmissionsTableProps> = ({
   submissions,
-  title = 'سجل نتائج وتقييمات الطلاب التفصيلي',
-  subtitle = 'بحث وفلترة فورية لكافة الاختبارات المسلمة مع إمكانية استعراض ورقة الإجابة',
+  title = t('سجل نتائج وتقييمات الطلاب التفصيلي'),
+  subtitle = t('بحث وفلترة فورية لكافة الاختبارات المسلمة مع إمكانية استعراض ورقة الإجابة'),
   extraActions,
 }) => {
   const {
@@ -155,7 +156,7 @@ export const SubmissionsTable: React.FC<SubmissionsTableProps> = ({
 
   const formatDate = (dateString: string) => {
     const d = new Date(dateString);
-    return d.toLocaleDateString('ar-EG-u-ca-gregory-nu-latn', {
+    return d.toLocaleDateString(isEn() ? 'en-GB' : 'ar-EG-u-ca-gregory-nu-latn', {
       year: 'numeric',
       month: 'short',
       day: 'numeric',
@@ -168,49 +169,49 @@ export const SubmissionsTable: React.FC<SubmissionsTableProps> = ({
     if (percentage >= 90) {
       return (
         <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800">
-          ممتاز ({percentage}%)
+          {t('ممتاز (')}{percentage}%)
         </span>
       );
     }
     if (percentage >= 80) {
       return (
         <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold bg-indigo-100 dark:bg-indigo-950 text-indigo-800 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800">
-          جيد جداً ({percentage}%)
+          {t('جيد جداً (')}{percentage}%)
         </span>
       );
     }
     if (percentage >= 65) {
       return (
         <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold bg-sky-100 dark:bg-sky-950 text-sky-800 dark:text-sky-300 border border-sky-200 dark:border-sky-800">
-          جيد ({percentage}%)
+          {t('جيد (')}{percentage}%)
         </span>
       );
     }
     if (percentage >= 50) {
       return (
         <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold bg-amber-100 dark:bg-amber-950 text-amber-800 dark:text-amber-300 border border-amber-200 dark:border-amber-800">
-          مقبول ({percentage}%)
+          {t('مقبول (')}{percentage}%)
         </span>
       );
     }
     return (
       <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold bg-rose-100 dark:bg-rose-950 text-rose-800 dark:text-rose-300 border border-rose-200 dark:border-rose-800">
-        راسب ({percentage}%)
+        {t('راسب (')}{percentage}%)
       </span>
     );
   };
 
   const exportCSV = () => {
     const headers = [
-      'اسم الطالب',
-      'رقم الهوية',
-      'الصف الدراسي',
-      'عنوان الاختبار',
-      'المادة',
-      'الدرجة المحصلة',
-      'الدرجة الكلية',
-      'النسبة المئوية',
-      'تاريخ الإكمال',
+      t('اسم الطالب'),
+      t('رقم الهوية'),
+      t('الصف الدراسي'),
+      t('عنوان الاختبار'),
+      t('المادة'),
+      t('الدرجة المحصلة'),
+      t('الدرجة الكلية'),
+      t('النسبة المئوية'),
+      t('تاريخ الإكمال'),
     ];
     const rows = filteredSubmissions.map((s) => [
       `"${s.student?.name || ''}"`,
@@ -243,18 +244,18 @@ export const SubmissionsTable: React.FC<SubmissionsTableProps> = ({
           <div>
             <div className="flex items-center gap-2">
               <h3 className="text-lg font-bold text-slate-900 dark:text-white">
-                {isStudent ? 'سجل نتائج اختباراتي الشخصية' : title}
+                {isStudent ? t('سجل نتائج اختباراتي الشخصية') : title}
               </h3>
               {isStudent && (
                 <span className="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950 px-2 py-0.5 rounded-full border border-emerald-200 dark:border-emerald-800">
                   <Lock className="w-3 h-3" />
-                  <span>خصوصية تامة</span>
+                  <span>{t('خصوصية تامة')}</span>
                 </span>
               )}
             </div>
             <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
               {isStudent
-                ? 'استعراض درجاتك التفصيلية وأوراق إجاباتك المصححة فورياً'
+                ? t('استعراض درجاتك التفصيلية وأوراق إجاباتك المصححة فورياً')
                 : subtitle}
             </p>
           </div>
@@ -265,12 +266,12 @@ export const SubmissionsTable: React.FC<SubmissionsTableProps> = ({
                 className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-semibold bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
               >
                 <FileSpreadsheet className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
-                <span>تصدير إلى CSV</span>
+                <span>{t('تصدير إلى CSV')}</span>
               </button>
             )}
             {canExport && extraActions}
             <span className="text-xs bg-indigo-50 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-300 font-bold px-3 py-2 rounded-xl border border-indigo-100 dark:border-indigo-900">
-              {filteredSubmissions.length} نتيجة مطابقة
+              {filteredSubmissions.length}{' '}{t('نتيجة مطابقة')}
             </span>
           </div>
         </div>
@@ -279,16 +280,16 @@ export const SubmissionsTable: React.FC<SubmissionsTableProps> = ({
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
           {/* Search Input */}
           <div className="relative">
-            <Search className="w-4 h-4 text-slate-400 absolute right-3.5 top-1/2 -translate-y-1/2" />
+            <Search className="w-4 h-4 text-slate-400 absolute start-3.5 top-1/2 -translate-y-1/2" />
             <input
               type="text"
-              placeholder={isStudent ? 'ابحث بعنوان الاختبار...' : 'ابحث باسم الطالب، الهوية أو الاختبار...'}
+              placeholder={isStudent ? t('ابحث بعنوان الاختبار...') : t('ابحث باسم الطالب، الهوية أو الاختبار...')}
               value={searchTerm}
               onChange={(e) => {
                 setSearchTerm(e.target.value);
                 setCurrentPage(1);
               }}
-              className="w-full pr-10 pl-3 py-2 text-xs rounded-xl border border-slate-200 dark:border-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-slate-50/50 dark:bg-slate-800 text-slate-900 dark:text-white"
+              className="w-full ps-10 pe-3 py-2 text-xs rounded-xl border border-slate-200 dark:border-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-slate-50/50 dark:bg-slate-800 text-slate-900 dark:text-white"
             />
           </div>
 
@@ -302,7 +303,7 @@ export const SubmissionsTable: React.FC<SubmissionsTableProps> = ({
               }}
               className="w-full px-3 py-2 text-xs rounded-xl border border-slate-200 dark:border-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-slate-50/50 dark:bg-slate-800 text-slate-700 dark:text-slate-200"
             >
-              <option value="all">جميع المواد الدراسية</option>
+              <option value="all">{t('جميع المواد الدراسية')}</option>
               {visibleSubjects.map((sub) => (
                 <option key={sub.id} value={sub.id}>
                   {sub.name}
@@ -322,7 +323,7 @@ export const SubmissionsTable: React.FC<SubmissionsTableProps> = ({
                 }}
                 className="w-full px-3 py-2 text-xs rounded-xl border border-slate-200 dark:border-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-slate-50/50 dark:bg-slate-800 text-slate-700 dark:text-slate-200"
               >
-                <option value="all">جميع الفصول والشعب</option>
+                <option value="all">{t('جميع الفصول والشعب')}</option>
                 {classes.map((cls) => (
                   <option key={cls.id} value={cls.id}>
                     {cls.name}
@@ -342,26 +343,26 @@ export const SubmissionsTable: React.FC<SubmissionsTableProps> = ({
               }}
               className="w-full px-3 py-2 text-xs rounded-xl border border-slate-200 dark:border-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-slate-50/50 dark:bg-slate-800 text-slate-700 dark:text-slate-200"
             >
-              <option value="all">كافة التقديرات</option>
-              <option value="excellent">الدرجات الممتازة (≥ 90%)</option>
-              <option value="passed">الناجحون فقط (≥ 60%)</option>
-              <option value="failed">بحاجة لتحسين / راسب (&lt; 60%)</option>
-              {!isStudent && <option value="ungraded">يحتاج تصحيح مقالي ({ungradedIds.size})</option>}
+              <option value="all">{t('كافة التقديرات')}</option>
+              <option value="excellent">{t('الدرجات الممتازة (≥ 90%)')}</option>
+              <option value="passed">{t('الناجحون فقط (≥ 60%)')}</option>
+              <option value="failed">{t('بحاجة لتحسين / راسب (< 60%)')}</option>
+              {!isStudent && <option value="ungraded">{t('يحتاج تصحيح مقالي (')}{ungradedIds.size})</option>}
             </select>
           </div>
 
           {!isStudent && (
             <div className="relative flex gap-2">
-              <select aria-label="تصفية حسب النوع" value={genderFilter} onChange={(e) => { setGenderFilter(e.target.value); setCurrentPage(1); }}
+              <select aria-label={t('تصفية حسب النوع')} value={genderFilter} onChange={(e) => { setGenderFilter(e.target.value); setCurrentPage(1); }}
                 className="w-full px-3 py-2 text-xs rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-800 text-slate-700 dark:text-slate-200">
-                <option value="all">البنين والبنات</option>
-                <option value="male">البنين</option>
-                <option value="female">البنات</option>
+                <option value="all">{t('البنين والبنات')}</option>
+                <option value="male">{t('البنين')}</option>
+                <option value="female">{t('البنات')}</option>
               </select>
               {branches.length > 0 && currentUser?.role === 'admin' && (
-                <select aria-label="تصفية حسب الفرع" value={branchFilter} onChange={(e) => { setBranchFilter(e.target.value); setCurrentPage(1); }}
+                <select aria-label={t('تصفية حسب الفرع')} value={branchFilter} onChange={(e) => { setBranchFilter(e.target.value); setCurrentPage(1); }}
                   className="w-full px-3 py-2 text-xs rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-800 text-slate-700 dark:text-slate-200">
-                  <option value="all">كل الفروع</option>
+                  <option value="all">{t('كل الفروع')}</option>
                   {branches.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}
                 </select>
               )}
@@ -379,16 +380,16 @@ export const SubmissionsTable: React.FC<SubmissionsTableProps> = ({
               <input type="checkbox" className="accent-rose-600"
                 checked={picked.length > 0 && filteredSubmissions.every((x) => picked.includes(x.id))}
                 onChange={(e) => setPicked(e.target.checked ? filteredSubmissions.map((x) => x.id) : [])} />
-              تحديد كل النتائج المعروضة ({filteredSubmissions.length})
+              {t('تحديد كل النتائج المعروضة (')}{filteredSubmissions.length})
             </label>
             <button type="button" disabled={deleting || !picked.length} onClick={() => void removeSubs(picked, `${picked.length} مشاركة محددة`)}
               className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[11px] font-bold text-rose-700 dark:text-rose-300 bg-rose-100 dark:bg-rose-950/50 hover:bg-rose-200 disabled:opacity-40">
-              <Trash2 className="w-3.5 h-3.5" /> حذف المحدد ({picked.length})
+              <Trash2 className="w-3.5 h-3.5" />{' '}{t('حذف المحدد (')}{picked.length})
             </button>
             {deletedQuizSubs.length > 0 && (
               <button type="button" disabled={deleting} onClick={() => void removeSubs(deletedQuizSubs, `${deletedQuizSubs.length} مشاركة في اختبارات محذوفة`)}
                 className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[11px] font-bold text-rose-700 dark:text-rose-300 bg-rose-100 dark:bg-rose-950/50 hover:bg-rose-200 disabled:opacity-40">
-                <Trash2 className="w-3.5 h-3.5" /> حذف مشاركات الاختبارات المحذوفة ({deletedQuizSubs.length})
+                <Trash2 className="w-3.5 h-3.5" />{' '}{t('حذف مشاركات الاختبارات المحذوفة (')}{deletedQuizSubs.length})
               </button>
             )}
           </div>
@@ -396,18 +397,18 @@ export const SubmissionsTable: React.FC<SubmissionsTableProps> = ({
       })()}
 
       <div className="overflow-x-auto">
-        <table className="w-full text-right text-xs">
+        <table className="w-full text-start text-xs">
           <thead>
             <tr className="bg-slate-50/80 dark:bg-slate-800/60 text-slate-500 dark:text-slate-400 font-bold border-b border-slate-100 dark:border-slate-800">
-              {canDelete && <th className="py-3 pr-4 w-8"><span className="sr-only">تحديد</span></th>}
-              {!isStudent && <th className="py-3 px-4">اسم الطالب ورقم الهوية</th>}
-              {!isStudent && <th className="py-3 px-4">الصف الدراسي</th>}
-              <th className="py-3 px-4">الاختبار والمادة</th>
-              <th className="py-3 px-4">الدرجة المحققة</th>
-              <th className="py-3 px-4">التقدير والنسبة</th>
-              <th className="py-3 px-4">الحالة</th>
-              <th className="py-3 px-4">تاريخ الإكمال</th>
-              <th className="py-3 px-4 text-center">الإجراء</th>
+              {canDelete && <th className="py-3 ps-4 w-8"><span className="sr-only">{t('تحديد')}</span></th>}
+              {!isStudent && <th className="py-3 px-4">{t('اسم الطالب ورقم الهوية')}</th>}
+              {!isStudent && <th className="py-3 px-4">{t('الصف الدراسي')}</th>}
+              <th className="py-3 px-4">{t('الاختبار والمادة')}</th>
+              <th className="py-3 px-4">{t('الدرجة المحققة')}</th>
+              <th className="py-3 px-4">{t('التقدير والنسبة')}</th>
+              <th className="py-3 px-4">{t('الحالة')}</th>
+              <th className="py-3 px-4">{t('تاريخ الإكمال')}</th>
+              <th className="py-3 px-4 text-center">{t('الإجراء')}</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
@@ -416,7 +417,7 @@ export const SubmissionsTable: React.FC<SubmissionsTableProps> = ({
                 <td colSpan={(isStudent ? 6 : 8) + (canDelete ? 1 : 0)} className="py-12 text-center text-slate-400">
                   <GraduationCap className="w-10 h-10 mx-auto mb-2 text-slate-300 dark:text-slate-600" />
                   <p className="font-semibold text-sm text-slate-600 dark:text-slate-300">
-                    لا توجد نتائج مطابقة لمعايير البحث الحالية
+                    {t('لا توجد نتائج مطابقة لمعايير البحث الحالية')}
                   </p>
                 </td>
               </tr>
@@ -427,7 +428,7 @@ export const SubmissionsTable: React.FC<SubmissionsTableProps> = ({
                   className="hover:bg-indigo-50/20 dark:hover:bg-slate-800/40 transition-colors group"
                 >
                   {canDelete && (
-                    <td className="py-3 pr-4">
+                    <td className="py-3 ps-4">
                       <input type="checkbox" className="accent-rose-600" aria-label={`تحديد مشاركة ${sub.student?.name || ''}`}
                         checked={picked.includes(sub.id)}
                         onChange={() => setPicked(picked.includes(sub.id) ? picked.filter((x) => x !== sub.id) : [...picked, sub.id])} />
@@ -437,13 +438,13 @@ export const SubmissionsTable: React.FC<SubmissionsTableProps> = ({
                   {!isStudent && (
                     <td className="py-3 px-4">
                       <div className="flex items-center gap-2.5">
-                        <Avatar name={sub.student?.name || 'ط'} role={sub.student?.role} userId={sub.student_id} size="sm" />
+                        <Avatar name={sub.student?.name || t('ط')} role={sub.student?.role} userId={sub.student_id} size="sm" />
                         <div>
                           <div className="font-bold text-slate-900 dark:text-white group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors">
-                            {sub.student?.name || 'طالب مسجل'}
+                            {sub.student?.name || t('طالب مسجل')}
                           </div>
                           <div className="text-[11px] font-mono text-slate-400">
-                            هوية: {sub.student?.national_id || '—'}
+                            {t('هوية:')}{' '}{sub.student?.national_id || '—'}
                           </div>
                         </div>
                       </div>
@@ -454,7 +455,7 @@ export const SubmissionsTable: React.FC<SubmissionsTableProps> = ({
                   {!isStudent && (
                     <td className="py-3 px-4">
                       <span className="font-medium text-slate-600 dark:text-slate-300">
-                        {sub.student_class?.name || 'غير محدد'}
+                        {sub.student_class?.name || t('غير محدد')}
                       </span>
                     </td>
                   )}
@@ -468,7 +469,7 @@ export const SubmissionsTable: React.FC<SubmissionsTableProps> = ({
                       {sub.quiz?.is_deleted && (
                         <span className="inline-flex items-center gap-1 text-[10px] font-bold text-rose-700 dark:text-rose-400 bg-rose-100 dark:bg-rose-950/80 px-2 py-0.5 rounded-md border border-rose-300 dark:border-rose-800 w-fit">
                           <Ban className="w-3 h-3" />
-                          <span>اختبار محذوف - {formatArabicQuizDate(sub.quiz.deleted_at || '')} (مستبعد من المعدل)</span>
+                          <span>{t('اختبار محذوف -')}{' '}{formatArabicQuizDate(sub.quiz.deleted_at || '')}{' '}{t('(مستبعد من المعدل)')}</span>
                         </span>
                       )}
                       <div className="flex items-center gap-1.5 text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
@@ -476,7 +477,7 @@ export const SubmissionsTable: React.FC<SubmissionsTableProps> = ({
                           className="w-2 h-2 rounded-full"
                           style={{ backgroundColor: sub.subject?.color || '#6366f1' }}
                         />
-                        <span>{sub.subject?.name || 'مادة عامة'}</span>
+                        <span>{sub.subject?.name || t('مادة عامة')}</span>
                       </div>
                     </div>
                   </td>
@@ -498,7 +499,7 @@ export const SubmissionsTable: React.FC<SubmissionsTableProps> = ({
                   <td className="py-3 px-4">
                     <span className="inline-flex items-center gap-1 text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/60 px-2.5 py-0.5 rounded-full text-xs font-medium border border-emerald-200 dark:border-emerald-800">
                       <CheckCircle className="w-3 h-3 text-emerald-500" />
-                      <span>مكتمل</span>
+                      <span>{t('مكتمل')}</span>
                     </span>
                   </td>
 
@@ -516,10 +517,10 @@ export const SubmissionsTable: React.FC<SubmissionsTableProps> = ({
                       <button
                         onClick={() => setSelectedSubmission(sub)}
                         className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold bg-indigo-50 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-300 hover:bg-indigo-100 dark:hover:bg-indigo-900 transition-colors shadow-xs"
-                        title="عرض ورقة الإجابة التفصيلية"
+                        title={t('عرض ورقة الإجابة التفصيلية')}
                       >
                         <Eye className="w-3.5 h-3.5" />
-                        <span>عرض الإجابة</span>
+                        <span>{t('عرض الإجابة')}</span>
                       </button>
 
                       {canDelete && (
@@ -527,11 +528,11 @@ export const SubmissionsTable: React.FC<SubmissionsTableProps> = ({
                           onClick={() => void removeSubs([sub.id], `مشاركة ${sub.student?.name || 'الطالب'} في «${sub.quiz?.title || 'الاختبار'}»`)}
                           disabled={deleting}
                           className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-xl text-[11px] font-bold bg-rose-50 dark:bg-rose-950/40 text-rose-700 dark:text-rose-300 hover:bg-rose-100 dark:hover:bg-rose-900/50 disabled:opacity-40"
-                          title="حذف المشاركة"
-                          aria-label="حذف المشاركة"
+                          title={t('حذف المشاركة')}
+                          aria-label={t('حذف المشاركة')}
                         >
                           <Trash2 className="w-3.5 h-3.5" />
-                          <span>حذف</span>
+                          <span>{t('حذف')}</span>
                         </button>
                       )}
 
@@ -541,18 +542,18 @@ export const SubmissionsTable: React.FC<SubmissionsTableProps> = ({
                             <button
                               onClick={() => revokeStudentRetake(sub.quiz_id, sub.student_id)}
                               className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-xl text-[11px] font-bold bg-amber-50 dark:bg-amber-950 text-amber-800 dark:text-amber-300 border border-amber-300 dark:border-amber-800"
-                              title="إلغاء صلاحية الإعادة"
+                              title={t('إلغاء صلاحية الإعادة')}
                             >
-                              <span>مسموح بالإعادة ✓</span>
+                              <span>{t('مسموح بالإعادة ✓')}</span>
                             </button>
                           ) : (
                             <button
                               onClick={() => allowStudentRetake(sub.quiz_id, sub.student_id)}
                               className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-xl text-[11px] font-bold bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-200 transition-colors"
-                              title="إتاحة إعادة الاختبار لهذا الطالب"
+                              title={t('إتاحة إعادة الاختبار لهذا الطالب')}
                             >
                               <RotateCcw className="w-3 h-3 text-indigo-500" />
-                              <span>إتاحة الإعادة</span>
+                              <span>{t('إتاحة الإعادة')}</span>
                             </button>
                           )}
                         </>
@@ -570,8 +571,8 @@ export const SubmissionsTable: React.FC<SubmissionsTableProps> = ({
       {totalPages > 1 && (
         <div className="p-4 bg-slate-50 dark:bg-slate-800/60 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between text-xs text-slate-600 dark:text-slate-300">
           <div>
-            صفحة <span className="font-bold text-slate-900 dark:text-white">{currentPage}</span> من{' '}
-            <span className="font-bold">{totalPages}</span> ({filteredSubmissions.length} إجمالي السجلات)
+            {t('صفحة')}{' '}<span className="font-bold text-slate-900 dark:text-white">{currentPage}</span>{' '}{t('من')}{' '}
+            <span className="font-bold">{totalPages}</span> ({filteredSubmissions.length}{' '}{t('إجمالي السجلات)')}
           </div>
 
           <div className="flex items-center gap-2">
@@ -580,7 +581,7 @@ export const SubmissionsTable: React.FC<SubmissionsTableProps> = ({
               disabled={currentPage === 1}
               className="p-1.5 rounded-lg border border-slate-200 dark:border-slate-700 disabled:opacity-40 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors"
             >
-              <ChevronRight className="w-4 h-4" />
+              <ChevronRight className="w-4 h-4 dir-icon" />
             </button>
             <span className="font-bold">{currentPage}</span>
             <button
@@ -588,7 +589,7 @@ export const SubmissionsTable: React.FC<SubmissionsTableProps> = ({
               disabled={currentPage === totalPages}
               className="p-1.5 rounded-lg border border-slate-200 dark:border-slate-700 disabled:opacity-40 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors"
             >
-              <ChevronLeft className="w-4 h-4" />
+              <ChevronLeft className="w-4 h-4 dir-icon" />
             </button>
           </div>
         </div>

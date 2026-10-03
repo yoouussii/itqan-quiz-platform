@@ -11,6 +11,7 @@ import { describeQuizTarget } from '../../utils/quizTarget';
 import { targetStudents } from '../../utils/quizAudience';
 import { SUBMISSIONS_FILTER_KEY, ungradedSummary } from '../../utils/grading';
 import { Button, Card, Chip, PageHeader, Tone } from '../common/ui';
+import { uiDir } from '../../i18n';
 
 type Tab = 'all' | 'open' | 'upcoming' | 'pending' | 'draft' | 'ended';
 
@@ -56,12 +57,12 @@ const QuizMenu: React.FC<{ items: Array<{ label: string; icon: React.ElementType
         <MoreHorizontal className="w-5 h-5" />
       </button>
       {open && (
-        <div className="absolute left-0 top-10 z-20 w-52 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl shadow-lg p-1">
+        <div className="absolute end-0 top-10 z-20 w-52 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl shadow-lg p-1">
           {items.map((it) => {
             const Icon = it.icon;
             return (
               <button key={it.label} type="button" onClick={() => { setOpen(false); it.onClick(); }}
-                className={`w-full flex items-center gap-2.5 px-3 h-10 rounded-lg text-sm font-semibold text-right ${it.danger ? 'text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/50' : 'text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800'}`}>
+                className={`w-full flex items-center gap-2.5 px-3 h-10 rounded-lg text-sm font-semibold text-start ${it.danger ? 'text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/50' : 'text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800'}`}>
                 <Icon className="w-4 h-4" />{it.label}
               </button>
             );
@@ -123,7 +124,7 @@ export const TeacherDashboard: React.FC = () => {
   const remind = async (id: string) => { setReminding(id); await remindLateStudents(id); setReminding(null); };
 
   return (
-    <div className="max-w-7xl mx-auto py-8 px-4 sm:px-6 lg:px-8 space-y-6" dir="rtl">
+    <div className="max-w-7xl mx-auto py-8 px-4 sm:px-6 lg:px-8 space-y-6" dir={uiDir()}>
       <PageHeader title="اختباراتي" subtitle={subtitle} actions={<Button icon={Plus} onClick={newQuiz}>اختبار جديد</Button>} />
 
       {grading.essays > 0 && (

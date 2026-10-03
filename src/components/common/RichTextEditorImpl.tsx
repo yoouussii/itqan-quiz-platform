@@ -1,6 +1,7 @@
 import React from 'react';
 import ReactQuill from 'react-quill';
 import 'react-quill/dist/quill.snow.css';
+import { uiDir } from '../../i18n';
 
 /**
  * محرر نصوص منسّق (مثل Word) مبني على Quill.
@@ -75,7 +76,7 @@ const RichTextEditorImpl: React.FC<RichTextEditorProps> = ({
   return (
     <div
       className={`rich-editor ${variant === 'compact' ? 'rich-editor-compact' : ''}`}
-      dir="rtl"
+      dir={uiDir()}
       style={{ ['--editor-min-height' as any]: `${height}px` }}
     >
       <ReactQuill

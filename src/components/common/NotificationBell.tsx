@@ -4,6 +4,7 @@ import { useApp } from '../../context/AppContext';
 import { hasPerm } from '../../utils/permissions';
 import { AppNotification, NotifAudience } from '../../services/notificationService';
 import { notifAction, notifLines } from './notificationActions';
+import { uiDir, t, isEn } from '../../i18n';
 
 export const NOTIF_ICONS: Record<string, string> = {
   quiz_published: '📝', quiz_pending: '🕓', quiz_approved: '✅', quiz_rejected: '❌',
@@ -13,13 +14,13 @@ export const NOTIF_ICONS: Record<string, string> = {
 export function timeAgo(iso: string): string {
   const diff = Math.max(0, Date.now() - new Date(iso).getTime());
   const m = Math.floor(diff / 60000);
-  if (m < 1) return 'الآن';
-  if (m < 60) return `منذ ${m} دقيقة`;
+  if (m < 1) return t('الآن');
+  if (m < 60) return isEn() ? `${m} min ago` : `منذ ${m} دقيقة`;
   const h = Math.floor(m / 60);
-  if (h < 24) return `منذ ${h} ساعة`;
+  if (h < 24) return isEn() ? `${h} h ago` : `منذ ${h} ساعة`;
   const d = Math.floor(h / 24);
-  if (d < 7) return `منذ ${d} يوم`;
-  return new Date(iso).toLocaleDateString('ar-EG-u-ca-gregory-nu-latn');
+  if (d < 7) return isEn() ? `${d} d ago` : `منذ ${d} يوم`;
+  return new Date(iso).toLocaleDateString(isEn() ? 'en-GB' : 'ar-EG-u-ca-gregory-nu-latn');
 }
 
 export const AnnouncementModal: React.FC<{ onClose: () => void }> = ({ onClose }) => {
@@ -36,8 +37,8 @@ export const AnnouncementModal: React.FC<{ onClose: () => void }> = ({ onClose }
 
   const send = async () => {
     setError('');
-    if (!body.trim()) return setError('اكتب نص الإعلان');
-    if (mode === 'classes' && picked.length === 0) return setError('اختر صفاً واحداً على الأقل من القائمة');
+    if (!body.trim()) return setError(t('اكتب نص الإعلان'));
+    if (mode === 'classes' && picked.length === 0) return setError(t('اختر صفاً واحداً على الأقل من القائمة'));
     // العنوان اختياري: إن تُرك فارغاً نأخذ أول سطر من النص
     const finalTitle = title.trim() || body.trim().split('\n')[0].slice(0, 60);
     const audience: NotifAudience =
@@ -52,25 +53,25 @@ export const AnnouncementModal: React.FC<{ onClose: () => void }> = ({ onClose }
   };
 
   return (
-    <div className="fixed inset-0 z-[60] bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4" onClick={onClose} dir="rtl">
-      <div role="dialog" aria-label="إعلان جديد" onClick={(e) => e.stopPropagation()}
+    <div className="fixed inset-0 z-[60] bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4" onClick={onClose} dir={uiDir()}>
+      <div role="dialog" aria-label={t('إعلان جديد')} onClick={(e) => e.stopPropagation()}
         className="bg-white dark:bg-slate-900 rounded-3xl w-full max-w-md p-6 shadow-2xl border border-slate-100 dark:border-slate-800 space-y-4">
         <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800">
-          <h3 className="font-black text-base text-slate-900 dark:text-white flex items-center gap-2"><Megaphone className="w-5 h-5 text-indigo-600" /> إعلان جديد</h3>
-          <button onClick={onClose} aria-label="إغلاق" className="p-1 text-slate-400 hover:text-slate-700"><X className="w-5 h-5" /></button>
+          <h3 className="font-black text-base text-slate-900 dark:text-white flex items-center gap-2"><Megaphone className="w-5 h-5 text-indigo-600" />{' '}{t('إعلان جديد')}</h3>
+          <button onClick={onClose} aria-label={t('إغلاق')} className="p-1 text-slate-400 hover:text-slate-700"><X className="w-5 h-5" /></button>
         </div>
-        <input aria-label="عنوان الإعلان" value={title} onChange={(e) => setTitle(e.target.value)} placeholder="عنوان الإعلان (اختياري)"
+        <input aria-label={t('عنوان الإعلان')} value={title} onChange={(e) => setTitle(e.target.value)} placeholder={t('عنوان الإعلان (اختياري)')}
           className="w-full px-3 py-2 text-xs rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white" />
-        <textarea aria-label="نص الإعلان" value={body} onChange={(e) => setBody(e.target.value)} rows={3} placeholder="نص الإعلان..."
+        <textarea aria-label={t('نص الإعلان')} value={body} onChange={(e) => setBody(e.target.value)} rows={3} placeholder={t('نص الإعلان...')}
           className="w-full px-3 py-2 text-xs rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white" />
         <div>
-          <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">المستلمون</label>
-          <select aria-label="المستلمون" value={mode} onChange={(e) => setMode(e.target.value as any)}
+          <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">{t('المستلمون')}</label>
+          <select aria-label={t('المستلمون')} value={mode} onChange={(e) => setMode(e.target.value as any)}
             className="w-full px-3 py-2 text-xs rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white font-bold">
-            {isAdmin && <option value="students">كل الطلاب</option>}
-            {isAdmin && <option value="staff">المعلمون والمشرفون</option>}
-            {isAdmin && <option value="everyone">كل المستخدمين</option>}
-            <option value="classes">صفوف محددة</option>
+            {isAdmin && <option value="students">{t('كل الطلاب')}</option>}
+            {isAdmin && <option value="staff">{t('المعلمون والمشرفون')}</option>}
+            {isAdmin && <option value="everyone">{t('كل المستخدمين')}</option>}
+            <option value="classes">{t('صفوف محددة')}</option>
           </select>
         </div>
         {mode === 'classes' && (
@@ -90,8 +91,8 @@ export const AnnouncementModal: React.FC<{ onClose: () => void }> = ({ onClose }
           </p>
         )}
         <div className="flex justify-end gap-2 pt-2">
-          <button onClick={onClose} className="px-4 py-2 text-xs font-bold text-slate-600 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800">إلغاء</button>
-          <button onClick={send} disabled={busy} className="px-5 py-2 text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-700 rounded-xl shadow-md disabled:opacity-60">إرسال الإعلان</button>
+          <button onClick={onClose} className="px-4 py-2 text-xs font-bold text-slate-600 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800">{t('إلغاء')}</button>
+          <button onClick={send} disabled={busy} className="px-5 py-2 text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-700 rounded-xl shadow-md disabled:opacity-60">{t('إرسال الإعلان')}</button>
         </div>
       </div>
     </div>
@@ -165,43 +166,43 @@ export const NotificationBell: React.FC = () => {
         <button
           type="button"
           onClick={() => setOpen(!open)}
-          aria-label="الإشعارات"
-          title="الإشعارات"
+          aria-label={t('الإشعارات')}
+          title={t('الإشعارات')}
           className="relative p-2 text-slate-500 dark:text-slate-300 hover:text-indigo-600 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl transition-colors"
         >
           <Bell className="w-4 h-4" />
           {unreadCount > 0 && (
-            <span data-testid="notif-badge" className="absolute -top-0.5 -left-0.5 min-w-[16px] h-4 px-1 rounded-full bg-rose-600 text-white text-[10px] font-bold flex items-center justify-center">
+            <span data-testid="notif-badge" className="absolute -top-0.5 -end-0.5 min-w-[16px] h-4 px-1 rounded-full bg-rose-600 text-white text-[10px] font-bold flex items-center justify-center">
               {unreadCount > 9 ? '9+' : unreadCount}
             </span>
           )}
         </button>
 
         {open && (
-          <div role="dialog" aria-label="قائمة الإشعارات" className="absolute left-0 mt-2 w-80 max-w-[85vw] bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-xl z-50 text-right">
+          <div role="dialog" aria-label={t('قائمة الإشعارات')} className="absolute end-0 mt-2 w-80 max-w-[85vw] bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-xl z-50 text-start">
             <div className="flex items-center justify-between px-4 py-3 border-b border-slate-100 dark:border-slate-800">
-              <p className="text-xs font-black text-slate-900 dark:text-white">الإشعارات {unreadCount > 0 && <span className="text-rose-600">({unreadCount} جديد)</span>}</p>
+              <p className="text-xs font-black text-slate-900 dark:text-white">{t('الإشعارات')}{' '}{unreadCount > 0 && <span className="text-rose-600">({t('{n} جديد', { n: unreadCount })})</span>}</p>
               {unreadCount > 0 && (
-                <button onClick={() => markNotificationsRead('all')} className="text-[11px] font-bold text-indigo-600 dark:text-indigo-400 hover:underline">تحديد الكل كمقروء</button>
+                <button onClick={() => markNotificationsRead('all')} className="text-[11px] font-bold text-indigo-600 dark:text-indigo-400 hover:underline">{t('تحديد الكل كمقروء')}</button>
               )}
             </div>
             <div className="max-h-96 overflow-y-auto divide-y divide-slate-100 dark:divide-slate-800">
               {notifications.length === 0 ? (
-                <p className="text-xs text-slate-400 text-center py-8">لا توجد إشعارات حالياً</p>
+                <p className="text-xs text-slate-400 text-center py-8">{t('لا توجد إشعارات حالياً')}</p>
               ) : (
                 notifications.slice(0, 40).map((n) => (
                   <div key={n.id} className="relative group">
                   <button
                     type="button"
                     onClick={() => void deleteMyNotifications([n.id])}
-                    aria-label="حذف الإشعار"
-                    title="حذف الإشعار"
-                    className="absolute left-2 bottom-2 p-1 rounded-lg text-slate-300 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 z-10"
+                    aria-label={t('حذف الإشعار')}
+                    title={t('حذف الإشعار')}
+                    className="absolute end-2 bottom-2 p-1 rounded-lg text-slate-300 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 z-10"
                   >
                     <Trash2 className="w-3.5 h-3.5" />
                   </button>
                   <button onClick={() => go(n)} data-unread={!n.read}
-                    className={`w-full text-right px-4 py-3 flex gap-3 hover:bg-slate-50 dark:hover:bg-slate-800/60 ${n.read ? '' : 'bg-indigo-50/60 dark:bg-indigo-950/30'}`}>
+                    className={`w-full text-start px-4 py-3 flex gap-3 hover:bg-slate-50 dark:hover:bg-slate-800/60 ${n.read ? '' : 'bg-indigo-50/60 dark:bg-indigo-950/30'}`}>
                     <span className="text-lg shrink-0">{NOTIF_ICONS[n.type] || '🔔'}</span>
                     <span className="min-w-0 flex-1">
                       <span className="flex items-center justify-between gap-2">
@@ -219,11 +220,11 @@ export const NotificationBell: React.FC = () => {
             <div className="p-3 border-t border-slate-100 dark:border-slate-800 flex gap-2">
               <button onClick={() => { setCurrentView('notifications'); setOpen(false); }}
                 className="flex-1 px-3 py-2 rounded-xl text-xs font-bold bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 hover:bg-slate-200 dark:hover:bg-slate-700">
-                عرض كل الإشعارات
+                {t('عرض كل الإشعارات')}
               </button>
               {canAnnounce && (
                 <button onClick={() => { setComposer(true); setOpen(false); }} className="flex-1 inline-flex items-center justify-center gap-2 px-3 py-2 rounded-xl text-xs font-bold bg-indigo-600 hover:bg-indigo-700 text-white">
-                  <Megaphone className="w-4 h-4" /> إعلان جديد
+                  <Megaphone className="w-4 h-4" />{' '}{t('إعلان جديد')}
                 </button>
               )}
             </div>

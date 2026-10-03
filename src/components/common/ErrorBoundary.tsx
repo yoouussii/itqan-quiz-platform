@@ -1,4 +1,5 @@
 import React from 'react';
+import { uiDir, t } from '../../i18n';
 
 interface State {
   error: Error | null;
@@ -29,10 +30,10 @@ export class ErrorBoundary extends React.Component<{ children: React.ReactNode }
   render() {
     if (!this.state.error) return this.props.children;
     return (
-      <div dir="rtl" style={{ maxWidth: 640, margin: '10vh auto', padding: 24, fontFamily: 'inherit' }}>
-        <h1 style={{ fontSize: 20, fontWeight: 800, marginBottom: 8 }}>حدث خطأ غير متوقع</h1>
+      <div dir={uiDir()} style={{ maxWidth: 640, margin: '10vh auto', padding: 24, fontFamily: 'inherit' }}>
+        <h1 style={{ fontSize: 20, fontWeight: 800, marginBottom: 8 }}>{t('حدث خطأ غير متوقع')}</h1>
         <p style={{ fontSize: 13, marginBottom: 16, color: '#475569' }}>
-          لم تضِع بياناتك. جرّب إعادة التحميل، وإن تكرر الخطأ أرسل النص أدناه للمطوّر.
+          {t('لم تضِع بياناتك. جرّب إعادة التحميل، وإن تكرر الخطأ أرسل النص أدناه للمطوّر.')}
         </p>
         <pre
           style={{
@@ -44,10 +45,10 @@ export class ErrorBoundary extends React.Component<{ children: React.ReactNode }
         </pre>
         <div style={{ display: 'flex', gap: 8, marginTop: 16 }}>
           <button onClick={() => window.location.reload()} style={{ padding: '8px 16px', borderRadius: 12, background: '#4f46e5', color: '#fff', fontWeight: 700, fontSize: 12 }}>
-            إعادة التحميل
+            {t('إعادة التحميل')}
           </button>
           <button onClick={this.resetSession} style={{ padding: '8px 16px', borderRadius: 12, background: '#e2e8f0', color: '#0f172a', fontWeight: 700, fontSize: 12 }}>
-            تسجيل خروج وإعادة التحميل
+            {t('تسجيل خروج وإعادة التحميل')}
           </button>
         </div>
       </div>

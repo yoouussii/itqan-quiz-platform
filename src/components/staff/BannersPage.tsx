@@ -6,6 +6,7 @@ import { BannerEffects } from '../common/BannerEffects';
 import { fileToAvatarDataUrl } from '../../services/avatarService';
 import { toInputValue, inputToIso } from '../../utils/quizWindow';
 import { BannerCard, EDIT_BANNER_KEY } from '../common/BannerStrip';
+import { uiDir } from '../../i18n';
 
 const inputCls = 'w-full px-3 py-2 text-xs rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white';
 const labelCls = 'block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5';
@@ -176,7 +177,7 @@ const Editor: React.FC<{ initial: Banner; onDone: () => void }> = ({ initial, on
           <label className="sm:col-span-2 flex items-start gap-2 text-xs font-bold text-slate-700 dark:text-slate-300">
             <input type="checkbox" className="accent-indigo-600 w-4 h-4 mt-0.5" checked={!!b.pinned} onChange={(e) => set({ pinned: e.target.checked })} />
             <span>
-              <Pin className="inline w-3.5 h-3.5 ml-1" />دائم: بدون زر إخفاء (×)
+              <Pin className="inline w-3.5 h-3.5 me-1" />دائم: بدون زر إخفاء (×)
               <span className="block font-normal text-slate-500 dark:text-slate-400 mt-0.5">يبقى ظاهراً للجميع ولا يستطيع أحد إخفاءه، مناسب للإعلانات المهمة.</span>
             </span>
           </label>
@@ -241,7 +242,7 @@ export const BannersPage: React.FC = () => {
   };
 
   return (
-    <div className="max-w-6xl mx-auto py-8 px-4 sm:px-6 space-y-6" dir="rtl">
+    <div className="max-w-6xl mx-auto py-8 px-4 sm:px-6 space-y-6" dir={uiDir()}>
       <div className="flex flex-wrap items-center justify-between gap-3 pb-4 border-b border-slate-200 dark:border-slate-800">
         <div>
           <h1 className="text-2xl font-black text-slate-900 dark:text-white flex items-center gap-2"><Images className="w-6 h-6 text-indigo-600" /> بانرات الصفحة الرئيسية</h1>

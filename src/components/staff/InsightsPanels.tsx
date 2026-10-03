@@ -165,7 +165,7 @@ export const InsightsPanels: React.FC<Props> = ({ mode, students, teachers, quiz
             <p className="text-xs text-slate-400">لا توجد بيانات صفوف</p>
           ) : (
             <div className="overflow-x-auto">
-              <table className="w-full text-right text-xs">
+              <table className="w-full text-start text-xs">
                 <thead>
                   <tr className="text-slate-500 dark:text-slate-400 font-bold border-b border-slate-100 dark:border-slate-800">
                     <th className="py-2 px-2">الصف</th><th className="py-2 px-2">الطلاب</th><th className="py-2 px-2">المشاركة</th><th className="py-2 px-2">المتوسط</th><th className="py-2 px-2">النجاح</th>
@@ -217,7 +217,7 @@ export const InsightsPanels: React.FC<Props> = ({ mode, students, teachers, quiz
             <p className="text-xs text-slate-400">لا يوجد معلمون ضمن نطاقك</p>
           ) : (
             <div className="overflow-x-auto">
-              <table className="w-full text-right text-xs">
+              <table className="w-full text-start text-xs">
                 <thead>
                   <tr className="text-slate-500 dark:text-slate-400 font-bold border-b border-slate-100 dark:border-slate-800">
                     <th className="py-2 px-2">المعلم</th><th className="py-2 px-2">اختباراته</th><th className="py-2 px-2">التسليمات</th><th className="py-2 px-2">المتوسط</th><th className="py-2 px-2">النجاح</th><th className="py-2 px-2">آخر نشاط</th>

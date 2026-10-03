@@ -81,7 +81,7 @@ export const KPICard: React.FC<KPICardProps> = ({
       className={`relative overflow-hidden bg-white dark:bg-slate-900 p-5 rounded-2xl border ${scheme.border} shadow-sm hover:shadow-md transition-all duration-300 group ${onClick ? 'cursor-pointer hover:-translate-y-0.5 focus:outline-none focus:ring-2 focus:ring-indigo-400' : ''}`}
     >
       <div
-        className={`absolute top-0 right-0 w-32 h-32 bg-gradient-to-br ${scheme.gradient} rounded-full blur-2xl -mr-10 -mt-10 pointer-events-none`}
+        className={`absolute top-0 start-0 w-32 h-32 bg-gradient-to-br ${scheme.gradient} rounded-full blur-2xl -ms-10 -mt-10 pointer-events-none`}
       />
 
       <div className="flex items-center justify-between">

@@ -3,6 +3,7 @@
  * - تُحسب النقاط من أفضل نتيجة لكل اختبار (فلا تُكسب بتكرار المحاولات) + نقاط الجوائز اليدوية.
  * - لا حاجة لتخزين النقاط: تُحسب دائماً من النتائج المحفوظة.
  */
+import { t } from '../i18n';
 export interface StudentAward {
   id: string;
   student_id: string;
@@ -53,13 +54,13 @@ export function computePointEvents(subs: SubLike[], quizzes: QuizLike[], awards:
     events.push({
       id: `sub-${s.id}`,
       date: s.completed_at,
-      label: `اختبار: ${q.title} (${Math.round(pct)}%)`,
+      label: t('اختبار: {title} ({pct}%)', { title: q.title, pct: Math.round(pct) }),
       points: pointsForResult(pct, q.pass_percentage || 50).total,
       kind: 'quiz',
     });
   });
   awards.forEach((a) =>
-    events.push({ id: `aw-${a.id}`, date: a.created_at, label: `جائزة: ${a.title}`, points: Number(a.points) || 0, kind: 'award' })
+    events.push({ id: `aw-${a.id}`, date: a.created_at, label: t('جائزة: {title}', { title: a.title }), points: Number(a.points) || 0, kind: 'award' })
   );
   return events.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
 }

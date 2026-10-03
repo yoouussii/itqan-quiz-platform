@@ -6,6 +6,8 @@ import { RichText } from '../common/RichText';
 import { Question } from '../../types';
 import { loadAttempt, saveAttempt, clearAttempt, secondsLeft } from '../../utils/activeAttempt';
 import { startAttemptRemote } from '../../services/quizSync';
+import { uiDir, t, optionLetters, isEn } from '../../i18n';
+import { questionsCount, marksCount, minutesCount } from '../../i18n/count';
 
 const subKey = (questionId: string, subId: string) => `${questionId}::${subId}`;
 
@@ -76,12 +78,12 @@ export const QuizTaker: React.FC<QuizTakerProps> = ({ quizId, onFinish, onCancel
   }, [hasStarted, timing, studentId, quizId, userAnswers, textAnswers, flaggedQuestions, currentQuestionIndex]);
 
   const startMessages: Record<string, string> = {
-    ended: 'انتهى وقت إتاحة هذا الاختبار',
-    not_started: 'لم يبدأ وقت هذا الاختبار بعد',
-    quiz_not_available: 'هذا الاختبار غير متاح لك',
-    already_submitted: 'سبق أن سلّمت هذا الاختبار',
-    quiz_not_found: 'الاختبار غير موجود',
-    no_session: 'انتهت الجلسة، سجّل الدخول من جديد',
+    ended: t('انتهى وقت إتاحة هذا الاختبار'),
+    not_started: t('لم يبدأ وقت هذا الاختبار بعد'),
+    quiz_not_available: t('هذا الاختبار غير متاح لك'),
+    already_submitted: t('سبق أن سلّمت هذا الاختبار'),
+    quiz_not_found: t('الاختبار غير موجود'),
+    no_session: t('انتهت الجلسة، سجّل الدخول من جديد'),
   };
 
   const handleStart = async () => {
@@ -91,18 +93,18 @@ export const QuizTaker: React.FC<QuizTakerProps> = ({ quizId, onFinish, onCancel
     const r = isPreview ? ({ kind: 'legacy' } as const) : await startAttemptRemote(quizId);
     setStarting(false);
     if (r.kind === 'rejected') {
-      showToast(startMessages[r.error] || `تعذر بدء الاختبار (${r.error})`, 'error');
+      showToast(startMessages[r.error] || t('تعذر بدء الاختبار ({error})', { error: r.error }), 'error');
       onCancel();
       return;
     }
     // بدون خادم (انقطاع الشبكة أو قبل تحديث قاعدة البيانات): وقت محلي
     const now = Date.now();
-    const t =
+    const tm =
       r.kind === 'ok'
         ? { endsAt: r.endsAt, offset: r.offset, startedAt: r.startedAt }
         : { endsAt: now + (quiz.duration_minutes || 20) * 60_000, offset: 0, startedAt: now };
-    setTiming(t);
-    setSecondsRemaining(secondsLeft({ ends_at: t.endsAt, offset: t.offset }));
+    setTiming(tm);
+    setSecondsRemaining(secondsLeft({ ends_at: tm.endsAt, offset: tm.offset }));
     setHasStarted(true);
   };
 
@@ -114,14 +116,14 @@ export const QuizTaker: React.FC<QuizTakerProps> = ({ quizId, onFinish, onCancel
 
   if (!quiz || questions.length === 0) {
     return (
-      <div className="p-8 text-center" dir="rtl">
-        <p className="text-slate-500 dark:text-slate-400">عذراً، لم يتم العثور على أسئلة لهذا الاختبار.</p>
+      <div className="p-8 text-center" dir={uiDir()}>
+        <p className="text-slate-500 dark:text-slate-400">{t('عذراً، لم يتم العثور على أسئلة لهذا الاختبار.')}</p>
         <button
           type="button"
           onClick={onCancel}
           className="mt-4 h-11 px-5 bg-indigo-600 text-white rounded-xl font-semibold"
         >
-          العودة
+          {t('العودة')}
         </button>
       </div>
     );
@@ -199,7 +201,7 @@ export const QuizTaker: React.FC<QuizTakerProps> = ({ quizId, onFinish, onCancel
   };
   finalSubmitRef.current = () => void handleFinalSubmit();
 
-  const optionLetters = ['أ', 'ب', 'ج', 'د', 'هـ', 'و'];
+  const letters = optionLetters();
 
   const renderOptions = (key: string, options: string[], compact = false) => (
     <div className={compact ? 'space-y-2' : 'space-y-2.5'} role="radiogroup">
@@ -212,7 +214,7 @@ export const QuizTaker: React.FC<QuizTakerProps> = ({ quizId, onFinish, onCancel
             aria-checked={isSelected}
             key={optIdx}
             onClick={() => handleSelectOption(key, optIdx)}
-            className={`w-full text-right flex items-center gap-3.5 ${compact ? 'min-h-[50px] px-3.5 py-2' : 'min-h-[58px] px-4 py-2.5'} rounded-2xl border-2 transition-colors ${
+            className={`w-full text-start flex items-center gap-3.5 ${compact ? 'min-h-[50px] px-3.5 py-2' : 'min-h-[58px] px-4 py-2.5'} rounded-2xl border-2 transition-colors ${
               isSelected
                 ? 'border-indigo-600 bg-indigo-50/80 dark:bg-indigo-950/60'
                 : 'border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 hover:border-indigo-300 dark:hover:border-indigo-700'
@@ -223,7 +225,7 @@ export const QuizTaker: React.FC<QuizTakerProps> = ({ quizId, onFinish, onCancel
                 isSelected ? 'bg-indigo-600 border-indigo-600 text-white' : 'border-slate-300 dark:border-slate-600 text-slate-500 dark:text-slate-400'
               }`}
             >
-              {optionLetters[optIdx] || optIdx + 1}
+              {letters[optIdx] || optIdx + 1}
             </span>
             <span className={`${compact ? 'text-[15px]' : 'text-[17px]'} font-semibold text-slate-900 dark:text-slate-100`}>
               <RichText html={optionText} inline />
@@ -240,21 +242,21 @@ export const QuizTaker: React.FC<QuizTakerProps> = ({ quizId, onFinish, onCancel
         value={textAnswers[key] || ''}
         onChange={(e) => handleTextChange(key, e.target.value)}
         rows={compact ? 3 : 7}
-        placeholder="اكتب إجابتك هنا..."
-        aria-label="إجابتك"
+        placeholder={t('اكتب إجابتك هنا...')}
+        aria-label={t('إجابتك')}
         className="w-full p-4 rounded-2xl border-2 border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-base leading-relaxed text-slate-900 dark:text-slate-100 focus:border-indigo-500 focus:outline-none transition-colors"
       />
-      <p className="text-[13px] text-slate-500 dark:text-slate-400 mt-1.5">سؤال مقالي: يصحّحه المعلم بعد التسليم.</p>
+      <p className="text-[13px] text-slate-500 dark:text-slate-400 mt-1.5">{t('سؤال مقالي: يصحّحه المعلم بعد التسليم.')}</p>
     </div>
   );
 
-  const qCountLabel = (n: number) => `${n} ${n === 1 ? 'سؤال' : n === 2 ? 'سؤالان' : n <= 10 ? 'أسئلة' : 'سؤالاً'}`;
-  const marksLabel = (n: number) => (n === 1 ? 'درجة' : n === 2 ? 'درجتان' : n <= 10 ? `${n} درجات` : `${n} درجة`);
+  const qCountLabel = questionsCount;
+  const marksLabel = marksCount;
 
   // شاشة ما قبل البدء
   if (!hasStarted) {
     return (
-      <div className="min-h-screen flex items-center justify-center py-10 px-4" dir="rtl">
+      <div className="min-h-screen flex items-center justify-center py-10 px-4" dir={uiDir()}>
         <div className="w-full max-w-lg bg-white dark:bg-slate-900 rounded-3xl p-6 sm:p-8 border border-slate-200 dark:border-slate-800">
           <div className="text-sm font-semibold text-slate-500 dark:text-slate-400">{[quiz.subject?.name, quiz.teacher?.name].filter(Boolean).join(' · ')}</div>
           <h1 className="text-[26px] font-extrabold text-slate-900 dark:text-white leading-snug mt-1">{quiz.title}</h1>
@@ -262,9 +264,9 @@ export const QuizTaker: React.FC<QuizTakerProps> = ({ quizId, onFinish, onCancel
 
           <div className="grid grid-cols-3 gap-2 mt-6 text-center">
             {[
-              { v: qCountLabel(questions.length), l: 'الأسئلة' },
-              { v: `${quiz.duration_minutes} دقيقة`, l: 'الوقت' },
-              { v: marksLabel(quiz.total_marks), l: 'الدرجة الكلية' },
+              { v: qCountLabel(questions.length), l: t('الأسئلة') },
+              { v: minutesCount(quiz.duration_minutes), l: t('الوقت') },
+              { v: marksLabel(quiz.total_marks), l: t('الدرجة الكلية') },
             ].map((x) => (
               <div key={x.l} className="rounded-2xl bg-slate-50 dark:bg-slate-800/60 py-3 px-2">
                 <div className="font-bold text-base text-slate-900 dark:text-white">{x.v}</div>
@@ -274,24 +276,24 @@ export const QuizTaker: React.FC<QuizTakerProps> = ({ quizId, onFinish, onCancel
           </div>
 
           <ul className="mt-6 space-y-2.5 text-[15px] text-slate-700 dark:text-slate-300">
-            <li className="flex gap-2.5"><Clock className="w-5 h-5 text-indigo-600 shrink-0 mt-0.5" />المؤقت يبدأ عند الضغط على «ابدأ»، ولا يتوقف إذا خرجت أو حدّثت الصفحة.</li>
-            <li className="flex gap-2.5"><Flag className="w-5 h-5 text-indigo-600 shrink-0 mt-0.5" />تنقّل بين الأسئلة بحرية، وعلّم أي سؤال لتراجعه قبل التسليم.</li>
-            <li className="flex gap-2.5"><CheckCircle2 className="w-5 h-5 text-indigo-600 shrink-0 mt-0.5" />إجاباتك تُحفظ تلقائياً، ونتيجتك تظهر فور التسليم.</li>
+            <li className="flex gap-2.5"><Clock className="w-5 h-5 text-indigo-600 shrink-0 mt-0.5" />{t('المؤقت يبدأ عند الضغط على «ابدأ»، ولا يتوقف إذا خرجت أو حدّثت الصفحة.')}</li>
+            <li className="flex gap-2.5"><Flag className="w-5 h-5 text-indigo-600 shrink-0 mt-0.5" />{t('تنقّل بين الأسئلة بحرية، وعلّم أي سؤال لتراجعه قبل التسليم.')}</li>
+            <li className="flex gap-2.5"><CheckCircle2 className="w-5 h-5 text-indigo-600 shrink-0 mt-0.5" />{t('إجاباتك تُحفظ تلقائياً، ونتيجتك تظهر فور التسليم.')}</li>
           </ul>
 
           {isPreview && (
             <p className="text-sm font-semibold text-amber-900 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/50 rounded-xl p-3 mt-5">
-              وضع المعاينة: تصفّح الأسئلة فقط، ولا يُسجَّل تسليم باسم الطالب.
+              {t('وضع المعاينة: تصفّح الأسئلة فقط، ولا يُسجَّل تسليم باسم الطالب.')}
             </p>
           )}
 
           <div className="flex gap-2.5 mt-7">
             <button type="button" onClick={onCancel} className="h-[52px] px-5 rounded-2xl border border-slate-300 dark:border-slate-700 font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800">
-              رجوع
+              {t('رجوع')}
             </button>
             <button type="button" onClick={() => void handleStart()} disabled={starting}
               className="flex-1 h-[52px] rounded-2xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-[17px] disabled:opacity-60">
-              {starting ? 'جارٍ التجهيز...' : 'ابدأ الاختبار'}
+              {starting ? t('جارٍ التجهيز...') : t('ابدأ الاختبار')}
             </button>
           </div>
         </div>
@@ -302,25 +304,25 @@ export const QuizTaker: React.FC<QuizTakerProps> = ({ quizId, onFinish, onCancel
   const isLast = currentQuestionIndex === questions.length - 1;
   const flagged = !!flaggedQuestions[currentQ.id];
   const exitQuiz = () => {
-    if (window.confirm('الخروج لا يوقف المؤقت. يمكنك العودة وإكمال الاختبار قبل انتهاء الوقت. هل تريد الخروج؟')) onCancel();
+    if (window.confirm(t('الخروج لا يوقف المؤقت. يمكنك العودة وإكمال الاختبار قبل انتهاء الوقت. هل تريد الخروج؟'))) onCancel();
   };
 
   return (
-    <div className="min-h-screen flex flex-col" dir="rtl">
+    <div className="min-h-screen flex flex-col" dir={uiDir()}>
       {/* الشريط العلوي: خروج، العنوان، المؤقت، والتقدم */}
       <header className="sticky top-0 z-30 bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800">
         <div className="max-w-3xl mx-auto px-4 pt-2.5 pb-3 space-y-2.5">
           <div className="flex items-center justify-between gap-3">
-            <button type="button" onClick={exitQuiz} aria-label="الخروج من الاختبار" className="w-11 h-11 -mr-2 flex items-center justify-center rounded-xl text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800">
+            <button type="button" onClick={exitQuiz} aria-label={t('الخروج من الاختبار')} className="w-11 h-11 -ms-2 flex items-center justify-center rounded-xl text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800">
               <X className="w-6 h-6" />
             </button>
             <div className="text-center min-w-0">
               <div className="font-bold text-[15.5px] text-slate-900 dark:text-white truncate">{quiz.title}</div>
-              <div className="text-[12.5px] text-slate-500 dark:text-slate-400">إجاباتك تُحفظ تلقائياً</div>
+              <div className="text-[12.5px] text-slate-500 dark:text-slate-400">{t('إجاباتك تُحفظ تلقائياً')}</div>
             </div>
             <div
               role="timer"
-              aria-label="الوقت المتبقي"
+              aria-label={t('الوقت المتبقي')}
               className={`h-9 px-3 rounded-xl flex items-center gap-1.5 font-bold text-base tabular-nums shrink-0 ${
                 isLowTime ? 'bg-rose-50 text-rose-700 dark:bg-rose-950/60 dark:text-rose-300 animate-pulse' : 'bg-amber-50 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300'
               }`}
@@ -333,14 +335,14 @@ export const QuizTaker: React.FC<QuizTakerProps> = ({ quizId, onFinish, onCancel
             <div className="flex-1 h-1.5 rounded-full bg-slate-100 dark:bg-slate-800">
               <div className="h-1.5 rounded-full bg-indigo-600 transition-all duration-300" style={{ width: `${((currentQuestionIndex + 1) / questions.length) * 100}%` }} />
             </div>
-            <span className="text-[13px] font-semibold text-slate-500 dark:text-slate-400 tabular-nums">{currentQuestionIndex + 1} من {questions.length}</span>
+            <span className="text-[13px] font-semibold text-slate-500 dark:text-slate-400 tabular-nums">{t('{a} من {m}', { a: currentQuestionIndex + 1, m: questions.length })}</span>
           </div>
         </div>
       </header>
 
       <main className="flex-1 w-full max-w-3xl mx-auto px-4 py-6 space-y-5">
         <div className="flex items-center justify-between gap-3">
-          <span className="text-sm font-bold text-indigo-700 dark:text-indigo-400">السؤال {currentQuestionIndex + 1} · {marksLabel(Number(currentQ.marks) || 0)}</span>
+          <span className="text-sm font-bold text-indigo-700 dark:text-indigo-400">{t('السؤال {n}', { n: currentQuestionIndex + 1 })} · {marksLabel(Number(currentQ.marks) || 0)}</span>
           <button
             type="button"
             onClick={() => toggleFlag(currentQ.id)}
@@ -350,7 +352,7 @@ export const QuizTaker: React.FC<QuizTakerProps> = ({ quizId, onFinish, onCancel
             }`}
           >
             <Flag className={`w-4 h-4 ${flagged ? 'fill-amber-500 text-amber-600' : ''}`} />
-            {flagged ? 'معلَّم للمراجعة' : 'راجعه لاحقاً'}
+            {flagged ? t('معلَّم للمراجعة') : t('راجعه لاحقاً')}
           </button>
         </div>
 
@@ -383,7 +385,7 @@ export const QuizTaker: React.FC<QuizTakerProps> = ({ quizId, onFinish, onCancel
         )}
 
         {/* خريطة الأسئلة */}
-        <nav aria-label="خريطة الأسئلة" className="pt-3">
+        <nav aria-label={t('خريطة الأسئلة')} className="pt-3">
           <div className="flex flex-wrap justify-center gap-1.5">
             {questions.map((q, idx) => {
               const isCurrent = currentQuestionIndex === idx;
@@ -398,7 +400,7 @@ export const QuizTaker: React.FC<QuizTakerProps> = ({ quizId, onFinish, onCancel
                 : 'bg-slate-200 text-slate-600 dark:bg-slate-800 dark:text-slate-400';
               return (
                 <button key={q.id} type="button" onClick={() => setCurrentQuestionIndex(idx)} aria-current={isCurrent ? 'step' : undefined}
-                  aria-label={`السؤال ${idx + 1}${isAnswered ? '، تمت الإجابة' : ''}${isFlagged ? '، معلَّم للمراجعة' : ''}`}
+                  aria-label={[t('السؤال {n}', { n: idx + 1 }), isAnswered ? t('تمت الإجابة') : '', isFlagged ? t('معلَّم للمراجعة') : ''].filter(Boolean).join(isEn() ? ', ' : '، ')}
                   className={`w-9 h-9 rounded-lg text-[13px] font-bold tabular-nums ${cls}`}>
                   {idx + 1}
                 </button>
@@ -406,9 +408,9 @@ export const QuizTaker: React.FC<QuizTakerProps> = ({ quizId, onFinish, onCancel
             })}
           </div>
           <div className="flex flex-wrap justify-center gap-x-4 gap-y-1 mt-3 text-[12.5px] text-slate-500 dark:text-slate-400">
-            <span className="inline-flex items-center gap-1.5"><span className="w-3 h-3 rounded bg-indigo-600" />أُجيب</span>
-            <span className="inline-flex items-center gap-1.5"><span className="w-3 h-3 rounded bg-amber-200 dark:bg-amber-900" />للمراجعة</span>
-            <span className="inline-flex items-center gap-1.5"><span className="w-3 h-3 rounded bg-slate-200 dark:bg-slate-700" />لم يُجب</span>
+            <span className="inline-flex items-center gap-1.5"><span className="w-3 h-3 rounded bg-indigo-600" />{t('أُجيب')}</span>
+            <span className="inline-flex items-center gap-1.5"><span className="w-3 h-3 rounded bg-amber-200 dark:bg-amber-900" />{t('للمراجعة')}</span>
+            <span className="inline-flex items-center gap-1.5"><span className="w-3 h-3 rounded bg-slate-200 dark:bg-slate-700" />{t('لم يُجب')}</span>
           </div>
         </nav>
       </main>
@@ -422,23 +424,23 @@ export const QuizTaker: React.FC<QuizTakerProps> = ({ quizId, onFinish, onCancel
             disabled={currentQuestionIndex === 0}
             className="h-[52px] px-5 rounded-2xl border border-slate-300 dark:border-slate-700 font-semibold text-slate-800 dark:text-slate-100 disabled:opacity-40 inline-flex items-center gap-1.5"
           >
-            <ArrowRight className="w-5 h-5" />السابق
+            <ArrowRight className="w-5 h-5 dir-icon" />{t('السابق')}
           </button>
           {isLast ? (
             <button type="button" onClick={() => setShowConfirmModal(true)}
               className="flex-1 h-[52px] rounded-2xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-[17px] inline-flex items-center justify-center gap-2">
-              <Send className="w-5 h-5 rotate-180" />مراجعة وتسليم
+              <Send className="w-5 h-5 rotate-180" />{t('مراجعة وتسليم')}
             </button>
           ) : (
             <button type="button" onClick={() => setCurrentQuestionIndex((prev) => Math.min(questions.length - 1, prev + 1))}
               className="flex-1 h-[52px] rounded-2xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-[17px] inline-flex items-center justify-center gap-2">
-              التالي<ArrowLeft className="w-5 h-5" />
+              {t('التالي')}<ArrowLeft className="w-5 h-5 dir-icon" />
             </button>
           )}
           {!isLast && (
-            <button type="button" onClick={() => setShowConfirmModal(true)} title="تسليم الاختبار"
+            <button type="button" onClick={() => setShowConfirmModal(true)} title={t('تسليم الاختبار')}
               className="hidden sm:inline-flex h-[52px] px-5 rounded-2xl border border-emerald-300 dark:border-emerald-800 text-emerald-700 dark:text-emerald-400 font-semibold items-center gap-1.5 hover:bg-emerald-50 dark:hover:bg-emerald-950/40">
-              تسليم
+              {t('تسليم')}
             </button>
           )}
         </div>
@@ -446,30 +448,30 @@ export const QuizTaker: React.FC<QuizTakerProps> = ({ quizId, onFinish, onCancel
 
       {submitting && !showConfirmModal && (
         <div className="fixed inset-0 z-50 bg-slate-900/60 flex items-center justify-center p-4">
-          <div className="bg-white dark:bg-slate-900 rounded-2xl px-8 py-6 text-base font-bold text-slate-900 dark:text-white">جارٍ تسليم الاختبار وتصحيحه...</div>
+          <div className="bg-white dark:bg-slate-900 rounded-2xl px-8 py-6 text-base font-bold text-slate-900 dark:text-white">{t('جارٍ تسليم الاختبار وتصحيحه...')}</div>
         </div>
       )}
 
       {showConfirmModal && (
         <div className="fixed inset-0 z-50 overflow-y-auto bg-slate-900/60 flex items-center justify-center p-4" role="dialog" aria-modal="true" aria-labelledby="submit-title">
           <div className="bg-white dark:bg-slate-900 rounded-3xl max-w-md w-full p-6 border border-slate-200 dark:border-slate-800">
-            <h3 id="submit-title" className="text-xl font-bold text-slate-900 dark:text-white">تسليم الاختبار؟</h3>
+            <h3 id="submit-title" className="text-xl font-bold text-slate-900 dark:text-white">{t('تسليم الاختبار؟')}</h3>
             <p className="text-[15px] text-slate-600 dark:text-slate-400 mt-2 leading-relaxed">
-              أجبت على <b className="text-slate-900 dark:text-white">{answeredCount}</b> من <b className="text-slate-900 dark:text-white">{questions.length}</b>.
+              {t('أجبت على {a} من {m}.', { a: answeredCount, m: questions.length })}
             </p>
             {answeredCount < questions.length && (
-              <p className="text-[15px] font-semibold text-rose-700 dark:text-rose-400 mt-1">بقي {questions.length - answeredCount} بلا إجابة.</p>
+              <p className="text-[15px] font-semibold text-rose-700 dark:text-rose-400 mt-1">{t('بقي {n} بلا إجابة.', { n: questions.length - answeredCount })}</p>
             )}
             {Object.values(flaggedQuestions).some(Boolean) && (
-              <p className="text-[15px] font-semibold text-amber-800 dark:text-amber-300 mt-1">لديك أسئلة معلَّمة للمراجعة.</p>
+              <p className="text-[15px] font-semibold text-amber-800 dark:text-amber-300 mt-1">{t('لديك أسئلة معلَّمة للمراجعة.')}</p>
             )}
             <div className="flex gap-2.5 mt-6">
               <button type="button" onClick={() => setShowConfirmModal(false)} className="flex-1 h-12 rounded-xl border border-slate-300 dark:border-slate-700 font-semibold text-slate-800 dark:text-slate-100 hover:bg-slate-50 dark:hover:bg-slate-800">
-                العودة للأسئلة
+                {t('العودة للأسئلة')}
               </button>
               <button type="button" onClick={() => void handleFinalSubmit()} disabled={submitting}
                 className="flex-1 h-12 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold disabled:opacity-60">
-                {submitting ? 'جارٍ التسليم...' : 'نعم، سلّم'}
+                {submitting ? t('جارٍ التسليم...') : t('نعم، سلّم')}
               </button>
             </div>
           </div>

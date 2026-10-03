@@ -11,6 +11,8 @@ import { ForcePasswordChange } from './components/common/ForcePasswordChange';
 import { BannerStrip } from './components/common/BannerStrip';
 import { PageHeader } from './components/common/ui';
 import { replaceNextNavigation, PUBLIC_PATHS } from './utils/router';
+import { Lang, applyLang, loadLangPref, saveLangPref, t, uiDir } from './i18n';
+import { LangContext } from './i18n/LangContext';
 
 // الصفحات تُحمَّل عند فتحها فقط: كل مستخدم ينزّل كود صفحاته (أسرع على الجوال)
 const AdminDashboard = React.lazy(() => import('./components/admin/AdminDashboard').then((m) => ({ default: m.AdminDashboard })));
@@ -56,7 +58,7 @@ const usePathname = () => {
 };
 
 const Spinner: React.FC = () => (
-  <div className="flex items-center justify-center py-24" role="status" aria-label="جارٍ التحميل">
+  <div className="flex items-center justify-center py-24" role="status" aria-label={t('جارٍ التحميل')}>
     <div className="w-10 h-10 rounded-full border-4 border-indigo-200 border-t-indigo-600 animate-spin" />
   </div>
 );
@@ -96,7 +98,7 @@ const AppContent: React.FC = () => {
   if (!currentUser || currentView === 'login') {
     const legal = PUBLIC_PATHS[pathname];
     return (
-      <div className="min-h-screen flex flex-col bg-slate-50 dark:bg-[#0b0f19] text-slate-900 dark:text-white transition-colors duration-200" dir="rtl">
+      <div className="min-h-screen flex flex-col bg-slate-50 dark:bg-[#0b0f19] text-slate-900 dark:text-white transition-colors duration-200" dir={uiDir()}>
         <div className="flex-1">
           {legal ? <React.Suspense fallback={<Spinner />}><LegalPage doc={legal} /></React.Suspense> : <AuthScreen />}
         </div>
@@ -153,25 +155,25 @@ const AppContent: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen bg-slate-50 dark:bg-[#0b0f19] text-slate-900 dark:text-white transition-colors duration-200" dir="rtl">
+    <div className="min-h-screen bg-slate-50 dark:bg-[#0b0f19] text-slate-900 dark:text-white transition-colors duration-200" dir={uiDir()}>
       <AppShell
         banner={isPreview && (
           <div className="bg-amber-100 dark:bg-amber-950/60 border-b border-amber-300 dark:border-amber-800 text-amber-900 dark:text-amber-200 text-sm font-semibold px-4 py-2 flex flex-wrap items-center justify-center gap-3" role="status">
-            <span>وضع المعاينة: تشاهد الموقع كما يراه «{currentUser.name}». للعرض فقط، ولا يُسجَّل أي تسليم باسمه.</span>
-            <button type="button" onClick={exitPreview} className="px-3 py-1.5 rounded-lg bg-amber-700 hover:bg-amber-800 text-white">العودة لحسابي</button>
+            <span>{t('وضع المعاينة: تشاهد الموقع كما يراه «{name}». للعرض فقط، ولا يُسجَّل أي تسليم باسمه.', { name: currentUser.name })}</span>
+            <button type="button" onClick={exitPreview} className="px-3 py-1.5 rounded-lg bg-amber-700 hover:bg-amber-800 text-white">{t('العودة لحسابي')}</button>
           </div>
         )}
       >
 
         <React.Suspense
           fallback={
-            <div className="flex items-center justify-center py-24" role="status" aria-label="جارٍ التحميل">
+            <div className="flex items-center justify-center py-24" role="status" aria-label={t('جارٍ التحميل')}>
               <div className="w-10 h-10 rounded-full border-4 border-indigo-200 border-t-indigo-600 animate-spin" />
             </div>
           }
         >
         {waitingForData ? (
-          <div className="flex items-center justify-center py-24" role="status" aria-label="جارٍ التحميل">
+          <div className="flex items-center justify-center py-24" role="status" aria-label={t('جارٍ التحميل')}>
             <div className="w-10 h-10 rounded-full border-4 border-indigo-200 border-t-indigo-600 animate-spin" />
           </div>
         ) : (<>
@@ -213,8 +215,8 @@ const AppContent: React.FC = () => {
         {(currentView === 'analytics' || currentView === 'reports') && currentUser.role !== 'parent' && (
           <div className="max-w-7xl mx-auto py-8 px-4 sm:px-6 lg:px-8 space-y-6">
             <PageHeader
-              title={currentUser.role === 'student' ? 'نتائجي' : 'النتائج والتحليلات'}
-              subtitle={currentUser.role === 'student' ? 'كل اختباراتك السابقة ودرجاتك' : 'توزيع الدرجات ومعدلات التسليم ونتائج كل طالب'}
+              title={currentUser.role === 'student' ? t('نتائجي') : t('النتائج والتحليلات')}
+              subtitle={currentUser.role === 'student' ? t('كل اختباراتك السابقة ودرجاتك') : t('توزيع الدرجات ومعدلات التسليم ونتائج كل طالب')}
             />
 
             <AnalyticsView />
@@ -288,10 +290,29 @@ const AppContent: React.FC = () => {
   );
 };
 
+/** لغة الواجهة: اختيار المستخدم على جهازه. المرحلة الأولى: الطاقم بالعربية فقط حتى تكتمل ترجمة صفحاتهم */
+const STAFF_ROLES = ['admin', 'teacher', 'supervisor'];
+const LangRoot: React.FC = () => {
+  const { currentUser, currentView } = useApp();
+  const [pref, setPref] = React.useState<Lang>(loadLangPref);
+  const staff = !!currentUser && currentView !== 'login' && STAFF_ROLES.includes(currentUser.role);
+  const lang: Lang = staff ? 'ar' : pref;
+  // قبل رسم الأبناء حتى تُترجَم النصوص في نفس الرسم
+  applyLang(lang);
+  const setLang = React.useCallback((l: Lang) => { saveLangPref(l); setPref(l); }, []);
+  const value = React.useMemo(() => ({ lang, setLang, canSwitch: !staff }), [lang, setLang, staff]);
+  return (
+    <LangContext.Provider value={value}>
+      {/* تغيير اللغة يعيد رسم الواجهة كاملة بالنصوص الجديدة */}
+      <AppContent key={lang} />
+    </LangContext.Provider>
+  );
+};
+
 export default function App() {
   return (
     <AppProvider>
-      <AppContent />
+      <LangRoot />
     </AppProvider>
   );
 }

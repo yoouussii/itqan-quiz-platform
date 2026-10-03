@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { X, Search } from 'lucide-react';
 import { KpiSection } from '../../utils/kpiSections';
+import { uiDir } from '../../i18n';
 
 const MAX_ROWS = 300;
 
@@ -18,14 +19,14 @@ const SectionTable: React.FC<{ section: KpiSection }> = ({ section }) => {
         </h4>
         {section.rows.length > 8 && (
           <div className="relative">
-            <Search className="w-3.5 h-3.5 text-slate-400 absolute right-2.5 top-1/2 -translate-y-1/2" />
+            <Search className="w-3.5 h-3.5 text-slate-400 absolute start-2.5 top-1/2 -translate-y-1/2" />
             <input
               type="text"
               value={q}
               onChange={(e) => setQ(e.target.value)}
               placeholder="بحث في الجدول..."
               aria-label={`بحث في ${section.title}`}
-              className="pr-8 pl-3 py-1.5 text-xs rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              className="ps-8 pe-3 py-1.5 text-xs rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
             />
           </div>
         )}
@@ -37,7 +38,7 @@ const SectionTable: React.FC<{ section: KpiSection }> = ({ section }) => {
         </p>
       ) : (
         <div className="overflow-x-auto rounded-xl border border-slate-200 dark:border-slate-700">
-          <table className="w-full text-right text-xs">
+          <table className="w-full text-start text-xs">
             <thead>
               <tr className="bg-slate-50 dark:bg-slate-800/60 text-slate-500 dark:text-slate-400 font-bold">
                 {section.headers.map((h) => (
@@ -82,7 +83,7 @@ export const KpiDetailModal: React.FC<{
     <div
       className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4"
       onClick={onClose}
-      dir="rtl"
+      dir={uiDir()}
     >
       <div
         role="dialog"

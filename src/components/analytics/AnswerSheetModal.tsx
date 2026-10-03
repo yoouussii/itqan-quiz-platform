@@ -7,6 +7,7 @@ import { RichText } from '../common/RichText';
 import { exportElementToPdf } from '../../utils/exportPdf';
 import { useApp } from '../../context/AppContext';
 import { AnswerExtras, answerStatus, STATUS_LABEL } from '../common/AnswerExtras';
+import { uiDir, optionLetters, t, isEn } from '../../i18n';
 
 interface AnswerSheetModalProps {
   submission: SubmissionWithDetails | null;
@@ -27,25 +28,25 @@ export const AnswerSheetModal: React.FC<AnswerSheetModalProps> = ({ submission: 
     : [];
 
   const getGradeBadge = (percentage: number) => {
-    if (percentage >= 90) return { label: 'ممتاز', bg: 'bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800' };
-    if (percentage >= 80) return { label: 'جيد جداً', bg: 'bg-indigo-100 dark:bg-indigo-950 text-indigo-800 dark:text-indigo-300 border-indigo-200 dark:border-indigo-800' };
-    if (percentage >= 65) return { label: 'جيد', bg: 'bg-sky-100 dark:bg-sky-950 text-sky-800 dark:text-sky-300 border-sky-200 dark:border-sky-800' };
-    if (percentage >= 50) return { label: 'مقبول', bg: 'bg-amber-100 dark:bg-amber-950 text-amber-800 dark:text-amber-300 border-amber-200 dark:border-amber-800' };
-    return { label: 'راسب (بحاجة لتحسين)', bg: 'bg-rose-100 dark:bg-rose-950 text-rose-800 dark:text-rose-300 border-rose-200 dark:border-rose-800' };
+    if (percentage >= 90) return { label: t('ممتاز'), bg: 'bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800' };
+    if (percentage >= 80) return { label: t('جيد جداً'), bg: 'bg-indigo-100 dark:bg-indigo-950 text-indigo-800 dark:text-indigo-300 border-indigo-200 dark:border-indigo-800' };
+    if (percentage >= 65) return { label: t('جيد'), bg: 'bg-sky-100 dark:bg-sky-950 text-sky-800 dark:text-sky-300 border-sky-200 dark:border-sky-800' };
+    if (percentage >= 50) return { label: t('مقبول'), bg: 'bg-amber-100 dark:bg-amber-950 text-amber-800 dark:text-amber-300 border-amber-200 dark:border-amber-800' };
+    return { label: t('راسب (بحاجة لتحسين)'), bg: 'bg-rose-100 dark:bg-rose-950 text-rose-800 dark:text-rose-300 border-rose-200 dark:border-rose-800' };
   };
 
   const grade = getGradeBadge(submission.percentage);
 
   const formatDuration = (seconds?: number) => {
-    if (!seconds) return 'غير محدد';
+    if (!seconds) return t('غير محدد');
     const mins = Math.floor(seconds / 60);
     const secs = seconds % 60;
-    return `${mins} دقيقة و ${secs} ثانية`;
+    return t('{m} دقيقة و {s} ثانية', { m: mins, s: secs });
   };
 
   const formatDate = (dateString: string) => {
     const d = new Date(dateString);
-    return d.toLocaleDateString('ar-EG-u-ca-gregory-nu-latn', {
+    return d.toLocaleDateString(isEn() ? 'en-GB' : 'ar-EG-u-ca-gregory-nu-latn', {
       year: 'numeric',
       month: 'long',
       day: 'numeric',
@@ -59,7 +60,7 @@ export const AnswerSheetModal: React.FC<AnswerSheetModalProps> = ({ submission: 
     if (!contentRef.current) return;
     void exportElementToPdf({
       element: contentRef.current,
-      title: `ورقة إجابة: ${submission.student?.name || ''}`,
+      title: t('ورقة إجابة: {name}', { name: submission.student?.name || '' }),
       subtitle: `${submission.quiz?.title || ''}${submission.subject?.name ? ` • ${submission.subject.name}` : ''}`,
       orientation: 'portrait',
     });
@@ -69,7 +70,7 @@ export const AnswerSheetModal: React.FC<AnswerSheetModalProps> = ({ submission: 
     <div className="fixed inset-0 z-50 overflow-y-auto bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4">
       <div
         className="bg-white dark:bg-slate-900 rounded-3xl max-w-3xl w-full max-h-[90vh] overflow-y-auto shadow-2xl border border-slate-100 dark:border-slate-800 animate-in fade-in zoom-in-95 duration-200"
-        dir="rtl"
+        dir={uiDir()}
       >
         {/* Header */}
         <div className="sticky top-0 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md px-6 py-4 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between z-10">
@@ -78,18 +79,18 @@ export const AnswerSheetModal: React.FC<AnswerSheetModalProps> = ({ submission: 
               <Award className="w-5 h-5" />
             </div>
             <div>
-              <h2 className="text-lg font-bold text-slate-900 dark:text-white">ورقة إجابة الطالب التفصيلية</h2>
-              <p className="text-xs text-slate-500 dark:text-slate-400">منصة إتقان التعليمية | تقرير المراجعة والتحليل</p>
+              <h2 className="text-lg font-bold text-slate-900 dark:text-white">{t('ورقة إجابة الطالب التفصيلية')}</h2>
+              <p className="text-xs text-slate-500 dark:text-slate-400">{t('منصة إتقان التعليمية | تقرير المراجعة والتحليل')}</p>
             </div>
           </div>
           <div className="flex items-center gap-2">
             <button
               onClick={handlePrint}
               className="p-2 text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl text-xs flex items-center gap-1.5 transition-colors"
-              title="طباعة التقرير"
+              title={t('طباعة التقرير')}
             >
               <Printer className="w-4 h-4" />
-              <span className="hidden sm:inline">طباعة</span>
+              <span className="hidden sm:inline">{t('طباعة')}</span>
             </button>
             <button
               onClick={onClose}
@@ -110,20 +111,20 @@ export const AnswerSheetModal: React.FC<AnswerSheetModalProps> = ({ submission: 
                 <div>
                   <h3 className="font-bold text-slate-900 dark:text-white text-base">{submission.student?.name}</h3>
                   <div className="flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-                    <span>{submission.student_class?.name || 'طالب مسجل'}</span>
+                    <span>{submission.student_class?.name || t('طالب مسجل')}</span>
                     <span>•</span>
-                    <span className="font-mono">هوية: {submission.student?.national_id}</span>
+                    <span className="font-mono">{t('هوية:')}{' '}{submission.student?.national_id}</span>
                   </div>
                 </div>
               </div>
 
               {/* Score Badge */}
               <div className="flex items-center gap-3">
-                <div className="text-left sm:text-right">
+                <div className="text-end sm:text-start">
                   <div className="text-2xl font-bold text-slate-900 dark:text-white font-cairo">
                     {submission.score}{' '}
                     <span className="text-xs font-normal text-slate-500 dark:text-slate-400">
-                      / {submission.total_possible_score} درجة
+                      / {submission.total_possible_score}{' '}{t('درجة')}
                     </span>
                   </div>
                   <span
@@ -147,11 +148,11 @@ export const AnswerSheetModal: React.FC<AnswerSheetModalProps> = ({ submission: 
               </div>
               <div className="flex items-center gap-1.5">
                 <Clock className="w-4 h-4 text-slate-400" />
-                <span>المدة المستغرقة: {formatDuration(submission.time_spent_seconds)}</span>
+                <span>{t('المدة المستغرقة:')}{' '}{formatDuration(submission.time_spent_seconds)}</span>
               </div>
               <div className="flex items-center gap-1.5">
                 <Award className="w-4 h-4 text-emerald-500" />
-                <span>نسبة النجاح: {submission.quiz?.pass_percentage}%</span>
+                <span>{t('نسبة النجاح:')}{' '}{submission.quiz?.pass_percentage}%</span>
               </div>
             </div>
           </div>
@@ -159,9 +160,9 @@ export const AnswerSheetModal: React.FC<AnswerSheetModalProps> = ({ submission: 
           {/* Question by Question Detailed Breakdown */}
           <div className="space-y-4">
             <h4 className="text-sm font-bold text-slate-800 dark:text-slate-200 flex items-center justify-between">
-              <span>تفاصيل الإجابات ({questions.length} أسئلة):</span>
+              <span>{t('تفاصيل الإجابات (')}{questions.length}{' '}{t('أسئلة):')}</span>
               <span className="text-xs text-slate-500 dark:text-slate-400 font-normal">
-                مراجعة الأخطاء مع الشروحات التوضيحية
+                {t('مراجعة الأخطاء مع الشروحات التوضيحية')}
               </span>
             </h4>
 
@@ -214,7 +215,7 @@ export const AnswerSheetModal: React.FC<AnswerSheetModalProps> = ({ submission: 
                         {isCorrect ? (
                           <>
                             <CheckCircle className="w-3.5 h-3.5 text-emerald-600" />
-                            <span>+{question.marks} درجات</span>
+                            <span>+{question.marks}{' '}{t('درجات')}</span>
                           </>
                         ) : isNeutral ? (
                           <>
@@ -224,7 +225,7 @@ export const AnswerSheetModal: React.FC<AnswerSheetModalProps> = ({ submission: 
                         ) : (
                           <>
                             <XCircle className="w-3.5 h-3.5 text-rose-600" />
-                            <span>0 / {question.marks} درجات</span>
+                            <span>0 / {question.marks}{' '}{t('درجات')}</span>
                           </>
                         )}
                       </span>
@@ -255,7 +256,7 @@ export const AnswerSheetModal: React.FC<AnswerSheetModalProps> = ({ submission: 
                         >
                           <div className="flex items-center gap-2">
                             <span className="w-5 h-5 rounded-md bg-white/80 dark:bg-slate-700 border text-[11px] font-bold flex items-center justify-center shrink-0">
-                              {['أ', 'ب', 'ج', 'د', 'هـ', 'و'][optIdx] || optIdx + 1}
+                              {optionLetters()[optIdx] || optIdx + 1}
                             </span>
                             <span><RichText html={opt} inline /></span>
                           </div>
@@ -263,7 +264,7 @@ export const AnswerSheetModal: React.FC<AnswerSheetModalProps> = ({ submission: 
                           <div className="flex items-center gap-1 text-[10px] font-bold">
                             {isCorrectOption && (
                               <span className="text-emerald-700 dark:text-emerald-300 bg-emerald-100/80 dark:bg-emerald-900/60 px-1.5 py-0.5 rounded">
-                                الإجابة الصحيحة
+                                {t('الإجابة الصحيحة')}
                               </span>
                             )}
                             {isSelected && (
@@ -274,7 +275,7 @@ export const AnswerSheetModal: React.FC<AnswerSheetModalProps> = ({ submission: 
                                     : 'text-rose-700 dark:text-rose-300 bg-rose-100/80 dark:bg-rose-900/60'
                                 }`}
                               >
-                                إجابة الطالب
+                                {t('إجابة الطالب')}
                               </span>
                             )}
                           </div>
@@ -290,7 +291,7 @@ export const AnswerSheetModal: React.FC<AnswerSheetModalProps> = ({ submission: 
                   {question.explanation && (
                     <div className="bg-indigo-50/50 dark:bg-indigo-950/40 border border-indigo-100 dark:border-indigo-800 rounded-xl p-3 text-xs text-indigo-950 dark:text-indigo-200">
                       <div className="font-bold flex items-center gap-1.5 mb-1 text-indigo-800 dark:text-indigo-300">
-                        <span>💡 التفسير والشرح التعليمي:</span>
+                        <span>{t('💡 التفسير والشرح التعليمي:')}</span>
                       </div>
                       <p className="leading-relaxed font-medium">
                         <RichText html={question.explanation} />
@@ -309,7 +310,7 @@ export const AnswerSheetModal: React.FC<AnswerSheetModalProps> = ({ submission: 
             onClick={onClose}
             className="px-5 py-2.5 bg-slate-800 dark:bg-slate-700 hover:bg-slate-900 text-white rounded-xl text-xs font-semibold transition-colors"
           >
-            إغلاق التقرير
+            {t('إغلاق التقرير')}
           </button>
         </div>
       </div>

@@ -1,5 +1,6 @@
 import React, { Suspense, lazy } from 'react';
 import type { RichTextEditorProps } from './RichTextEditorImpl';
+import { uiDir } from '../../i18n';
 
 /**
  * غلاف آمن للمحرر المنسّق:
@@ -27,7 +28,7 @@ class EditorBoundary extends React.Component<
 export const RichTextEditor: React.FC<RichTextEditorProps> = (props) => {
   const fallback = (
     <textarea
-      dir="rtl"
+      dir={uiDir()}
       rows={props.variant === 'compact' ? 1 : 3}
       value={props.value}
       onChange={(e) => props.onChange(e.target.value)}

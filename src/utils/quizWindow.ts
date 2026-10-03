@@ -1,3 +1,4 @@
+import { isEn } from '../i18n';
 /**
  * فترة إتاحة الاختبار (تاريخ + وقت).
  * - القيم الجديدة تُحفظ كوقت كامل (ISO).
@@ -65,7 +66,7 @@ export function getWindowState(start?: string | null, end?: string | null, now =
 export function formatQuizDateTime(v?: string | null, kind: 'start' | 'end' = 'start'): string {
   const d = kind === 'start' ? parseWindowStart(v) : parseWindowEnd(v);
   if (!d) return '—';
-  return new Intl.DateTimeFormat('ar-EG-u-ca-gregory-nu-latn', {
+  return new Intl.DateTimeFormat(isEn() ? 'en-GB' : 'ar-EG-u-ca-gregory-nu-latn', {
     day: 'numeric', month: 'long', year: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true,
   }).format(d);
 }

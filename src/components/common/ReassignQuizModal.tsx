@@ -3,6 +3,7 @@ import { X, UserCheck, ArrowRightLeft, BookOpen, AlertCircle } from 'lucide-reac
 import { QuizWithDetails, User } from '../../types';
 import { useApp } from '../../context/AppContext';
 import { Avatar } from './Avatar';
+import { uiDir } from '../../i18n';
 
 interface ReassignQuizModalProps {
   quiz: QuizWithDetails | null;
@@ -40,7 +41,7 @@ export const ReassignQuizModal: React.FC<ReassignQuizModalProps> = ({ quiz, onCl
     <div className="fixed inset-0 z-50 overflow-y-auto bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4">
       <div
         className="bg-white dark:bg-slate-900 rounded-3xl max-w-lg w-full shadow-2xl border border-slate-100 dark:border-slate-800 animate-in fade-in zoom-in-95 duration-200 overflow-hidden"
-        dir="rtl"
+        dir={uiDir()}
       >
         {/* Header */}
         <div className="bg-indigo-600 px-6 py-5 text-white flex items-center justify-between">

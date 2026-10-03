@@ -11,6 +11,7 @@ import { SUBMISSIONS_FILTER_KEY, ungradedSummary } from '../../utils/grading';
 import { hasPerm } from '../../utils/permissions';
 import { Avatar } from '../common/Avatar';
 import { Button, Card, Chip, PageHeader, SectionTitle, StatTile, greeting, scoreTone, timeAgo, todayLabel } from '../common/ui';
+import { uiDir } from '../../i18n';
 
 const avgOf = (vals: number[]) => (vals.length ? Math.round(vals.reduce((a, b) => a + b, 0) / vals.length) : 0);
 
@@ -115,7 +116,7 @@ export const AdminDashboard: React.FC = () => {
   })();
 
   return (
-    <div className="max-w-7xl mx-auto py-8 px-4 sm:px-6 lg:px-8 space-y-6" dir="rtl">
+    <div className="max-w-7xl mx-auto py-8 px-4 sm:px-6 lg:px-8 space-y-6" dir={uiDir()}>
       <PageHeader
         eyebrow={todayLabel()}
         title={`${greeting()}، ${firstName || 'مدير النظام'}`}
@@ -173,7 +174,7 @@ export const AdminDashboard: React.FC = () => {
               </div>
             </div>
           ))}
-          <button type="button" onClick={() => setCurrentView('analytics')} className="mt-auto text-sm font-semibold text-indigo-700 dark:text-indigo-400 text-right hover:underline">
+          <button type="button" onClick={() => setCurrentView('analytics')} className="mt-auto text-sm font-semibold text-indigo-700 dark:text-indigo-400 text-start hover:underline">
             كل الشعب والتحليلات ←
           </button>
         </Card>

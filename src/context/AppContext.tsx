@@ -39,6 +39,7 @@ import { Banner, loadBannerCache, syncBanners, saveBannerRemote, deleteBannerRem
 import { loadAwardsCache, makeAward, pushAward, pullAwards } from '../services/awardsService';
 import { AppSettings, loadSettings, syncSettings, saveSettings, syncPublicBranding } from '../services/settingsService';
 import { applyBrandColor } from '../utils/brand';
+import { t } from '../i18n';
 import { loadBranchCache, syncBranches, saveBranchRemote, deleteBranchRemote, newBranch } from '../services/branchService';
 import { StudentAward } from '../utils/points';
 import { describeQuizTarget } from '../utils/quizTarget';
@@ -881,7 +882,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const tick = () => {
       lastTick = Date.now();
       if (isSessionExpired() && currentViewRef.current !== 'take_quiz') {
-        logout('انتهت الجلسة، يرجى تسجيل الدخول من جديد');
+        logout(t('انتهت الجلسة، يرجى تسجيل الدخول من جديد'));
         return;
       }
       // لا نقاطع الطالب أثناء أداء الاختبار
@@ -917,7 +918,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     replaceNextNavigation();
     // (صفحة الخصوصية/الشروط المفتوحة قبل الدخول لا تُعاد بعده: الرئيسية)
     applyRoute(PUBLIC_PATHS[window.location.pathname] ? { view: 'dashboard' } : routeForUser(normalizeUser(user), window.location.pathname));
-    showToast(`مرحباً بك يا ${user.name}`, 'success');
+    showToast(t('مرحباً بك يا {name}', { name: user.name }), 'success');
   };
 
   /** حفظ بيانات المستخدم القادمة من الخادم في النسخة المحلية */
@@ -947,19 +948,19 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           }
           showToast(
             data.error === 'locked'
-              ? `تم إيقاف الدخول مؤقتاً بسبب محاولات خاطئة متكررة. حاول بعد ${Math.ceil((data.retry_after_seconds || 600) / 60)} دقائق`
-              : 'رقم الهوية / الرقم الأكاديمي أو كلمة المرور غير صحيحة',
+              ? t('تم إيقاف الدخول مؤقتاً بسبب محاولات خاطئة متكررة. حاول بعد {n} دقائق', { n: Math.ceil((data.retry_after_seconds || 600) / 60) })
+              : t('رقم الهوية / الرقم الأكاديمي أو كلمة المرور غير صحيحة'),
             'error'
           );
           return false;
         }
         if (error && !isMissingRpc(error)) {
-          showToast(`تعذر الاتصال بالخادم (${error.message})`, 'error');
+          showToast(t('تعذر الاتصال بالخادم ({error})', { error: error.message }), 'error');
           return false;
         }
         // دوال الحماية غير موجودة بعد (لم يُشغَّل ملفات 003_security): نكمل بالطريقة القديمة
       } catch (e: any) {
-        showToast('تعذر الاتصال بالخادم، تحقق من الإنترنت', 'error');
+        showToast(t('تعذر الاتصال بالخادم، تحقق من الإنترنت'), 'error');
         return false;
       }
     }
@@ -989,7 +990,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       }
     }
 
-    showToast('رقم الهوية / الرقم الأكاديمي أو كلمة المرور غير صحيحة', 'error');
+    showToast(t('رقم الهوية / الرقم الأكاديمي أو كلمة المرور غير صحيحة'), 'error');
     return false;
   };
 
@@ -1146,7 +1147,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     // معاينة المدير لحساب طالب: لا يُسجَّل تسليم باسم الطالب
     const ownerId = getSessionInfo()?.user_id;
     if (getSessionToken() && ownerId && ownerId !== me.id) {
-      showToast('أنت في وضع معاينة حساب الطالب: يمكنك تصفح الاختبار فقط، ولا يُسجَّل التسليم. للتجربة الكاملة سجّل الدخول بحساب الطالب نفسه.', 'info');
+      showToast(t('أنت في وضع معاينة حساب الطالب: يمكنك تصفح الاختبار فقط، ولا يُسجَّل التسليم. للتجربة الكاملة سجّل الدخول بحساب الطالب نفسه.'), 'info');
       return null;
     }
 
@@ -1163,29 +1164,29 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       if (res.kind === 'ok') {
         recompute();
         const pct = res.submission.percentage;
-        showToast(`تم تسليم الاختبار! حصلت على ${pct}%`, pct >= 60 ? 'success' : 'info');
+        showToast(t('تم تسليم الاختبار! حصلت على {pct}%', { pct }), pct >= 60 ? 'success' : 'info');
         return res.submission;
       }
       if (res.kind === 'offline') {
         queueAttempt(attempt);
-        showToast('حُفظت إجاباتك على جهازك وستُرسل للتصحيح تلقائياً عند عودة الاتصال. لا تحذف بيانات المتصفح.', 'info');
+        showToast(t('حُفظت إجاباتك على جهازك وستُرسل للتصحيح تلقائياً عند عودة الاتصال. لا تحذف بيانات المتصفح.'), 'info');
         return null;
       }
       if (res.kind === 'rejected') {
         recompute();
         if (res.error === 'already_submitted' && res.submission) {
-          showToast('سبق أن سلّمت هذا الاختبار، هذه نتيجتك المسجلة', 'info');
+          showToast(t('سبق أن سلّمت هذا الاختبار، هذه نتيجتك المسجلة'), 'info');
           return res.submission;
         }
         const msg: Record<string, string> = {
-          ended: 'انتهى وقت إتاحة الاختبار، لم يُقبل التسليم',
-          not_started: 'لم يبدأ وقت الاختبار بعد',
-          quiz_not_available: 'الاختبار لم يعد متاحاً لك',
-          quiz_not_found: 'الاختبار غير موجود',
-          no_session: 'انتهت الجلسة، سجّل الدخول من جديد ثم أعد المحاولة',
+          ended: t('انتهى وقت إتاحة الاختبار، لم يُقبل التسليم'),
+          not_started: t('لم يبدأ وقت الاختبار بعد'),
+          quiz_not_available: t('الاختبار لم يعد متاحاً لك'),
+          quiz_not_found: t('الاختبار غير موجود'),
+          no_session: t('انتهت الجلسة، سجّل الدخول من جديد ثم أعد المحاولة'),
         };
         if (res.error === 'no_session') queueAttempt(attempt);
-        showToast(msg[res.error] || `تعذر تسليم الاختبار (${res.error})`, 'error');
+        showToast(msg[res.error] || t('تعذر تسليم الاختبار ({error})', { error: res.error }), 'error');
         return null;
       }
       // kind === 'legacy': دوال الحماية غير موجودة بعد، نكمل بالطريقة القديمة
@@ -1270,12 +1271,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     // إرسال للخادم في الخلفية (عند الفشل يبقى في قائمة الانتظار ويُعاد تلقائياً)
     void pushSubmission(submission.id).then((r) => {
       if (!r.ok) {
-        showToast('تم حفظ نتيجتك على جهازك، وستُرسل للخادم تلقائياً عند توفر الاتصال', 'info');
+        showToast(t('تم حفظ نتيجتك على جهازك، وستُرسل للخادم تلقائياً عند توفر الاتصال'), 'info');
       }
     });
     if (isRetake) void pushQuiz(quizId);
 
-    showToast(`تم تسليم الاختبار! حصلت على ${percentage}%`, percentage >= 60 ? 'success' : 'info');
+    showToast(t('تم تسليم الاختبار! حصلت على {pct}%', { pct: percentage }), percentage >= 60 ? 'success' : 'info');
     return submission;
   };
 
@@ -2034,9 +2035,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const changeMyPassword: AppContextType['changeMyPassword'] = async (current, next) => {
     const me = currentUserRef.current;
-    if (!me) return { ok: false, error: 'لا يوجد مستخدم مسجل' };
-    if (next.length < 6) return { ok: false, error: 'كلمة المرور الجديدة يجب ألا تقل عن 6 أحرف' };
-    if (next === current) return { ok: false, error: 'كلمة المرور الجديدة مطابقة للحالية' };
+    if (!me) return { ok: false, error: t('لا يوجد مستخدم مسجل') };
+    if (next.length < 6) return { ok: false, error: t('كلمة المرور الجديدة يجب ألا تقل عن 6 أحرف') };
+    if (next === current) return { ok: false, error: t('كلمة المرور الجديدة مطابقة للحالية') };
 
     if (getSessionToken()) {
       // الوضع الآمن: الخادم يتحقق من الكلمة الحالية ويشفّر الجديدة
@@ -2056,7 +2057,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         log('password_changed', { type: 'user', id: me.id, name: me.name });
         return { ok: true };
       } catch {
-        return { ok: false, error: 'تعذر الاتصال بالخادم، حاول لاحقاً' };
+        return { ok: false, error: t('تعذر الاتصال بالخادم، حاول لاحقاً') };
       }
     }
 
@@ -2070,9 +2071,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         valid = localOk;
       }
     }
-    if (!valid) return { ok: false, error: 'كلمة المرور الحالية غير صحيحة' };
+    if (!valid) return { ok: false, error: t('كلمة المرور الحالية غير صحيحة') };
     const ok = await resetUserPassword(me.id, next);
-    if (!ok) return { ok: false, error: 'تعذر حفظ كلمة المرور الجديدة على الخادم، حاول لاحقاً' };
+    if (!ok) return { ok: false, error: t('تعذر حفظ كلمة المرور الجديدة على الخادم، حاول لاحقاً') };
     log('password_changed', { type: 'user', id: me.id, name: me.name });
     return { ok: true };
   };
