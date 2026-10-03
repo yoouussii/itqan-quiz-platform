@@ -1187,7 +1187,8 @@ public static getCurrentUser(): User | null {
     this.pruneQuizzesExcept(pendingQuizzes);
     setLocalItem(STORAGE_KEYS.SUBMISSIONS, this.getSubmissions().filter((x) => pendingSubs.has(x.id)));
     setLocalItem(STORAGE_KEYS.USERS, []);
-    ['itqan_activity_local_v1', 'itqan_awards_v1', 'itqan_notifs_v1'].forEach((k) => localStorage.removeItem(k));
+    // بنك الأسئلة فيه الإجابات النموذجية: لا يبقى على جهاز مشترك
+    ['itqan_activity_local_v1', 'itqan_awards_v1', 'itqan_notifs_v1', 'itqan_question_bank_v1'].forEach((k) => localStorage.removeItem(k));
   }
 
   public static removeSubmissionLocal(id: string): void {

@@ -24,6 +24,7 @@ const SIMPLE: Record<string, string> = {
   activity_log: '/activity',
   settings: '/settings',
   banners: '/banners',
+  question_bank: '/bank',
   privacy: '/privacy',
   terms: '/terms',
 };
