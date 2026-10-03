@@ -1406,4 +1406,8 @@ export const EN: Record<string, string> = {
   'من بنك الأسئلة': 'From question bank',
   'رابط متابعة التحضير': 'Lesson-preparation link',
   'يفتح في تبويب جديد عند الضغط على زر «متابعة التحضير».': 'Opens in a new tab when the “Lesson preparation” button is clicked.',
+  'متابعة تحضير مزن': 'Mozn lesson prep',
+  'رابط متابعة تحضير مزن': 'Mozn lesson-prep link',
+  'تحضير مزن': 'Mozn prep',
+  'يفتح في تبويب جديد عند الضغط على زر «متابعة تحضير مزن».': 'Opens in a new tab when the “Mozn lesson prep” button is clicked.',
 };
