@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { createPortal } from 'react-dom';
-import { FileUp, X, Trash2, AlertTriangle, CheckCircle2, ClipboardPaste, Copy } from 'lucide-react';
+import { FileUp, X, Trash2, AlertTriangle, CheckCircle2, ClipboardPaste, Copy, Sparkles, ExternalLink } from 'lucide-react';
+import { AI_SITES, GenType, QuestionsPromptInput, copyText, questionsPrompt } from '../../utils/aiPrompt';
 import { useApp } from '../../context/AppContext';
 import { Card, Button, Chip } from '../common/ui';
 import { stripHtml } from '../common/RichText';
@@ -30,7 +31,7 @@ const EXAMPLE = `1. ما ناتج 5 + 3؟ (2 درجة)
 const typeLabel = (type: string) => t(QUESTION_TYPES.find((x) => x.type === type)?.label || '');
 
 /** استيراد أسئلة من ملف Word أو PDF أو نص ملصوق، مع معاينة وتصحيح قبل الإضافة */
-export const ImportQuestionsModal: React.FC<{ onClose: () => void; onAdd: (qs: QuestionItem[]) => void }> = ({ onClose, onAdd }) => {
+export const ImportQuestionsModal: React.FC<{ onClose: () => void; onAdd: (qs: QuestionItem[]) => void; mode?: 'file' | 'ai'; subjectName?: string }> = ({ onClose, onAdd, mode = 'file', subjectName = '' }) => {
   const { showToast } = useApp();
   const [items, setItems] = useState<QuestionItem[] | null>(null);
   const [review, setReview] = useState<number[]>([]);
@@ -38,6 +39,15 @@ export const ImportQuestionsModal: React.FC<{ onClose: () => void; onAdd: (qs: Q
   const [busy, setBusy] = useState(false);
   const [showExample, setShowExample] = useState(false);
   const letters = optionLetters();
+  // توليد بالذكاء الاصطناعي مجاناً: طلب جاهز يُنسخ لأي شات، ثم يُلصق الرد في خانة الأسئلة
+  const [lesson, setLesson] = useState('');
+  const [gen, setGen] = useState<Omit<QuestionsPromptInput, 'lesson' | 'subject'>>({ count: 10, types: ['mcq', 'true_false'], difficulty: 'mixed', grade: '' });
+  const toggleType = (x: GenType) => setGen((g) => ({ ...g, types: g.types.includes(x) ? g.types.filter((y) => y !== x) : [...g.types, x] }));
+  const copyPrompt = async () => {
+    if (lesson.trim().length < 40) return showToast(t('الصق نص الدرس أولاً (فقرة على الأقل).'), 'info');
+    const ok = await copyText(questionsPrompt({ ...gen, lesson, subject: subjectName }));
+    showToast(ok ? t('تم نسخ الطلب. الصقه في الشات ثم انسخ الرد إلى الخانة بالأسفل.') : t('تعذر النسخ'), ok ? 'success' : 'error');
+  };
 
   const parse = (text: string) => {
     const r = parseQuestionsText(text);
@@ -79,22 +89,63 @@ export const ImportQuestionsModal: React.FC<{ onClose: () => void; onAdd: (qs: Q
     <div className="fixed inset-0 z-50 bg-slate-900/60 flex items-center justify-center p-3 sm:p-6" dir={uiDir()} role="dialog" aria-modal="true" aria-labelledby="imp-q-title">
       <Card className="w-full max-w-3xl max-h-[92vh] flex flex-col">
         <div className="flex items-center justify-between p-4 border-b border-slate-200 dark:border-slate-800">
-          <h3 id="imp-q-title" className="text-lg font-bold text-slate-900 dark:text-white inline-flex items-center gap-2"><FileUp className="w-5 h-5 text-indigo-600" />{t('استيراد أسئلة من ملف')}</h3>
+          <h3 id="imp-q-title" className="text-lg font-bold text-slate-900 dark:text-white inline-flex items-center gap-2">
+            {mode === 'ai' ? <><Sparkles className="w-5 h-5 text-violet-600" />{t('توليد أسئلة بالذكاء الاصطناعي (مجاناً)')}</> : <><FileUp className="w-5 h-5 text-indigo-600" />{t('استيراد أسئلة من ملف')}</>}
+          </h3>
           <button type="button" onClick={onClose} aria-label={t('إغلاق')} className="w-9 h-9 rounded-lg flex items-center justify-center text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800"><X className="w-5 h-5" /></button>
         </div>
 
         <div className="p-4 overflow-y-auto flex-1 space-y-4">
           {!items ? (
             <>
+              {mode === 'ai' ? (
+                <div className="rounded-2xl border border-violet-200 dark:border-violet-900 bg-violet-50/50 dark:bg-violet-950/20 p-4 space-y-3" data-testid="ai-generate">
+                  <p className="text-sm text-slate-700 dark:text-slate-300 leading-relaxed">
+                    {t('بدون أي اشتراك: المنصة تجهّز طلباً جاهزاً، تنسخه في أي شات مجاني، ثم تلصق الرد بالأسفل فتتحول الأسئلة تلقائياً وتراجعها قبل الإضافة.')}
+                  </p>
+                  <div>
+                    <label htmlFor="ai-lesson" className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">{t('1) الصق نص الدرس')}</label>
+                    <textarea id="ai-lesson" value={lesson} onChange={(e) => setLesson(e.target.value)} rows={5} dir="auto" placeholder={t('انسخ نص الدرس من الكتاب أو الملف والصقه هنا')}
+                      className="w-full p-3 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm text-slate-900 dark:text-white" />
+                  </div>
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
+                    <label className="space-y-1"><span className="block font-bold text-slate-700 dark:text-slate-300">{t('عدد الأسئلة')}</span>
+                      <input type="number" min={1} max={40} value={gen.count} onChange={(e) => setGen((g) => ({ ...g, count: Math.max(1, Math.min(40, Number(e.target.value) || 1)) }))}
+                        className="w-full h-9 px-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white" /></label>
+                    <label className="space-y-1"><span className="block font-bold text-slate-700 dark:text-slate-300">{t('الصعوبة')}</span>
+                      <select value={gen.difficulty} onChange={(e) => setGen((g) => ({ ...g, difficulty: e.target.value as QuestionsPromptInput['difficulty'] }))}
+                        className="w-full h-9 px-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white">
+                        <option value="mixed">{t('متنوعة')}</option><option value="easy">{t('سهل')}</option><option value="medium">{t('متوسط')}</option><option value="hard">{t('صعب')}</option>
+                      </select></label>
+                    <label className="space-y-1 col-span-2"><span className="block font-bold text-slate-700 dark:text-slate-300">{t('الصف (اختياري)')}</span>
+                      <input value={gen.grade} onChange={(e) => setGen((g) => ({ ...g, grade: e.target.value }))} placeholder={t('مثال: الثالث المتوسط')}
+                        className="w-full h-9 px-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white" /></label>
+                  </div>
+                  <div className="flex flex-wrap gap-3 text-sm text-slate-800 dark:text-slate-100" role="group" aria-label={t('أنواع الأسئلة')}>
+                    {([['mcq', 'اختيار من متعدد'], ['true_false', 'صح أو خطأ'], ['essay', 'مقالي']] as const).map(([k, l]) => (
+                      <label key={k} className="inline-flex items-center gap-1.5"><input type="checkbox" className="accent-violet-600" checked={gen.types.includes(k)} onChange={() => toggleType(k)} />{t(l)}</label>
+                    ))}
+                  </div>
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    <span className="text-xs font-bold text-slate-700 dark:text-slate-300">{t('2) انسخ الطلب وافتح أي شات:')}</span>
+                    <Button size="sm" icon={Copy} onClick={() => void copyPrompt()}>{t('نسخ الطلب')}</Button>
+                    {AI_SITES.map((s) => (
+                      <a key={s.name} href={s.url} target="_blank" rel="noopener noreferrer" className="h-8 px-3 rounded-lg border border-slate-300 dark:border-slate-700 inline-flex items-center gap-1 text-xs font-bold text-slate-700 dark:text-slate-200 hover:bg-white dark:hover:bg-slate-800">{s.name}<ExternalLink className="w-3 h-3" /></a>
+                    ))}
+                  </div>
+                  <p className="text-[11px] text-slate-500 dark:text-slate-400">{t('3) انسخ رد الشات كاملاً والصقه في الخانة بالأسفل، ثم اضغط «قراءة الأسئلة». راجع الأسئلة دائماً: الذكاء الاصطناعي قد يخطئ.')}</p>
+                </div>
+              ) : (
               <label className={`block rounded-2xl border-2 border-dashed border-slate-300 dark:border-slate-700 p-6 text-center cursor-pointer hover:border-indigo-400 ${busy ? 'opacity-60 pointer-events-none' : ''}`}>
                 <FileUp className="w-10 h-10 mx-auto text-indigo-500" />
                 <span className="block mt-2 font-bold text-slate-800 dark:text-slate-100">{busy ? t('جارٍ قراءة الملف...') : t('اختر ملف Word أو PDF')}</span>
                 <span className="block text-xs text-slate-500 dark:text-slate-400 mt-1">{t('‎.docx أو ‎.pdf أو ‎.txt — يُقرأ على جهازك ولا يُرفع لأي مكان. ملفات Word أدق من PDF.')}</span>
                 <input type="file" accept=".docx,.pdf,.txt" className="sr-only" aria-label={t('ملف الأسئلة')} onChange={(e) => void onFile(e.target.files?.[0])} />
               </label>
+              )}
 
               <div className="space-y-2">
-                <span className="text-sm font-semibold text-slate-700 dark:text-slate-300 inline-flex items-center gap-1.5"><ClipboardPaste className="w-4 h-4" />{t('أو الصق الأسئلة هنا')}</span>
+                <span className="text-sm font-semibold text-slate-700 dark:text-slate-300 inline-flex items-center gap-1.5"><ClipboardPaste className="w-4 h-4" />{mode === 'ai' ? t('الصق رد الذكاء الاصطناعي هنا') : t('أو الصق الأسئلة هنا')}</span>
                 <textarea value={paste} onChange={(e) => setPaste(e.target.value)} rows={7} placeholder={EXAMPLE} aria-label={t('نص الأسئلة')}
                   className="w-full p-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm text-slate-900 dark:text-white leading-relaxed" dir="auto" />
                 <div className="flex flex-wrap gap-2">

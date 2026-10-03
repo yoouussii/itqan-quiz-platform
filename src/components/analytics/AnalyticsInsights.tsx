@@ -1,6 +1,7 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { exportElementToPdf } from '../../utils/exportPdf';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
-import { ArrowUp, ArrowDown, Minus, Filter, AlertTriangle, Bell, Users as UsersIcon, Sparkles, FileText, Table2, LineChart as LineIcon, RotateCcw } from 'lucide-react';
+import { ArrowUp, ArrowDown, Minus, Filter, AlertTriangle, Bell, Users as UsersIcon, Sparkles, FileText, Table2, LineChart as LineIcon, RotateCcw, Download, EyeOff, Building2, UserCheck } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 import { StorageService } from '../../services/storage';
 import { Card, Button } from '../common/ui';
@@ -9,10 +10,10 @@ import { exportStudentReport, reportExtras } from '../../utils/studentReport';
 import { computePointEvents, earnedBadges, totalPoints } from '../../utils/points';
 import { formatFullArabicDate } from '../../utils/dateUtils';
 import {
-  AnalyticsFilters, Period, emptyFilters, matchesDims, splitByPeriod, summarize, heatmap, weeklyTrend, atRiskStudents, RiskReason, Scope,
+  AnalyticsFilters, Period, PERIOD_DAYS, emptyFilters, matchesDims, splitByPeriod, summarize, heatmap, weeklyTrend, atRiskStudents, RiskReason, Scope,
 } from '../../utils/analytics';
 import { t, isEn, dateLocale } from '../../i18n';
-import type { User } from '../../types';
+import type { User, SubmissionWithDetails } from '../../types';
 
 const PERIODS: Array<{ id: Period; label: string }> = [
   { id: 'week', label: 'أسبوع' },
@@ -62,8 +63,10 @@ const REASON_TEXT = (r: RiskReason) => {
   }
 };
 
-export const AnalyticsInsights: React.FC = () => {
-  const { currentUser, submissions, quizzes, users, subjects, classes, branches, theme, awards, sendAnnouncement, setCurrentView } = useApp();
+/** onDrill: التسليمات المطابقة للفلاتر (لجدول النتائج أسفل اللوحة)، أو null بالفلاتر الافتراضية */
+export const AnalyticsInsights: React.FC<{ onDrill?: (subs: SubmissionWithDetails[] | null) => void }> = ({ onDrill }) => {
+  const exportRef = useRef<HTMLDivElement>(null);
+  const { currentUser, submissions, quizzes, users, subjects, classes, branches, theme, awards, sendAnnouncement, setCurrentView, showToast } = useApp();
   const dark = theme === 'dark';
   const [f, setF] = useState<AnalyticsFilters>(emptyFilters);
   const [heatAsTable, setHeatAsTable] = useState(false);
@@ -118,14 +121,64 @@ export const AnalyticsInsights: React.FC = () => {
     [current, topSubjects, quizzes]);
   const weekLabel = (iso: string) => new Date(iso).toLocaleDateString(dateLocale(), { day: 'numeric', month: 'short' });
 
+  // اختبارات كل طالب (المسندة إليه ضمن النطاق والفلاتر): للمشاركة والاختبارات الفائتة
+  const quizzesOf = useMemo(() => {
+    const scopeIds = new Set((staff?.quizzes || []).map((x) => x.id));
+    const m = new Map<string, ReturnType<typeof StorageService.getQuizzesForStudent>>();
+    scopeStudents.forEach((st) => m.set(st.id, StorageService.getQuizzesForStudent(st.id)
+      .filter((q) => scopeIds.has(q.id) && (!f.subjectId || q.subject_id === f.subjectId) && (!f.teacherId || q.teacher_id === f.teacherId))));
+    return m;
+  }, [scopeStudents, staff, f.subjectId, f.teacherId]);
+
   // ---- الطلاب الذين يحتاجون تدخلاً (من كل تسليماتهم ضمن الفلاتر) ----
   const risks = useMemo(
-    () => atRiskStudents(dimSubs, scopeStudents, (id) => {
-      const list = StorageService.getQuizzesForStudent(id);
-      return list.filter((q) => (!f.subjectId || q.subject_id === f.subjectId) && (!f.teacherId || q.teacher_id === f.teacherId) && (staff?.quizzes || []).some((x) => x.id === q.id));
-    }),
-    [dimSubs, scopeStudents, f.subjectId, f.teacherId, staff]
+    () => atRiskStudents(dimSubs, scopeStudents, (id) => quizzesOf.get(id) || []),
+    [dimSubs, scopeStudents, quizzesOf]
   );
+
+  // ---- المشاركة لكل اختبار: من سلّم من الطلاب المسند إليهم (الاختبارات التي بدأت في الفترة) ----
+  const participationRows = useMemo(() => {
+    const assigned = new Map<string, number>();
+    quizzesOf.forEach((list) => list.forEach((q) => assigned.set(q.id, (assigned.get(q.id) || 0) + 1)));
+    const days = PERIOD_DAYS[f.period];
+    const since = days ? Date.now() - days * 86_400_000 : 0;
+    return Array.from(assigned.entries()).map(([id, n]) => {
+      const q = (quizzes || []).find((x) => x.id === id);
+      const start = new Date(q?.start_date || q?.created_at || 0).getTime();
+      const done = new Set(dimSubs.filter((s) => s.quiz_id === id).map((s) => s.student_id)).size;
+      return { id, title: q?.title || '—', assigned: n, done: Math.min(done, n), pct: n ? Math.round((Math.min(done, n) / n) * 100) : 0, start };
+    }).filter((r) => r.start >= since).sort((a, b) => a.pct - b.pct || b.assigned - a.assigned);
+  }, [quizzesOf, dimSubs, quizzes, f.period]);
+
+  // ---- ملخص النزاهة: خروج الطلاب من صفحة الاختبار أثناء الحل ----
+  const integrity = useMemo(() => {
+    const logged = current.filter((s) => s.integrity);
+    const flagged = logged.filter((s) => (s.integrity?.leaves || 0) + (s.integrity?.fullscreen_exits || 0) > 0);
+    const byStudent = new Map<string, number>();
+    flagged.forEach((s) => byStudent.set(s.student_id, (byStudent.get(s.student_id) || 0) + (s.integrity?.leaves || 0) + (s.integrity?.fullscreen_exits || 0)));
+    const top = Array.from(byStudent.entries()).sort((a, b) => b[1] - a[1]).slice(0, 5)
+      .map(([id, n]) => ({ name: (users || []).find((u) => u.id === id)?.name || t('طالب'), n }));
+    return { logged: logged.length, flagged: flagged.length, severe: flagged.filter((s) => (s.integrity?.leaves || 0) >= 3 || (s.integrity?.fullscreen_exits || 0) >= 3).length, top };
+  }, [current, users]);
+
+  // ---- مقارنة الفروع (الشركة أو المجمع التعليمي) ----
+  const branchRows = useMemo(() => {
+    if (!hasPerm(currentUser, 'can_view_branch_comparison') || branches.length < 2) return [];
+    const stBranch = new Map((users || []).filter((u) => u.role === 'student').map((u) => [u.id, u.branch_id || '']));
+    // المقارنة تتجاهل فلتر الفرع نفسه (حتى تبقى كل الفروع ظاهرة بعد الضغط على أحدها)
+    const noBranch = { ...f, branchId: '' };
+    const base = splitByPeriod((submissions || []).filter((s) => matchesDims(s, noBranch, scope)), f.period).current;
+    return branches.map((b) => {
+      const subs = base.filter((s) => stBranch.get(s.student_id) === b.id);
+      const sum = summarize(subs);
+      const studentsN = (staff?.students || []).filter((st) => st.branch_id === b.id && (!f.classId || st.class_id === f.classId)).length;
+      const atRisk = f.branchId && f.branchId !== b.id ? null : risks.filter((r) => r.student.branch_id === b.id).length;
+      return { id: b.id, name: b.name, ...sum, studentsN, participation: studentsN ? Math.round((sum.students / studentsN) * 100) : 0, atRisk };
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentUser, branches, users, submissions, f, staff, risks]);
+  const canInsights = hasPerm(currentUser, 'can_view_insights');
+  const canExport = hasPerm(currentUser, 'can_export_reports');
   const canNotify = hasPerm(currentUser, 'can_send_announcements');
   const parentsOf = (st: User) => (users || []).filter((u) => u.role === 'parent' && (u.child_ids || []).includes(st.id)).map((u) => u.id);
 
@@ -152,6 +205,17 @@ export const AnalyticsInsights: React.FC = () => {
   };
 
   const filtered = f.subjectId || f.classId || f.teacherId || f.branchId || f.period !== 'term';
+  // التفاصيل: جدول النتائج أسفل اللوحة يعرض التسليمات المطابقة للفلاتر
+  useEffect(() => { onDrill?.(filtered ? current : null); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [filtered, current]);
+
+  const exportPdf = async () => {
+    if (!exportRef.current) return;
+    const parts = [t((PERIODS.find((p) => p.id === f.period) || PERIODS[2]).label), f.subjectId && subjectName(f.subjectId), f.classId && className(f.classId),
+      f.teacherId && (staff?.teachers || []).find((u) => u.id === f.teacherId)?.name, f.branchId && branches.find((b) => b.id === f.branchId)?.name].filter(Boolean);
+    try {
+      await exportElementToPdf({ element: exportRef.current, title: t('لوحة التحليلات'), subtitle: parts.join(' • '), orientation: 'portrait' });
+    } catch (e: any) { showToast(e?.message || t('تعذر تصدير PDF'), 'error'); }
+  };
   const subjectOptions = subjects.filter((s) => (staff?.quizzes || []).some((q) => q.subject_id === s.id));
   const classOptions = classes.filter((c) => (staff?.students || []).some((st) => st.class_id === c.id));
 
@@ -200,7 +264,15 @@ export const AnalyticsInsights: React.FC = () => {
             <RotateCcw className="w-3.5 h-3.5" />{t('إعادة ضبط')}
           </button>
         )}
+        {canExport && (
+          <button type="button" onClick={() => void exportPdf()} className="ms-auto inline-flex items-center gap-1.5 h-8 px-3 rounded-lg border border-slate-300 dark:border-slate-700 text-xs font-bold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800">
+            <Download className="w-3.5 h-3.5" />{t('تصدير اللوحة PDF')}
+          </button>
+        )}
       </Card>
+      {filtered && onDrill && <p className="text-[11px] text-slate-500 dark:text-slate-400 -mt-3">{t('جدول النتائج في آخر الصفحة يعرض {n} تسليماً مطابقاً للفلاتر.', { n: current.length })}</p>}
+
+      <div ref={exportRef} className="space-y-5">
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
         {tiles.map((x) => (
@@ -329,6 +401,76 @@ export const AnalyticsInsights: React.FC = () => {
         </Card>
       </div>
 
+      <div className="grid lg:grid-cols-2 gap-5">
+        {/* المشاركة لكل اختبار */}
+        <Card className="p-5 space-y-3" data-testid="participation">
+          <div>
+            <h3 className="font-bold text-sm text-slate-900 dark:text-white inline-flex items-center gap-2"><UserCheck className="w-4 h-4 text-indigo-600" aria-hidden />{t('المشاركة في الاختبارات')}</h3>
+            <p className="text-[11px] text-slate-500 dark:text-slate-400">{t('من سلّم من الطلاب المسند إليهم كل اختبار (الأقل مشاركة أولاً).')}</p>
+          </div>
+          {!participationRows.length ? <p className="text-xs text-slate-400 py-4 text-center">{t('لا توجد اختبارات في هذه الفترة.')}</p> : (
+            <ul className="space-y-2.5">
+              {participationRows.slice(0, 8).map((r) => (
+                <li key={r.id} className="text-xs">
+                  <div className="flex justify-between gap-2 mb-1"><span className="font-semibold text-slate-800 dark:text-slate-100 truncate">{r.title}</span><span className="shrink-0 text-slate-600 dark:text-slate-300"><b>{r.pct}%</b> ({r.done}/{r.assigned})</span></div>
+                  <div className="h-2 rounded-full bg-slate-100 dark:bg-slate-800 overflow-hidden"><div className="h-full rounded-full" style={{ width: `${r.pct}%`, background: dark ? '#3987e5' : '#2a78d6' }} /></div>
+                </li>
+              ))}
+            </ul>
+          )}
+        </Card>
+
+        {/* ملخص النزاهة */}
+        {canInsights && (
+          <Card className="p-5 space-y-3" data-testid="integrity-summary">
+            <div>
+              <h3 className="font-bold text-sm text-slate-900 dark:text-white inline-flex items-center gap-2"><EyeOff className="w-4 h-4 text-amber-600" aria-hidden />{t('ملخص النزاهة')}</h3>
+              <p className="text-[11px] text-slate-500 dark:text-slate-400">{t('خروج الطلاب من صفحة الاختبار أثناء الحل (للتسليمات المسجّل فيها ذلك).')}</p>
+            </div>
+            {!integrity.logged ? <p className="text-xs text-slate-400 py-4 text-center">{t('لا توجد بيانات نزاهة في هذه الفترة.')}</p> : (
+              <>
+                <div className="grid grid-cols-3 gap-2 text-center">
+                  {[[t('تسليمات مسجّلة'), integrity.logged], [t('فيها خروج'), integrity.flagged], [t('خروج متكرر (3+)'), integrity.severe]].map(([l, v]) => (
+                    <div key={String(l)} className="rounded-xl bg-slate-50 dark:bg-slate-800/60 p-2"><div className="text-lg font-black text-slate-900 dark:text-white">{v}</div><div className="text-[11px] text-slate-500 dark:text-slate-400">{l}</div></div>
+                  ))}
+                </div>
+                {integrity.top.length > 0 && (
+                  <div>
+                    <p className="text-[11px] font-bold text-slate-600 dark:text-slate-300 mb-1">{t('الأكثر خروجاً')}</p>
+                    <ul className="text-xs divide-y divide-slate-100 dark:divide-slate-800">
+                      {integrity.top.map((x) => <li key={x.name} className="flex justify-between py-1.5"><span className="text-slate-800 dark:text-slate-100">{x.name}</span><span className="font-bold text-amber-800 dark:text-amber-300">{t('{n} مرة', { n: x.n })}</span></li>)}
+                    </ul>
+                  </div>
+                )}
+              </>
+            )}
+          </Card>
+        )}
+      </div>
+
+      {/* مقارنة الفروع */}
+      {branchRows.length > 0 && (
+        <Card className="p-5 space-y-3" data-testid="branch-comparison">
+          <h3 className="font-bold text-sm text-slate-900 dark:text-white inline-flex items-center gap-2"><Building2 className="w-4 h-4 text-indigo-600" aria-hidden />{t('مقارنة الفروع')}</h3>
+          <div className="overflow-x-auto rounded-xl border border-slate-200 dark:border-slate-700">
+            <table className="w-full text-xs">
+              <thead><tr className="bg-slate-50 dark:bg-slate-800/60 text-slate-500 dark:text-slate-400">
+                {['الفرع', 'الطلاب', 'التسليمات', 'المتوسط', 'نسبة النجاح', 'المشاركة', 'يحتاجون تدخلاً'].map((h) => <th key={h} className="py-2 px-3 text-start">{t(h)}</th>)}
+              </tr></thead>
+              <tbody className="divide-y divide-slate-100 dark:divide-slate-800 text-slate-800 dark:text-slate-100">
+                {branchRows.map((b) => (
+                  <tr key={b.id} className={`cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800/40 ${f.branchId === b.id ? "bg-indigo-50/70 dark:bg-indigo-950/40" : ""}`} aria-selected={f.branchId === b.id} onClick={() => set({ branchId: f.branchId === b.id ? "" : b.id })} title={t('اضغط لتصفية الصفحة على هذا الفرع')}>
+                    <td className="py-2 px-3 font-bold">{b.name}</td><td className="py-2 px-3">{b.studentsN}</td><td className="py-2 px-3">{b.count}</td>
+                    <td className="py-2 px-3"><span className="inline-flex items-center gap-2"><span className="w-16 h-1.5 rounded-full bg-slate-100 dark:bg-slate-800 overflow-hidden inline-block"><span className="block h-full" style={{ width: `${b.avg}%`, background: dark ? '#3987e5' : '#2a78d6' }} /></span><b>{b.avg}%</b></span></td>
+                    <td className="py-2 px-3">{b.passRate}%</td><td className="py-2 px-3">{b.participation}%</td><td className="py-2 px-3">{b.atRisk ?? '—'}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </Card>
+      )}
+
       {/* طلاب يحتاجون تدخلاً */}
       <Card className="p-5 space-y-3" data-testid="at-risk">
         <div className="flex flex-wrap items-center justify-between gap-2">
@@ -372,6 +514,7 @@ export const AnalyticsInsights: React.FC = () => {
           <button type="button" onClick={() => setRiskLimit((n) => n + 20)} className="text-xs font-bold text-indigo-600 dark:text-indigo-400 hover:underline">{t('عرض المزيد ({n})', { n: risks.length - riskLimit })}</button>
         )}
       </Card>
+      </div>
     </section>
   );
 };

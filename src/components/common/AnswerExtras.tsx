@@ -57,7 +57,7 @@ const GradeBox: React.FC<{ max: number; current?: number; graded?: boolean; onSa
   );
 };
 
-const TextAnswer: React.FC<{ text?: string; graded?: boolean; awarded?: number; max?: number; onGrade?: (m: number) => Promise<boolean> | void }> = ({ text, graded, awarded, max = 0, onGrade }) => (
+const TextAnswer: React.FC<{ text?: string; graded?: boolean; awarded?: number; max?: number; feedback?: string; onGrade?: (m: number) => Promise<boolean> | void }> = ({ text, graded, awarded, max = 0, feedback, onGrade }) => (
   <div className="p-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50/70 dark:bg-slate-800/60 text-xs">
     <div className="font-bold text-slate-500 dark:text-slate-400 mb-1">{t('الإجابة المكتوبة:')}</div>
     <p className="whitespace-pre-wrap text-slate-800 dark:text-slate-200 leading-relaxed">
@@ -68,6 +68,12 @@ const TextAnswer: React.FC<{ text?: string; graded?: boolean; awarded?: number; 
     ) : (
       <div className="text-[10px] font-bold text-amber-700 dark:text-amber-300 mt-2">{t('سؤال مقالي: بانتظار تصحيح المعلم')}</div>
     )}
+    {graded && feedback?.trim() && (
+      <div className="mt-2 p-2.5 rounded-lg bg-indigo-50 dark:bg-indigo-950/40 border border-indigo-100 dark:border-indigo-900" data-testid="teacher-feedback">
+        <div className="text-[10px] font-bold text-indigo-700 dark:text-indigo-300 mb-0.5">{t('ملاحظة المعلم')}</div>
+        <p className="whitespace-pre-wrap text-slate-800 dark:text-slate-100 leading-relaxed">{feedback}</p>
+      </div>
+    )}
     {onGrade && <GradeBox max={max} current={awarded} graded={graded} onSave={onGrade} />}
   </div>
 );
@@ -77,7 +83,7 @@ export const AnswerExtras: React.FC<{ question: Question; answer?: AnswerItem; o
   if (question.type === 'essay') {
     return (
       <div className="mb-3">
-        <TextAnswer text={answer?.text_answer} graded={answer?.graded} awarded={answer?.marks_awarded} max={Number(question.marks) || 0}
+        <TextAnswer text={answer?.text_answer} graded={answer?.graded} awarded={answer?.marks_awarded} max={Number(question.marks) || 0} feedback={answer?.feedback}
           onGrade={onGrade ? (m) => onGrade(null, m) : undefined} />
       </div>
     );
@@ -109,7 +115,7 @@ export const AnswerExtras: React.FC<{ question: Question; answer?: AnswerItem; o
               </span>
             </div>
             {sq.type === 'essay' ? (
-              <TextAnswer text={sa?.text_answer} graded={sa?.graded} awarded={sa?.marks_awarded} max={Number(sq.marks) || 0}
+              <TextAnswer text={sa?.text_answer} graded={sa?.graded} awarded={sa?.marks_awarded} max={Number(sq.marks) || 0} feedback={sa?.feedback}
                 onGrade={onGrade ? (m) => onGrade(sq.id, m) : undefined} />
             ) : (
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">

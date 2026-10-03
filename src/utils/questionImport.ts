@@ -112,7 +112,8 @@ function toQuestion(d: Draft): { q: QuestionItem; review: boolean } {
 }
 
 export function parseQuestionsText(raw: string): ImportResult {
-  const lines = raw.replace(/\r/g, '').split('\n').map((l) => l.replace(/ /g, ' ').trimEnd());
+  // ردود الشات (ChatGPT وغيره) تضيف تنسيق Markdown: **عريض** و### عناوين و- نقاط
+  const lines = raw.replace(/\r/g, '').split('\n').map((l) => l.replace(/ /g, ' ').replace(/\*\*(.+?)\*\*/g, '$1').replace(/__(.+?)__/g, '$1').replace(/^\s*#{1,6}\s+/, '').replace(/^\s*[-•]\s+(?=\S)/, '').trimEnd());
   const drafts: Draft[] = [];
   const key = new Map<number, string>();
   let cur: Draft | null = null;

@@ -54,6 +54,7 @@ export interface EssayItem {
   graded: boolean;
   awarded: number;
   max: number;
+  feedback: string;
   /** ترتيب السؤال في الاختبار (للعرض) */
   order: number;
 }
@@ -68,14 +69,14 @@ export const essayItems = (subs: Submission[]): EssayItem[] => {
       if (!a) return;
       if (q.type === 'essay' && hasText(a.text_answer)) {
         out.push({ key: `${s.id}|${q.id}`, submission: s, question: q, subQuestionId: null, prompt: q.question_text, modelAnswer: q.correctAnswer || q.explanation || '',
-          text: a.text_answer || '', graded: !!a.graded, awarded: Number(a.marks_awarded) || 0, max: Number(q.marks) || 0, order: i + 1 });
+          text: a.text_answer || '', graded: !!a.graded, awarded: Number(a.marks_awarded) || 0, max: Number(q.marks) || 0, feedback: a.feedback || '', order: i + 1 });
       }
       (q.sub_questions || []).forEach((sq) => {
         if (sq.type !== 'essay') return;
         const sa = (a.sub_answers || []).find((x) => x.sub_question_id === sq.id);
         if (!sa || !hasText(sa.text_answer)) return;
         out.push({ key: `${s.id}|${q.id}|${sq.id}`, submission: s, question: q, subQuestionId: sq.id, prompt: sq.question_text, modelAnswer: sq.correctAnswer || sq.explanation || '',
-          text: sa.text_answer || '', graded: !!sa.graded, awarded: Number(sa.marks_awarded) || 0, max: Number(sq.marks) || 0, order: i + 1 });
+          text: sa.text_answer || '', graded: !!sa.graded, awarded: Number(sa.marks_awarded) || 0, max: Number(sq.marks) || 0, feedback: sa.feedback || '', order: i + 1 });
       });
     });
   }
