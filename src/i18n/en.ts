@@ -1404,4 +1404,6 @@ export const EN: Record<string, string> = {
   'حُفظ السؤال في البنك. صنّفه بالوحدة والصعوبة من صفحة «بنك الأسئلة».': 'Saved to the bank. Tag it by unit and difficulty from the “Question bank” page.',
   'حفظ في البنك': 'Save to bank',
   'من بنك الأسئلة': 'From question bank',
+  'رابط متابعة التحضير': 'Lesson-preparation link',
+  'يفتح في تبويب جديد عند الضغط على زر «متابعة التحضير».': 'Opens in a new tab when the “Lesson preparation” button is clicked.',
 };
