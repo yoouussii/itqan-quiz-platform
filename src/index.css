@@ -208,8 +208,23 @@ html[dir="rtl"] .rich-editor .ql-snow .ql-picker-options { text-align: right; }
 .banner-in-rev { animation: bannerInRev 0.55s cubic-bezier(0.22, 1, 0.36, 1); }
 html[dir="ltr"] .banner-in { animation-name: bannerInRev; }
 html[dir="ltr"] .banner-in-rev { animation-name: bannerIn; }
+/* انتقالات البانرات (يختارها المدير من صفحة البانرات) */
+.bn-fade { animation: bnFade .7s ease both; }
+.bn-zoom { animation: bnZoom .65s cubic-bezier(0.22, 1, 0.36, 1) both; }
+.bn-flip { animation: bnFlip .7s cubic-bezier(0.22, 1, 0.36, 1) both; transform-origin: center; }
+.bn-push { animation: bnPush .6s cubic-bezier(0.22, 1, 0.36, 1) both; }
+.bn-wipe { animation: bnWipe .7s cubic-bezier(0.65, 0, 0.35, 1) both; }
+.bn-blur { animation: bnBlur .7s ease both; }
+html[dir="ltr"] .bn-wipe { animation-name: bnWipeLtr; }
+@keyframes bnFade { from { opacity: 0; } to { opacity: 1; } }
+@keyframes bnZoom { from { opacity: 0; transform: scale(.88); } to { opacity: 1; transform: none; } }
+@keyframes bnFlip { from { opacity: 0; transform: perspective(1200px) rotateY(80deg); } to { opacity: 1; transform: perspective(1200px) rotateY(0); } }
+@keyframes bnPush { from { opacity: .3; transform: translateY(100%); } to { opacity: 1; transform: none; } }
+@keyframes bnWipe { from { clip-path: inset(0 0 0 100%); } to { clip-path: inset(0 0 0 0); } }
+@keyframes bnWipeLtr { from { clip-path: inset(0 100% 0 0); } to { clip-path: inset(0 0 0 0); } }
+@keyframes bnBlur { from { opacity: 0; filter: blur(14px); transform: scale(1.04); } to { opacity: 1; filter: none; transform: none; } }
 @media (prefers-reduced-motion: reduce) {
-  .banner-in, .banner-in-rev { animation: none; }
+  .banner-in, .banner-in-rev, .bn-fade, .bn-zoom, .bn-flip, .bn-push, .bn-wipe, .bn-blur { animation: none; }
 }
 
 /* أيقونات الأسهم مرسومة للعربية؛ تنعكس في الواجهة الإنجليزية */

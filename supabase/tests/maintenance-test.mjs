@@ -50,5 +50,11 @@ r = await rpc('itqan_public_branding', {});
 ok(r.json?.maintenance?.on === false, 'الهوية العامة: الصيانة متوقفة');
 SQL("delete from app_settings where key = 'maintenance'");
 
+console.log('— هوية شاشة الدخول (020)');
+SQL("insert into app_settings(key,value,updated_at) values ('login_title', to_jsonb('فرع الشمال'::text), now()) on conflict (key) do update set value = excluded.value");
+r = await rpc('itqan_public_branding', {});
+ok(r.json?.login_title === 'فرع الشمال', 'اسم شاشة الدخول يُقرأ قبل تسجيل الدخول');
+SQL("delete from app_settings where key = 'login_title'");
+
 console.log(`\n${pass} نجح، ${fail} فشل`);
 process.exit(fail ? 1 : 0);

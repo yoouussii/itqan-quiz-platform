@@ -5,7 +5,7 @@ import { Banner, BANNER_THEMES, BANNER_EFFECTS, BannerAudience, BannerEffect, fi
 import { BannerEffects } from '../common/BannerEffects';
 import { fileToAvatarDataUrl } from '../../services/avatarService';
 import { toInputValue, inputToIso } from '../../utils/quizWindow';
-import { BannerCard, EDIT_BANNER_KEY } from '../common/BannerStrip';
+import { BannerCard, EDIT_BANNER_KEY, BANNER_TRANSITIONS } from '../common/BannerStrip';
 import { uiDir, t } from '../../i18n';
 
 const inputCls = 'w-full px-3 py-2 text-xs rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white';
@@ -19,6 +19,57 @@ const statusOf = (b: Banner) => {
   if (b.starts_at && new Date(b.starts_at).getTime() > now) return { label: t('مجدول'), cls: 'bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-300' };
   if (b.ends_at && new Date(b.ends_at).getTime() < now) return { label: t('انتهى'), cls: 'bg-slate-200 text-slate-600 dark:bg-slate-700 dark:text-slate-300' };
   return { label: t('ظاهر الآن'), cls: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300' };
+};
+
+/** إعدادات تبديل البانرات: نوع الانتقال (مثل العروض التقديمية) والمدة الافتراضية */
+const SliderSettings: React.FC = () => {
+  const { settings, updateSettings } = useApp();
+  const [tr, setTr] = useState(settings.banner_slider?.transition || 'slide');
+  const [secs, setSecs] = useState(String(settings.banner_slider?.seconds || 5));
+  const [demo, setDemo] = useState(0);
+  const [busy, setBusy] = useState(false);
+  const cls = (k: string) => (k === 'none' ? '' : k === 'slide' ? 'banner-in' : `bn-${k}`);
+  const save = async () => {
+    const n = Math.max(2, Math.min(120, Math.round(Number(secs) || 5)));
+    setBusy(true);
+    await updateSettings({ banner_slider: { transition: tr, seconds: n } });
+    setSecs(String(n));
+    setBusy(false);
+  };
+  return (
+    <section className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800 p-5 space-y-4" data-testid="slider-settings">
+      <div className="flex flex-wrap items-start gap-5">
+        <div className="flex-1 min-w-[16rem] space-y-2">
+          <span className={labelCls}>{t('الانتقال بين البانرات')}</span>
+          <div className="flex flex-wrap gap-2" role="radiogroup" aria-label={t('الانتقال بين البانرات')}>
+            {Object.entries(BANNER_TRANSITIONS).map(([k, label]) => (
+              <button key={k} type="button" role="radio" aria-checked={tr === k} onClick={() => { setTr(k); setDemo((d) => d + 1); }}
+                className={`h-9 px-3 rounded-xl border text-xs font-bold ${tr === k ? 'border-indigo-600 bg-indigo-50 dark:bg-indigo-950/60 text-indigo-800 dark:text-indigo-200' : 'border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200'}`}>
+                {t(label)}
+              </button>
+            ))}
+          </div>
+          <label className="flex flex-wrap items-center gap-2 text-xs font-bold text-slate-700 dark:text-slate-300 pt-1">
+            {t('مدة عرض كل بانر')}
+            <input type="number" min={2} max={120} value={secs} onChange={(e) => setSecs(e.target.value)} aria-label={t('مدة عرض كل بانر')}
+              className="w-20 h-9 px-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white text-center" />
+            {t('ثانية')}
+            <span className="font-normal text-slate-500">{t('(يمكن تحديد مدة مختلفة لكل بانر من نافذة تعديله)')}</span>
+          </label>
+        </div>
+        <div className="w-56 shrink-0">
+          <span className={labelCls}>{t('معاينة الانتقال')}</span>
+          <div className="relative h-28 rounded-2xl overflow-hidden bg-slate-100 dark:bg-slate-800">
+            <div key={`${tr}-${demo}`} className={`absolute inset-0 flex items-center justify-center text-white font-black text-lg bg-gradient-to-br ${demo % 2 ? 'from-emerald-500 to-teal-700' : 'from-indigo-500 to-violet-700'} ${cls(tr)}`}>
+              {t('بانر {n}', { n: (demo % 2) + 1 })}
+            </div>
+          </div>
+          <button type="button" onClick={() => setDemo((d) => d + 1)} className="mt-1.5 inline-flex items-center gap-1 text-[11px] font-bold text-indigo-600 dark:text-indigo-400"><Play className="w-3 h-3" />{t('تشغيل المعاينة')}</button>
+        </div>
+      </div>
+      <button type="button" onClick={() => void save()} disabled={busy} className="px-5 py-2 rounded-xl text-xs font-bold bg-indigo-600 hover:bg-indigo-700 text-white disabled:opacity-60">{t('حفظ إعدادات التبديل')}</button>
+    </section>
+  );
 };
 
 const Editor: React.FC<{ initial: Banner; onDone: () => void }> = ({ initial, onDone }) => {
@@ -147,6 +198,14 @@ const Editor: React.FC<{ initial: Banner; onDone: () => void }> = ({ initial, on
         </div>
 
         <div>
+          <label className={labelCls} htmlFor="banner-duration">{t('مدة عرض هذا البانر (ثوانٍ)')}</label>
+          <input id="banner-duration" type="number" min={2} max={120} value={b.duration_seconds ?? ''} placeholder={t('المدة العامة')}
+            onChange={(e) => set({ duration_seconds: e.target.value === '' ? null : Math.max(2, Math.min(120, Math.round(Number(e.target.value)) || 2)) })}
+            className={`${inputCls} max-w-[10rem]`} />
+          <p className="text-[11px] text-slate-400 mt-1">{t('اتركها فارغة لاستخدام المدة العامة من إعدادات التبديل.')}</p>
+        </div>
+
+        <div>
           <span className={labelCls}>{t('تأثير احتفالي عند ظهور البانر')}</span>
           <div className="flex flex-wrap gap-2" role="radiogroup" aria-label={t('تأثير البانر')}>
             {(Object.keys(BANNER_EFFECTS) as BannerEffect[]).map((k) => {
@@ -255,6 +314,8 @@ export const BannersPage: React.FC = () => {
           </button>
         )}
       </div>
+
+      {!editing && sorted.length > 0 && <SliderSettings />}
 
       {editing ? (
         <Editor initial={editing} onDone={() => setEditing(null)} />

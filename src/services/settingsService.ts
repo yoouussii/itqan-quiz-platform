@@ -25,6 +25,12 @@ export interface AppSettings {
   login_style: string;
   login_image: string;
   login_tagline: string;
+  /** اسم وشعاران خاصان بشاشة الدخول وصفحة الصيانة (020)؛ فارغة = هوية الشهادات أو المدرسة */
+  login_title: string;
+  login_logo: string;
+  login_logo2: string;
+  /** تبديل البانرات: نوع الانتقال والمدة الافتراضية لكل بانر (ثوانٍ) */
+  banner_slider: { transition?: string; seconds?: number } | null;
 }
 // اشتراط اعتماد الاختبارات مفعّل افتراضياً (مثل الخادم في 008)، ويُلغيه المدير من الإعدادات
 export const DEFAULT_SETTINGS: AppSettings = {
@@ -44,8 +50,12 @@ export const DEFAULT_SETTINGS: AppSettings = {
   login_style: 'classic',
   login_image: '',
   login_tagline: '',
+  login_title: '',
+  login_logo: '',
+  login_logo2: '',
+  banner_slider: null,
 };
-const BRANDING_KEYS = ['school_name', 'school_logo', 'brand_color', 'maintenance', 'login_style', 'login_image', 'login_tagline', 'cert_company_logo', 'cert_school_logo'] as const;
+const BRANDING_KEYS = ['school_name', 'school_logo', 'brand_color', 'maintenance', 'login_style', 'login_image', 'login_tagline', 'login_title', 'login_logo', 'login_logo2', 'cert_school_name', 'cert_company_logo', 'cert_school_logo'] as const;
 
 // v2: النسخة السابقة كانت تحفظ «بلا اعتماد» على الأجهزة حتى لو لم يختره المدير
 const KEY = 'itqan_settings_v2';
