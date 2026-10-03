@@ -13,6 +13,7 @@ import {
   Ban,
   RotateCcw,
   Trash2,
+  Award,
 } from 'lucide-react';
 import { SubmissionWithDetails } from '../../types';
 import { useApp } from '../../context/AppContext';
@@ -23,6 +24,8 @@ import { formatArabicQuizDate } from '../../utils/dateUtils';
 import { SUBMISSIONS_FILTER_KEY, ungradedSummary } from '../../utils/grading';
 import { t, isEn } from '../../i18n';
 import { IntegrityBadge } from '../common/IntegrityBadge';
+import { certKindFor, exportCertificates, CertificateInput } from '../../utils/certificate';
+import { ungradedEssayCount } from '../../utils/grading';
 
 interface SubmissionsTableProps {
   submissions: SubmissionWithDetails[];
@@ -47,6 +50,7 @@ export const SubmissionsTable: React.FC<SubmissionsTableProps> = ({
     revokeStudentRetake,
     deleteSubmissions,
     branches,
+    users,
   } = useApp();
   const [genderFilter, setGenderFilter] = useState('all');
   const [branchFilter, setBranchFilter] = useState('all');
@@ -112,6 +116,17 @@ export const SubmissionsTable: React.FC<SubmissionsTableProps> = ({
   );
 
   // Filter submissions
+  // شهادة للطالب الناجح (بعد تصحيح المقالي)
+  const certFor = (sub: SubmissionWithDetails): CertificateInput | null => {
+    const pct = Number(sub.percentage) || 0;
+    const kind = certKindFor(pct, sub.quiz?.pass_percentage || 50);
+    if (!kind || sub.quiz?.is_deleted || ungradedEssayCount(sub) > 0) return null;
+    return {
+      kind, student: sub.student?.name || '', achievement: sub.quiz?.title || '',
+      detail: [sub.subject?.name, t('بنسبة {pct}%', { pct })].filter(Boolean).join(' · '),
+      date: sub.completed_at, signer: users.find((u) => u.id === sub.quiz?.teacher_id)?.name,
+    };
+  };
   const filteredSubmissions = useMemo(() => {
     return safeSubmissions.filter((sub) => {
       // Search term
@@ -150,6 +165,7 @@ export const SubmissionsTable: React.FC<SubmissionsTableProps> = ({
 
   // Paginated slice
   const totalPages = Math.ceil(filteredSubmissions.length / pageSize) || 1;
+  const passedCerts = filteredSubmissions.map(certFor).filter((c): c is CertificateInput => !!c);
   const paginatedSubmissions = useMemo(() => {
     const start = (currentPage - 1) * pageSize;
     return filteredSubmissions.slice(start, start + pageSize);
@@ -268,6 +284,13 @@ export const SubmissionsTable: React.FC<SubmissionsTableProps> = ({
               >
                 <FileSpreadsheet className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
                 <span>{t('تصدير إلى CSV')}</span>
+              </button>
+            )}
+            {!isStudent && passedCerts.length > 0 && (
+              <button onClick={() => void exportCertificates(passedCerts)}
+                className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-semibold bg-amber-50 dark:bg-amber-950/50 text-amber-800 dark:text-amber-300 hover:bg-amber-100 dark:hover:bg-amber-900/50 transition-colors">
+                <Award className="w-4 h-4" />
+                <span>{t('شهادات الناجحين ({n})', { n: passedCerts.length })}</span>
               </button>
             )}
             {canExport && extraActions}
@@ -524,6 +547,14 @@ export const SubmissionsTable: React.FC<SubmissionsTableProps> = ({
                         <Eye className="w-3.5 h-3.5" />
                         <span>{t('عرض الإجابة')}</span>
                       </button>
+
+                      {!isStudent && certFor(sub) && (
+                        <button onClick={() => void exportCertificates([certFor(sub)!])}
+                          className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-xl text-[11px] font-bold bg-amber-50 dark:bg-amber-950/40 text-amber-800 dark:text-amber-300 hover:bg-amber-100 dark:hover:bg-amber-900/50"
+                          title={t('طباعة شهادة للطالب')} aria-label={t('طباعة شهادة للطالب')}>
+                          <Award className="w-3.5 h-3.5" /><span>{t('شهادة')}</span>
+                        </button>
+                      )}
 
                       {canDelete && (
                         <button

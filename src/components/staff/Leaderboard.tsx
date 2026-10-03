@@ -8,7 +8,7 @@ import {
   BADGES, Period, computePointEvents, earnedBadges, inPeriod, levelFor, totalPoints,
 } from '../../utils/points';
 import { exportElementToPdf } from '../../utils/exportPdf';
-import { exportStudentReport } from '../../utils/studentReport';
+import { exportStudentReport, reportExtras } from '../../utils/studentReport';
 import { formatFullArabicDate } from '../../utils/dateUtils';
 import { User } from '../../types';
 import { uiDir, t } from '../../i18n';
@@ -121,6 +121,7 @@ export const Leaderboard: React.FC = () => {
       }),
       points: totalPoints(computePointEvents(subs, staff.quizzes, awards.filter((a) => a.student_id === s.id))),
       badgeKeys: earnedBadges(subs, staff.quizzes),
+      ...reportExtras(s.id, staff.quizzes as any, staff.submissions as any, (id) => subjects.find((j) => j.id === id)?.name || ''),
       awards: awards.filter((a) => a.student_id === s.id),
     });
   };

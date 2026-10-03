@@ -1,5 +1,6 @@
 import React from 'react';
-import { CheckCircle2, XCircle, Clock, ArrowRight, Info } from 'lucide-react';
+import { CheckCircle2, XCircle, Clock, ArrowRight, Info, Award } from 'lucide-react';
+import { certKindFor, exportCertificates } from '../../utils/certificate';
 import { useApp } from '../../context/AppContext';
 import { pointsForResult } from '../../utils/points';
 import { Chip } from '../common/ui';
@@ -15,7 +16,7 @@ interface QuizReviewProps {
 }
 
 export const QuizReview: React.FC<QuizReviewProps> = ({ submissionId, onBack }) => {
-  const { currentUser } = useApp();
+  const { currentUser, users } = useApp();
   const submission = StorageService.getSubmissionWithDetails(submissionId);
 
   if (!submission) {
@@ -91,6 +92,20 @@ export const QuizReview: React.FC<QuizReviewProps> = ({ submissionId, onBack }) 
           {pendingCount > 0 ? <Chip tone="info">{t('قيد التصحيح')}</Chip> : <Chip tone={isPassed ? 'ok' : 'bad'}>{isPassed ? (female ? t('ناجحة') : t('ناجح')) : t('دون درجة النجاح')}</Chip>}
           {currentUser?.role === 'student' && <Chip tone="warn">{t('+{n} نقطة', { n: earned })}</Chip>}
         </div>
+        {pendingCount === 0 && certKindFor(pct, pass) && (
+          <button type="button"
+            onClick={() => void exportCertificates([{
+              kind: certKindFor(pct, pass)!,
+              student: (currentUser?.role === 'student' ? currentUser.name : submission.student?.name) || '',
+              achievement: submission.quiz?.title || '',
+              detail: [submission.subject?.name, t('بنسبة {pct}%', { pct })].filter(Boolean).join(' · '),
+              date: submission.completed_at,
+              signer: users.find((u) => u.id === submission.quiz?.teacher_id)?.name,
+            }])}
+            className="mt-1 h-11 px-5 rounded-xl bg-amber-500 hover:bg-amber-600 text-white font-bold inline-flex items-center gap-2">
+            <Award className="w-5 h-5" />{currentUser?.role === 'student' ? t('شهادتي') : t('الشهادة')}
+          </button>
+        )}
       </section>
 
       <div className="grid grid-cols-3 gap-2.5">

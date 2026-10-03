@@ -1,5 +1,8 @@
 import React, { useMemo, useState } from 'react';
-import { BookOpen, CalendarClock, CheckCircle2, Users } from 'lucide-react';
+import { BookOpen, CalendarClock, CheckCircle2, Users, FileText } from 'lucide-react';
+import { exportStudentReport, reportExtras } from '../../utils/studentReport';
+import { earnedBadges } from '../../utils/points';
+import { formatFullArabicDate } from '../../utils/dateUtils';
 import { useApp } from '../../context/AppContext';
 import { StorageService } from '../../services/storage';
 import { SubmissionWithDetails, User } from '../../types';
@@ -26,7 +29,7 @@ export const childWord = (u?: User | null) => (u?.gender === 'female' ? t('اب�
 
 /** الرئيسية لولي الأمر: متابعة اختبارات أبنائه ونتائجهم ونقاطهم (للعرض فقط) */
 export const ParentDashboard: React.FC<{ onViewReview: (submissionId: string) => void }> = ({ onViewReview }) => {
-  const { currentUser, users, submissions, classes, branches, awards, quizzes } = useApp();
+  const { currentUser, users, submissions, classes, branches, awards, quizzes, subjects } = useApp();
   const children = useMemo(
     () => (currentUser?.child_ids || []).map((id) => users.find((u) => u.id === id)).filter((u): u is User => !!u),
     [currentUser, users]
@@ -58,6 +61,19 @@ export const ParentDashboard: React.FC<{ onViewReview: (submissionId: string) =>
     const points = totalPoints(computePointEvents(subs, childQuizzes as any, (awards || []).filter((a) => a.student_id === child.id)));
     return { subs, waiting, upcoming, avg, done: valid.length, points, lvl: levelFor(points) };
   }, [child, submissions, awards, quizzes]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const printReport = async () => {
+    if (!child || !data) return;
+    const subs = data.subs.filter((s) => !s.quiz?.is_deleted);
+    await exportStudentReport({
+      name: child.name, nationalId: child.national_id, className: cls?.name,
+      results: subs.map((x) => ({ quiz: x.quiz?.title || '—', subject: x.subject?.name || '—', score: `${x.score}/${x.total_possible_score}`, pct: Number(x.percentage) || 0, date: formatFullArabicDate(x.completed_at) })),
+      points: data.points,
+      badgeKeys: earnedBadges(subs, quizzes),
+      awards: (awards || []).filter((a) => a.student_id === child.id),
+      ...reportExtras(child.id, quizzes, submissions, (id) => subjects.find((s) => s.id === id)?.name || ''),
+    });
+  };
 
 
   if (!child || !data) {
@@ -101,6 +117,10 @@ export const ParentDashboard: React.FC<{ onViewReview: (submissionId: string) =>
           <div className="font-bold text-lg text-slate-900 dark:text-white truncate">{child.name}</div>
           <div className="text-[14px] text-slate-500 dark:text-slate-400">{[cls?.name, branch?.name].filter(Boolean).join(' · ') || (child.gender === 'female' ? t('طالبة') : t('طالب'))}</div>
         </div>
+        <button type="button" onClick={() => void printReport()}
+          className="h-10 px-3.5 rounded-xl border border-slate-300 dark:border-slate-700 text-sm font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 inline-flex items-center gap-1.5 shrink-0">
+          <FileText className="w-4 h-4" /><span className="hidden sm:inline">{t('تقرير للطباعة')}</span>
+        </button>
       </Card>
 
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
