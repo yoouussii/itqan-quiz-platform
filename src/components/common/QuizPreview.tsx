@@ -1,5 +1,6 @@
 import React, { useMemo } from 'react';
-import { ArrowRight, FileQuestion, Clock, Award, CheckCircle2 } from 'lucide-react';
+import { ArrowRight, FileQuestion, Clock, Award, CheckCircle2, Printer, KeyRound } from 'lucide-react';
+import { printQuizPaper } from '../../utils/quizPaper';
 import { useApp } from '../../context/AppContext';
 import { StorageService } from '../../services/storage';
 import { RichText } from './RichText';
@@ -71,13 +72,27 @@ export const QuizPreview: React.FC = () => {
             <p className="text-xs text-slate-600 dark:text-slate-300 mt-2">{quiz.description}</p>
           )}
         </div>
-        <button
-          onClick={goBack}
-          className="inline-flex items-center gap-2 px-4 py-2 rounded-xl border border-slate-300 dark:border-slate-700 text-xs font-bold text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800"
-        >
-          <ArrowRight className="w-4 h-4 dir-icon" />
-          <span>{t('رجوع')}</span>
-        </button>
+        <div className="flex flex-wrap justify-end gap-2">
+          {questions.length > 0 && (
+            <>
+              <button onClick={() => void printQuizPaper(quiz, questions, false)}
+                className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold">
+                <Printer className="w-4 h-4" /><span>{t('طباعة ورقة الاختبار')}</span>
+              </button>
+              <button onClick={() => void printQuizPaper(quiz, questions, true)}
+                className="inline-flex items-center gap-2 px-4 py-2 rounded-xl border border-slate-300 dark:border-slate-700 text-xs font-bold text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800">
+                <KeyRound className="w-4 h-4" /><span>{t('طباعة نموذج الإجابة')}</span>
+              </button>
+            </>
+          )}
+          <button
+            onClick={goBack}
+            className="inline-flex items-center gap-2 px-4 py-2 rounded-xl border border-slate-300 dark:border-slate-700 text-xs font-bold text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800"
+          >
+            <ArrowRight className="w-4 h-4 dir-icon" />
+            <span>{t('رجوع')}</span>
+          </button>
+        </div>
       </div>
 
       {questions.length === 0 && (

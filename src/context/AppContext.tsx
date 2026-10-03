@@ -209,7 +209,7 @@ interface AppContextType {
   /** حذف مشاركات طلاب نهائياً (المدير أو صاحب صلاحية «حذف مشاركات الطلاب») */
   deleteSubmissions: (ids: string[]) => Promise<void>;
   /** تصحيح سؤال مقالي يدوياً (subQuestionId للسؤال الفرعي داخل القطعة) */
-  gradeEssay: (submissionId: string, questionId: string, subQuestionId: string | null, marks: number) => Promise<boolean>;
+  gradeEssay: (submissionId: string, questionId: string, subQuestionId: string | null, marks: number, feedback?: string) => Promise<boolean>;
 
   addUser: (userData: any) => Promise<User>;
   updateUserData: (id: string, updates: Partial<User>) => Promise<void>;
@@ -374,6 +374,7 @@ function allowedViews(u: User | null): string[] {
   if (hasPerm(u, 'can_view_leaderboard')) out.push('leaderboard');
   if (hasPerm(u, 'can_view_activity_log')) out.push('activity_log');
   if (hasPerm(u, 'can_award_badges')) out.push('certificates');
+  if (u.role === 'supervisor' && hasPerm(u, 'can_grade_essays')) out.push('grading');
   return out;
 }
 
@@ -1309,7 +1310,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     log('submissions_deleted', { type: 'submission', name: `${res.deleted.length} مشاركة` });
   };
 
-  const gradeEssay: AppContextType['gradeEssay'] = async (submissionId, questionId, subQuestionId, marks) => {
+  const gradeEssay: AppContextType['gradeEssay'] = async (submissionId, questionId, subQuestionId, marks, feedback) => {
     const me = currentUserRef.current;
     if (!me || me.role === 'student' || me.role === 'parent') return false;
     const sub = StorageService.getSubmissionById(submissionId);
@@ -1334,7 +1335,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         subs.push({ sub_question_id: subQuestionId, selected_option: null });
         si = subs.length - 1;
       }
-      subs[si] = { ...subs[si], marks_awarded: value, is_correct: value === max && max > 0, graded: true };
+      subs[si] = { ...subs[si], marks_awarded: value, is_correct: value === max && max > 0, graded: true, ...(feedback !== undefined ? { feedback: feedback.trim().slice(0, 1000) } : {}) };
       item.sub_answers = subs;
       item.marks_awarded = subs.reduce((t, x) => t + (Number(x.marks_awarded) || 0), 0);
       const possible = (q.sub_questions || []).reduce((t, x) => t + (Number(x.marks) || 0), 0);
@@ -1343,6 +1344,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       item.marks_awarded = value;
       item.is_correct = value === max && max > 0;
       item.graded = true;
+      if (feedback !== undefined) item.feedback = feedback.trim().slice(0, 1000);
     }
     answers[idx] = item;
 

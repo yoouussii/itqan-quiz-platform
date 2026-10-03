@@ -8,6 +8,8 @@ import { InsightsPanels } from '../staff/InsightsPanels';
 import { AnalyticsInsights } from './AnalyticsInsights';
 import { StorageService } from '../../services/storage';
 import { t } from '../../i18n';
+import { hasPerm } from '../../utils/permissions';
+import type { SubmissionWithDetails } from '../../types';
 
 const MONTHS = () => [t('يناير'),t('فبراير'),t('مارس'),t('أبريل'),t('مايو'),t('يونيو'),t('يوليو'),t('أغسطس'),t('سبتمبر'),t('أكتوبر'),t('نوفمبر'),t('ديسمبر')];
 
@@ -52,13 +54,15 @@ function buildQuizChartData(
 export const AnalyticsView: React.FC = () => {
   const { currentUser, quizzes, submissions, kpis, subjects, users } = useApp();
   // المدير: مؤشرات المتابعة وأداء المعلمين (انتقلت من الرئيسية إلى هنا)
+  // المؤشرات المتقدمة وأداء المعلمين: للمدير ولمن لديه صلاحية «المؤشرات المتقدمة»
   const staffData = useMemo(
-    () => (currentUser?.role === 'admin' ? StorageService.getStaffData(currentUser) : null),
+    () => (currentUser && currentUser.role !== 'student' && currentUser.role !== 'parent' && hasPerm(currentUser, 'can_view_insights') ? StorageService.getStaffData(currentUser) : null),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [currentUser, quizzes, submissions, users]
   );
   const isStudent = currentUser?.role === 'student';
   const [quizId, setQuizId] = useState<string>('all');
+  const [drillSubs, setDrillSubs] = useState<SubmissionWithDetails[] | null>(null);
   const exportRef = useRef<HTMLDivElement>(null);
 
   const visibleQuizzes = useMemo(() => (quizzes || []).filter((q) => q && !q.is_deleted), [quizzes]);
@@ -150,7 +154,7 @@ export const AnalyticsView: React.FC = () => {
         </select>
       </div>
 
-      {!selectedQuiz && <AnalyticsInsights />}
+      {!selectedQuiz && <AnalyticsInsights onDrill={setDrillSubs} />}
 
       <div ref={exportRef} className="space-y-6">
         <div className="flex flex-wrap items-center gap-x-6 gap-y-1 text-xs text-slate-600 dark:text-slate-300">
@@ -175,12 +179,12 @@ export const AnalyticsView: React.FC = () => {
           teachers={staffData.teachers}
           quizzes={staffData.quizzes}
           submissions={staffData.submissions}
-          showTeacherPerformance
+          showTeacherPerformance={hasPerm(currentUser, 'can_view_teachers_performance')}
         />
       )}
 
       <SubmissionsTable
-        submissions={filteredSubs}
+        submissions={!selectedQuiz && drillSubs ? drillSubs : filteredSubs}
         extraActions={<PdfExportButton onClick={handleExportPdf} />}
       />
     </div>

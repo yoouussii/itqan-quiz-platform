@@ -1095,9 +1095,10 @@ export const UsersManagement: React.FC = () => {
               </div>
 
               {!isTeacher && (
+                <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
-                    {t('الدور في النظام (Role)')} *
+                    {t('نوع الحساب')} *
                   </label>
                   <select
                     value={editingUser ? editingUser.role : role}
@@ -1116,6 +1117,22 @@ export const UsersManagement: React.FC = () => {
                     <option value="admin">{t('مدير نظام (Super Admin)')}</option>
                     <option value="parent">{t('ولي أمر (Parent)')}</option>
                   </select>
+                </div>
+                <div>
+                  <label htmlFor="user-job-title" className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">{t('الدور / المسمى (اكتبه)')}</label>
+                  <input id="user-job-title" type="text" list="job-title-suggestions" maxLength={60}
+                    value={editingUser ? (editingUser.job_title || '') : jobTitle}
+                    onChange={(e) => {
+                      setJobTitle(e.target.value);
+                      if (editingUser) setEditingUser((prev) => (prev ? { ...prev, job_title: e.target.value } : null));
+                    }}
+                    placeholder={t('مثال: وكيل شؤون الطلاب')}
+                    className="w-full px-3 py-2 text-xs rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+                  <datalist id="job-title-suggestions">
+                    {['قائد المدرسة', 'وكيل شؤون الطلاب', 'وكيل الشؤون التعليمية', 'وكيل الشؤون المدرسية', 'مرشد طلابي', 'رائد نشاط', 'رئيس قسم', 'منسق الجودة', 'معلم ومشرف', 'مساعد إداري', 'محضّر مختبر'].map((x) => <option key={x} value={t(x)} />)}
+                  </datalist>
+                </div>
+                <p className="col-span-2 -mt-1 text-[11px] text-slate-500 dark:text-slate-400">{t('نوع الحساب يحدد ما يستطيع فعله (مع الصلاحيات أدناه)، والدور المكتوب هو ما يظهر في المنصة.')}</p>
                 </div>
               )}
 
@@ -1168,24 +1185,6 @@ export const UsersManagement: React.FC = () => {
                 </div>
               )}
 
-              {!isTeacher && (
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
-                    {t('المسمى الوظيفي (نص حر — للعرض فقط ولا يغيّر الصلاحيات)')}
-                  </label>
-                  <input
-                    type="text"
-                    aria-label={t('المسمى الوظيفي')}
-                    value={editingUser ? (editingUser.job_title || '') : jobTitle}
-                    onChange={(e) => {
-                      setJobTitle(e.target.value);
-                      if (editingUser) setEditingUser((prev) => (prev ? { ...prev, job_title: e.target.value } : null));
-                    }}
-                    placeholder={t('مثال: معلم ومشرف، وكيل المدرسة، رائد النشاط...')}
-                    className="w-full px-3 py-2 text-xs rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                  />
-                </div>
-              )}
 
               {((editingUser ? editingUser.role : role) === 'student') && (
                 <div>

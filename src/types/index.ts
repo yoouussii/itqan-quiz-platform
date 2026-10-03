@@ -172,6 +172,8 @@ export interface SubAnswerItem {
   marks_awarded?: number;
   /** صحّحه المعلم يدوياً (أسئلة المقالي) */
   graded?: boolean;
+  /** ملاحظة المعلم على الإجابة المقالية (يراها الطالب وولي الأمر) */
+  feedback?: string;
 }
 
 // هيكل إجابة السؤال الرئيسي
@@ -184,6 +186,8 @@ export interface AnswerItem {
   sub_answers?: SubAnswerItem[]; // يحوي إجابات الأسئلة الفرعية للقطعة
   /** صحّحه المعلم يدوياً (أسئلة المقالي) */
   graded?: boolean;
+  /** ملاحظة المعلم على الإجابة المقالية (يراها الطالب وولي الأمر) */
+  feedback?: string;
 }
 
 export type SubmissionStatus = 'completed' | 'in_progress';

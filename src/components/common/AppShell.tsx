@@ -50,7 +50,7 @@ const staffGroups = (u: User, pendingApprovals: number, preparationsUrl: string,
   if (isAdmin) quizzes.push({ id: 'quizzes', label: t('بنك الاختبارات'), icon: FileQuestion });
   if (u.role === 'teacher') quizzes.push({ id: 'create_quiz', label: t('اختبار جديد'), icon: PlusCircle });
   if (hasPerm(u, 'can_approve_quizzes')) quizzes.push({ id: 'approvals', label: t('بانتظار الاعتماد'), icon: ClipboardCheck, badge: pendingApprovals });
-  if (isAdmin || u.role === 'teacher') quizzes.push({ id: 'grading', label: t('التصحيح'), icon: PenLine, badge: pendingGrading });
+  if (isAdmin || u.role === 'teacher' || hasPerm(u, 'can_grade_essays')) quizzes.push({ id: 'grading', label: t('التصحيح'), icon: PenLine, badge: pendingGrading });
   quizzes.push({ id: 'question_bank', label: t('بنك الأسئلة'), icon: Library });
   quizzes.push({ id: 'outcomes', label: t('نواتج التعلم'), icon: Target });
   quizzes.push({ id: 'analytics', label: u.role === 'teacher' ? t('نتائج طلابي') : t('النتائج والتحليلات'), icon: BarChart2 });
@@ -182,8 +182,9 @@ const SidebarBody: React.FC<{ onNavigate?: () => void; onProfile: () => void }> 
   const { currentUser, currentView, setCurrentView, logout, pendingApprovalsCount, settings, submissions, quizzes } = useApp();
   // عدد الإجابات المقالية بانتظار التصحيح (المعلم: اختباراته فقط)
   const pendingGrading = React.useMemo(() => {
-    if (!currentUser || (currentUser.role !== 'teacher' && currentUser.role !== 'admin')) return 0;
-    const mine = new Set(quizzes.filter((q) => !q.is_deleted && (currentUser.role === 'admin' || q.teacher_id === currentUser.id || q.created_by === currentUser.id)).map((q) => q.id));
+    if (!currentUser || !(currentUser.role === 'teacher' || hasPerm(currentUser, 'can_grade_essays'))) return 0;
+    const all = hasPerm(currentUser, 'can_grade_essays');
+    const mine = new Set(quizzes.filter((q) => !q.is_deleted && (all || q.teacher_id === currentUser.id || q.created_by === currentUser.id)).map((q) => q.id));
     return ungradedSummary((submissions || []).filter((x) => mine.has(x.quiz_id))).essays;
   }, [currentUser, quizzes, submissions]);
   if (!currentUser) return null;

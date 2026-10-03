@@ -1,10 +1,12 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { PenLine, CheckCircle2, ChevronRight, ChevronLeft, EyeOff, Eye, FileText } from 'lucide-react';
+import { PenLine, CheckCircle2, ChevronRight, ChevronLeft, EyeOff, Eye, FileText, Sparkles, Copy, ExternalLink } from 'lucide-react';
+import { AI_SITES, copyText, gradingPrompt, parseGradingReply } from '../../utils/aiPrompt';
 import { useApp } from '../../context/AppContext';
 import { PageHeader, Card, Button } from '../common/ui';
 import { RichText } from '../common/RichText';
 import { EssayItem, essayItems } from '../../utils/grading';
 import { uiDir, t } from '../../i18n';
+import { hasPerm } from '../../utils/permissions';
 
 /**
  * «التصحيح»: كل الإجابات المقالية في مكان واحد، تُصحَّح واحدة تلو الأخرى.
@@ -12,17 +14,22 @@ import { uiDir, t } from '../../i18n';
  * المعلم يرى اختباراته فقط، والمدير والمشرف يرون كل ما في نطاقهم.
  */
 export const GradingPage: React.FC = () => {
-  const { currentUser, quizzes, submissions, users, classes, gradeEssay } = useApp();
+  const { currentUser, quizzes, submissions, users, classes, gradeEssay, showToast } = useApp();
   const [quizFilter, setQuizFilter] = useState('');
   const [show, setShow] = useState<'pending' | 'graded'>('pending');
   const [hideNames, setHideNames] = useState(false);
   const [index, setIndex] = useState(0);
   const [marks, setMarks] = useState('');
+  const [feedback, setFeedback] = useState('');
+  const [aiOpen, setAiOpen] = useState(false);
+  const [aiReply, setAiReply] = useState('');
   const [busy, setBusy] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
   const mySubs = useMemo(() => {
-    const mine = new Set(quizzes.filter((q) => !q.is_deleted && (currentUser?.role !== 'teacher' || q.teacher_id === currentUser.id || q.created_by === currentUser.id)).map((q) => q.id));
+    // المعلم يصحح اختباراته، ومن لديه صلاحية «التصحيح» (والمدير) يصحح كل ما في نطاقه
+    const all = hasPerm(currentUser, 'can_grade_essays');
+    const mine = new Set(quizzes.filter((q) => !q.is_deleted && (all || q.teacher_id === currentUser?.id || q.created_by === currentUser?.id)).map((q) => q.id));
     return (submissions || []).filter((s) => mine.has(s.quiz_id) && s.status !== 'in_progress');
   }, [quizzes, submissions, currentUser]);
 
@@ -57,6 +64,8 @@ export const GradingPage: React.FC = () => {
 
   useEffect(() => {
     setMarks(item?.graded ? String(item.awarded) : '');
+    setFeedback(item?.feedback || '');
+    setAiReply('');
     setTimeout(() => inputRef.current?.focus(), 0);
   }, [item?.key, item?.graded, item?.awarded]);
 
@@ -70,7 +79,7 @@ export const GradingPage: React.FC = () => {
     if (marks.trim() === '' && value === undefined) return inputRef.current?.focus();
     if (!Number.isFinite(v) || v < 0 || v > item.max) return;
     setBusy(true);
-    const ok = await gradeEssay(item.submission.id, item.question.id, item.subQuestionId, v);
+    const ok = await gradeEssay(item.submission.id, item.question.id, item.subQuestionId, v, feedback);
     setBusy(false);
     if (ok !== false && index < queue.length - 1) setIndex(index + 1);
   };
@@ -142,6 +151,45 @@ export const GradingPage: React.FC = () => {
               <h3 className="text-xs font-bold text-slate-500 dark:text-slate-400 mb-1 inline-flex items-center gap-1.5"><PenLine className="w-3.5 h-3.5" />{t('إجابة')} {studentLabel}{!hideNames && cls ? ` • ${cls}` : ''}</h3>
               <div className="rounded-xl p-4 bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 text-[15px] leading-loose text-slate-900 dark:text-white whitespace-pre-wrap min-h-[6rem]" data-testid="student-answer">{item.text}</div>
             </section>
+
+            <div className="rounded-xl border border-violet-200 dark:border-violet-900 bg-violet-50/50 dark:bg-violet-950/20">
+              <button type="button" onClick={() => setAiOpen((v) => !v)} aria-expanded={aiOpen}
+                className="w-full flex items-center justify-between gap-2 px-3 py-2 text-sm font-bold text-violet-800 dark:text-violet-300">
+                <span className="inline-flex items-center gap-1.5"><Sparkles className="w-4 h-4" />{t('اقتراح درجة بالذكاء الاصطناعي (مجاناً)')}</span>
+                <ChevronLeft className={`w-4 h-4 transition ${aiOpen ? '-rotate-90' : ''}`} />
+              </button>
+              {aiOpen && (
+                <div className="px-3 pb-3 space-y-2 text-xs text-slate-700 dark:text-slate-300" data-testid="ai-grade">
+                  <ol className="list-decimal ps-5 space-y-0.5">
+                    <li>{t('انسخ الطلب (فيه السؤال وإجابة الطالب فقط، بدون اسمه).')}</li>
+                    <li>{t('الصقه في أي شات مجاني، وانسخ الرد.')}</li>
+                    <li>{t('الصق الرد هنا لتعبئة الدرجة والملاحظة، ثم راجعها واحفظ.')}</li>
+                  </ol>
+                  <div className="flex flex-wrap gap-1.5">
+                    <Button size="sm" icon={Copy} onClick={async () => showToast((await copyText(gradingPrompt({ question: item.prompt, modelAnswer: item.modelAnswer, answer: item.text, max: item.max }))) ? t('تم نسخ الطلب') : t('تعذر النسخ'), 'success')}>{t('نسخ الطلب')}</Button>
+                    {AI_SITES.map((s) => (
+                      <a key={s.name} href={s.url} target="_blank" rel="noopener noreferrer" className="h-8 px-3 rounded-lg border border-slate-300 dark:border-slate-700 inline-flex items-center gap-1 font-bold hover:bg-white dark:hover:bg-slate-800">{s.name}<ExternalLink className="w-3 h-3" /></a>
+                    ))}
+                  </div>
+                  <textarea aria-label={t('رد الذكاء الاصطناعي')} value={aiReply} rows={3} placeholder={t('الصق رد الذكاء الاصطناعي هنا')}
+                    onChange={(e) => {
+                      setAiReply(e.target.value);
+                      const r = parseGradingReply(e.target.value, item.max);
+                      if (r.marks !== undefined) setMarks(String(r.marks));
+                      if (r.feedback) setFeedback(r.feedback);
+                    }}
+                    className="w-full p-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm text-slate-900 dark:text-white" />
+                  <p className="text-[11px] text-slate-500">{t('الاقتراح للمساعدة فقط: القرار النهائي للمعلم.')}</p>
+                </div>
+              )}
+            </div>
+
+            <div>
+              <label htmlFor="grade-feedback" className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">{t('ملاحظة للطالب (اختياري، يراها الطالب وولي الأمر)')}</label>
+              <textarea id="grade-feedback" value={feedback} onChange={(e) => setFeedback(e.target.value)} rows={2} maxLength={1000}
+                placeholder={t('مثال: أحسنت في الفكرة الرئيسية، وينقصك مثال توضيحي.')}
+                className="w-full p-2.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+            </div>
 
             <form className="flex flex-wrap items-end gap-3 pt-1" onSubmit={(e) => { e.preventDefault(); void save(); }}>
               <div>

@@ -17,6 +17,7 @@ import {
   BookmarkPlus,
   Target,
   FileUp,
+  Sparkles,
 } from 'lucide-react';
 import { TargetType } from '../../types';
 import { useApp } from '../../context/AppContext';
@@ -163,7 +164,7 @@ export const QuizEditor: React.FC = () => {
 
   // بنك الأسئلة
   const [bankOpen, setBankOpen] = useState(false);
-  const [importOpen, setImportOpen] = useState(false);
+  const [importOpen, setImportOpen] = useState<false | 'file' | 'ai'>(false);
   const canUseBank = currentUser?.role === 'admin' || currentUser?.role === 'teacher';
   /** إضافة أسئلة (من البنك) مع استبدال السؤال الفارغ الوحيد إن وُجد */
   const appendQuestions = (qs: QuestionItem[]) =>
@@ -1407,13 +1408,17 @@ export const QuizEditor: React.FC = () => {
                 <Library className="w-4 h-4" />{t('من بنك الأسئلة')}
               </button>
             )}
-            <button type="button" onClick={() => setImportOpen(true)}
+            <button type="button" onClick={() => setImportOpen('ai')}
+              className="px-3.5 py-2 rounded-xl text-xs font-bold bg-white dark:bg-slate-800 border border-violet-300 dark:border-violet-700 text-violet-700 dark:text-violet-300 hover:bg-violet-50 dark:hover:bg-violet-950/50 inline-flex items-center gap-1.5">
+              <Sparkles className="w-4 h-4" />{t('توليد أسئلة بالذكاء الاصطناعي (مجاناً)')}
+            </button>
+            <button type="button" onClick={() => setImportOpen('file')}
               className="px-3.5 py-2 rounded-xl text-xs font-bold bg-white dark:bg-slate-800 border border-indigo-300 dark:border-indigo-700 text-indigo-700 dark:text-indigo-300 hover:bg-indigo-50 dark:hover:bg-indigo-950/50 inline-flex items-center gap-1.5">
               <FileUp className="w-4 h-4" />{t('استيراد من ملف Word أو PDF')}
             </button>
           </div>
           <datalist id="known-outcomes">{knownOutcomes.map((o) => <option key={o} value={o} />)}</datalist>
-          {importOpen && <ImportQuestionsModal onClose={() => setImportOpen(false)} onAdd={appendQuestions} />}
+          {importOpen && <ImportQuestionsModal mode={importOpen} subjectName={subjects.find((s) => s.id === subjectId)?.name || ''} onClose={() => setImportOpen(false)} onAdd={appendQuestions} />}
           {bankOpen && <BankPickerModal subjectId={subjectId} onClose={() => setBankOpen(false)} onAdd={appendQuestions} />}
         </div>
 

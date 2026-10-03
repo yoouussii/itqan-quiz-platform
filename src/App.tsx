@@ -126,7 +126,7 @@ const AppContent: React.FC = () => {
     settings: currentUser.role === 'admin',
     banners: currentUser.role === 'admin',
     certificates: hasPerm(currentUser, 'can_award_badges'),
-    grading: currentUser.role === 'admin' || currentUser.role === 'teacher',
+    grading: currentUser.role === 'admin' || currentUser.role === 'teacher' || hasPerm(currentUser, 'can_grade_essays'),
     quiz_results: isStaff,
     quiz_preview: isStaff,
   };

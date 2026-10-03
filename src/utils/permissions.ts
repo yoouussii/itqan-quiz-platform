@@ -21,11 +21,13 @@ export const PERMISSION_DEFS: PermDef[] = [
   { key: 'can_view_insights', label: 'المؤشرات المتقدمة: المشاركة، المتابعة، الأوائل، أداء الصفوف', short: 'مؤشرات متقدمة', group: 'التقارير والتحليل' },
   { key: 'can_view_teachers_performance', label: 'عرض أداء المعلمين ضمن نطاقه', short: 'أداء المعلمين', group: 'التقارير والتحليل' },
   { key: 'can_view_question_analysis', label: 'تحليل أسئلة الاختبارات (الأصعب والأسهل)', short: 'تحليل الأسئلة', group: 'التقارير والتحليل' },
+  { key: 'can_view_branch_comparison', label: 'مقارنة أداء الفروع والمدارس', short: 'مقارنة الفروع', group: 'التقارير والتحليل' },
   { key: 'can_export_reports', label: 'تصدير التقارير وكشوف الدرجات CSV / PDF', short: 'تصدير', group: 'التقارير والتحليل' },
 
   { key: 'can_approve_quizzes', label: 'اعتماد الاختبارات قبل نشرها للطلاب', short: 'اعتماد الاختبارات', group: 'الاختبارات' },
   { key: 'can_manage_retakes', label: 'منح الطلاب إعادة محاولة', short: 'إعادة محاولات', group: 'الاختبارات' },
   { key: 'can_delete_submissions', label: 'حذف مشاركات (نتائج) الطلاب', short: 'حذف مشاركات', group: 'الاختبارات' },
+  { key: 'can_grade_essays', label: 'تصحيح الإجابات المقالية في كل الاختبارات ضمن نطاقه (المعلم يصحح اختباراته دائماً)', short: 'تصحيح', group: 'الاختبارات' },
 
   { key: 'can_send_announcements', label: 'إرسال إعلانات وإشعارات للطلاب', short: 'إعلانات', group: 'التفاعل والتحفيز' },
   { key: 'can_view_leaderboard', label: 'لوحة المتصدرين ونقاط الطلاب', short: 'المتصدرون', group: 'التفاعل والتحفيز' },
