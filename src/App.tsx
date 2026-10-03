@@ -39,13 +39,16 @@ const LegalPage = React.lazy(() => import('./components/legal/LegalPage').then((
 const OutcomesPage = React.lazy(() => import('./components/analytics/OutcomesPage').then((m) => ({ default: m.OutcomesPage })));
 const SkillsCard = React.lazy(() => import('./components/analytics/OutcomesPage').then((m) => ({ default: m.SkillsCard })));
 const QuestionBankPage = React.lazy(() => import('./components/teacher/QuestionBank').then((m) => ({ default: m.QuestionBankPage })));
+const GradingPage = React.lazy(() => import('./components/teacher/GradingPage').then((m) => ({ default: m.GradingPage })));
+const CertificatesPage = React.lazy(() => import('./components/staff/CertificatesPage').then((m) => ({ default: m.CertificatesPage })));
+const VerifyPage = React.lazy(() => import('./components/legal/VerifyPage').then((m) => ({ default: m.VerifyPage })));
 const NotificationsPage = React.lazy(() => import('./components/common/NotificationsPage').then((m) => ({ default: m.NotificationsPage })));
 
 const KNOWN_VIEWS = [
   'take_quiz', 'quiz_review', 'create_quiz', 'users', 'users_management',
   'students_management', 'subjects_classes', 'analytics', 'reports',
   'quiz_results', 'quiz_preview', 'quizzes', 'dashboard',
-  'my_points', 'leaderboard', 'approvals', 'activity_log', 'settings', 'notifications', 'banners', 'question_bank', 'outcomes',
+  'my_points', 'leaderboard', 'approvals', 'activity_log', 'settings', 'notifications', 'banners', 'question_bank', 'outcomes', 'certificates', 'grading',
   'privacy', 'terms',
 ];
 
@@ -122,6 +125,8 @@ const AppContent: React.FC = () => {
     activity_log: hasPerm(currentUser, 'can_view_activity_log'),
     settings: currentUser.role === 'admin',
     banners: currentUser.role === 'admin',
+    certificates: hasPerm(currentUser, 'can_award_badges'),
+    grading: currentUser.role === 'admin' || currentUser.role === 'teacher',
     quiz_results: isStaff,
     quiz_preview: isStaff,
   };
@@ -230,6 +235,8 @@ const AppContent: React.FC = () => {
         {/* الصفحات الجديدة: كل صفحة محمية بالصلاحية المناسبة */}
         {currentView === 'notifications' && <NotificationsPage />}
         {(currentView === 'privacy' || currentView === 'terms') && <LegalPage doc={currentView} />}
+        {currentView === 'certificates' && <CertificatesPage />}
+        {currentView === 'grading' && <GradingPage />}
         {currentView === 'my_points' && currentUser.role === 'student' && <MyPoints />}
         {currentView === 'leaderboard' && hasPerm(currentUser, 'can_view_leaderboard') && <Leaderboard />}
         {currentView === 'approvals' && hasPerm(currentUser, 'can_approve_quizzes') && <ApprovalsPage />}
@@ -311,7 +318,14 @@ const LangRoot: React.FC = () => {
   );
 };
 
+/** صفحة التحقق من الشهادات: عامة ومستقلة عن جلسة الدخول وتوجيه الصفحات */
+const VerifyRoot: React.FC = () => {
+  applyLang(loadLangPref());
+  return <React.Suspense fallback={<Spinner />}><VerifyPage /></React.Suspense>;
+};
+
 export default function App() {
+  if (/^\/verify(\/|$)/.test(window.location.pathname)) return <VerifyRoot />;
   return (
     <AppProvider>
       <LangRoot />

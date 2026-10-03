@@ -32,6 +32,7 @@ on:
           - supabase/migrations/015_question_bank.sql
           - supabase/migrations/016_question_pool.sql
           - supabase/migrations/017_push_notifications.sql
+          - supabase/migrations/018_certificates.sql
           - supabase/migrations/003_rollback.sql
       db_secret:
         description: 'اسم سر قاعدة البيانات (اتركه كما هو للمدرسة الأساسية، أو اكتب سر مدرسة أخرى مثل DB_URL_SCHOOL2)'
@@ -73,6 +74,7 @@ jobs:
           select 'quiz timer function (004): ' || (to_regproc('public.itqan_start_quiz') is not null);
           select 'banners (006): ' || (to_regclass('public.banners') is not null);
           select 'branches & parents (009): ' || (to_regclass('public.branches') is not null);
+          select 'certificates registry (018): ' || (to_regclass('public.certificates') is not null);
           select 'push notifications (017): ' || (to_regclass('public.push_subscriptions') is not null);
           select 'question pool (016): ' || (to_regproc('public.itqan_served_questions') is not null);
           select 'question bank (015): ' || (to_regclass('public.question_bank') is not null);

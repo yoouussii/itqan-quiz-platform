@@ -7,7 +7,7 @@ import {
   activeStudentsSection, inactiveStudentsSection,
 } from '../../utils/kpiSections';
 import { getWindowState, parseWindowEnd } from '../../utils/quizWindow';
-import { SUBMISSIONS_FILTER_KEY, ungradedSummary } from '../../utils/grading';
+import { ungradedSummary } from '../../utils/grading';
 import { hasPerm } from '../../utils/permissions';
 import { Avatar } from '../common/Avatar';
 import { Button, Card, Chip, PageHeader, SectionTitle, StatTile, greeting, scoreTone, timeAgo, todayLabel } from '../common/ui';
@@ -86,7 +86,7 @@ export const AdminDashboard: React.FC = () => {
       key: 'grading', icon: PenLine, tone: 'bg-indigo-50 text-indigo-700 dark:bg-indigo-950/60 dark:text-indigo-300',
       title: t('{n} إجابة مقالية لم تُصحَّح', { n: grading.essays }),
       desc: isEn() ? `In ${grading.quizzes} ${grading.quizzes === 1 ? 'quiz' : 'quizzes'}; students do not see their final score until marked` : `في ${grading.quizzes} ${grading.quizzes === 1 ? 'اختبار' : 'اختبارات'}، والطالب لا يرى درجته النهائية قبل التصحيح`,
-      action: t('تصحيح'), go: () => { try { sessionStorage.setItem(SUBMISSIONS_FILTER_KEY, 'ungraded'); } catch { /* ignore */ } setCurrentView('analytics'); },
+      action: t('تصحيح'), go: () => setCurrentView('grading'),
     });
   }
   if (struggling.length > 0) {

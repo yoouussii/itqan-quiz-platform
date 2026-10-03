@@ -15,6 +15,8 @@ export interface NotifAudience {
   class_ids?: string[];
   student_ids?: string[];
   user_ids?: string[];
+  /** إعلان «لكل المستخدمين»: يظهر لمُرسله أيضاً */
+  include_sender?: boolean;
 }
 
 export interface AppNotification {
@@ -43,8 +45,9 @@ export const loadHidden = (uid: string): Set<string> => new Set<string>(readJson
 type Viewer = { id: string; role: string; class_id?: string | null; assigned_class_ids?: string[] };
 
 export function isForUser(n: AppNotification, u: Viewer): boolean {
-  if (n.created_by && n.created_by === u.id) return false; // لا نُشعر صاحب الإجراء نفسه
   const a = n.audience || {};
+  // لا نُشعر صاحب الإجراء نفسه، إلا إعلاناً لكل المستخدمين
+  if (n.created_by && n.created_by === u.id) return !!a.include_sender;
   if (a.user_ids?.includes(u.id)) return true;
   if (a.student_ids?.includes(u.id) && u.role === 'student') return true;
   const myClasses = [u.class_id, ...(u.assigned_class_ids || [])].filter(Boolean) as string[];

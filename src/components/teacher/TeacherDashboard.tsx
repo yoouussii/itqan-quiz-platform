@@ -9,7 +9,7 @@ import { hasPerm } from '../../utils/permissions';
 import { getWindowState, parseWindowEnd, formatQuizDateTime } from '../../utils/quizWindow';
 import { describeQuizTarget } from '../../utils/quizTarget';
 import { targetStudents } from '../../utils/quizAudience';
-import { SUBMISSIONS_FILTER_KEY, ungradedSummary } from '../../utils/grading';
+import { ungradedSummary } from '../../utils/grading';
 import { Button, Card, Chip, PageHeader, Tone } from '../common/ui';
 import { uiDir, t, isEn } from '../../i18n';
 import { daysCount } from '../../i18n/count';
@@ -135,7 +135,7 @@ export const TeacherDashboard: React.FC = () => {
             <div className="font-bold text-base text-slate-900 dark:text-white">{grading.essays}{' '}{t('إجابة مقالية بانتظار تصحيحك')}</div>
             <div className="text-[13.5px] text-slate-600 dark:text-slate-400">{t('الطلاب لا يرون درجتهم النهائية حتى تُصحَّح')}</div>
           </div>
-          <Button onClick={() => { try { sessionStorage.setItem(SUBMISSIONS_FILTER_KEY, 'ungraded'); } catch { /* ignore */ } setCurrentView('analytics'); }}>
+          <Button onClick={() => setCurrentView('grading')}>
             {t('ابدأ التصحيح')}
           </Button>
         </Card>

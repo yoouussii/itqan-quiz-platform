@@ -362,10 +362,10 @@ function allowedViews(u: User | null): string[] {
   if (u.role === 'parent') return ['dashboard', 'quiz_review', 'notifications', 'privacy', 'terms'];
   const out = [...base, 'question_bank', 'outcomes'];
   if (u.role === 'admin') {
-    out.push('users', 'users_management', 'students_management', 'subjects_classes', 'reports', 'create_quiz', 'quiz_results', 'quiz_preview', 'settings', 'banners');
+    out.push('users', 'users_management', 'students_management', 'subjects_classes', 'reports', 'create_quiz', 'quiz_results', 'quiz_preview', 'settings', 'banners', 'grading');
   } else {
     out.push('quiz_results', 'quiz_preview');
-    if (u.role === 'teacher') out.push('create_quiz');
+    if (u.role === 'teacher') out.push('create_quiz', 'grading');
     if (hasPerm(u, 'can_view_all_reports')) out.push('reports');
     if (hasPerm(u, 'can_add_custom_subjects') || hasPerm(u, 'can_manage_classes')) out.push('subjects_classes');
     if (hasPerm(u, 'can_add_students') || hasPerm(u, 'can_add_teachers')) out.push('users_management', 'students_management');
@@ -373,6 +373,7 @@ function allowedViews(u: User | null): string[] {
   if (hasPerm(u, 'can_approve_quizzes')) out.push('approvals');
   if (hasPerm(u, 'can_view_leaderboard')) out.push('leaderboard');
   if (hasPerm(u, 'can_view_activity_log')) out.push('activity_log');
+  if (hasPerm(u, 'can_award_badges')) out.push('certificates');
   return out;
 }
 
@@ -821,7 +822,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         if (seenNotifRef.current === null) {
           seenNotifRef.current = new Set(relevant.map((n) => n.id));
         } else {
-          const fresh = relevant.filter((n) => !rd.has(n.id) && !seenNotifRef.current!.has(n.id));
+          const fresh = relevant.filter((n) => !rd.has(n.id) && !seenNotifRef.current!.has(n.id) && n.created_by !== me.id);
           fresh.forEach((n) => seenNotifRef.current!.add(n.id));
           if (fresh.length) showToast(`🔔 ${fresh[0].title}${fresh.length > 1 ? ` (+${fresh.length - 1})` : ''}`, 'info');
         }
@@ -2010,6 +2011,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const n = makeNotification({ type: 'announcement', title, body, audience, created_by: me.id, created_by_name: me.name });
     const res = await pushNotification(n);
     setNotifCache(loadNotifCache());
+    // إعلان لكل المستخدمين يظهر لمرسله مقروءاً
+    if (audience.include_sender) void markNotificationsRead([n.id]);
     log('announcement_sent', { type: 'announcement', id: n.id, name: title });
     showToast(res.ok ? 'تم إرسال الإعلان' : `حُفظ الإعلان على جهازك وسيُرسل عند توفر الاتصال (${res.error})`, res.ok ? 'success' : 'info');
     return { ok: true };

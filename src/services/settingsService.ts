@@ -12,6 +12,13 @@ export interface AppSettings {
   brand_color: string;
   /** المفتاح العام لإشعارات الجوال (يضبطه سير العمل «Setup push notifications») */
   vapid_public_key: string;
+  /** هوية الشهادات (صفحة الشهادات): الشعاران واسم المدرسة والتوقيع والقالب واللونان */
+  cert_company_logo: string;
+  cert_school_logo: string;
+  cert_school_name: string;
+  cert_principal_name: string;
+  cert_principal_title: string;
+  cert_style: { template?: string; primary?: string; accent?: string; qr?: boolean } | null;
 }
 // اشتراط اعتماد الاختبارات مفعّل افتراضياً (مثل الخادم في 008)، ويُلغيه المدير من الإعدادات
 export const DEFAULT_SETTINGS: AppSettings = {
@@ -21,6 +28,12 @@ export const DEFAULT_SETTINGS: AppSettings = {
   school_logo: '',
   brand_color: 'indigo',
   vapid_public_key: '',
+  cert_company_logo: '',
+  cert_school_logo: '',
+  cert_school_name: '',
+  cert_principal_name: '',
+  cert_principal_title: '',
+  cert_style: null,
 };
 const BRANDING_KEYS = ['school_name', 'school_logo', 'brand_color'] as const;
 

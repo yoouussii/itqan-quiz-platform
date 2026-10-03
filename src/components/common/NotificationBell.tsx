@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { Bell, Megaphone, X, Trash2 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 import { hasPerm } from '../../utils/permissions';
@@ -37,14 +38,14 @@ export const AnnouncementModal: React.FC<{ onClose: () => void }> = ({ onClose }
 
   const send = async () => {
     setError('');
+    if (!title.trim()) return setError(t('اكتب عنوان الإعلان'));
     if (!body.trim()) return setError(t('اكتب نص الإعلان'));
     if (mode === 'classes' && picked.length === 0) return setError(t('اختر صفاً واحداً على الأقل من القائمة'));
-    // العنوان اختياري: إن تُرك فارغاً نأخذ أول سطر من النص
-    const finalTitle = title.trim() || body.trim().split('\n')[0].slice(0, 60);
+    const finalTitle = title.trim();
     const audience: NotifAudience =
       mode === 'students' ? { all: true, roles: ['student'] }
       : mode === 'staff' ? { all: true, roles: ['teacher', 'supervisor'] }
-      : mode === 'everyone' ? { all: true }
+      : mode === 'everyone' ? { all: true, include_sender: true }
       : { class_ids: picked };
     setBusy(true);
     const res = await sendAnnouncement({ title: finalTitle, body: body.trim(), audience });
@@ -52,25 +53,32 @@ export const AnnouncementModal: React.FC<{ onClose: () => void }> = ({ onClose }
     if (res.ok) onClose();
   };
 
-  return (
-    <div className="fixed inset-0 z-[60] bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4" onClick={onClose} dir={uiDir()}>
+  // نافذة على مستوى الصفحة: داخل الشريط العلوي كان جزؤها العلوي (خانة العنوان) يُقص
+  return createPortal(
+    <div className="fixed inset-0 z-[60] bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto" onClick={onClose} dir={uiDir()}>
       <div role="dialog" aria-label={t('إعلان جديد')} onClick={(e) => e.stopPropagation()}
-        className="bg-white dark:bg-slate-900 rounded-3xl w-full max-w-md p-6 shadow-2xl border border-slate-100 dark:border-slate-800 space-y-4">
+        className="bg-white dark:bg-slate-900 rounded-3xl w-full max-w-md p-6 shadow-2xl border border-slate-100 dark:border-slate-800 space-y-4 my-auto max-h-[calc(100vh-2rem)] overflow-y-auto">
         <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800">
           <h3 className="font-black text-base text-slate-900 dark:text-white flex items-center gap-2"><Megaphone className="w-5 h-5 text-indigo-600" />{' '}{t('إعلان جديد')}</h3>
           <button onClick={onClose} aria-label={t('إغلاق')} className="p-1 text-slate-400 hover:text-slate-700"><X className="w-5 h-5" /></button>
         </div>
-        <input aria-label={t('عنوان الإعلان')} value={title} onChange={(e) => setTitle(e.target.value)} placeholder={t('عنوان الإعلان (اختياري)')}
-          className="w-full px-3 py-2 text-xs rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white" />
-        <textarea aria-label={t('نص الإعلان')} value={body} onChange={(e) => setBody(e.target.value)} rows={3} placeholder={t('نص الإعلان...')}
-          className="w-full px-3 py-2 text-xs rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white" />
+        <div>
+          <label htmlFor="ann-title" className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">{t('العنوان')}</label>
+          <input id="ann-title" aria-label={t('عنوان الإعلان')} value={title} onChange={(e) => { setTitle(e.target.value); setError(''); }} maxLength={80} placeholder={t('مثال: إجازة يوم الخميس')}
+            className="w-full h-11 px-3 text-base font-black rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white placeholder:font-normal placeholder:text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+        </div>
+        <div>
+          <label htmlFor="ann-body" className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">{t('نص الإعلان')}</label>
+          <textarea id="ann-body" aria-label={t('نص الإعلان')} value={body} onChange={(e) => { setBody(e.target.value); setError(''); }} rows={4} placeholder={t('نص الإعلان...')}
+            className="w-full px-3 py-2 text-sm rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+        </div>
         <div>
           <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">{t('المستلمون')}</label>
           <select aria-label={t('المستلمون')} value={mode} onChange={(e) => setMode(e.target.value as any)}
             className="w-full px-3 py-2 text-xs rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white font-bold">
             {isAdmin && <option value="students">{t('كل الطلاب')}</option>}
             {isAdmin && <option value="staff">{t('المعلمون والمشرفون')}</option>}
-            {isAdmin && <option value="everyone">{t('كل المستخدمين')}</option>}
+            {isAdmin && <option value="everyone">{t('كل المستخدمين (وأنا معهم)')}</option>}
             <option value="classes">{t('صفوف محددة')}</option>
           </select>
         </div>
@@ -95,7 +103,8 @@ export const AnnouncementModal: React.FC<{ onClose: () => void }> = ({ onClose }
           <button onClick={send} disabled={busy} className="px-5 py-2 text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-700 rounded-xl shadow-md disabled:opacity-60">{t('إرسال الإعلان')}</button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 };
 
