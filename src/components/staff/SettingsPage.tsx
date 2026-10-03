@@ -176,9 +176,9 @@ export const SettingsPage: React.FC = () => {
         </div>
         <div className="space-y-1.5">
           <label htmlFor="login-name" className="block text-sm font-bold text-slate-900 dark:text-white">{t('اسم المدرسة في شاشة الدخول')}</label>
-          <input id="login-name" value={loginTitle} onChange={(e) => setLoginTitle(e.target.value)} maxLength={90} placeholder={settings.cert_school_name || settings.school_name || t('مثال: مدارس المستقبل الأهلية – فرع الشمال')}
+          <input id="login-name" value={loginTitle} onChange={(e) => setLoginTitle(e.target.value)} maxLength={90} placeholder={settings.school_name || t('مثال: مدارس المستقبل الأهلية – فرع الشمال')}
             className="w-full h-11 px-3 text-[15px] rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white" />
-          <p className="text-[12px] text-slate-500 dark:text-slate-400">{t('اتركه فارغاً لاستخدام اسم المدرسة من الشهادات أو هوية المدرسة. مفيد للفروع.')}</p>
+          <p className="text-[12px] text-slate-500 dark:text-slate-400">{t('اتركه فارغاً لاستخدام اسم المدرسة من «هوية المدرسة» أعلى الصفحة. مفيد للفروع.')}</p>
         </div>
         <div className="space-y-1.5">
           <span className="block text-sm font-bold text-slate-900 dark:text-white">{t('شعارا شاشة الدخول (اختياري)')}</span>
@@ -196,7 +196,7 @@ export const SettingsPage: React.FC = () => {
               </div>
             ))}
           </div>
-          <p className="text-[12px] text-slate-500 dark:text-slate-400">{t('بدونهما تُستخدم شعارات الشهادات. يظهران في شاشة الدخول وصفحة الصيانة.')}</p>
+          <p className="text-[12px] text-slate-500 dark:text-slate-400">{t('بدونهما يُستخدم شعار «هوية المدرسة». يظهران في شاشة الدخول وصفحة الصيانة.')}</p>
         </div>
         <div className="space-y-1.5">
           <label htmlFor="login-tagline" className="block text-sm font-bold text-slate-900 dark:text-white">{t('العبارة تحت اسم المدرسة')}</label>

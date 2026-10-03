@@ -35,11 +35,11 @@ export const LoginHero: React.FC<{ style: LoginStyle; preview?: boolean; draft?:
   const app = useApp();
   // المعاينة في الإعدادات تعرض القيم قبل حفظها
   const settings = draft ? { ...app.settings, ...draft } : app.settings;
-  const school = settings.login_title || settings.cert_school_name || settings.school_name || '';
+  // شاشة الدخول لا تأخذ من هوية الشهادات: اسمها وشعاراها الخاصان، وإلا هوية المدرسة من الإعدادات
+  const school = settings.login_title || settings.school_name || '';
   const tagline = settings.login_tagline || t(DEFAULT_TAGLINE);
-  // شعارا شاشة الدخول إن حدّدهما المدير، وإلا شعارا الشهادات
   const custom = [settings.login_logo, settings.login_logo2].filter(Boolean) as string[];
-  const logos = custom.length ? custom : ([settings.cert_school_logo || settings.school_logo, settings.cert_company_logo].filter(Boolean) as string[]);
+  const logos = custom.length ? custom : ([settings.school_logo].filter(Boolean) as string[]);
 
   if (style === 'minimal') return preview ? (
     <div className="h-full flex items-center justify-center bg-slate-50 dark:bg-slate-950">

@@ -1849,4 +1849,6 @@ export const EN: Record<string, string> = {
   'دفع لأعلى': 'Push up',
   'مسح': 'Wipe',
   'ضبابي': 'Blur',
+  'اتركه فارغاً لاستخدام اسم المدرسة من «هوية المدرسة» أعلى الصفحة. مفيد للفروع.': 'Leave empty to use the name from "School identity" above. Useful for branches.',
+  'بدونهما يُستخدم شعار «هوية المدرسة». يظهران في شاشة الدخول وصفحة الصيانة.': 'Without them, the "School identity" logo is used. They appear on the sign-in screen and the maintenance page.',
 };
