@@ -262,3 +262,8 @@ html[dir="ltr"] .dir-icon { transform: scaleX(-1); }
 /* النصوص الصغيرة جداً: حد أدنى أوضح للقراءة */
 .text-\[10px\] { font-size: 11px; }
 .text-\[11px\] { font-size: 12px; }
+
+/* شعلة الأيام المتتالية في رئيسية الطالب */
+@keyframes streak-flick { 0%, 100% { transform: scale(1) rotate(-3deg); } 50% { transform: scale(1.08) rotate(3deg); } }
+.streak-flame { display: inline-block; animation: streak-flick 1.6s ease-in-out infinite; }
+@media (prefers-reduced-motion: reduce) { .streak-flame { animation: none; } }

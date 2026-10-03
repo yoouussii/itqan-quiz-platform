@@ -51,7 +51,7 @@ export const MyPoints: React.FC = () => {
     }
   };
 
-  const honor = (awards || []).slice(0, 8);
+  const honor = (awards || []).filter((a) => a.source !== 'daily_challenge').slice(0, 8);
 
   return (
     <div className="max-w-5xl mx-auto py-8 px-4 sm:px-6 lg:px-8 space-y-8" dir={uiDir()}>

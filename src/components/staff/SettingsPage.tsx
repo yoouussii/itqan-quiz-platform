@@ -1,5 +1,5 @@
 import React, { useRef, useState } from 'react';
-import { Settings, ImagePlus, Trash2, Check, Wrench, LogIn } from 'lucide-react';
+import { Settings, ImagePlus, Trash2, Check, Wrench, LogIn, GraduationCap } from 'lucide-react';
 import { LoginHero, LOGIN_STYLES, LoginStyle } from '../auth/LoginHero';
 import { useApp } from '../../context/AppContext';
 import { BRAND_PRESETS, applyBrandColor, resizeLogo } from '../../utils/brand';
@@ -44,6 +44,8 @@ export const SettingsPage: React.FC = () => {
     await updateSettings({ maintenance: { on: !maintenanceOn, message: mMessage.trim(), until: mUntil } });
     setBusy(false);
   };
+  // رئيسية الطالب (021)
+  const [home, setHome] = useState({ challenge: true, streak: true, leaderboard: true, challenge_count: 5, ...(settings.student_home || {}) });
   const pickPhoto = async (file?: File) => {
     if (!file) return;
     try {
@@ -84,6 +86,7 @@ export const SettingsPage: React.FC = () => {
       login_title: loginTitle.trim(),
       login_logo: loginLogo,
       login_logo2: loginLogo2,
+      student_home: home,
       ...(maintenanceOn ? { maintenance: { on: true, message: mMessage.trim(), until: mUntil } } : {}),
     });
     setBusy(false);
@@ -237,6 +240,32 @@ export const SettingsPage: React.FC = () => {
           <input type="datetime-local" value={mUntil} onChange={(e) => setMUntil(e.target.value)} className="h-10 px-3 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white" />
         </label>
         {maintenanceOn && <p role="status" className="text-sm font-bold text-rose-700 dark:text-rose-400">{t('الصيانة مفعّلة الآن. عدّل الرسالة ثم «حفظ الإعدادات»، أو أوقفها من المفتاح.')}</p>}
+      </section>
+
+      <section className={`${card} space-y-3`} aria-labelledby="home-title">
+        <div>
+          <h2 id="home-title" className="text-base font-bold text-slate-900 dark:text-white inline-flex items-center gap-2"><GraduationCap className="w-5 h-5 text-indigo-600" />{t('رئيسية الطالب')}</h2>
+          <p className="text-[13px] text-slate-500 dark:text-slate-400 mt-1">{t('أجزاء تحفّز الطالب على الدخول يومياً. يمكنك إيقاف أي جزء.')}</p>
+        </div>
+        {([
+          ['challenge', 'تحدي اليوم', 'أسئلة سريعة يومية من بنك الأسئلة المشترك في مواد الطالب، تصحح فوراً وتمنح نقاطاً.'],
+          ['streak', 'الأيام المتتالية', 'عدد الأيام المتتالية التي حل فيها الطالب تحدياً أو أدى اختباراً.'],
+          ['leaderboard', 'ترتيب الفصل', 'أعلى 5 طلاب في فصل الطالب حسب نقاط آخر 7 أيام.'],
+        ] as const).map(([k, label, hint]) => (
+          <label key={k} className="flex items-start gap-3 cursor-pointer">
+            <input type="checkbox" checked={!!home[k]} onChange={(e) => setHome((h) => ({ ...h, [k]: e.target.checked }))} className="accent-indigo-600 w-4 h-4 mt-1" />
+            <span><b className="text-sm text-slate-900 dark:text-white">{t(label)}</b><span className="block text-xs text-slate-500 dark:text-slate-400 mt-0.5">{t(hint)}</span></span>
+          </label>
+        ))}
+        {home.challenge && (
+          <label className="flex flex-wrap items-center gap-2 text-sm text-slate-700 dark:text-slate-300 ps-7">{t('عدد أسئلة التحدي')}
+            <select value={home.challenge_count} onChange={(e) => setHome((h) => ({ ...h, challenge_count: Number(e.target.value) }))}
+              className="h-9 px-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white">
+              {[3, 4, 5, 6, 7, 8, 9, 10].map((n) => <option key={n} value={n}>{n}</option>)}
+            </select>
+            <span className="text-xs text-slate-500 dark:text-slate-400">{t('24 ثانية لكل سؤال')}</span>
+          </label>
+        )}
       </section>
 
       <label className={`flex items-start gap-3 ${card} cursor-pointer`}>

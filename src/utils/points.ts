@@ -15,6 +15,8 @@ export interface StudentAward {
   awarded_by?: string | null;
   awarded_by_name?: string | null;
   created_at: string;
+  /** staff أو daily_challenge (نقاط تحدي اليوم من النظام) */
+  source?: string | null;
 }
 
 export interface PointEvent {
@@ -60,7 +62,13 @@ export function computePointEvents(subs: SubLike[], quizzes: QuizLike[], awards:
     });
   });
   awards.forEach((a) =>
-    events.push({ id: `aw-${a.id}`, date: a.created_at, label: t('جائزة: {title}', { title: a.title }), points: Number(a.points) || 0, kind: 'award' })
+    events.push({
+      id: `aw-${a.id}`,
+      date: a.created_at,
+      label: a.source === 'daily_challenge' ? (a.note ? t('تحدي اليوم ({score})', { score: a.note }) : t('تحدي اليوم')) : t('جائزة: {title}', { title: a.title }),
+      points: Number(a.points) || 0,
+      kind: 'award',
+    })
   );
   return events.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
 }
