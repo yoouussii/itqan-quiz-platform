@@ -23,6 +23,7 @@ SQL('delete from itqan.login_attempts');
 SQL(`insert into users (id,name,role,national_id,password) values ('gt-2','معلم آخر','teacher','9702','teach1234'),('gsup','مشرف','supervisor','9703','sup12345') on conflict do nothing`);
 SQL(`insert into users (id,name,role,national_id,password,class_id) values ('gst','طالب الكشف','student','9704','stud1234','c1') on conflict do nothing`);
 SQL(`insert into users (id,name,role,national_id,password,child_ids) values ('gpar','ولي أمر الكشف','parent','9705','par1234','["gst"]') on conflict do nothing`);
+SQL(`update users set assigned_class_ids='["c1","c2"]', assigned_subject_ids='["s1"]' where id='u-teach'`);
 SQL(`insert into quizzes (id,title,status,teacher_id,created_by,subject_id) values ('gq-1','اختبار المعلم','published','u-teach','u-teach','s1') on conflict do nothing`);
 
 const A = await login('1010', 'admin123');
@@ -64,6 +65,11 @@ r = await req('PATCH', `/gradebook_columns?id=eq.${col}`, { token: T2, body: { w
 ok(rows(r).length === 0, 'معلم آخر لا يعدّل العمود');
 r = await req('PATCH', `/gradebook_columns?id=eq.${col}`, { token: T, body: { weight: 2 } });
 ok(rows(r).length === 1, 'صاحب العمود يعدّله');
+
+r = await req('POST', '/gradebook_columns', { token: T2, body: { class_id: 'c1', subject_id: 's1', title: 'خارج الإسناد', created_by: 'gt-2' } });
+ok(r.status >= 400, 'المعلم لا يضيف عموداً لفصل أو مادة غير مسندة إليه');
+r = await req('POST', '/gradebook_columns', { token: T, body: { class_id: 'c1', subject_id: 's-other', title: 'مادة أخرى', created_by: 'u-teach' } });
+ok(r.status >= 400, 'ولا لمادة غير مسندة في فصله');
 
 console.log('— الدرجات');
 const mark = (tok, body) => req('POST', '/gradebook_marks', { token: tok, body, prefer: 'resolution=merge-duplicates,return=representation' });

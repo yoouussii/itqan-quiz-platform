@@ -24,15 +24,20 @@ export const GradebookPage: React.FC = () => {
   const isAdmin = me.role === 'admin';
   const prefs = readPrefs();
 
+  // المعلم: إسناداته فقط (من أحدث بيانات حسابه)، بلا رجوع لكل الفصول/المواد. المدير والمشرف: الكل
+  const fresh = useMemo(() => (users as User[]).find((u) => u.id === me.id) || me, [users, me]);
+  const isTeacher = me.role === 'teacher';
   const mySubjects = useMemo(() => {
-    const ids = me.role === 'teacher' ? (me.assigned_subject_ids?.length ? me.assigned_subject_ids : me.specialty_id ? [me.specialty_id] : []) : [];
-    return ids.length ? subjects.filter((s) => ids.includes(s.id)) : subjects;
-  }, [me, subjects]);
+    if (!isTeacher) return subjects;
+    const ids = fresh.assigned_subject_ids?.length ? fresh.assigned_subject_ids : fresh.specialty_id ? [fresh.specialty_id] : [];
+    return subjects.filter((s) => ids.includes(s.id));
+  }, [isTeacher, fresh, subjects]);
   const myClasses = useMemo(() => {
-    const ids = me.role === 'teacher' ? me.assigned_class_ids || [] : [];
-    const list = ids.length ? classes.filter((c) => ids.includes(c.id)) : classes;
+    const ids = new Set([...(fresh.assigned_class_ids || []), ...(fresh.class_id ? [fresh.class_id] : [])]);
+    const list = isTeacher ? classes.filter((c) => ids.has(c.id)) : classes;
     return [...list].sort((a, b) => a.name.localeCompare(b.name, 'ar'));
-  }, [me, classes]);
+  }, [isTeacher, fresh, classes]);
+  const noAssignment = isTeacher && (!myClasses.length || !mySubjects.length);
 
   const [classId, setClassId] = useState<string>(() => prefs.classId || '');
   const [subjectId, setSubjectId] = useState<string>(() => prefs.subjectId || '');
@@ -180,6 +185,12 @@ export const GradebookPage: React.FC = () => {
       <PageHeader title={<span className="inline-flex items-center gap-2"><BookOpenCheck className="w-7 h-7 text-indigo-600" />{t('كشف الدرجات')}</span>}
         subtitle={t('درجات اختبارات المنصة مع أعمدة يدوية (مشاركة، واجبات، مهام أدائية…)، بأوزان تحددها، والمعدل والتقدير لكل طالب')} />
 
+      {noAssignment ? (
+        <Card className="p-10 text-center space-y-2" data-testid="gradebook-no-assignment">
+          <p className="font-bold text-slate-900 dark:text-white">{t('لا توجد فصول أو مواد مسندة إليك بعد')}</p>
+          <p className="text-sm text-slate-500">{t('يظهر كشف الدرجات لفصولك وموادك المسندة فقط. تواصل مع إدارة المدرسة لإسنادها إلى حسابك.')}</p>
+        </Card>
+      ) : (<>
       <Card className="p-4 flex flex-wrap items-end gap-3">
         <label className="text-sm text-slate-600 dark:text-slate-300 flex flex-col gap-1">{t('الفصل')}
           <select value={classId} onChange={(e) => setClassId(e.target.value)} className={`${sel} min-w-[160px]`}>{myClasses.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}</select>
@@ -285,6 +296,7 @@ export const GradebookPage: React.FC = () => {
         {loading && <p className="px-4 py-2 text-xs text-slate-500">{t('جارٍ التحميل…')}</p>}
       </Card>
       <p className="text-xs text-slate-500">{t('المعدل = مجموع (وزن العمود × نسبة الطالب فيه) ÷ مجموع الأوزان. عند إعادة الاختبار تُحتسب أفضل محاولة. الوزن 0 يستبعد العمود.')}</p>
+      </>)}
     </div>
   );
 };
