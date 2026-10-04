@@ -15,6 +15,7 @@ import { PageHeader } from './components/common/ui';
 import { replaceNextNavigation, PUBLIC_PATHS } from './utils/router';
 import { Lang, applyLang, loadLangPref, saveLangPref, t, uiDir } from './i18n';
 import { LangContext } from './i18n/LangContext';
+import { PageLoader, NavProgress } from './components/common/Mascot';
 
 // الصفحات تُحمَّل عند فتحها فقط: كل مستخدم ينزّل كود صفحاته (أسرع على الجوال)
 const AdminDashboard = React.lazy(() => import('./components/admin/AdminDashboard').then((m) => ({ default: m.AdminDashboard })));
@@ -77,11 +78,7 @@ const usePathname = () => {
   return path;
 };
 
-const Spinner: React.FC = () => (
-  <div className="flex items-center justify-center py-24" role="status" aria-label={t('جارٍ التحميل')}>
-    <div className="w-10 h-10 rounded-full border-4 border-indigo-200 border-t-indigo-600 animate-spin" />
-  </div>
-);
+const Spinner: React.FC = () => <PageLoader />;
 
 /** يُعيد المستخدم للوحة التحكم إذا وصل لصفحة غير موجودة بدلاً من إظهار شاشة فارغة */
 const UnknownViewRedirect: React.FC = () => {
@@ -124,7 +121,7 @@ const AppContent: React.FC = () => {
     return (
       <div className="min-h-screen flex flex-col bg-slate-50 dark:bg-[#0b0f19] text-slate-900 dark:text-white transition-colors duration-200" dir={uiDir()}>
         <div className="flex-1">
-          {!brandingReady && !legal ? <div className="min-h-screen flex items-center justify-center" aria-busy="true"><Spinner /></div>
+          {!brandingReady && !legal ? <PageLoader full />
             : legal ? <React.Suspense fallback={<Spinner />}><LegalPage doc={legal} /></React.Suspense>
             : settings.maintenance?.on && !adminLogin ? <MaintenanceScreen onAdminLogin={() => setAdminLogin(true)} />
             : <AuthScreen />}
@@ -211,18 +208,9 @@ const AppContent: React.FC = () => {
         ) : currentUser.role === 'admin' ? <LicenseBanner lic={license} /> : null}
       >
 
-        <React.Suspense
-          fallback={
-            <div className="flex items-center justify-center py-24" role="status" aria-label={t('جارٍ التحميل')}>
-              <div className="w-10 h-10 rounded-full border-4 border-indigo-200 border-t-indigo-600 animate-spin" />
-            </div>
-          }
-        >
-        {waitingForData ? (
-          <div className="flex items-center justify-center py-24" role="status" aria-label={t('جارٍ التحميل')}>
-            <div className="w-10 h-10 rounded-full border-4 border-indigo-200 border-t-indigo-600 animate-spin" />
-          </div>
-        ) : (<>
+        <NavProgress navKey={currentView} />
+        <React.Suspense fallback={<PageLoader view={currentView} />}>
+        {waitingForData ? <PageLoader view={currentView} /> : (<div key={currentView} className="itq-page-in">
         {/* View 1: Quiz Taker Engine (Interactive testing) */}
         {currentView === 'take_quiz' && activeQuizId && (
           <QuizTaker
@@ -339,7 +327,7 @@ const AppContent: React.FC = () => {
             )}
           </>
         )}
-        </>)}
+        </div>)}
         </React.Suspense>
       </AppShell>
 

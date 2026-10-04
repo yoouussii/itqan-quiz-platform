@@ -27,7 +27,7 @@
       // يعرض أي خطأ يحدث أثناء تحميل الصفحة بدل ترك شاشة بيضاء
       window.addEventListener('error', function (e) {
         var root = document.getElementById('root');
-        if (root && !root.hasChildNodes()) {
+        if (root && (!root.hasChildNodes() || root.querySelector('[data-boot]'))) {
           root.innerHTML = '<div dir="rtl" style="max-width:640px;margin:10vh auto;padding:24px;font-family:sans-serif">' +
             '<h1 style="font-size:20px">تعذّر تشغيل الموقع</h1>' +
             '<p style="font-size:13px;color:#475569">أرسل النص التالي للمطوّر:</p>' +
@@ -38,7 +38,19 @@
     </script>
   </head>
   <body class="font-sans bg-slate-50 dark:bg-[#0b0f19] text-slate-900 dark:text-white antialiased selection:bg-indigo-500 selection:text-white min-h-screen transition-colors duration-200">
-    <div id="root"></div>
+    <div id="root"><div data-boot style="min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px">
+      <!-- شخصية التحميل قبل تشغيل الموقع (تستبدلها React) -->
+      <style>
+        [data-boot] svg{width:64px;height:84px;shape-rendering:crispEdges}
+        [data-boot] .bh{transform-box:fill-box;transform-origin:50% 100%;animation:bh .9s infinite cubic-bezier(.3,.7,.4,1)}
+        [data-boot] .bs{fill:rgba(15,23,42,.14);transform-box:fill-box;transform-origin:center;animation:bs .9s infinite cubic-bezier(.3,.7,.4,1)}
+        .dark [data-boot] .bk{fill:#cbd5e1}
+        @keyframes bh{0%,100%{transform:translateY(0) scale(1.1,.9)}18%{transform:scale(.97,1.03)}50%{transform:translateY(-3px) scale(.98,1.02)}82%{transform:none}}
+        @keyframes bs{0%,100%{transform:scaleX(1.05)}50%{transform:scaleX(.6);opacity:.5}}
+        @media (prefers-reduced-motion:reduce){[data-boot] .bh,[data-boot] .bs{animation:none}}
+      </style>
+      <svg viewBox="0 -4 16 21" aria-hidden="true"><ellipse class="bs" cx="8" cy="15.6" rx="4.5" ry=".7"/><g class="bh"><rect x="5" y="0" width="6" height="1" fill="#1e293b" class="bk"/><rect x="2" y="1" width="12" height="1" fill="#1e293b" class="bk"/><rect x="5" y="2" width="6" height="1" fill="#1e293b" class="bk"/><rect x="4" y="3" width="8" height="1" fill="#1e293b" class="bk"/><rect x="3" y="4" width="1" height="1" fill="#6366f1"/><rect x="4" y="4" width="1" height="1" fill="#a5b4fc"/><rect x="5" y="4" width="8" height="1" fill="#6366f1"/><rect x="2" y="5" width="1" height="1" fill="#6366f1"/><rect x="3" y="5" width="1" height="1" fill="#a5b4fc"/><rect x="4" y="5" width="10" height="1" fill="#6366f1"/><rect x="2" y="6" width="12" height="1" fill="#6366f1"/><rect x="2" y="7" width="2" height="1" fill="#6366f1"/><rect x="4" y="7" width="1" height="1" fill="#fff"/><rect x="5" y="7" width="1" height="1" fill="#0f172a"/><rect x="6" y="7" width="4" height="1" fill="#6366f1"/><rect x="10" y="7" width="1" height="1" fill="#fff"/><rect x="11" y="7" width="1" height="1" fill="#0f172a"/><rect x="12" y="7" width="2" height="1" fill="#6366f1"/><rect x="2" y="8" width="2" height="1" fill="#6366f1"/><rect x="4" y="8" width="2" height="1" fill="#0f172a"/><rect x="6" y="8" width="4" height="1" fill="#6366f1"/><rect x="10" y="8" width="2" height="1" fill="#0f172a"/><rect x="12" y="8" width="2" height="1" fill="#6366f1"/><rect x="2" y="9" width="1" height="1" fill="#6366f1"/><rect x="3" y="9" width="1" height="1" fill="#fda4af"/><rect x="4" y="9" width="8" height="1" fill="#6366f1"/><rect x="12" y="9" width="1" height="1" fill="#fda4af"/><rect x="13" y="9" width="1" height="1" fill="#6366f1"/><rect x="2" y="10" width="5" height="1" fill="#6366f1"/><rect x="7" y="10" width="2" height="1" fill="#6366f1"/><rect x="7" y="10.4" width="2" height=".6" fill="#0f172a"/><rect x="9" y="10" width="5" height="1" fill="#6366f1"/><rect x="2" y="11" width="1" height="1" fill="#3730a3"/><rect x="3" y="11" width="10" height="1" fill="#6366f1"/><rect x="13" y="11" width="1" height="1" fill="#3730a3"/><rect x="3" y="12" width="10" height="1" fill="#3730a3"/><rect x="4" y="13" width="2" height="1" fill="#3730a3"/><rect x="10" y="13" width="2" height="1" fill="#3730a3"/><rect x="8" y="1" width="4" height=".6" fill="#f59e0b"/><rect x="11.6" y="1" width=".6" height="3" fill="#f59e0b"/><rect x="11.2" y="3.6" width="1.4" height="1.4" fill="#f59e0b"/></g></svg>
+    </div></div>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>
