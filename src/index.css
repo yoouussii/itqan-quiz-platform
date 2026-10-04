@@ -267,3 +267,72 @@ html[dir="ltr"] .dir-icon { transform: scaleX(-1); }
 @keyframes streak-flick { 0%, 100% { transform: scale(1) rotate(-3deg); } 50% { transform: scale(1.08) rotate(3deg); } }
 .streak-flame { display: inline-block; animation: streak-flick 1.6s ease-in-out infinite; }
 @media (prefers-reduced-motion: reduce) { .streak-flame { animation: none; } }
+
+/* ===== «إتقان الصغير»: شخصية التحميل وانتقال الصفحات ===== */
+.itq-px-K { fill: #1e293b; }
+.dark .itq-px-K { fill: #cbd5e1; }
+.itq-px-B { fill: rgb(var(--brand-500)); }
+.itq-px-H { fill: rgb(var(--brand-300)); }
+.itq-px-S, .itq-px-F { fill: rgb(var(--brand-700)); }
+.itq-px-P { fill: #fda4af; }
+.itq-px-E { fill: #0f172a; }
+.itq-px-W { fill: #ffffff; }
+.itq-px-T { fill: #f59e0b; }
+.itq-shadow { fill: rgb(15 23 42 / 0.14); transform-box: fill-box; transform-origin: center; animation: itq-shadow 0.9s infinite cubic-bezier(.3,.7,.4,1); }
+.dark .itq-shadow { fill: rgb(0 0 0 / 0.45); }
+.itq-hop { transform-box: fill-box; transform-origin: 50% 100%; animation: itq-hop 0.9s infinite cubic-bezier(.3,.7,.4,1); }
+.itq-blink { transform-box: fill-box; transform-origin: center; animation: itq-blink 3.4s infinite; }
+.itq-tassel { transform-box: view-box; transform-origin: 8px 1.3px; animation: itq-tassel 0.9s infinite ease-in-out; }
+@keyframes itq-hop {
+  0%, 100% { transform: translateY(0) scale(1.1, 0.9); }
+  18% { transform: translateY(0) scale(0.97, 1.03); }
+  50% { transform: translateY(-3px) scale(0.98, 1.02); }
+  82% { transform: translateY(0) scale(1, 1); }
+}
+@keyframes itq-shadow { 0%, 100% { transform: scaleX(1.05); opacity: 1; } 50% { transform: scaleX(0.6); opacity: 0.5; } }
+@keyframes itq-blink { 0%, 90%, 100% { transform: scaleY(1); } 93%, 96% { transform: scaleY(0.12); } }
+@keyframes itq-tassel { 0%, 100% { transform: rotate(-6deg); } 50% { transform: rotate(14deg); } }
+.itq-word { animation: itq-word 0.35s ease-out; }
+@keyframes itq-word { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
+
+/* شريط التنقل العلوي */
+.itq-navbar {
+  position: fixed; inset-inline: 0; top: 0; height: 3px; z-index: 70; pointer-events: none;
+  background: linear-gradient(90deg, rgb(var(--brand-400)), rgb(var(--brand-600)));
+  transform-origin: right; animation: itq-nav 0.55s ease-out forwards;
+}
+[dir="ltr"] .itq-navbar { transform-origin: left; }
+@keyframes itq-nav {
+  0% { transform: scaleX(0); opacity: 1; }
+  70% { transform: scaleX(1); opacity: 1; }
+  100% { transform: scaleX(1); opacity: 0; }
+}
+
+/* ظهور ناعم للصفحة الجديدة */
+.itq-page-in { animation: itq-page-in 0.24s ease-out; }
+@keyframes itq-page-in { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+
+@media (prefers-reduced-motion: reduce) {
+  .itq-hop, .itq-shadow, .itq-tassel, .itq-blink, .itq-word, .itq-page-in { animation: none; }
+  .itq-mascot { animation: itq-calm 1.6s infinite ease-in-out; }
+  .itq-navbar { animation-duration: 0.01s; }
+}
+@keyframes itq-calm { 50% { opacity: 0.6; } }
+/* ألوان أدوات الشخصية */
+.itq-px-n { fill: #facc15; }
+.itq-px-r { fill: #fb7185; }
+.itq-px-d { fill: #334155; }
+.dark .itq-px-d { fill: #cbd5e1; }
+.itq-px-l { fill: #fde68a; }
+.itq-px-g { fill: #34d399; }
+.itq-px-a { fill: #fbbf24; }
+.itq-px-c { fill: rgb(var(--brand-400)); }
+.itq-px-w { fill: #ffffff; }
+.itq-px-q { fill: #94a3b8; }
+.itq-prop-gear { transform-box: fill-box; transform-origin: center; animation: itq-spin 1.8s infinite linear; }
+.itq-prop-bell { transform-box: fill-box; transform-origin: 50% 0; animation: itq-ring 0.9s infinite ease-in-out; }
+.itq-prop-pencil { transform-box: fill-box; transform-origin: 50% 100%; animation: itq-write 0.45s infinite ease-in-out alternate; }
+@keyframes itq-spin { to { transform: rotate(360deg); } }
+@keyframes itq-ring { 0%, 100% { transform: rotate(-14deg); } 50% { transform: rotate(14deg); } }
+@keyframes itq-write { from { transform: rotate(-12deg); } to { transform: rotate(8deg); } }
+@media (prefers-reduced-motion: reduce) { .itq-prop-gear, .itq-prop-bell, .itq-prop-pencil { animation: none; } }
