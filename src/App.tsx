@@ -112,7 +112,7 @@ const AppContent: React.FC = () => {
     editingQuizId,
   } = useApp();
   const pathname = usePathname();
-  const { settings } = useApp();
+  const { settings, brandingReady } = useApp();
   const [adminLogin, setAdminLogin] = React.useState(false);
   const license = useLicense(!!currentUser);
 
@@ -122,11 +122,12 @@ const AppContent: React.FC = () => {
     return (
       <div className="min-h-screen flex flex-col bg-slate-50 dark:bg-[#0b0f19] text-slate-900 dark:text-white transition-colors duration-200" dir={uiDir()}>
         <div className="flex-1">
-          {legal ? <React.Suspense fallback={<Spinner />}><LegalPage doc={legal} /></React.Suspense>
+          {!brandingReady && !legal ? <div className="min-h-screen flex items-center justify-center" aria-busy="true"><Spinner /></div>
+            : legal ? <React.Suspense fallback={<Spinner />}><LegalPage doc={legal} /></React.Suspense>
             : settings.maintenance?.on && !adminLogin ? <MaintenanceScreen onAdminLogin={() => setAdminLogin(true)} />
             : <AuthScreen />}
         </div>
-        <Footer />
+        {(brandingReady || !!legal) && <Footer />}
         <Toast />
       </div>
     );
