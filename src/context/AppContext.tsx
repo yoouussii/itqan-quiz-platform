@@ -81,7 +81,7 @@ const SESSION_KEY = 'itqan_session_started_at';
  *  الطاقم وأولياء الأمور كل دقيقتين، والطلاب كل 3 دقائق */
 const AUTO_REFRESH_SECONDS = 120;
 const STUDENT_REFRESH_SECONDS = 180;
-/** البيانات التي نادراً ما تتغير (المستخدمون، المواد، الشعب، الفروع، الإعدادات، الصور، البانرات، الجوائز)
+/** البيانات التي نادراً ما تتغير (المستخدمون، المواد، الفصول، الفروع، الإعدادات، الصور، البانرات، الجوائز)
  *  تُجلب في التحديث الدوري مرة كل 10 دقائق فقط، وكاملةً عند الدخول وبعد أي تعديل */
 const SLOW_SYNC_MS = 10 * 60_000;
 
@@ -1774,7 +1774,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       id: `class_${Date.now()}`,
       student_count: 0,
       created_by: me?.id,
-      // من له فرع: الشعبة في فرعه دائماً
+      // من له فرع: الفصل في فرعه دائماً
       branch_id: (me?.role !== 'admin' && me?.branch_id) || data.branch_id || null,
     };
     const list = [...(StorageService.getClasses() || []), cls];
@@ -1803,7 +1803,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     } else {
       await refreshData();
     }
-    showToast(`تمت إضافة الشعبة/الصف (${cls.name}) بنجاح`, 'success');
+    showToast(`تمت إضافة الفصل/الصف (${cls.name}) بنجاح`, 'success');
     return cls;
   };
 
@@ -1819,7 +1819,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       }
     }
     await refreshData();
-    showToast(t('تم تحديث الشعبة بنجاح'), 'success');
+    showToast(t('تم تحديث الفصل بنجاح'), 'success');
   };
 
   const deleteClassItem = async (id: string) => {
@@ -1834,7 +1834,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       }
     }
     await refreshData();
-    showToast(t('تم حذف الشعبة بنجاح'), 'info');
+    showToast(t('تم حذف الفصل بنجاح'), 'info');
   };
 
   // ---------------- سجل النشاط + الإشعارات (دوال داخلية) ----------------

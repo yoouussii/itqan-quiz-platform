@@ -1,5 +1,5 @@
 /**
- * حسابات لوحة التحليلات: الفلاتر، المقارنة بالفترة السابقة، خريطة الشعب × المواد،
+ * حسابات لوحة التحليلات: الفلاتر، المقارنة بالفترة السابقة، خريطة الفصول × المواد،
  * تطور الدرجات أسبوعياً، والطلاب الذين يحتاجون تدخلاً.
  * كلها من البيانات المحمّلة أصلاً (لا طلبات إضافية للخادم).
  */
@@ -29,7 +29,7 @@ export interface Scope {
   users: User[];
 }
 
-/** الفلاتر عدا الفترة (المادة، الشعبة، المعلم، الفرع) */
+/** الفلاتر عدا الفترة (المادة، الفصل، المعلم، الفرع) */
 export function matchesDims(s: SubmissionWithDetails, f: AnalyticsFilters, scope: Scope): boolean {
   if (s.quiz?.is_deleted || s.status === 'in_progress') return false;
   const quiz = s.quiz || scope.quizzes.find((q) => q.id === s.quiz_id);
@@ -64,7 +64,7 @@ export function summarize(subs: SubmissionWithDetails[]): Summary {
   };
 }
 
-/** خريطة الشعب × المواد: متوسط كل خلية وعدد تسليماتها */
+/** خريطة الفصول × المواد: متوسط كل خلية وعدد تسليماتها */
 export function heatmap(subs: SubmissionWithDetails[], scope: Scope) {
   const cells = new Map<string, number[]>();
   const rows = new Set<string>();

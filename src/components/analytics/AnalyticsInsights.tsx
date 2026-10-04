@@ -102,7 +102,7 @@ export const AnalyticsInsights: React.FC<{ onDrill?: (subs: SubmissionWithDetail
   const subjectIndex = (id: string) => Math.max(0, subjects.findIndex((s) => s.id === id));
   const seriesColor = (id: string) => (dark ? SERIES.dark : SERIES.light)[subjectIndex(id) % 8];
 
-  // ---- خريطة الشعب × المواد ----
+  // ---- خريطة الفصول × المواد ----
   const heat = useMemo(() => heatmap(current, scope),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [current, quizzes, users]);
@@ -243,8 +243,8 @@ export const AnalyticsInsights: React.FC<{ onDrill?: (subs: SubmissionWithDetail
           <option value="">{t('كل المواد')}</option>
           {subjectOptions.map((s) => <option key={s.id} value={s.id}>{t(s.name)}</option>)}
         </select>
-        <select aria-label={t('الشعبة')} className={selectCls} value={f.classId} onChange={(e) => set({ classId: e.target.value })}>
-          <option value="">{t('كل الشعب')}</option>
+        <select aria-label={t('الفصل')} className={selectCls} value={f.classId} onChange={(e) => set({ classId: e.target.value })}>
+          <option value="">{t('كل الفصول')}</option>
           {classOptions.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
         </select>
         {showTeacher && (
@@ -286,11 +286,11 @@ export const AnalyticsInsights: React.FC<{ onDrill?: (subs: SubmissionWithDetail
       </div>
 
       <div className="grid lg:grid-cols-2 gap-5">
-        {/* خريطة الشعب × المواد */}
+        {/* خريطة الفصول × المواد */}
         <Card className="p-5 space-y-3" data-testid="heatmap">
           <div className="flex items-center justify-between gap-2">
             <div>
-              <h3 className="font-bold text-sm text-slate-900 dark:text-white">{t('خريطة الأداء: الشعب × المواد')}</h3>
+              <h3 className="font-bold text-sm text-slate-900 dark:text-white">{t('خريطة الأداء: الفصول × المواد')}</h3>
               <p className="text-[11px] text-slate-500 dark:text-slate-400">{t('متوسط النتائج في كل خلية. اضغط خلية لتصفية الصفحة عليها.')}</p>
             </div>
             <button type="button" onClick={() => setHeatAsTable((v) => !v)} className="shrink-0 whitespace-nowrap inline-flex items-center gap-1 text-[11px] font-bold text-slate-600 dark:text-slate-300 hover:text-indigo-600">
@@ -302,7 +302,7 @@ export const AnalyticsInsights: React.FC<{ onDrill?: (subs: SubmissionWithDetail
           ) : heatAsTable ? (
             <div className="overflow-x-auto max-h-80">
               <table className="w-full text-xs text-start">
-                <thead><tr className="text-slate-500 dark:text-slate-400"><th className="py-1.5 px-2 text-start">{t('الشعبة')}</th><th className="py-1.5 px-2 text-start">{t('المادة')}</th><th className="py-1.5 px-2 text-start">{t('المتوسط')}</th><th className="py-1.5 px-2 text-start">{t('التسليمات')}</th></tr></thead>
+                <thead><tr className="text-slate-500 dark:text-slate-400"><th className="py-1.5 px-2 text-start">{t('الفصل')}</th><th className="py-1.5 px-2 text-start">{t('المادة')}</th><th className="py-1.5 px-2 text-start">{t('المتوسط')}</th><th className="py-1.5 px-2 text-start">{t('التسليمات')}</th></tr></thead>
                 <tbody className="divide-y divide-slate-100 dark:divide-slate-800 text-slate-700 dark:text-slate-200">
                   {heatRows.flatMap((r) => heatCols.map((c) => ({ r, c, v: heat.cell(r, c) })).filter((x) => x.v).map((x) => (
                     <tr key={`${x.r}|${x.c}`}><td className="py-1.5 px-2">{className(x.r)}</td><td className="py-1.5 px-2">{subjectName(x.c)}</td><td className="py-1.5 px-2 font-bold">{x.v!.avg}%</td><td className="py-1.5 px-2">{x.v!.n}</td></tr>

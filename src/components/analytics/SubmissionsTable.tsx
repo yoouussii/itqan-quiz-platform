@@ -347,7 +347,7 @@ export const SubmissionsTable: React.FC<SubmissionsTableProps> = ({
                 }}
                 className="w-full px-3 py-2 text-xs rounded-xl border border-slate-200 dark:border-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-slate-50/50 dark:bg-slate-800 text-slate-700 dark:text-slate-200"
               >
-                <option value="all">{t('جميع الفصول والشعب')}</option>
+                <option value="all">{t('جميع الفصول')}</option>
                 {classes.map((cls) => (
                   <option key={cls.id} value={cls.id}>
                     {cls.name}

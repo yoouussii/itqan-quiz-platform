@@ -271,7 +271,7 @@ public static getCurrentUser(): User | null {
       }
     }
 
-    // توحيد الفصول والشعب
+    // توحيد الفصول
     let assignedCls: string[] = [];
     let classId: string | null = null;
     if (targetRole === 'student') {

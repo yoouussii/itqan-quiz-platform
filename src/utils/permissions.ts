@@ -15,7 +15,7 @@ export const PERMISSION_DEFS: PermDef[] = [
   { key: 'can_add_students', label: 'صلاحية إضافة طلاب جدد', short: 'إضافة طلاب', group: 'الإدارة والتسجيل' },
   { key: 'can_add_teachers', label: 'صلاحية إضافة معلمين', short: 'إضافة معلمين', group: 'الإدارة والتسجيل' },
   { key: 'can_add_custom_subjects', label: 'صلاحية إضافة مواد دراسية', short: 'إضافة مواد', group: 'الإدارة والتسجيل' },
-  { key: 'can_manage_classes', label: 'صلاحية إدارة الفصول والشعب', short: 'إدارة شعب', group: 'الإدارة والتسجيل' },
+  { key: 'can_manage_classes', label: 'صلاحية إدارة الفصول', short: 'إدارة فصول', group: 'الإدارة والتسجيل' },
 
   { key: 'can_view_all_reports', label: 'صلاحية عرض جميع التقارير', short: 'تقارير عامة', group: 'التقارير والتحليل' },
   { key: 'can_view_insights', label: 'المؤشرات المتقدمة: المشاركة، المتابعة، الأوائل، أداء الصفوف', short: 'مؤشرات متقدمة', group: 'التقارير والتحليل' },
