@@ -45,6 +45,8 @@ jobs:
           ADMIN_ID: ${{ inputs.admin_national_id }}
           ADMIN_NAME: ${{ inputs.admin_name }}
           FORCE: ${{ inputs.force && '1' || '0' }}
+          # مفتاح لوحة صاحب المنصة (اختياري): سر باسم OWNER_KEY
+          OWNER_KEY: ${{ secrets.OWNER_KEY }}
         run: |
           test -n "$DATABASE_URL" || { echo "::error::السر «${{ inputs.db_secret }}» غير موجود. أضفه من Settings ← Secrets and variables ← Actions"; exit 1; }
           bash scripts/setup-school.sh

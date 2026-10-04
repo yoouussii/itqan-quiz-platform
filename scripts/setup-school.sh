@@ -52,6 +52,11 @@ select 'school_name', to_jsonb(:'school'::text), now() where :'school' <> ''
 on conflict (key) do update set value = excluded.value, updated_at = now();
 SQL
 
+if [ -n "${OWNER_KEY:-}" ]; then
+  echo "▶ ضبط مفتاح لوحة صاحب المنصة"
+  "${PSQL[@]}" -v k="$OWNER_KEY" -qc "select itqan.set_owner_key(:'k')" >/dev/null
+fi
+
 echo "▶ التحقق"
 "${PSQL[@]}" -tA <<'SQL'
 select 'مديرو النظام: ' || count(*) from public.users where role::text = 'admin';

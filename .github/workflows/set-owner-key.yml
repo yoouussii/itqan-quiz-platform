@@ -1,0 +1,30 @@
+# ضبط مفتاح لوحة صاحب المنصة على قاعدة بيانات مدرسة موجودة (بعد تشغيل 038)
+# Actions ← Set owner key ← Run workflow
+#
+# قبل التشغيل: أضف سراً باسم OWNER_KEY (مفتاح طويل عشوائي، 16 حرفاً على الأقل)
+#   Settings ← Secrets and variables ← Actions ← New repository secret
+# المفتاح نفسه يُستخدم لكل المدارس، وتدخله في صفحة /owner لعرض إحصاءاتها وضبط اشتراكاتها.
+name: Set owner key
+
+on:
+  workflow_dispatch:
+    inputs:
+      db_secret:
+        description: 'اسم سر قاعدة البيانات (اتركه للمدرسة الأساسية، أو اكتب سر مدرسة أخرى مثل DB_URL_SCHOOL2)'
+        required: false
+        default: SUPABASE_DB_URL
+        type: string
+
+jobs:
+  set-key:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Set owner key
+        env:
+          DATABASE_URL: ${{ secrets[inputs.db_secret || 'SUPABASE_DB_URL'] }}
+          OWNER_KEY: ${{ secrets.OWNER_KEY }}
+        run: |
+          test -n "$DATABASE_URL" || { echo "::error::سر قاعدة البيانات غير موجود"; exit 1; }
+          test -n "$OWNER_KEY" || { echo "::error::أضف السر OWNER_KEY أولاً"; exit 1; }
+          psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -v k="$OWNER_KEY" -qc "select itqan.set_owner_key(:'k')"
+          psql "$DATABASE_URL" -tAc "select 'owner key set: ' || (key_hash is not null) from itqan.owner_config where id = 1"
