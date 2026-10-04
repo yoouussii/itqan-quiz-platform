@@ -8,6 +8,8 @@ export interface AttConfig {
   weeks: number;
   threshold: number;
   sheet_classes: Record<string, string>;
+  /** آخر ما وصل من كل شيت (026) */
+  sheets?: Record<string, { students: number; unmatched: number; at: string }>;
   has_token: boolean;
   log: Array<{ at: string; source: 'upload' | 'sheet_sync'; by: string; summary: { sheets: number; matched: number; marks: number; unmatched: number } }>;
   unmatched: Array<{ sheet: string; name: string; count: number }>;

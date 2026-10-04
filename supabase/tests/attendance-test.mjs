@@ -1,6 +1,6 @@
 // اختبارات 022: الحضور — مطابقة الأسماء، تحويل الأسبوع/اليوم إلى تاريخ، الاستبدال عند المزامنة، الربط اليدوي، رمز الشيت، والصلاحيات.
-// و024: طلاب «سجل فقط» بلا حسابات، و025: تطبيق «سجل فقط» فوراً عند الحفظ.
-// تُشغَّل على قاعدة بيانات فيها 001–025 والبيانات التجريبية (seed.sql).
+// و024: طلاب «سجل فقط» بلا حسابات، و025: تطبيق «سجل فقط» فوراً عند الحفظ، و026: أسماء الشيتات.
+// تُشغَّل على قاعدة بيانات فيها 001–026 والبيانات التجريبية (seed.sql).
 import { readFileSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
 const BASE = 'http://localhost:3001';
@@ -159,6 +159,12 @@ ok(SQL(`select count(*) from attendance_roster where sheet='ثاني'`) === '2',
 ok(SQL(`select string_agg(r.day||':'||r.kind, ',') from attendance_records r join attendance_roster ro on ro.id=r.student_id where ro.name='هند سالم'`) === '2026-08-26:absent', 'مع حركاتها من آخر مزامنة');
 r = await rpc('itqan_attendance_config_save', { p: { threshold: 3 } }, T);
 ok(r.status >= 400, 'بدون صلاحية الإدارة لا حفظ ولا تطبيق');
+
+console.log('— أسماء كل الشيتات الواردة (026)');
+r = await rpc('itqan_attendance_config', {}, W);
+ok(r.json?.sheets?.['ثالث']?.students === 6, 'شيت طلاب المنصة يظهر بعدد طلابه حتى لو طوبق كله');
+ok(r.json?.sheets?.['ثاني']?.students === 2 && r.json.sheets['ثاني'].unmatched === 2, 'وعدد من لم يُطابق في آخر وصول');
+ok(r.json?.sheets?.['أول']?.unmatched === 0, 'شيت «سجل فقط» بلا أسماء غير مطابقة');
 
 console.log(`\n${pass} نجح، ${fail} فشل`);
 process.exit(fail ? 1 : 0);
