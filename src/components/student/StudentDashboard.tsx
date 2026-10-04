@@ -11,6 +11,7 @@ import { uiDir, t, isEn, dateLocale } from '../../i18n';
 import { questionsCount, minutesCount, hoursCount, daysCount } from '../../i18n/count';
 import { DevicePushCard } from '../common/DevicePushCard';
 import { DailyChallenge } from './DailyChallenge';
+import { shortName } from '../../utils/names';
 import { StudentHomeData, fetchStudentHome } from '../../services/studentHomeService';
 
 interface StudentDashboardProps {
@@ -355,8 +356,8 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({ onStartQuiz,
 
   const board = home?.leaderboard || [];
   const meInTop = board.some((b) => b.me);
-  const shortName = (n: string) => n.split(' ').slice(0, 2).join(' ');
-  const medal = (r: number) => (r === 1 ? '🥇' : r === 2 ? '🥈' : r === 3 ? '🥉' : String(r));
+  // الميدالية لمن جمع نقاطاً فقط (لا ميداليات لتعادل على صفر)
+  const medal = (r: number, pts: number) => (!pts ? String(r) : r === 1 ? '🥇' : r === 2 ? '🥈' : r === 3 ? '🥉' : String(r));
   const BoardCard = showBoard && (
     <section className={`${card} p-5`} aria-labelledby="board-title" data-testid="class-board">
       <div className="flex items-center justify-between mb-3 gap-2">
@@ -366,7 +367,7 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({ onStartQuiz,
       <ol className="space-y-1.5 text-sm">
         {board.map((b) => (
           <li key={`${b.rank}-${b.name}`} className={`flex items-center gap-3 px-3 py-2 rounded-xl ${b.me ? 'bg-indigo-50 dark:bg-indigo-950/50 font-bold text-indigo-800 dark:text-indigo-200' : 'text-slate-800 dark:text-slate-200'}`}>
-            <span className="w-6 text-center">{medal(b.rank)}</span>
+            <span className="w-6 text-center">{medal(b.rank, b.points)}</span>
             <span className="flex-1 truncate">{shortName(b.name)}{b.me ? ` ${t('(أنت)')}` : ''}</span>
             <span className="text-slate-500 dark:text-slate-400 font-semibold tabular-nums">{b.points}</span>
           </li>
