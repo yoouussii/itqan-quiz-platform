@@ -111,7 +111,7 @@ export const QuizEditor: React.FC = () => {
       ? [currentUser.class_id]
       : [];
 
-  // شعب المعلم المسندة. إن لم يصل منها شيء (حُذفت أو خارج فرعه) نعرض كل الشعب المتاحة له
+  // فصول المعلم المسندة. إن لم يصل منها شيء (حُذفت أو خارج فرعه) نعرض كل الفصول المتاحة له
   // بدل قائمة فارغة، والخادم يحصر ما يراه في فرعه أصلاً
   const assignedVisible = classes.filter((c) => teacherClassIds.includes(c.id));
   const availableClasses =
@@ -265,7 +265,7 @@ export const QuizEditor: React.FC = () => {
     const asgs: any[] = (quiz.assignments || []).filter((a: any) => a.target_type !== 'assigned_teacher');
     if (asgs.length > 0) {
       const first = asgs[0];
-      // خيار «جميع الطلاب» أُلغي: الاختبار القديم الموجّه للجميع يُعرض كل الشعب المتاحة محددة
+      // خيار «جميع الطلاب» أُلغي: الاختبار القديم الموجّه للجميع يُعرض كل الفصول المتاحة محددة
       if (first.target_type === 'all') {
         setTargetType('class');
         setTargetClassIds(availableClasses.map((c) => c.id));
@@ -972,7 +972,7 @@ export const QuizEditor: React.FC = () => {
               }`}
             >
               <div className="flex items-center justify-between mb-2">
-                <span className="font-bold text-xs text-slate-900 dark:text-white">{t('صف / شعبة محددة')}</span>
+                <span className="font-bold text-xs text-slate-900 dark:text-white">{t('صف / فصل محدد')}</span>
                 <input
                   type="radio"
                   name="targetType"
@@ -982,7 +982,7 @@ export const QuizEditor: React.FC = () => {
                 />
               </div>
               <p className="text-[11px] text-slate-500 dark:text-slate-400">
-                {t('يظهر حصراً لطلاب الشعبة المحددة فقط')}
+                {t('يظهر حصراً لطلاب الفصل المحدد فقط')}
               </p>
             </label>
 
@@ -1031,7 +1031,7 @@ export const QuizEditor: React.FC = () => {
               </div>
               {availableClasses.length === 0 && (
                 <p className="text-[13px] leading-relaxed text-amber-800 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/40 rounded-xl p-3">
-                  {t('لا توجد شعب متاحة لك. إن كنت مسنداً لفرع، اطلب من مدير النظام ربط الشعب بفرعك من «المواد والشعب» ← تعديل الشعبة، أو إضافة شعب لك.')}
+                  {t('لا توجد فصول متاحة لك. إن كنت مسنداً لفرع، اطلب من مدير النظام ربط الفصول بفرعك من «المواد والفصول» ← تعديل الفصل، أو إضافة فصول لك.')}
                 </p>
               )}
               {hiddenClassNames.length > 0 && (

@@ -108,8 +108,8 @@ export const OutcomesPage: React.FC = () => {
           <option value="">{t('كل المواد')}</option>
           {subjects.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
         </select>
-        <select aria-label={t('الشعبة')} value={classId} onChange={(e) => setClassId(e.target.value)} className={selectCls}>
-          <option value="">{t('كل الشعب')}</option>
+        <select aria-label={t('الفصل')} value={classId} onChange={(e) => setClassId(e.target.value)} className={selectCls}>
+          <option value="">{t('كل الفصول')}</option>
           {classes.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
         </select>
         <select aria-label={t('الاختبار')} value={quizId} onChange={(e) => setQuizId(e.target.value)} className={`${selectCls} max-w-[260px]`}>
@@ -168,7 +168,7 @@ export const OutcomesPage: React.FC = () => {
                   {isOpen && (
                     <div className="px-4 pb-4 grid md:grid-cols-2 gap-4 border-t border-slate-100 dark:border-slate-800 pt-4">
                       <div className="space-y-2">
-                        <h3 className="text-sm font-bold text-slate-800 dark:text-slate-200">{t('حسب الشعبة')}</h3>
+                        <h3 className="text-sm font-bold text-slate-800 dark:text-slate-200">{t('حسب الفصل')}</h3>
                         {byClass.length === 0 && <p className="text-xs text-slate-500">—</p>}
                         {byClass.map((c) => (
                           <div key={c.id} className="space-y-1">

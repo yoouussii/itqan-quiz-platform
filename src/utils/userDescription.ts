@@ -5,7 +5,7 @@ const join = (xs: string[]) => (xs.length <= 1 ? xs.join('') : `${xs.slice(0, -1
 /**
  * وصف المستخدم تحت اسمه:
  *  معلم الرياضيات والعلوم • الصف الثالث (أ)، (ب)
- *  الصف الثالث الابتدائي شعبة (أ) • المرحلة الابتدائية
+ *  الصف الثالث الابتدائي فصل (أ) • المرحلة الابتدائية
  */
 export function describeUser(u: User, subjects: Subject[], classes: SchoolClass[]): { title: string; details: string[] } {
   const subjectNames = (u.assigned_subject_ids || [])

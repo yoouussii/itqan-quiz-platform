@@ -15,7 +15,7 @@ import { uiDir, t, isEn } from '../../i18n';
 
 const avgOf = (vals: number[]) => (vals.length ? Math.round(vals.reduce((a, b) => a + b, 0) / vals.length) : 0);
 
-/** الرئيسية للمدير: مؤشرات مختصرة + «يحتاج انتباهك» + أداء الشعب + آخر التسليمات + الأوائل.
+/** الرئيسية للمدير: مؤشرات مختصرة + «يحتاج انتباهك» + أداء الفصول + آخر التسليمات + الأوائل.
  *  الجداول الكاملة في صفحاتها: بنك الاختبارات، والنتائج والتحليلات. */
 export const AdminDashboard: React.FC = () => {
   const {
@@ -129,7 +129,7 @@ export const AdminDashboard: React.FC = () => {
       />
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <StatTile label={t('الطلاب')} value={totalStudents} hint={isEn() ? `In ${classes.length} ${classes.length === 1 ? 'class' : 'classes'}` : `في ${classes.length} ${classes.length === 1 ? 'شعبة' : 'شعب'}`} onClick={() => setKpiModal('students')} />
+        <StatTile label={t('الطلاب')} value={totalStudents} hint={isEn() ? `In ${classes.length} ${classes.length === 1 ? 'class' : 'classes'}` : `في ${classes.length} ${classes.length === 1 ? 'فصل' : 'فصول'}`} onClick={() => setKpiModal('students')} />
         <StatTile label={t('اختبارات متاحة الآن')} value={openNow.length} hint={endingToday > 0 ? t('{n} تنتهي اليوم', { n: endingToday }) : t('من {n} اختباراً', { n: liveQuizzes.length })} hintTone={endingToday > 0 ? 'bad' : 'muted'} onClick={() => setKpiModal('quizzes')} />
         <StatTile label={t('متوسط النتائج')} value={`${kpis?.averageScore ?? 0}%`} hint={t('نسبة النجاح {pass}%', { pass: kpis?.passRate ?? 0 })} onClick={() => setKpiModal('avg')} />
         <StatTile label={t('الطلاب النشطون (7 أيام)')} value={activeStudents} progress={totalStudents ? (activeStudents / totalStudents) * 100 : 0} onClick={() => setKpiModal('active')} />
@@ -161,7 +161,7 @@ export const AdminDashboard: React.FC = () => {
         </Card>
 
         <Card className="lg:col-span-2 p-5 sm:p-6 flex flex-col gap-4">
-          <SectionTitle>{t('أداء الشعب')}</SectionTitle>
+          <SectionTitle>{t('أداء الفصول')}</SectionTitle>
           {classPerf.length === 0 && <p className="text-sm text-slate-500 py-6 text-center">{t('لا توجد نتائج بعد')}</p>}
           {classPerf.map(({ c, avg }) => (
             <div key={c.id}>
@@ -175,7 +175,7 @@ export const AdminDashboard: React.FC = () => {
             </div>
           ))}
           <button type="button" onClick={() => setCurrentView('analytics')} className="mt-auto text-sm font-semibold text-indigo-700 dark:text-indigo-400 text-start hover:underline">
-            {t('كل الشعب والتحليلات ←')}
+            {t('كل الفصول والتحليلات ←')}
           </button>
         </Card>
       </div>

@@ -22,7 +22,7 @@ export interface OutcomeStat {
   /** معرّفات الأسئلة (للعرض) */
   questionIds: Set<string>;
   students: Map<string, StudentMastery>;
-  /** حسب الشعبة: معرّف الشعبة ← الدرجات */
+  /** حسب الفصل: معرّف الفصل ← الدرجات */
   classes: Map<string, StudentMastery>;
 }
 

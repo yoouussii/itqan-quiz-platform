@@ -110,7 +110,7 @@ export const TeacherDashboard: React.FC = () => {
   const mySubjects = subjects.filter((s) => currentUser?.assigned_subject_ids?.includes(s.id)).map((s) => s.name);
   const myClassCount = currentUser?.assigned_class_ids?.length || 0;
   const myStudentCount = students.filter((s) => s.class_id && currentUser?.assigned_class_ids?.includes(s.class_id)).length;
-  const subtitle = [mySubjects.join('، '), myClassCount ? (isEn() ? `${myClassCount} ${myClassCount === 1 ? 'class' : 'classes'}` : `${myClassCount} ${myClassCount === 1 ? 'شعبة' : 'شعب'}`) : '', myStudentCount ? (isEn() ? `${myStudentCount} students` : `${myStudentCount} طالباً`) : '']
+  const subtitle = [mySubjects.join('، '), myClassCount ? (isEn() ? `${myClassCount} ${myClassCount === 1 ? 'class' : 'classes'}` : `${myClassCount} ${myClassCount === 1 ? 'فصل' : 'فصول'}`) : '', myStudentCount ? (isEn() ? `${myStudentCount} students` : `${myStudentCount} طالباً`) : '']
     .filter(Boolean).join(' · ') || t('إنشاء الاختبارات ومتابعة نتائج طلابك');
 
   const newQuiz = () => { setEditingQuizId(null); setDuplicateQuizId(null); setCurrentView('create_quiz'); };

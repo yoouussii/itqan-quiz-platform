@@ -271,7 +271,7 @@ public static getCurrentUser(): User | null {
       }
     }
 
-    // توحيد الفصول والشعب
+    // توحيد الفصول
     let assignedCls: string[] = [];
     let classId: string | null = null;
     if (targetRole === 'student') {
@@ -354,6 +354,14 @@ public static getCurrentUser(): User | null {
       ids.push(id);
       setLocalItem(STORAGE_KEYS.DELETED_SUBJECT_IDS, ids);
     }
+  }
+
+  /** يُلغي علامة «محذوف محلياً» عن عناصر ما زالت موجودة على الخادم (الخادم هو المرجع) */
+  public static forgetDeletedIds(kind: 'subject' | 'class', ids: string[]): void {
+    if (!ids.length) return;
+    const key = kind === 'subject' ? STORAGE_KEYS.DELETED_SUBJECT_IDS : STORAGE_KEYS.DELETED_CLASS_IDS;
+    const drop = new Set(ids);
+    setLocalItem(key, getLocalItem<string[]>(key, []).filter((x) => !drop.has(x)));
   }
 
   public static getDeletedClassIds(): string[] {

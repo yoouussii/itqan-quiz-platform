@@ -406,8 +406,8 @@ export const UsersManagement: React.FC = () => {
   // === Excel Import Functions ===
   const downloadExcelTemplate = () => {
     const templateData = [
-      { 'الاسم': 'أحمد محمد', 'رقم الهوية': '1234567890', 'كلمة السر': '123456', 'الصف / الشعبة': 'الصف الأول أ', 'النوع': 'ذكر', 'الفرع': 'فرع البنين', 'هوية ولي الأمر': '1098765432', 'كلمة سر ولي الأمر': '654321' },
-      { 'الاسم': 'سارة علي', 'رقم الهوية': '0987654321', 'كلمة السر': '123456', 'الصف / الشعبة': 'الصف الثاني ب', 'النوع': 'أنثى', 'الفرع': 'فرع البنات', 'هوية ولي الأمر': '1098765432', 'كلمة سر ولي الأمر': '654321' },
+      { 'الاسم': 'أحمد محمد', 'رقم الهوية': '1234567890', 'كلمة السر': '123456', 'الصف / الفصل': 'الصف الأول أ', 'النوع': 'ذكر', 'الفرع': 'فرع البنين', 'هوية ولي الأمر': '1098765432', 'كلمة سر ولي الأمر': '654321' },
+      { 'الاسم': 'سارة علي', 'رقم الهوية': '0987654321', 'كلمة السر': '123456', 'الصف / الفصل': 'الصف الثاني ب', 'النوع': 'أنثى', 'الفرع': 'فرع البنات', 'هوية ولي الأمر': '1098765432', 'كلمة سر ولي الأمر': '654321' },
     ];
     const ws = XLSX.utils.json_to_sheet(templateData);
     const wb = XLSX.utils.book_new();
@@ -440,7 +440,7 @@ export const UsersManagement: React.FC = () => {
           name: String(row['الاسم'] || row['name'] || row['Name'] || '').trim(),
           national_id: String(row['رقم الهوية'] || row['اسم المستخدم'] || row['national_id'] || row['username'] || row['ID'] || '').trim(),
           password: String(row['كلمة السر'] || row['password'] || row['Password'] || DEFAULT_PASSWORD).trim(),
-          class_name: String(row['الصف / الشعبة'] || row['الصف'] || row['class'] || row['Class'] || '').trim(),
+          class_name: String(row['الصف / الفصل'] || row['الصف'] || row['class'] || row['Class'] || '').trim(),
           gender: parseGender(row['النوع'] || row['الجنس'] || row['gender'] || row['Gender']),
           branch_name: String(row['الفرع'] || row['branch'] || row['Branch'] || '').trim(),
           parent_id: String(row['هوية ولي الأمر'] || row['رقم هوية ولي الأمر'] || row['parent_id'] || '').trim(),
@@ -677,7 +677,7 @@ export const UsersManagement: React.FC = () => {
             onChange={(e) => setClassFilter(e.target.value)}
             className="h-11 px-3 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-[15px] text-slate-800 dark:text-slate-100 max-w-[16rem]"
           >
-            <option value="all">{t('كل الشعب')}</option>
+            <option value="all">{t('كل الفصول')}</option>
             {classFilterOptions.map((c) => (
               <option key={c.id} value={c.id}>
                 {c.name} ({classCount(c.id)})
@@ -725,7 +725,7 @@ export const UsersManagement: React.FC = () => {
             <span className="text-[15px] font-semibold flex-1 min-w-[8rem]">{t('تم تحديد')}{' '}{selectedIds.length}</span>
             <select aria-label={t('نقل إلى صف')} value={moveClassId} onChange={(e) => setMoveClassId(e.target.value)}
               className="h-10 px-3 text-sm rounded-xl border-0 bg-white/10 text-white [&>option]:text-slate-900">
-              <option value="">{t('نقل الطلاب إلى شعبة…')}</option>
+              <option value="">{t('نقل الطلاب إلى فصل…')}</option>
               {classes.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
             </select>
             <button type="button" disabled={bulkBusy || !moveClassId || !selectedStudents.length}
@@ -943,7 +943,7 @@ export const UsersManagement: React.FC = () => {
                           </div>
                         </div>
                       )}
-                      {u.role === 'student' && (userClass?.name || t('غير مسكن في شعبة'))}
+                      {u.role === 'student' && (userClass?.name || t('غير مسكن في فصل'))}
                       {u.role === 'parent' && (
                         <span className="text-[13px]">
                           {(u.child_ids || []).map((id) => users.find((x) => x.id === id)?.name).filter(Boolean).join(t('، ')) || t('لا يوجد أبناء مرتبطون')}
@@ -1189,7 +1189,7 @@ export const UsersManagement: React.FC = () => {
               {((editingUser ? editingUser.role : role) === 'student') && (
                 <div>
                   <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
-                    {t('الصف الدراسي والشعبة')}
+                    {t('الصف الدراسي والفصل')}
                   </label>
                   <select
                     value={editingUser ? (editingUser.class_id || editingUser.assigned_class_ids?.[0] || classId) : classId}
@@ -1256,10 +1256,10 @@ export const UsersManagement: React.FC = () => {
                     </div>
                   </div>
 
-                  {/* الفصول والشعب المسندة */}
+                  {/* الفصول المسندة */}
                   <div>
                     <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5">
-                      {t('الفصول والشعب المسندة (اختر فصل أو أكثر):')}
+                      {t('الفصول المسندة (اختر فصل أو أكثر):')}
                     </label>
                     <div className="grid grid-cols-2 gap-2 max-h-36 overflow-y-auto p-1.5 border rounded-xl border-slate-200 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-800/30">
                       {classes.map((c) => {
@@ -1478,7 +1478,7 @@ export const UsersManagement: React.FC = () => {
                       <th className="py-2 px-3">{t('الاسم')}</th>
                       <th className="py-2 px-3">{t('رقم الهوية')}</th>
                       <th className="py-2 px-3">{t('كلمة السر')}</th>
-                      <th className="py-2 px-3">{t('الصف / الشعبة')}</th>
+                      <th className="py-2 px-3">{t('الصف / الفصل')}</th>
                       <th className="py-2 px-3">{t('النوع / الفرع')}</th>
                       <th className="py-2 px-3">{t('ولي الأمر')}</th>
                       <th className="py-2 px-3">{t('الحالة')}</th>

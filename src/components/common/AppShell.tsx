@@ -59,7 +59,7 @@ const staffGroups = (u: User, pendingApprovals: number, preparationsUrl: string,
 
   if (isAdmin) school.push({ id: 'users', label: t('المستخدمون'), icon: Users });
   else if (p.can_add_students || p.can_add_teachers) school.push({ id: 'users_management', label: t('المستخدمون'), icon: Users });
-  if (isAdmin || p.can_add_custom_subjects || p.can_manage_classes) school.push({ id: 'subjects_classes', label: t('المواد والشعب'), icon: Layers });
+  if (isAdmin || p.can_add_custom_subjects || p.can_manage_classes) school.push({ id: 'subjects_classes', label: t('المواد والفصول'), icon: Layers });
   if (isAdmin) school.push({ id: 'banners', label: t('الإعلانات والبانرات'), icon: Images });
   if (hasPerm(u, 'can_view_leaderboard')) school.push({ id: 'leaderboard', label: t('لوحة الشرف'), icon: Trophy });
   if (hasPerm(u, 'can_award_badges')) school.push({ id: 'certificates', label: t('الشهادات'), icon: Award });

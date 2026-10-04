@@ -190,7 +190,7 @@ export const SubjectsClassesManagement: React.FC = () => {
       await updateClassData(editingClass.id, {
         name: className.trim(),
         grade_level: gradeLevel.trim() || t('المرحلة الدراسية'),
-        // الشعب مشتركة بين كل الفروع
+        // الفصول مشتركة بين كل الفروع
         ...(isAdmin ? { branch_id: null } : {}),
       });
       setEditingClass(null);
@@ -206,7 +206,7 @@ export const SubjectsClassesManagement: React.FC = () => {
   };
 
   const handleDeleteClass = async (c: SchoolClass) => {
-    if (window.confirm(t('هل أنت متأكد من حذف الشعبة ({name})؟', { name: c.name }))) {
+    if (window.confirm(t('هل أنت متأكد من حذف الفصل ({name})؟', { name: c.name }))) {
       await deleteClassItem(c.id);
       await refreshData();
     }
@@ -220,10 +220,10 @@ export const SubjectsClassesManagement: React.FC = () => {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-slate-200 dark:border-slate-800">
         <div>
           <h1 className="text-2xl font-black text-slate-900 dark:text-white font-cairo">
-            {t('إدارة المواد الدراسية والفصول والشعب')}
+            {t('إدارة المواد الدراسية والفصول')}
           </h1>
           <p className="text-xs text-slate-500 dark:text-slate-400">
-            {t('إضافة وتعديل مسميات المواد والشعب المدرسية المخصصة بحرية ودون قيود مسبقة')}
+            {t('إضافة وتعديل مسميات المواد والفصول المدرسية المخصصة بحرية ودون قيود مسبقة')}
           </p>
         </div>
 
@@ -250,7 +250,7 @@ export const SubjectsClassesManagement: React.FC = () => {
             }`}
           >
             <School className="w-4 h-4" />
-            <span>{t('الفصول والشعب (')}{classes.length})</span>
+            <span>{t('الفصول (')}{classes.length})</span>
           </button>
 
           {isAdmin && (
@@ -351,7 +351,7 @@ export const SubjectsClassesManagement: React.FC = () => {
         <div className="space-y-4">
           <div className="flex items-center justify-between">
             <h3 className="text-sm font-bold text-slate-700 dark:text-slate-300">
-              {t('قائمة الفصول والشعب الدراسية')}
+              {t('قائمة الفصول الدراسية')}
             </h3>
 
             {canManageClasses && (
@@ -360,7 +360,7 @@ export const SubjectsClassesManagement: React.FC = () => {
                 className="inline-flex items-center gap-1.5 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold shadow-sm transition-all"
               >
                 <Plus className="w-4 h-4" />
-                <span>{t('إضافة شعبة / صف جديد')}</span>
+                <span>{t('إضافة فصل / صف جديد')}</span>
               </button>
             )}
           </div>
@@ -428,7 +428,7 @@ export const SubjectsClassesManagement: React.FC = () => {
       {activeTab === 'branches' && isAdmin && (
         <div className="space-y-4 max-w-3xl">
           <p className="text-[14.5px] text-slate-600 dark:text-slate-400 leading-relaxed">
-            {t('كل الشعب والمواد مشتركة بين جميع الفروع تلقائياً، فأي فرع جديد يجدها جاهزة. المعلم أو المشرف المسند لفرع يرى طلاب واختبارات ونتائج فرعه فقط، ومن بلا فرع يرى الكل. يُسند الفرع للمستخدمين من صفحة «المستخدمون» (فردياً أو بالتحديد الجماعي).')}
+            {t('كل الفصول والمواد مشتركة بين جميع الفروع تلقائياً، فأي فرع جديد يجدها جاهزة. المعلم أو المشرف المسند لفرع يرى طلاب واختبارات ونتائج فرعه فقط، ومن بلا فرع يرى الكل. يُسند الفرع للمستخدمين من صفحة «المستخدمون» (فردياً أو بالتحديد الجماعي).')}
           </p>
           <form
             onSubmit={async (e) => { e.preventDefault(); if (!branchName.trim()) return; await saveBranch(branchName); setBranchName(''); }}
@@ -585,7 +585,7 @@ export const SubjectsClassesManagement: React.FC = () => {
           <div className="bg-white dark:bg-slate-900 rounded-3xl max-w-md w-full p-6 shadow-2xl border border-slate-100 dark:border-slate-800 animate-in fade-in zoom-in-95">
             <div className="flex items-center justify-between pb-3 mb-4 border-b border-slate-100 dark:border-slate-800">
               <h3 className="font-bold text-base text-slate-900 dark:text-white">
-                {editingClass ? t('تعديل الشعبة: {name}', { name: editingClass.name }) : t('إضافة شعبة / صف جديد')}
+                {editingClass ? t('تعديل الفصل: {name}', { name: editingClass.name }) : t('إضافة فصل / صف جديد')}
               </h3>
               <button
                 onClick={() => {
@@ -601,12 +601,12 @@ export const SubjectsClassesManagement: React.FC = () => {
             <form onSubmit={handleSaveClass} className="space-y-4">
               <div>
                 <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
-                  {t('اسم الصف والشعبة')} *
+                  {t('اسم الصف والفصل')} *
                 </label>
                 <input
                   type="text"
                   required
-                  placeholder={t('مثال: الصف الثالث الثانوي - شعبة موهبة (ج)')}
+                  placeholder={t('مثال: الصف الثالث الثانوي - فصل موهبة (ج)')}
                   value={className}
                   onChange={(e) => setClassName(e.target.value)}
                   className="w-full px-3 py-2 text-xs rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
@@ -642,7 +642,7 @@ export const SubjectsClassesManagement: React.FC = () => {
                   type="submit"
                   className="px-5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold"
                 >
-                  {t('حفظ الشعبة')}
+                  {t('حفظ الفصل')}
                 </button>
               </div>
             </form>
@@ -722,7 +722,7 @@ export const SubjectsClassesManagement: React.FC = () => {
             <div className="flex items-center justify-between pb-3 mb-4 border-b border-slate-100 dark:border-slate-800">
               <div>
                 <h3 className="font-bold text-base text-slate-900 dark:text-white">
-                  {t('إسناد الطلاب والمعلمين للشعبة:')}{' '}{assignClassUsersModal.name}
+                  {t('إسناد الطلاب والمعلمين للفصل:')}{' '}{assignClassUsersModal.name}
                 </h3>
                 <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
                   {t('اضغط على الاسم لإسناده أو إلغاء إسناده لهذا الفصل')}
