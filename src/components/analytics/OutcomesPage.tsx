@@ -1,5 +1,6 @@
 import React, { useMemo, useState } from 'react';
-import { Target, ChevronDown, Download, Sparkles, AlertTriangle } from 'lucide-react';
+import { Target, ChevronDown, Download, Sparkles, AlertTriangle, LifeBuoy } from 'lucide-react';
+import { RemedialPlanModal } from '../common/RemedialPlanModal';
 import { useApp } from '../../context/AppContext';
 import { PageHeader, Card, Chip, StatTile, Button } from '../common/ui';
 import { uiDir, t } from '../../i18n';
@@ -47,6 +48,7 @@ export const SkillsCard: React.FC<{ studentId: string; quizzes: QuizWithDetails[
 
 /** صفحة تحليل نواتج التعلم للطاقم */
 export const OutcomesPage: React.FC = () => {
+  const [planFor, setPlanFor] = useState<null | { s: OutcomeStat; needs: { id: string; p: number }[] }>(null);
   const { currentUser, quizzes, submissions, subjects, classes, users, setCurrentView, setEditingQuizId, showToast } = useApp();
   const [subjectId, setSubjectId] = useState('');
   const [classId, setClassId] = useState('');
@@ -187,7 +189,10 @@ export const OutcomesPage: React.FC = () => {
                           </ul>
                         )}
                         {canCreate && (
-                          <Button size="sm" variant="secondary" icon={Sparkles} className="mt-2" onClick={() => void remedial(s)}>{t('اختبار علاجي من بنك الأسئلة')}</Button>
+                          <div className="flex flex-wrap gap-2 mt-2">
+                            {needs.length > 0 && <Button size="sm" icon={LifeBuoy} onClick={() => setPlanFor({ s, needs })}>{t('خطة علاجية للطلاب ({n})', { n: needs.length })}</Button>}
+                            <Button size="sm" variant="secondary" icon={Sparkles} onClick={() => void remedial(s)}>{t('اختبار علاجي من بنك الأسئلة')}</Button>
+                          </div>
                         )}
                       </div>
                     </div>
@@ -197,6 +202,10 @@ export const OutcomesPage: React.FC = () => {
             );
           })}
         </ul>
+      )}
+      {planFor && (
+        <RemedialPlanModal outcome={planFor.s.outcome} subjectId={planFor.s.subject_id || null} subjectName={subjectName(planFor.s.subject_id)}
+          students={planFor.needs.map((n) => ({ id: n.id, name: userName(n.id), p: n.p }))} onClose={() => setPlanFor(null)} />
       )}
     </div>
   );
