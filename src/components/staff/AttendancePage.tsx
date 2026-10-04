@@ -52,7 +52,7 @@ export const AttendancePage: React.FC = () => {
   const canManage = hasPerm(currentUser, 'can_manage_attendance');
   const [tab, setTab] = useState<Tab>('dashboard');
   const [cfg, setCfg] = useState<AttConfig | null>(null);
-  const [period, setPeriod] = useState<Period>('month');
+  const [period, setPeriod] = useState<Period>('semester');
   const today = isoDay(new Date());
   const [customFrom, setCustomFrom] = useState(isoDay(new Date(Date.now() - 30 * 864e5)));
   const [customTo, setCustomTo] = useState(today);
@@ -154,6 +154,16 @@ export const AttendancePage: React.FC = () => {
     </Card>
   );
 
+  // آخر مزامنة من الشيت (أو آخر رفع ملف إن لم تكن هناك مزامنة)
+  const lastSync = cfg?.log.find((l) => l.source === 'sheet_sync') || cfg?.log[0] || null;
+  const fmtWhen = (iso: string) => {
+    const d = new Date(iso);
+    const time = d.toLocaleTimeString(dateLocale(), { hour: 'numeric', minute: '2-digit' });
+    const days = Math.round((new Date(isoDay(new Date())).getTime() - new Date(isoDay(d)).getTime()) / 864e5);
+    if (days === 0) return t('اليوم {t}', { t: time });
+    if (days === 1) return t('أمس {t}', { t: time });
+    return `${d.toLocaleDateString(dateLocale(), { weekday: 'long', day: 'numeric', month: 'long' })} ${time}`;
+  };
   const chartTip = { contentStyle: { borderRadius: 12, border: '1px solid #e2e8f0', fontSize: 13, direction: uiDir() as any } };
   const loading = records === null;
 
@@ -322,7 +332,15 @@ export const AttendancePage: React.FC = () => {
     <div className="max-w-7xl mx-auto py-6 sm:py-8 px-4 sm:px-6 space-y-5" dir={uiDir()}>
       <PageHeader title={<span className="inline-flex items-center gap-2"><CalendarCheck className="w-7 h-7 text-indigo-600" />{t('الحضور والغياب')}</span>}
         subtitle={t('الغياب والتأخر والاستئذان من سجل المدرسة، مع تحليلات لكل فصل وطالب')}
-        actions={<Button size="sm" variant="secondary" icon={RefreshCw} onClick={() => { reload(); loadCfg(); loadRoster(); }}>{t('تحديث')}</Button>} />
+        actions={<div className="flex flex-wrap items-center gap-2.5">
+          {lastSync && (
+            <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-slate-600 dark:text-slate-300 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-full px-3 py-1.5" title={t('يتحدث مع كل مزامنة من الشيت أو رفع ملف')}>
+              <span className={`w-2 h-2 rounded-full ${Date.now() - new Date(lastSync.at).getTime() < 864e5 ? 'bg-emerald-500' : 'bg-amber-500'}`} />
+              {t(lastSync.source === 'sheet_sync' ? 'آخر تحديث من الشيت: {d}' : 'آخر رفع ملف: {d}', { d: fmtWhen(lastSync.at) })}
+            </span>
+          )}
+          <Button size="sm" variant="secondary" icon={RefreshCw} onClick={() => { reload(); loadCfg(); loadRoster(); }}>{t('تحديث')}</Button>
+        </div>} />
 
       <div className="flex flex-wrap items-center gap-2">
         {([['dashboard', 'اللوحة'], ['students', 'سجل الطلاب'], ['week', 'عرض الأسبوع'], ...(canManage ? [['sync', 'الربط والاستيراد']] : [])] as Array<[Tab, string]>).map(([k, l]) => (
@@ -445,7 +463,9 @@ const SyncPanel: React.FC<{ cfg: AttConfig | null; onChanged: () => void }> = ({
   const fileRef = useRef<HTMLInputElement>(null);
   useEffect(() => { if (cfg) { setStart(cfg.start_date || ''); setWeeks(cfg.weeks); setThreshold(cfg.threshold); setMapping(cfg.sheet_classes || {}); } }, [cfg]);
   const students = useMemo(() => (users as User[]).filter((u) => u.role === 'student').sort((a, b) => a.name.localeCompare(b.name, 'ar')), [users]);
-  const sheetNames = Array.from(new Set([...(parsed?.sheets.map((s) => s.sheet) || []), ...Object.keys(mapping)]));
+  // أسماء الشيتات: من الملف المرفوع، أو الإعداد المحفوظ، أو آخر مزامنة (أسماء لم تُطابق)
+  const sheetNames = Array.from(new Set([...(parsed?.sheets.map((s) => s.sheet) || []), ...Object.keys(mapping), ...(cfg?.unmatched.map((u) => u.sheet) || [])]))
+    .sort((a, b) => a.localeCompare(b, 'ar', { numeric: true }));
 
   const save = async (extra?: Partial<AttConfig>) => {
     if (start && new Date(`${start}T12:00:00`).getDay() !== 0 && !window.confirm(t('تاريخ بداية الفصل ليس يوم أحد. الأسبوع الأول في السجل يبدأ يوم الأحد، متابعة؟'))) return false;
@@ -512,17 +532,7 @@ const SyncPanel: React.FC<{ cfg: AttConfig | null; onChanged: () => void }> = ({
           {parsed && (
             <div className="space-y-3">
               <p className="text-sm font-semibold text-slate-800 dark:text-slate-100">{t('وُجد {s} شيت فيها {n} طالب و{m} علامة', { s: parsed.sheets.length, n: parsed.sheets.reduce((a, x) => a + x.students.length, 0), m: parsed.sheets.reduce((a, x) => a + x.students.reduce((b, y) => b + y.marks.length, 0), 0) })}</p>
-              <p className="text-xs text-slate-500">{t('اربط كل شيت بفصله في المنصة (اختياري، يساعد عند تشابه الأسماء):')}</p>
-              {sheetNames.map((sh) => (
-                <div key={sh} className="flex items-center gap-2">
-                  <span className="w-28 text-sm font-semibold truncate">{sh}</span>
-                  <select value={mapping[sh] || ''} onChange={(e) => setMapping((m) => ({ ...m, [sh]: e.target.value }))} className="flex-1 h-10 px-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm">
-                    <option value="">{t('طلاب المنصة (كل المدرسة)')}</option>
-                    {classes.map((c) => <option key={c.id} value={c.id}>{t('طلاب المنصة: {c}', { c: c.name })}</option>)}
-                    <option value={ROSTER_SHEET}>{t('سجل فقط (طلاب بدون حسابات)')}</option>
-                  </select>
-                </div>
-              ))}
+              <p className="text-xs text-slate-500">{t('حدد نوع طلاب كل شيت من بطاقة «الشيتات ونوع طلابها» قبل الاستيراد.')}</p>
               <Button onClick={() => void runImport()} disabled={busy} icon={Upload}>{busy ? t('جارٍ الاستيراد…') : t('استيراد إلى المنصة')}</Button>
             </div>
           )}
@@ -535,6 +545,24 @@ const SyncPanel: React.FC<{ cfg: AttConfig | null; onChanged: () => void }> = ({
             </div>
           )}
         </Card>
+
+        {sheetNames.length > 0 && (
+          <Card className="p-5 space-y-3">
+            <h2 className="font-bold text-slate-900 dark:text-white">{t('الشيتات ونوع طلابها')}</h2>
+            <p className="text-xs text-slate-500 dark:text-slate-400">{t('«طلاب المنصة»: تُطابق الأسماء مع حسابات الطلاب. «سجل فقط»: صفوف ليس لطلابها حسابات، تُسجَّل في الحضور فقط بدون إنشاء حسابات.')}</p>
+            {sheetNames.map((sh) => (
+              <div key={sh} className="flex items-center gap-2">
+                <span className="w-28 text-sm font-semibold truncate" title={sh}>{sh}</span>
+                <select aria-label={sh} value={mapping[sh] || ''} onChange={(e) => setMapping((m) => ({ ...m, [sh]: e.target.value }))} className="flex-1 h-10 px-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm">
+                  <option value="">{t('طلاب المنصة (كل المدرسة)')}</option>
+                  {classes.map((c) => <option key={c.id} value={c.id}>{t('طلاب المنصة: {c}', { c: c.name })}</option>)}
+                  <option value={ROSTER_SHEET}>{t('سجل فقط (طلاب بدون حسابات)')}</option>
+                </select>
+              </div>
+            ))}
+            <Button onClick={() => void save()}>{t('حفظ')}</Button>
+          </Card>
+        )}
 
         <Card className="p-5 space-y-4">
           <h2 className="font-bold text-slate-900 dark:text-white">{t('٣) الربط الحي مع Google Sheets')}</h2>
