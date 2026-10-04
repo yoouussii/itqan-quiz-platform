@@ -1,4 +1,5 @@
 import React, { useState, useRef } from 'react';
+import { normalizePhone } from '../../utils/whatsapp';
 import * as XLSX from 'xlsx';
 import {
   Users,
@@ -85,6 +86,7 @@ export const UsersManagement: React.FC = () => {
   const [nationalId, setNationalId] = useState('');
   const [password, setPassword] = useState('');
   const [jobTitle, setJobTitle] = useState('');
+  const [phone, setPhone] = useState('');
   const [role, setRole] = useState<Role>('student');
   const [classId, setClassId] = useState(classes[0]?.id || '');
   const [assignedSubjectIds, setAssignedSubjectIds] = useState<string[]>([]);
@@ -99,7 +101,7 @@ export const UsersManagement: React.FC = () => {
 
   const [showImportModal, setShowImportModal] = useState(false);
   const [importPreview, setImportPreview] = useState<Array<{
-    name: string; national_id: string; password: string; class_name: string;
+    name: string; national_id: string; password: string; class_name: string; phone?: string;
     gender: Gender | null; branch_name: string; parent_id: string; parent_password: string;
   }>>([]);
   const [importError, setImportError] = useState('');
@@ -176,7 +178,7 @@ export const UsersManagement: React.FC = () => {
     setName('');
     setNationalId('');
     setPassword('itqan123');
-    setJobTitle('');
+    setJobTitle(''); setPhone('');
     setRole(defaultRole);
     // لا نختار صفاً تلقائياً (إلا إذا كان الوحيد) حتى لا يُحفظ الطالب في أول صف دون قصد
     setClassId(classes.length === 1 ? classes[0].id : '');
@@ -300,6 +302,7 @@ export const UsersManagement: React.FC = () => {
       email: `${nationalId.trim()}@itqan.edu.sa`,
       password,
       job_title: jobTitle.trim() || null,
+      phone: normalizePhone(phone) || null,
       role: effectiveRole,
       specialty_id: isStaffRole(effectiveRole) ? (assignedSubjectIds[0] || null) : null,
       assigned_subject_ids: isStaffRole(effectiveRole) ? [...assignedSubjectIds] : [],
@@ -348,6 +351,7 @@ export const UsersManagement: React.FC = () => {
       email: editingUser.email || `${currentNationalId}@itqan.edu.sa`,
       role: effectiveRole,
       job_title: (editingUser.job_title || '').trim() || null,
+      phone: normalizePhone(editingUser.phone || '') || null,
       specialty_id: unifiedSpecialtyId,
       assigned_subject_ids: unifiedAssignedSubjectIds,
       class_id: unifiedClassId,
@@ -406,8 +410,8 @@ export const UsersManagement: React.FC = () => {
   // === Excel Import Functions ===
   const downloadExcelTemplate = () => {
     const templateData = [
-      { 'الاسم': 'أحمد محمد', 'رقم الهوية': '1234567890', 'كلمة السر': '123456', 'الصف / الفصل': 'الصف الأول أ', 'النوع': 'ذكر', 'الفرع': 'فرع البنين', 'هوية ولي الأمر': '1098765432', 'كلمة سر ولي الأمر': '654321' },
-      { 'الاسم': 'سارة علي', 'رقم الهوية': '0987654321', 'كلمة السر': '123456', 'الصف / الفصل': 'الصف الثاني ب', 'النوع': 'أنثى', 'الفرع': 'فرع البنات', 'هوية ولي الأمر': '1098765432', 'كلمة سر ولي الأمر': '654321' },
+      { 'الاسم': 'أحمد محمد', 'رقم الهوية': '1234567890', 'كلمة السر': '123456', 'الصف / الفصل': 'الصف الأول أ', 'النوع': 'ذكر', 'الفرع': 'فرع البنين', 'هوية ولي الأمر': '1098765432', 'كلمة سر ولي الأمر': '654321', 'جوال ولي الأمر': '0501234567' },
+      { 'الاسم': 'سارة علي', 'رقم الهوية': '0987654321', 'كلمة السر': '123456', 'الصف / الفصل': 'الصف الثاني ب', 'النوع': 'أنثى', 'الفرع': 'فرع البنات', 'هوية ولي الأمر': '1098765432', 'كلمة سر ولي الأمر': '654321', 'جوال ولي الأمر': '0551234567' },
     ];
     const ws = XLSX.utils.json_to_sheet(templateData);
     const wb = XLSX.utils.book_new();
@@ -445,6 +449,7 @@ export const UsersManagement: React.FC = () => {
           branch_name: String(row['الفرع'] || row['branch'] || row['Branch'] || '').trim(),
           parent_id: String(row['هوية ولي الأمر'] || row['رقم هوية ولي الأمر'] || row['parent_id'] || '').trim(),
           parent_password: String(row['كلمة سر ولي الأمر'] || row['كلمة مرور ولي الأمر'] || row['parent_password'] || '').trim(),
+          phone: normalizePhone(String(row['جوال ولي الأمر'] || row['رقم جوال ولي الأمر'] || row['الجوال'] || row['رقم الجوال'] || row['phone'] || '')),
         })).filter((s) => s.name && s.national_id);
 
         if (parsed.length === 0) {
@@ -479,6 +484,10 @@ export const UsersManagement: React.FC = () => {
         const student = importPreview[idx];
         const existing = users.find((u) => u.national_id === student.national_id);
         if (existing) {
+          // تحديث جوال ولي الأمر للطلاب المسجلين مسبقاً
+          if (student.phone && existing.role === 'student' && existing.phone !== student.phone) {
+            await updateUserData(existing.id, { phone: student.phone });
+          }
           if (student.parent_id && existing.role === 'student') {
             linked.push({ id: existing.id, name: existing.name, gender: existing.gender || student.gender, parentId: student.parent_id, parentPassword: student.parent_password });
           }
@@ -505,6 +514,7 @@ export const UsersManagement: React.FC = () => {
           assigned_class_ids: classId ? [classId] : [],
           class_id: classId || null,
           gender: student.gender,
+          phone: student.phone || null,
           branch_id: isAdminUser ? resolveBranch(student.branch_name) : currentUser?.branch_id || null,
           created_by: currentUser?.id,
         });
@@ -1070,6 +1080,23 @@ export const UsersManagement: React.FC = () => {
                     if (editingUser) {
                       setEditingUser((prev) => prev ? ({ ...prev, national_id: e.target.value }) : null);
                     }
+                  }}
+                  className="w-full px-3 py-2 text-xs rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500 font-mono tracking-wider"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
+                  {(editingUser?.role || role) === 'student' ? t('جوال ولي الأمر (للتواصل بالواتساب)') : t('رقم الجوال (اختياري)')}
+                </label>
+                <input
+                  type="tel"
+                  dir="ltr"
+                  placeholder="05xxxxxxxx"
+                  value={editingUser ? (editingUser.phone || '') : phone}
+                  onChange={(e) => {
+                    setPhone(e.target.value);
+                    if (editingUser) setEditingUser((prev) => (prev ? { ...prev, phone: e.target.value } : null));
                   }}
                   className="w-full px-3 py-2 text-xs rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500 font-mono tracking-wider"
                 />

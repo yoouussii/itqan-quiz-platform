@@ -7,6 +7,7 @@ import {
   Target,
   Award,
   CalendarCheck,
+  CalendarDays,
   PenLine,
 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
@@ -55,6 +56,7 @@ const staffGroups = (u: User, pendingApprovals: number, preparationsUrl: string,
   if (isAdmin || u.role === 'teacher' || hasPerm(u, 'can_grade_essays')) quizzes.push({ id: 'grading', label: t('التصحيح'), icon: PenLine, badge: pendingGrading });
   quizzes.push({ id: 'question_bank', label: t('بنك الأسئلة'), icon: Library });
   quizzes.push({ id: 'outcomes', label: t('نواتج التعلم'), icon: Target });
+  quizzes.push({ id: 'calendar', label: t('جدول الاختبارات'), icon: CalendarDays });
   quizzes.push({ id: 'analytics', label: u.role === 'teacher' ? t('نتائج طلابي') : t('النتائج والتحليلات'), icon: BarChart2 });
   if (u.role === 'teacher' && p.can_view_all_reports) quizzes.push({ id: 'reports', label: t('التقارير الشاملة'), icon: BarChart2 });
 
@@ -83,12 +85,14 @@ const staffGroups = (u: User, pendingApprovals: number, preparationsUrl: string,
 // دوال (لا ثوابت) حتى تُترجم عند كل رسم بعد تغيير اللغة
 const PARENT_TABS = (): NavItem[] => [
   { id: 'dashboard', label: t('أبنائي'), icon: Users },
+  { id: 'calendar', label: t('الجدول'), icon: CalendarDays },
   { id: 'notifications', label: t('الإشعارات'), icon: Bell },
 ];
 
 const STUDENT_TABS = (): NavItem[] => [
   { id: 'dashboard', label: t('الرئيسية'), icon: Home },
   { id: 'analytics', label: t('نتائجي'), icon: BarChart2 },
+  { id: 'calendar', label: t('الجدول'), icon: CalendarDays },
   { id: 'my_points', label: t('نقاطي'), icon: Sparkles },
   { id: 'notifications', label: t('الإشعارات'), icon: Bell },
 ];

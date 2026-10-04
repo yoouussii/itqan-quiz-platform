@@ -44,6 +44,8 @@ export interface User {
   gender?: Gender | null;
   /** لولي الأمر: معرّفات أبنائه */
   child_ids?: string[];
+  /** للطالب: جوال ولي الأمر — ولغيره: رقم جواله (للتواصل عبر واتساب) */
+  phone?: string | null;
 }
 
 export interface Branch {

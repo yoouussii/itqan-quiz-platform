@@ -1,12 +1,15 @@
-import React, { useMemo, useRef } from 'react';
-import { ArrowRight, Users, Percent, Trophy, TrendingDown, CheckCircle2, FileQuestion } from 'lucide-react';
+import React, { useMemo, useRef, useState } from 'react';
+import { MessageCircle, ArrowRight, Users, Percent, Trophy, TrendingDown, CheckCircle2, FileQuestion } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 import { StorageService } from '../../services/storage';
 import { SubmissionsTable } from './SubmissionsTable';
 import { PdfExportButton } from './PdfExportButton';
 import { QuestionAnalysis } from '../staff/QuestionAnalysis';
 import { hasPerm } from '../../utils/permissions';
-import { exportElementToPdf } from '../../utils/exportPdf';
+import { exportElementToPdf, getPrintBrand } from '../../utils/exportPdf';
+import { WhatsAppSender } from '../common/WhatsAppSender';
+import { guardianPhone } from '../../utils/whatsapp';
+import type { User } from '../../types';
 import { uiDir, t, isEn } from '../../i18n';
 import { minutesCount, marksCount } from '../../i18n/count';
 
@@ -16,7 +19,8 @@ import { minutesCount, marksCount } from '../../i18n/count';
  * هذه الصفحة آمنة ضد البيانات الناقصة (null / undefined) وتعرض حالة فارغة واضحة.
  */
 export const QuizResults: React.FC = () => {
-  const { activeQuizId, setActiveQuizId, setCurrentView, quizzes, submissions, currentUser } = useApp();
+  const { activeQuizId, setActiveQuizId, setCurrentView, quizzes, submissions, currentUser, users } = useApp();
+  const [waOpen, setWaOpen] = useState(false);
 
   const exportRef = useRef<HTMLDivElement>(null);
 
@@ -165,11 +169,33 @@ export const QuizResults: React.FC = () => {
       {hasPerm(currentUser, 'can_view_question_analysis') && activeQuizId && <QuestionAnalysis quizId={activeQuizId} />}
 
       <SubmissionsTable
-        extraActions={<PdfExportButton onClick={handleExportPdf} />}
+        extraActions={<>
+          {quizSubmissions.length > 0 && (
+            <button type="button" onClick={() => setWaOpen(true)} className="inline-flex items-center gap-1.5 h-9 px-3 rounded-xl border border-slate-200 dark:border-slate-700 text-sm font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800">
+              <MessageCircle className="w-4 h-4 text-emerald-600" />{t('النتائج لأولياء الأمور')}
+            </button>
+          )}
+          <PdfExportButton onClick={handleExportPdf} />
+        </>}
         submissions={quizSubmissions}
         title={t('نتائج الطلاب في هذا الاختبار')}
         subtitle={t('يمكنك فتح ورقة إجابة أي طالب أو منحه صلاحية إعادة المحاولة')}
       />
+      {waOpen && quiz && (() => {
+        // آخر تسليم لكل طالب
+        const latest = new Map<string, any>();
+        quizSubmissions.forEach((s: any) => { const p = latest.get(s.student_id); if (!p || String(s.completed_at || '') > String(p.completed_at || '')) latest.set(s.student_id, s); });
+        const recipients = Array.from(latest.values()).map((s: any) => {
+          const st = (users as User[]).find((u) => u.id === s.student_id);
+          const pct = Math.round(Number(s.percentage) || 0);
+          return { id: s.student_id, name: st?.name || s.student?.name || '—', phone: st ? guardianPhone(st, users as User[]) : '',
+            vars: { 'الدرجة': `${s.score}/${s.total_possible_score}`, 'النسبة': `${pct}%` }, note: `${s.score}/${s.total_possible_score} · ${pct}%` };
+        }).sort((a, b) => a.name.localeCompare(b.name, 'ar'));
+        const tpl = 'السلام عليكم ورحمة الله\nولي أمر الطالب/ة {الطالب}\nنتيجة اختبار «{الاختبار}» في مادة {المادة}: {الدرجة} ({النسبة}).\nمع تمنياتنا بالتوفيق.\n{المدرسة}';
+        return <WhatsAppSender title={t('إرسال النتائج لأولياء الأمور')} recipients={recipients} template={tpl}
+          placeholders={['الطالب', 'الاختبار', 'المادة', 'الدرجة', 'النسبة', 'المدرسة']}
+          vars={{ 'الاختبار': quiz.title, 'المادة': quiz.subject?.name || '', 'المدرسة': getPrintBrand().name || '' }} onClose={() => setWaOpen(false)} />;
+      })()}
     </div>
   );
 };
