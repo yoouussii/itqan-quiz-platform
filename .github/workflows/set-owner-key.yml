@@ -26,5 +26,6 @@ jobs:
         run: |
           test -n "$DATABASE_URL" || { echo "::error::سر قاعدة البيانات غير موجود"; exit 1; }
           test -n "$OWNER_KEY" || { echo "::error::أضف السر OWNER_KEY أولاً"; exit 1; }
-          psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -v k="$OWNER_KEY" -qc "select itqan.set_owner_key(:'k')"
+          # متغيرات psql (:'k') لا تُستبدل مع -c، فنمرّر الأمر من stdin
+          printf '%s\n' "select itqan.set_owner_key(:'k');" | psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -q -v k="$OWNER_KEY"
           psql "$DATABASE_URL" -tAc "select 'owner key set: ' || (key_hash is not null) from itqan.owner_config where id = 1"
