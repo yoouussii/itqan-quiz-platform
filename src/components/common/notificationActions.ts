@@ -47,6 +47,8 @@ export function notifAction(
     return me.role === 'student' ? { label: 'عرض نقاطي وجوائزي', view: 'my_points' } : null;
   }
   if (n.type === 'quiz_pending') return { label: 'مراجعة الاختبار', view: 'approvals' };
+  if (n.ref_type === 'survey') return { label: 'الإجابة على الاستبيان', view: 'surveys' };
+  if (n.ref_type === 'visit') return { label: 'عرض الزيارة', view: 'visits' };
 
   if (me.role === 'parent') return { label: 'متابعة أبنائي', view: 'dashboard' };
 

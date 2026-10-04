@@ -39,6 +39,9 @@ export const PERMISSION_DEFS: PermDef[] = [
   { key: 'can_view_behavior', label: 'عرض السلوك والمواظبة ودرجات الطلاب', short: 'عرض السلوك', group: 'السلوك والمواظبة' },
   { key: 'can_record_behavior', label: 'تسجيل المخالفات والسلوك الإيجابي للطلاب', short: 'تسجيل السلوك', group: 'السلوك والمواظبة' },
 
+  { key: 'can_class_visits', label: 'تنفيذ الزيارات الصفية وتقييم المعلمين (مفعّلة للمشرف تلقائياً)', short: 'الزيارات الصفية', group: 'الإشراف والجودة' },
+  { key: 'can_manage_surveys', label: 'إنشاء الاستبيانات وعرض نتائجها', short: 'الاستبيانات', group: 'الإشراف والجودة' },
+
   { key: 'can_view_activity_log', label: 'عرض سجل النشاط', short: 'سجل النشاط', group: 'النظام' },
   { key: 'can_access_preparations', label: 'رابط متابعة تحضير مزن', short: 'تحضير مزن', group: 'النظام' },
 ];
@@ -52,7 +55,7 @@ export const normalizePerms = (src: any): Record<string, boolean> =>
 /** صلاحيات كان يملكها المعلم دائماً قبل نظام الصلاحيات (حفاظاً على السلوك القديم) */
 export const TEACHER_ALWAYS = new Set(['can_export_reports', 'can_manage_retakes']);
 /** صلاحيات يملكها المشرف افتراضياً */
-const SUPERVISOR_DEFAULT = new Set(['can_access_preparations']);
+const SUPERVISOR_DEFAULT = new Set(['can_access_preparations', 'can_class_visits']);
 
 export function hasPerm(user: User | null | undefined, key: string): boolean {
   if (!user) return false;

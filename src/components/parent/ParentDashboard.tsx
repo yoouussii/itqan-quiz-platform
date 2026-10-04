@@ -1,6 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import { AttendanceSummary } from '../common/AttendanceSummary';
 import { ConductSummary } from '../common/ConductSummary';
+import { SurveyPrompt } from '../common/SurveyPrompt';
 import { BookOpen, CalendarClock, CheckCircle2, Users, FileText } from 'lucide-react';
 import { exportStudentReport, reportExtras } from '../../utils/studentReport';
 import { earnedBadges } from '../../utils/points';
@@ -101,6 +102,7 @@ export const ParentDashboard: React.FC<{ onViewReview: (submissionId: string) =>
         <div className="text-sm text-slate-500 dark:text-slate-400">{t('متابعة الأبناء')}</div>
         <h1 className="text-2xl font-extrabold text-slate-900 dark:text-white">{t('أهلاً بك')}</h1>
       </div>
+      <SurveyPrompt />
 
       {children.length > 1 && (
         <div className="flex gap-2 overflow-x-auto pb-1" role="tablist" aria-label={t('اختيار الابن')}>

@@ -1,0 +1,127 @@
+// اختبارات 034: الزيارات الصفية والاستبيانات — الصلاحيات، الاطلاع، الإشعارات، الإجابة مرة واحدة، وإخفاء الهوية.
+// تُشغَّل على قاعدة بيانات فيها 001–034 والبيانات التجريبية (seed.sql).
+//   node supabase/tests/visits-surveys-test.mjs <ملف-مفتاح-anon>
+import { readFileSync } from 'node:fs';
+import { execFileSync } from 'node:child_process';
+const BASE = 'http://localhost:3001';
+const ANON = readFileSync(process.argv[2], 'utf8').trim();
+const SQL = (q) => execFileSync('psql', ['postgres://postgres:postgres@localhost:54322/postgres', '-tA', '-c', q]).toString().trim();
+let pass = 0, fail = 0;
+const ok = (c, m) => { c ? pass++ : fail++; console.log(c ? '  ✓' : '  ✗ FAIL:', m); };
+async function req(method, path, { token, body } = {}) {
+  const headers = { apikey: ANON, Authorization: `Bearer ${ANON}`, 'Content-Type': 'application/json', Prefer: 'return=representation' };
+  if (token) headers['x-itqan-session'] = token;
+  const r = await fetch(BASE + path, { method, headers, body: body ? JSON.stringify(body) : undefined });
+  const t = await r.text(); let json; try { json = JSON.parse(t); } catch { json = t; }
+  return { status: r.status, json };
+}
+const rpc = (fn, body, token) => req('POST', `/rpc/${fn}`, { token, body: body || {} });
+const login = async (id, pw) => (await rpc('itqan_login', { p_national_id: id, p_password: pw })).json.token;
+const rows = (r) => (Array.isArray(r.json) ? r.json : []);
+
+SQL('delete from itqan.login_attempts');
+SQL(`insert into users (id,name,role,national_id,password) values ('vt-2','معلم ثان','teacher','9802','teach1234'),('vsup','مشرف تربوي','supervisor','9803','sup12345') on conflict do nothing`);
+SQL(`insert into users (id,name,role,national_id,password,class_id) values ('vst','طالب الاستبيان','student','9804','stud1234','c1') on conflict do nothing`);
+SQL(`insert into users (id,name,role,national_id,password,child_ids) values ('vpar','ولي أمر الاستبيان','parent','9805','par1234','["vst"]'),('vpar2','ولي أمر آخر','parent','9806','par1234','[]') on conflict do nothing`);
+
+const A = await login('1010', 'admin123');
+const T = await login('2020', 'teach123');
+const T2 = await login('9802', 'teach1234');
+const SU = await login('9803', 'sup12345');
+const S = await login('9804', 'stud1234');
+const P = await login('9805', 'par1234');
+const P2 = await login('9806', 'par1234');
+ok(A && T && T2 && SU && S && P && P2, 'تسجيل الدخول');
+
+console.log('— الزيارات الصفية');
+let r = await rpc('itqan_visit_config', {}, SU);
+ok(Array.isArray(r.json) && r.json.length === 12, 'بنود التقييم الافتراضية (12)');
+r = await rpc('itqan_visit_config_save', { p_items: [{ title: 'x', max: 5 }] }, SU);
+ok(r.status >= 400, 'غير المدير لا يعدّل البنود');
+const items = [{ title: 'التخطيط', max: 5, score: 4 }, { title: 'إدارة الصف', max: 5, score: 5 }];
+const visit = (tok, o) => req('POST', '/class_visits', { token: tok, body: { teacher_id: 'u-teach', visitor_id: 'vsup', visitor_name: 'مشرف تربوي', lesson: 'الكسور', items, strengths: 'تمكن', recommendations: 'تنويع', ...o } });
+r = await visit(T2, { visitor_id: 'vt-2' });
+ok(r.status >= 400, 'المعلم بلا صلاحية لا يسجّل زيارة');
+r = await visit(SU, { visitor_id: 'u-admin' });
+ok(r.status >= 400, 'لا يسجّل باسم غيره');
+r = await visit(SU, { teacher_ack_at: new Date().toISOString() });
+ok(r.status >= 400, 'لا يسجّل الاطلاع نيابة عن المعلم');
+const nBefore = Number(SQL(`select count(*) from notifications where ref_type='visit'`));
+r = await visit(SU, {});
+ok(r.status < 300 && rows(r)[0]?.id?.startsWith('cv-'), 'المشرف يسجّل زيارة (مفعّلة له تلقائياً)');
+const vid = rows(r)[0]?.id;
+const aud = JSON.parse(SQL(`select audience from notifications where ref_type='visit' order by created_at desc limit 1`) || '{}');
+ok(Number(SQL(`select count(*) from notifications where ref_type='visit'`)) === nBefore + 1 && aud.user_ids?.includes('u-teach'), 'إشعار للمعلم');
+r = await req('GET', `/class_visits?id=eq.${vid}`, { token: T });
+ok(rows(r).length === 1, 'المعلم يرى زيارته');
+r = await req('GET', `/class_visits?id=eq.${vid}`, { token: T2 });
+ok(rows(r).length === 0, 'معلم آخر لا يراها');
+r = await req('PATCH', `/class_visits?id=eq.${vid}`, { token: T, body: { items: [{ title: 'x', max: 5, score: 5 }] } });
+ok(rows(r).length === 0, 'المعلم لا يعدّل التقييم');
+r = await rpc('itqan_visit_ack', { p_id: vid, p_note: 'شكراً' }, T2);
+ok(r.status >= 400, 'معلم آخر لا يؤكد الاطلاع');
+r = await rpc('itqan_visit_ack', { p_id: vid, p_note: 'شكراً للتوجيه' }, T);
+ok(r.status < 300 && SQL(`select teacher_note from class_visits where id='${vid}'`) === 'شكراً للتوجيه', 'المعلم يؤكد الاطلاع ويكتب ملاحظته');
+SQL(`update users set teacher_permissions='{"can_class_visits":true}' where id='vt-2'`);
+r = await visit(T2, { visitor_id: 'vt-2', visitor_name: 'معلم ثان' });
+ok(r.status < 300, 'المعلم بصلاحية can_class_visits يسجّل زيارة');
+r = await visit(T, { visitor_id: 'u-teach', teacher_id: 'u-teach' });
+ok(r.status >= 400, 'لا يزور نفسه');
+r = await req('DELETE', `/class_visits?id=eq.${vid}`, { token: T2 });
+ok(rows(r).length === 0, 'لا يحذف زيارة غيره');
+r = await req('DELETE', `/class_visits?id=eq.${vid}`, { token: A });
+ok(rows(r).length === 1, 'المدير يحذف');
+
+console.log('— الاستبيانات');
+const qs = [{ id: 'q1', type: 'rating', text: 'الرضا', required: true }, { id: 'q2', type: 'text', text: 'اقتراح' }];
+r = await req('POST', '/surveys', { token: T, body: { title: 'x', roles: ['parent'], questions: qs, created_by: 'u-teach' } });
+ok(r.status >= 400, 'بلا صلاحية لا ينشئ استبياناً');
+r = await req('POST', '/surveys', { token: A, body: { title: 'رضا أولياء الأمور', roles: ['parent'], questions: qs, created_by: 'u-admin', created_by_name: 'مدير' } });
+ok(r.status < 300, 'المدير ينشئ استبياناً (مغلقاً)');
+const sid = rows(r)[0]?.id;
+r = await req('GET', `/surveys?id=eq.${sid}`, { token: P });
+ok(rows(r).length === 0, 'المسودة المغلقة لا تظهر لولي الأمر');
+r = await rpc('itqan_survey_submit', { p_survey: sid, p_answers: { q1: 5 } }, P);
+ok(r.status >= 400 && /closed/.test(JSON.stringify(r.json)), 'لا إجابة على استبيان مغلق');
+const ns = Number(SQL(`select count(*) from notifications where ref_type='survey' and ref_id='${sid}'`));
+await req('PATCH', `/surveys?id=eq.${sid}`, { token: A, body: { is_open: true } });
+const sAud = JSON.parse(SQL(`select audience from notifications where ref_type='survey' and ref_id='${sid}' order by created_at desc limit 1`) || '{}');
+ok(ns === 0 && Number(SQL(`select count(*) from notifications where ref_type='survey' and ref_id='${sid}'`)) === 1 && sAud.roles?.includes('parent'), 'النشر يُشعر الفئة المستهدفة مرة واحدة');
+await req('PATCH', `/surveys?id=eq.${sid}`, { token: A, body: { title: 'رضا أولياء الأمور 1447' } });
+ok(Number(SQL(`select count(*) from notifications where ref_type='survey' and ref_id='${sid}'`)) === 1, 'التعديل لا يكرر الإشعار');
+r = await rpc('itqan_my_surveys', {}, P);
+ok(Array.isArray(r.json) && r.json.some((s) => s.id === sid && s.answered === false), 'يظهر لولي الأمر كغير مُجاب');
+r = await rpc('itqan_my_surveys', {}, S);
+ok(Array.isArray(r.json) && !r.json.some((s) => s.id === sid), 'لا يظهر للطالب (ليس من الفئة)');
+r = await rpc('itqan_survey_submit', { p_survey: sid, p_answers: { q1: 4 } }, S);
+ok(r.status >= 400 && /not_audience/.test(JSON.stringify(r.json)), 'الطالب لا يجيب');
+r = await rpc('itqan_survey_submit', { p_survey: sid, p_answers: { q1: 5, q2: 'ممتاز' } }, P);
+ok(r.status < 300, 'ولي الأمر يجيب');
+r = await rpc('itqan_survey_submit', { p_survey: sid, p_answers: { q1: 1 } }, P);
+ok(r.status >= 400 && /already_answered/.test(JSON.stringify(r.json)), 'لا يجيب مرتين');
+await rpc('itqan_survey_submit', { p_survey: sid, p_answers: { q1: 3 } }, P2);
+ok(SQL(`select count(*) from survey_responses where survey_id='${sid}' and user_id is not null`) === '0', 'الاستبيان المجهول لا يخزّن هوية المجيب');
+r = await rpc('itqan_my_surveys', {}, P);
+ok(r.json.find((s) => s.id === sid)?.answered === true, 'يظهر كمُجاب بعد الإجابة');
+r = await req('GET', `/survey_responses?survey_id=eq.${sid}`, { token: P });
+ok(rows(r).length === 0, 'ولي الأمر لا يرى إجابات غيره');
+r = await req('GET', `/survey_responses?survey_id=eq.${sid}`, { token: A });
+ok(rows(r).length === 2, 'المدير يرى النتائج');
+r = await rpc('itqan_survey_counts', {}, A);
+ok(r.json?.[sid] === 2, 'عدد المجيبين');
+r = await rpc('itqan_survey_counts', {}, T);
+ok(r.json === null, 'بلا صلاحية لا يرى الأعداد');
+r = await req('POST', '/surveys', { token: A, body: { title: 'بالأسماء', roles: ['teacher'], questions: qs, anonymous: false, is_open: true, created_by: 'u-admin', created_by_name: 'مدير' } });
+const sid2 = rows(r)[0]?.id;
+await rpc('itqan_survey_submit', { p_survey: sid2, p_answers: { q1: 4 } }, T);
+ok(SQL(`select user_name from survey_responses where survey_id='${sid2}'`) === 'معلم', 'غير المجهول يحفظ اسم المجيب');
+SQL(`update users set teacher_permissions='{"can_manage_surveys":true}' where id='vt-2'`);
+r = await req('PATCH', `/surveys?id=eq.${sid}`, { token: T2, body: { title: 'سرقة' } });
+ok(rows(r).length === 0, 'صاحب الصلاحية لا يعدّل استبيان غيره');
+r = await req('GET', `/survey_responses?survey_id=eq.${sid}`, { token: T2 });
+ok(rows(r).length === 2, 'صاحب الصلاحية يرى النتائج');
+r = await req('DELETE', `/surveys?id=eq.${sid}`, { token: A });
+ok(rows(r).length === 1 && SQL(`select count(*) from survey_responses where survey_id='${sid}'`) === '0', 'حذف الاستبيان يحذف إجاباته');
+
+console.log(`\n${pass} نجح، ${fail} فشل`);
+process.exit(fail ? 1 : 0);
