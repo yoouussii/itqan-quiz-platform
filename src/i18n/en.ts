@@ -2371,4 +2371,9 @@ export const EN: Record<string, string> = {
   'أسماء غير مطابقة': 'Unmatched names',
   'تنبيهات الغياب': 'Absence alerts',
   'محاولات الدخول': 'Login attempts',
+  'مادة': 'Subject',
+  'تقييم المعلم': 'Teacher assessment',
+  'المعدل محسوب بأوزان المعلم، وتُحتسب أفضل محاولة في كل اختبار، وغير المؤدّى لا يدخل في المعدل.': 'The average uses the teacher\'s weights, counts the best attempt on each quiz, and excludes missing work.',
+  'أقسام الإعدادات': 'Settings sections',
+  'مفعّل': 'On',
 };

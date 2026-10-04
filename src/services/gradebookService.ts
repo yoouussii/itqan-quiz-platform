@@ -22,6 +22,12 @@ export async function fetchColumns(classId: string, subjectId: string): Promise<
   return (r.data || []).map((c) => ({ ...c, max_score: Number(c.max_score), weight: Number(c.weight) }));
 }
 
+/** كل الأعمدة اليدوية لفصل (لكشف الطالب وولي الأمر) */
+export async function fetchClassColumns(classId: string): Promise<GbColumn[]> {
+  const r = await safe<GbColumn[]>(() => supabase.from('gradebook_columns').select('*').eq('class_id', classId).order('created_at') as any);
+  return (r.data || []).map((c) => ({ ...c, max_score: Number(c.max_score), weight: Number(c.weight) }));
+}
+
 export async function addColumn(c: Pick<GbColumn, 'class_id' | 'subject_id' | 'title' | 'max_score' | 'weight' | 'created_by'>) {
   const r = await safe<GbColumn[]>(() => supabase.from('gradebook_columns').insert(c).select('*') as any);
   const row = r.data?.[0];

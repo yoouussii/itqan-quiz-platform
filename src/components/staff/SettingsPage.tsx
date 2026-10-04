@@ -1,5 +1,5 @@
 import React, { useRef, useState } from 'react';
-import { Settings, ImagePlus, Trash2, Check, Wrench, LogIn, GraduationCap } from 'lucide-react';
+import { Settings, ImagePlus, Trash2, Check, Wrench, LogIn, GraduationCap, Palette, ClipboardCheck } from 'lucide-react';
 import { LoginHero, LOGIN_STYLES, LoginStyle } from '../auth/LoginHero';
 import { useApp } from '../../context/AppContext';
 import { BRAND_PRESETS, applyBrandColor, resizeLogo } from '../../utils/brand';
@@ -8,6 +8,7 @@ import { uiDir, t } from '../../i18n';
 /** إعدادات النظام (لمدير النظام) */
 export const SettingsPage: React.FC = () => {
   const { settings, updateSettings } = useApp();
+  const [tab, setTab] = useState<'brand' | 'login' | 'home' | 'quizzes' | 'maint'>('brand');
   const [approval, setApproval] = useState(settings.require_quiz_approval);
   const [url, setUrl] = useState(settings.preparations_url);
   const [schoolName, setSchoolName] = useState(settings.school_name || '');
@@ -95,11 +96,21 @@ export const SettingsPage: React.FC = () => {
   const card = 'bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800 p-5';
 
   return (
-    <div className="max-w-2xl mx-auto py-8 px-4 sm:px-6 space-y-6" dir={uiDir()}>
+    <div className="max-w-4xl mx-auto py-8 px-4 sm:px-6 space-y-6" dir={uiDir()}>
       <div className="pb-4 border-b border-slate-200 dark:border-slate-800">
         <h1 className="text-2xl font-black text-slate-900 dark:text-white font-cairo flex items-center gap-2"><Settings className="w-6 h-6 text-indigo-600" />{' '}{t('إعدادات النظام')}</h1>
       </div>
 
+      <div role="tablist" aria-label={t('أقسام الإعدادات')} className="flex gap-2 overflow-x-auto sticky top-0 z-10 py-2 bg-slate-50/90 dark:bg-slate-950/90 backdrop-blur">
+        {([['brand', 'هوية المدرسة', Palette], ['login', 'شاشة الدخول', LogIn], ['home', 'رئيسية الطالب', GraduationCap], ['quizzes', 'الاختبارات', ClipboardCheck], ['maint', 'وضع الصيانة', Wrench]] as const).map(([k, l, Icon]) => (
+          <button key={k} type="button" role="tab" aria-selected={tab === k} onClick={() => setTab(k)}
+            className={`h-10 px-4 rounded-xl text-sm font-bold inline-flex items-center gap-2 whitespace-nowrap shrink-0 ${tab === k ? 'bg-indigo-600 text-white shadow' : 'bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 hover:border-indigo-300'}`}>
+            <Icon className="w-4 h-4" />{t(l)}{k === 'maint' && maintenanceOn && <span className="w-2 h-2 rounded-full bg-rose-500" aria-label={t('مفعّل')} />}
+          </button>
+        ))}
+      </div>
+
+      {tab === 'brand' && (
       <section className={`${card} space-y-5`} aria-labelledby="brand-title">
         <div>
           <h2 id="brand-title" className="text-base font-bold text-slate-900 dark:text-white">{t('هوية المدرسة')}</h2>
@@ -152,7 +163,9 @@ export const SettingsPage: React.FC = () => {
           </div>
         </div>
       </section>
+      )}
 
+      {tab === 'login' && (
       <section className={`${card} space-y-4`} aria-labelledby="login-title">
         <div>
           <h2 id="login-title" className="text-base font-bold text-slate-900 dark:text-white inline-flex items-center gap-2"><LogIn className="w-5 h-5 text-indigo-600" />{t('تصميم شاشة الدخول')}</h2>
@@ -221,7 +234,9 @@ export const SettingsPage: React.FC = () => {
           </div>
         )}
       </section>
+      )}
 
+      {tab === 'maint' && (
       <section className={`${card} space-y-3 ${maintenanceOn ? '!border-rose-300 dark:!border-rose-800' : ''}`} aria-labelledby="maint-title">
         <div className="flex items-start justify-between gap-3">
           <div>
@@ -241,7 +256,9 @@ export const SettingsPage: React.FC = () => {
         </label>
         {maintenanceOn && <p role="status" className="text-sm font-bold text-rose-700 dark:text-rose-400">{t('الصيانة مفعّلة الآن. عدّل الرسالة ثم «حفظ الإعدادات»، أو أوقفها من المفتاح.')}</p>}
       </section>
+      )}
 
+      {tab === 'home' && (
       <section className={`${card} space-y-3`} aria-labelledby="home-title">
         <div>
           <h2 id="home-title" className="text-base font-bold text-slate-900 dark:text-white inline-flex items-center gap-2"><GraduationCap className="w-5 h-5 text-indigo-600" />{t('رئيسية الطالب')}</h2>
@@ -267,7 +284,10 @@ export const SettingsPage: React.FC = () => {
           </label>
         )}
       </section>
+      )}
 
+      {tab === 'quizzes' && (
+      <>
       <label className={`flex items-start gap-3 ${card} cursor-pointer`}>
         <input type="checkbox" aria-label={t('اشتراط اعتماد الاختبارات')} checked={approval} onChange={(e) => setApproval(e.target.checked)} className="accent-indigo-600 w-4 h-4 mt-1" />
         <span>
@@ -284,8 +304,10 @@ export const SettingsPage: React.FC = () => {
           className="w-full px-3 py-2 text-xs rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white" />
         <p className="text-[11px] text-slate-500">{t('يفتح في تبويب جديد عند الضغط على زر «متابعة تحضير مزن».')}</p>
       </div>
+      </>
+      )}
 
-      <button onClick={save} disabled={busy} className="px-6 py-2.5 rounded-xl text-xs font-bold bg-indigo-600 hover:bg-indigo-700 text-white shadow-md disabled:opacity-60">{t('حفظ الإعدادات')}</button>
+      <button onClick={save} disabled={busy} className="sticky bottom-4 px-6 py-2.5 rounded-xl text-sm font-bold bg-indigo-600 hover:bg-indigo-700 text-white shadow-md disabled:opacity-60">{t('حفظ الإعدادات')}</button>
     </div>
   );
 };
