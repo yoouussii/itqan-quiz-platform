@@ -2,7 +2,8 @@ import { exportElementToPdf } from './exportPdf';
 import { BADGES, levelFor, StudentAward } from './points';
 import { computeOutcomes, pct as masteryPct, masteryLevel, MASTERY_LABEL } from './outcomes';
 import type { QuizWithDetails, SubmissionWithDetails } from '../types';
-import { t } from '../i18n';
+import { t, dateLocale } from '../i18n';
+import { fetchAttendance, fetchAttendanceConfig, schoolDaysBetween, isoDay } from '../services/attendanceService';
 
 const esc = (v: unknown) => String(v ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 
@@ -18,6 +19,8 @@ export interface StudentReportInput {
   subjects?: Array<{ name: string; avg: number; count: number }>;
   /** مستوى المهارات (نواتج التعلم) */
   skills?: Array<{ outcome: string; subject: string; pct: number }>;
+  /** لإضافة ملخص الحضور والغياب إلى الكشف */
+  studentId?: string;
 }
 
 /** متوسطات المواد ومستوى المهارات لطالب واحد (يضاف إلى الكشف) */
@@ -26,7 +29,7 @@ export function reportExtras(
   quizzes: QuizWithDetails[],
   submissions: SubmissionWithDetails[],
   subjectName: (id: string) => string
-): Pick<StudentReportInput, 'subjects' | 'skills'> {
+): Pick<StudentReportInput, 'subjects' | 'skills' | 'studentId'> {
   const mine = submissions.filter((s) => s.student_id === studentId && !s.quiz?.is_deleted);
   const bySubject = new Map<string, number[]>();
   for (const s of mine) {
@@ -37,7 +40,7 @@ export function reportExtras(
     .map(([id, list]) => ({ name: subjectName(id) || '—', avg: Math.round(list.reduce((a, b) => a + b, 0) / list.length), count: list.length }))
     .sort((a, b) => b.avg - a.avg);
   const skills = computeOutcomes(quizzes, mine, { studentId }).stats.map((s) => ({ outcome: s.outcome, subject: subjectName(s.subject_id), pct: masteryPct(s) }));
-  return { subjects, skills };
+  return { subjects, skills, studentId };
 }
 
 const BAR = { ok: '#10b981', warn: '#f59e0b', bad: '#f43f5e' } as const;
@@ -73,6 +76,29 @@ export async function exportStudentReport(i: StudentReportInput): Promise<void> 
     ? `<h2 style="font-size:14px;font-weight:800;margin:14px 0 4px">${esc(t('مستوى المهارات (نواتج التعلم)'))}</h2>${i.skills.map((s) => bar(s.outcome, s.subject, s.pct, t(MASTERY_LABEL[masteryLevel(s.pct)]))).join('')}`
     : '';
 
+  // ملخص الحضور (إن وُجد سجل للطالب ويملك المستخدم رؤيته)
+  let attendance = '';
+  if (i.studentId) {
+    try {
+      const [recs, cfg] = await Promise.all([fetchAttendance('2000-01-01', '2100-01-01', [i.studentId]), fetchAttendanceConfig()]);
+      if (recs && (recs.length || cfg?.start_date)) {
+        const c = { absent: 0, late: 0, excused: 0 } as Record<string, number>;
+        recs.forEach((r) => { c[r.kind]++; });
+        let rateBox = '';
+        if (cfg?.start_date) {
+          const end = isoDay(new Date(new Date(`${cfg.start_date}T12:00:00`).getTime() + (cfg.weeks * 7 - 1) * 864e5));
+          const today = isoDay(new Date());
+          const days = Math.max(1, schoolDaysBetween(cfg.start_date, end < today ? end : today));
+          rateBox = box(t('نسبة الحضور'), `${Math.round(Math.max(0, 1 - c.absent / days) * 1000) / 10}%`);
+        }
+        const last = recs.slice(0, 8).map((r) => `<span style="display:inline-block;margin:2px 4px;padding:2px 8px;border-radius:999px;border:1px solid #cbd5e1;font-size:11px">${esc(t(r.kind === 'absent' ? 'غياب' : r.kind === 'late' ? 'تأخر' : 'استئذان'))} · ${esc(new Date(`${r.day}T12:00:00`).toLocaleDateString(dateLocale(), { weekday: 'short', day: 'numeric', month: 'short' }))}</span>`).join('');
+        attendance = `<h2 style="font-size:14px;font-weight:800;margin:14px 0 6px">${esc(t('الحضور والغياب'))}</h2>
+          <div style="display:flex;gap:10px;flex-wrap:wrap">${box(t('غياب'), String(c.absent))}${box(t('تأخر'), String(c.late))}${box(t('استئذان'), String(c.excused))}${rateBox}</div>
+          ${last ? `<div style="margin-top:6px">${last}</div>` : ''}`;
+      }
+    } catch { /* الكشف يُطبع بدون الحضور */ }
+  }
+
   const bodyHtml = `
     <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:14px">
       ${box(t('الطالب'), i.name)}${box(t('الصف'), i.className || '—')}${box(t('رقم الهوية'), i.nationalId || '—')}
@@ -80,7 +106,7 @@ export async function exportStudentReport(i: StudentReportInput): Promise<void> 
     <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:14px">
       ${box(t('اختبارات مؤداة'), String(i.results.length))}${box(t('المعدل العام'), `${avg}%`)}${box(t('أعلى نسبة'), `${best}%`)}${box(t('النقاط'), `${i.points} • ${t(lvl.level.name)}`)}
     </div>
-    ${subjects}${skills}
+    ${subjects}${skills}${attendance}
     <h2 style="font-size:14px;font-weight:800;margin:14px 0 8px">${esc(t('النتائج التفصيلية'))}</h2>
     <table class="pdf-table"><thead><tr><th>#</th><th>${esc(t('الاختبار'))}</th><th>${esc(t('المادة'))}</th><th>${esc(t('الدرجة'))}</th><th>${esc(t('النسبة'))}</th><th>${esc(t('التاريخ'))}</th></tr></thead>
     <tbody>${rows || `<tr><td colspan="6">${esc(t('لا توجد نتائج بعد'))}</td></tr>`}</tbody></table>

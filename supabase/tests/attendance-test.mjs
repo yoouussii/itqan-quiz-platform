@@ -1,6 +1,6 @@
 // اختبارات 022: الحضور — مطابقة الأسماء، تحويل الأسبوع/اليوم إلى تاريخ، الاستبدال عند المزامنة، الربط اليدوي، رمز الشيت، والصلاحيات.
-// و024: طلاب «سجل فقط» بلا حسابات، و025: تطبيق «سجل فقط» فوراً عند الحفظ، و026: أسماء الشيتات، و027: أسماء فصول «سجل فقط»، و028: التجاهل والتسجيل بدون حساب وسجل المزامنة.
-// تُشغَّل على قاعدة بيانات فيها 001–028 والبيانات التجريبية (seed.sql).
+// و024: طلاب «سجل فقط» بلا حسابات، و025: تطبيق «سجل فقط» فوراً عند الحفظ، و026: أسماء الشيتات، و027: أسماء فصول «سجل فقط»، و028: التجاهل والتسجيل بدون حساب وسجل المزامنة، و029: التنبيه التلقائي والملخص الأسبوعي.
+// تُشغَّل على قاعدة بيانات فيها 001–029 والبيانات التجريبية (seed.sql).
 import { readFileSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
 const BASE = 'http://localhost:3001';
@@ -203,6 +203,41 @@ ok(r.json.log.length === logN - 1 || (logN === 10 && r.json.log[0].id !== firstI
 const recsBefore = SQL(`select count(*) from attendance_records`);
 await rpc('itqan_attendance_log_clear', {}, W);
 ok(SQL(`select count(*) from itqan.attendance_sync_log`) === '0' && SQL(`select count(*) from attendance_records`) === recsBefore, 'مسح السجل كله بدون حذف أي حركات');
+
+console.log('— تنبيه الغياب التلقائي لولي الأمر (029)');
+SQL(`insert into users (id,name,role,national_id,password,class_id) values ('s-z','زياد فهد','student','7199','stud1234','c3') on conflict do nothing`);
+SQL(`insert into users (id,name,role,national_id,password,child_ids) values ('p-z','ولي أمر زياد','parent','7299','par1234','["s-z"]') on conflict do nothing`);
+await rpc('itqan_attendance_config_save', { p: { start_date: '2026-08-23', threshold: 3, auto_notify: true } }, W);
+const alerts = () => SQL(`select count(*) from notifications where ref_type='attendance' and ref_id='s-z'`);
+const absent = async (day) => req('POST', '/attendance_records', { token: W, body: { student_id: 's-z', day, kind: 'absent', source: 'manual', created_by: 'u-att' } });
+await absent('2026-09-01'); await absent('2026-09-02');
+ok(alerts() === '0', 'لا تنبيه قبل بلوغ الحد');
+r = await absent('2026-09-03');
+ok(r.status < 300 && alerts() === '1', 'تنبيه تلقائي عند بلوغ الحد (3 أيام)');
+ok(SQL(`select audience->'user_ids' ? 'p-z' and audience->'student_ids' ? 's-z' from notifications where ref_id='s-z' limit 1`) === 't', 'يصل للطالب وولي أمره');
+await absent('2026-09-06');
+ok(alerts() === '1', 'لا يتكرر قبل الضعف');
+await absent('2026-09-07'); await absent('2026-09-08');
+ok(alerts() === '2', 'تنبيه ثانٍ عند ضعف الحد (6 أيام)');
+await rpc('itqan_attendance_config_save', { p: { auto_notify: false } }, W);
+await absent('2026-09-09'); await absent('2026-09-10'); await absent('2026-09-13');
+ok(alerts() === '2', 'إيقاف التنبيه التلقائي من الإعداد');
+r = await rpc('itqan_attendance_config', {}, W);
+ok(r.json?.auto_notify === false && r.json?.weekly_digest === true, 'الإعداد يُحفظ ويُقرأ');
+await rpc('itqan_attendance_config_save', { p: { auto_notify: true } }, W);
+ok(SQL(`select count(*) from notifications n join attendance_roster ro on ro.id = n.ref_id`) === '0', 'لا تنبيهات لطلاب «سجل فقط»');
+
+console.log('— الملخص الأسبوعي للإدارة (029)');
+SQL(`update itqan.attendance_config set start_date = current_date - extract(dow from current_date)::int - 28, last_digest_week = null`);
+const digests = () => SQL(`select count(*) from notifications where title like 'ملخص الحضور للأسبوع%'`);
+const d0 = Number(digests());
+r = await rpc('itqan_attendance_digest_tick', {}, T);
+ok(r.json === true && Number(digests()) === d0 + 1, 'إرسال ملخص آخر أسبوع مكتمل');
+ok(SQL(`select audience->'user_ids' ? 'u-att' from notifications where title like 'ملخص الحضور للأسبوع%' order by created_at desc limit 1`) === 't', 'يصل لأصحاب صلاحية الحضور');
+r = await rpc('itqan_attendance_digest_tick', {}, W);
+ok(r.json === false && Number(digests()) === d0 + 1, 'مرة واحدة فقط لكل أسبوع');
+r = await rpc('itqan_attendance_digest_tick', {}, S);
+ok(r.json === false, 'الطالب لا يطلب الملخص');
 
 console.log(`\n${pass} نجح، ${fail} فشل`);
 process.exit(fail ? 1 : 0);
