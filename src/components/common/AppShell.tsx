@@ -9,6 +9,7 @@ import {
   CalendarCheck,
   CalendarDays,
   ShieldCheck,
+  CalendarRange,
   PenLine,
 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
@@ -72,6 +73,7 @@ const staffGroups = (u: User, pendingApprovals: number, preparationsUrl: string,
 
   system.push({ id: 'notifications', label: t('الإشعارات'), icon: Bell });
   if (hasPerm(u, 'can_view_activity_log')) system.push({ id: 'activity_log', label: t('سجل النشاط'), icon: ScrollText });
+  if (isAdmin) system.push({ id: 'school_year', label: t('إدارة العام الدراسي'), icon: CalendarRange });
   if (isAdmin) system.push({ id: 'settings', label: t('الإعدادات'), icon: SettingsIcon });
   if (hasPerm(u, 'can_access_preparations') && preparationsUrl) system.push({ id: 'preparations', label: t('متابعة تحضير مزن'), icon: ExternalLink, href: preparationsUrl });
 
