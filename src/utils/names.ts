@@ -19,3 +19,11 @@ export function shortName(full: string): string {
   const p = nameParts(full);
   return p.length <= 2 ? p.join(' ') : `${p[0]} ${p[p.length - 1]}`;
 }
+
+/** اسم عرض ولي الأمر: «والد أحمد» (أو «والدة أحمد»)، ولأكثر من ابن «والد أحمد وسعد» */
+export function parentLabel(parent: { name?: string; gender?: string | null; child_ids?: string[] }, users: { id: string; name: string }[], t: (k: string, v?: Record<string, string>) => string): string {
+  const firsts = (parent.child_ids || []).map((id) => users.find((u) => u.id === id)?.name).filter(Boolean).map((n) => nameParts(n as string)[0]);
+  if (!firsts.length) return shortName(parent.name || '');
+  const names = firsts.length > 2 ? `${firsts.slice(0, 2).join(' و')}…` : firsts.join(' و');
+  return parent.gender === 'female' ? t('والدة {name}', { name: names }) : t('والد {name}', { name: names });
+}

@@ -2378,4 +2378,6 @@ export const EN: Record<string, string> = {
   'مفعّل': 'On',
   'لا توجد فصول أو مواد مسندة إليك بعد': 'No classes or subjects are assigned to you yet',
   'يظهر كشف الدرجات لفصولك وموادك المسندة فقط. تواصل مع إدارة المدرسة لإسنادها إلى حسابك.': 'The gradebook shows only your assigned classes and subjects. Contact the school administration to assign them to your account.',
+  'والد {name}': 'Parent of {name}',
+  'والدة {name}': 'Parent of {name}',
 };
