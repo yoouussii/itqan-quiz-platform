@@ -7,7 +7,7 @@ import { hasPerm } from '../../utils/permissions';
 import { shortName } from '../../utils/names';
 import { AttKind, parseAttendanceWorkbook, appsScriptCode, SheetPayload } from '../../utils/attendanceSheet';
 import {
-  AttConfig, AttRecord, ImportResult, addAttendance, deleteAttendance, fetchAttendance, fetchAttendanceConfig,
+  AttConfig, AttRecord, ImportResult, RosterStudent, ROSTER_SHEET, rosterClassId, rosterClassName, fetchRoster, addAttendance, deleteAttendance, fetchAttendance, fetchAttendanceConfig,
   importAttendance, isoDay, linkAttendanceName, newAttendanceToken, saveAttendanceConfig, schoolDaysBetween,
 } from '../../services/attendanceService';
 import { supabaseUrl, supabaseAnonKey } from '../../services/supabase';
@@ -27,11 +27,28 @@ const ERR: Record<string, string> = {
   forbidden: 'لا تملك صلاحية إدارة الحضور',
   bad_payload: 'لم يُعثر على سجل غياب بالشكل المتوقع في الملف',
 };
+type Klass = { id: string; name: string };
+/** طلاب المنصة + طلاب «سجل فقط» (بلا حسابات) في شكل واحد، وفصولهم */
+function usePeople(roster: RosterStudent[]) {
+  const { users, classes } = useApp();
+  return useMemo(() => {
+    const platform = (users as User[]).filter((u) => u.role === 'student');
+    const extra = roster.map((r) => ({ id: r.id, name: r.name, role: 'student', class_id: rosterClassId(r.sheet) } as unknown as User));
+    const sheets = Array.from(new Set(roster.map((r) => r.sheet))).sort((a, b) => a.localeCompare(b, 'ar', { numeric: true }));
+    const allClasses: Klass[] = [...classes.map((c) => ({ id: c.id, name: c.name })), ...sheets.map((sh) => ({ id: rosterClassId(sh), name: t(rosterClassName(sh)) }))];
+    return { people: [...platform, ...extra], allClasses, rosterIds: new Set(roster.map((r) => r.id)) };
+  }, [users, classes, roster]);
+}
+
 const fmtDay = (d: string) => new Date(`${d}T12:00:00`).toLocaleDateString(dateLocale(), { weekday: 'short', day: 'numeric', month: 'short' });
 
 /** الحضور والغياب: لوحة وتحليلات، سجل الطلاب، والربط مع سجل الغياب (Google Sheets / Excel) */
 export const AttendancePage: React.FC = () => {
-  const { currentUser, users, classes, showToast, sendAttendanceNotice } = useApp();
+  const { currentUser, showToast, sendAttendanceNotice } = useApp();
+  const [roster, setRoster] = useState<RosterStudent[]>([]);
+  const loadRoster = useCallback(() => { void fetchRoster().then(setRoster); }, []);
+  useEffect(() => { loadRoster(); }, [loadRoster]);
+  const { people, allClasses: classes, rosterIds } = usePeople(roster);
   const canManage = hasPerm(currentUser, 'can_manage_attendance');
   const [tab, setTab] = useState<Tab>('dashboard');
   const [cfg, setCfg] = useState<AttConfig | null>(null);
@@ -62,8 +79,8 @@ export const AttendancePage: React.FC = () => {
   const reload = useCallback(() => { setRecords(null); void fetchAttendance(range.from, range.to).then((r) => setRecords(r || [])); }, [range]);
   useEffect(() => { reload(); }, [reload]);
 
-  const students = useMemo(() => (users as User[]).filter((u) => u.role === 'student' && (!classId || u.class_id === classId)), [users, classId]);
-  const studentMap = useMemo(() => new Map((users as User[]).filter((u) => u.role === 'student').map((u) => [u.id, u])), [users]);
+  const students = useMemo(() => people.filter((u) => !classId || u.class_id === classId), [people, classId]);
+  const studentMap = useMemo(() => new Map(people.map((u) => [u.id, u])), [people]);
   const classMap = useMemo(() => new Map(classes.map((c) => [c.id, c.name])), [classes]);
   const recs = useMemo(() => {
     const ids = new Set(students.map((s) => s.id));
@@ -113,7 +130,9 @@ export const AttendancePage: React.FC = () => {
     return { days, count, rate, per, series, weekSeries, top, flagged, byClass: byClass.sort((a, b) => a.rate - b.rate), byDow: byDow.map((v, i) => ({ label: dowNames[i], ...v })), threshold };
   }, [recs, students, classes, cfg, range]);
 
-  const notifyFlagged = async (ids: string[]) => {
+  const notifyFlagged = async (all: string[]) => {
+    // طلاب «سجل فقط» بلا حسابات ولا أولياء أمور على المنصة
+    const ids = all.filter((id) => !rosterIds.has(id));
     if (!ids.length) return;
     if (!window.confirm(t('إرسال إشعار للطلاب ({n}) وأولياء أمورهم بشأن الغياب؟', { n: ids.length }))) return;
     const ok = await sendAttendanceNotice(ids, 'تنبيه بشأن الغياب', `تجاوز عدد أيام الغياب ${stats.threshold} أيام خلال الفترة. نأمل الحرص على الانتظام في الحضور.`, true);
@@ -215,7 +234,7 @@ export const AttendancePage: React.FC = () => {
         <Card className="overflow-hidden">
           <div className="flex items-center justify-between px-5 pt-4 pb-2">
             <h2 className="font-bold text-slate-900 dark:text-white">{t('الأكثر غياباً')}</h2>
-            {stats.flagged.length > 0 && <Button size="sm" variant="secondary" icon={Bell} onClick={() => void notifyFlagged(stats.flagged.map((x) => x.id))}>{t('إشعار المتجاوزين وأولياء أمورهم')}</Button>}
+            {stats.flagged.some((x) => !rosterIds.has(x.id)) && <Button size="sm" variant="secondary" icon={Bell} onClick={() => void notifyFlagged(stats.flagged.map((x) => x.id))}>{t('إشعار المتجاوزين وأولياء أمورهم')}</Button>}
           </div>
           {stats.top.length === 0 ? <p className="px-5 pb-6 text-sm text-slate-500">{t('لا توجد سجلات في هذه الفترة')}</p> : stats.top.slice(0, 10).map((x) => {
             const s = studentMap.get(x.id);
@@ -303,7 +322,7 @@ export const AttendancePage: React.FC = () => {
     <div className="max-w-7xl mx-auto py-6 sm:py-8 px-4 sm:px-6 space-y-5" dir={uiDir()}>
       <PageHeader title={<span className="inline-flex items-center gap-2"><CalendarCheck className="w-7 h-7 text-indigo-600" />{t('الحضور والغياب')}</span>}
         subtitle={t('الغياب والتأخر والاستئذان من سجل المدرسة، مع تحليلات لكل فصل وطالب')}
-        actions={<Button size="sm" variant="secondary" icon={RefreshCw} onClick={() => { reload(); loadCfg(); }}>{t('تحديث')}</Button>} />
+        actions={<Button size="sm" variant="secondary" icon={RefreshCw} onClick={() => { reload(); loadCfg(); loadRoster(); }}>{t('تحديث')}</Button>} />
 
       <div className="flex flex-wrap items-center gap-2">
         {([['dashboard', 'اللوحة'], ['students', 'سجل الطلاب'], ['week', 'عرض الأسبوع'], ...(canManage ? [['sync', 'الربط والاستيراد']] : [])] as Array<[Tab, string]>).map(([k, l]) => (
@@ -328,9 +347,9 @@ export const AttendancePage: React.FC = () => {
 
       {tab === 'dashboard' && Dashboard}
       {tab === 'students' && Students}
-      {tab === 'week' && <WeekGrid cfg={cfg} classId={classId} setClassId={setClassId} onOpen={setOpenStudent} />}
-      {tab === 'sync' && canManage && <SyncPanel cfg={cfg} onChanged={() => { loadCfg(); reload(); }} />}
-      {openStudent && <StudentDrawer student={openStudent} className={classMap.get(openStudent.class_id || '') || ''} canManage={canManage} onClose={() => setOpenStudent(null)} onChanged={reload} />}
+      {tab === 'week' && <WeekGrid cfg={cfg} people={people} classes={classes} classId={classId} setClassId={setClassId} onOpen={setOpenStudent} />}
+      {tab === 'sync' && canManage && <SyncPanel cfg={cfg} onChanged={() => { loadCfg(); loadRoster(); reload(); }} />}
+      {openStudent && <StudentDrawer student={openStudent} className={classMap.get(openStudent.class_id || '') || ''} canManage={canManage} noAccount={rosterIds.has(openStudent.id)} onClose={() => setOpenStudent(null)} onChanged={reload} />}
     </div>
   );
 };
@@ -338,7 +357,7 @@ export const AttendancePage: React.FC = () => {
 // ---------------------------------------------------------------------
 // سجل طالب: كل حركاته في الفصل، مع التسجيل اليدوي والحذف
 // ---------------------------------------------------------------------
-const StudentDrawer: React.FC<{ student: User; className: string; canManage: boolean; onClose: () => void; onChanged: () => void }> = ({ student, className, canManage, onClose, onChanged }) => {
+const StudentDrawer: React.FC<{ student: User; className: string; canManage: boolean; noAccount?: boolean; onClose: () => void; onChanged: () => void }> = ({ student, className, canManage, noAccount, onClose, onChanged }) => {
   const { currentUser, showToast, sendAttendanceNotice } = useApp();
   const [list, setList] = useState<AttRecord[] | null>(null);
   const [day, setDay] = useState(isoDay(new Date()));
@@ -360,7 +379,7 @@ const StudentDrawer: React.FC<{ student: User; className: string; canManage: boo
         <div className="flex items-start gap-3 p-5 border-b border-slate-100 dark:border-slate-800">
           <div className="flex-1 min-w-0">
             <h2 className="text-lg font-extrabold text-slate-900 dark:text-white">{student.name}</h2>
-            <p className="text-sm text-slate-500">{className}</p>
+            <p className="text-sm text-slate-500">{className}{noAccount ? ` · ${t('بدون حساب على المنصة')}` : ''}</p>
           </div>
           <button type="button" onClick={onClose} aria-label={t('إغلاق')} className="w-9 h-9 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 flex items-center justify-center"><X className="w-5 h-5" /></button>
         </div>
@@ -384,10 +403,10 @@ const StudentDrawer: React.FC<{ student: User; className: string; canManage: boo
               <input value={note} onChange={(e) => setNote(e.target.value)} placeholder={t('ملاحظة (اختياري)')} className="flex-1 h-10 px-3 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm" />
               <Button size="sm" icon={Plus} onClick={() => void add()}>{t('تسجيل')}</Button>
             </div>
-            <Button size="sm" variant="secondary" icon={Bell} className="w-full" onClick={async () => {
+            {!noAccount && <Button size="sm" variant="secondary" icon={Bell} className="w-full" onClick={async () => {
               const ok = await sendAttendanceNotice([student.id], 'متابعة الحضور', `سجل الحضور: غياب ${counts.absent}، تأخر ${counts.late}، استئذان ${counts.excused}. نأمل الحرص على الانتظام.`, true);
               showToast(ok ? t('أُرسل الإشعار') : t('تعذر الإرسال'), ok ? 'success' : 'error');
-            }}>{t('إشعار الطالب وولي الأمر')}</Button>
+            }}>{t('إشعار الطالب وولي الأمر')}</Button>}
           </div>
         )}
         <div className="flex-1 overflow-y-auto border-t border-slate-100 dark:border-slate-800">
@@ -498,8 +517,9 @@ const SyncPanel: React.FC<{ cfg: AttConfig | null; onChanged: () => void }> = ({
                 <div key={sh} className="flex items-center gap-2">
                   <span className="w-28 text-sm font-semibold truncate">{sh}</span>
                   <select value={mapping[sh] || ''} onChange={(e) => setMapping((m) => ({ ...m, [sh]: e.target.value }))} className="flex-1 h-10 px-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm">
-                    <option value="">{t('كل المدرسة')}</option>
-                    {classes.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+                    <option value="">{t('طلاب المنصة (كل المدرسة)')}</option>
+                    {classes.map((c) => <option key={c.id} value={c.id}>{t('طلاب المنصة: {c}', { c: c.name })}</option>)}
+                    <option value={ROSTER_SHEET}>{t('سجل فقط (طلاب بدون حسابات)')}</option>
                   </select>
                 </div>
               ))}
@@ -510,6 +530,7 @@ const SyncPanel: React.FC<{ cfg: AttConfig | null; onChanged: () => void }> = ({
             <div className="rounded-xl bg-emerald-50 dark:bg-emerald-950/40 p-4 text-sm text-emerald-900 dark:text-emerald-200 space-y-1" role="status">
               <div className="font-bold inline-flex items-center gap-1.5"><CheckCircle2 className="w-4 h-4" />{t('تم الاستيراد')}</div>
               <div>{t('طوبق {n} طالب، وسُجّلت {m} حركة', { n: result.matched, m: result.marks })}</div>
+              {!!result.roster && <div>{t('منهم {n} طالب في «سجل فقط» بدون حسابات', { n: result.roster })}</div>}
               {result.unmatched.length > 0 && <div className="text-amber-800 dark:text-amber-300">{t('{n} اسم لم يُطابق، اربطها من القائمة المجاورة', { n: result.unmatched.length })}</div>}
             </div>
           )}
@@ -596,8 +617,7 @@ const UnmatchedRow: React.FC<{ u: { sheet: string; name: string; count: number }
 // ---------------------------------------------------------------------
 // عرض الأسبوع: نفس شكل سجل الغياب (الطلاب × الأحد–الخميس) لأسبوع واحد
 // ---------------------------------------------------------------------
-const WeekGrid: React.FC<{ cfg: AttConfig | null; classId: string; setClassId: (v: string) => void; onOpen: (u: User) => void }> = ({ cfg, classId, setClassId, onOpen }) => {
-  const { users, classes } = useApp();
+const WeekGrid: React.FC<{ cfg: AttConfig | null; people: User[]; classes: Klass[]; classId: string; setClassId: (v: string) => void; onOpen: (u: User) => void }> = ({ cfg, people, classes, classId, setClassId, onOpen }) => {
   const start = cfg?.start_date ? new Date(`${cfg.start_date}T12:00:00`) : null;
   const currentWeek = start ? Math.min(cfg!.weeks, Math.max(1, Math.floor((Date.now() - start.getTime()) / (7 * 864e5)) + 1)) : 1;
   const [week, setWeek] = useState(currentWeek);
@@ -610,7 +630,7 @@ const WeekGrid: React.FC<{ cfg: AttConfig | null; classId: string; setClassId: (
   const [recs, setRecs] = useState<AttRecord[] | null>(null);
   useEffect(() => { setRecs(null); void fetchAttendance(days[0], days[4]).then((r) => setRecs(r || [])); }, [days[0]]); // eslint-disable-line react-hooks/exhaustive-deps
   const cid = classId || classes[0]?.id || '';
-  const list = (users as User[]).filter((u) => u.role === 'student' && u.class_id === cid).sort((a, b) => a.name.localeCompare(b.name, 'ar'));
+  const list = people.filter((u) => u.class_id === cid).sort((a, b) => a.name.localeCompare(b.name, 'ar'));
   const cell = new Map<string, AttKind[]>();
   (recs || []).forEach((r) => { const k = `${r.student_id}|${r.day}`; cell.set(k, [...(cell.get(k) || []), r.kind]); });
   const totals = (id: string) => days.reduce((a, d) => a + (cell.get(`${id}|${d}`)?.length || 0), 0);
