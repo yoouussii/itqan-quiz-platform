@@ -12,6 +12,7 @@ import { questionsCount, minutesCount, hoursCount, daysCount } from '../../i18n/
 import { DevicePushCard } from '../common/DevicePushCard';
 import { DailyChallenge } from './DailyChallenge';
 import { shortName } from '../../utils/names';
+import { AttendanceSummary } from '../common/AttendanceSummary';
 import { StudentHomeData, fetchStudentHome } from '../../services/studentHomeService';
 
 interface StudentDashboardProps {
@@ -416,6 +417,7 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({ onStartQuiz,
             {StreakCard}
             {LevelCard}
             {BoardCard}
+            {me && <AttendanceSummary studentId={me} />}
           </div>
           {ResultsCard}
         </div>
@@ -424,6 +426,7 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({ onStartQuiz,
           {StreakCard}
           {LevelCard}
           {BoardCard}
+          {me && <AttendanceSummary studentId={me} />}
         </aside>
       </div>
 

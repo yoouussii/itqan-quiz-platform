@@ -41,6 +41,7 @@ const OutcomesPage = React.lazy(() => import('./components/analytics/OutcomesPag
 const SkillsCard = React.lazy(() => import('./components/analytics/OutcomesPage').then((m) => ({ default: m.SkillsCard })));
 const QuestionBankPage = React.lazy(() => import('./components/teacher/QuestionBank').then((m) => ({ default: m.QuestionBankPage })));
 const GradingPage = React.lazy(() => import('./components/teacher/GradingPage').then((m) => ({ default: m.GradingPage })));
+const AttendancePage = React.lazy(() => import('./components/staff/AttendancePage').then((m) => ({ default: m.AttendancePage })));
 const CertificatesPage = React.lazy(() => import('./components/staff/CertificatesPage').then((m) => ({ default: m.CertificatesPage })));
 const VerifyPage = React.lazy(() => import('./components/legal/VerifyPage').then((m) => ({ default: m.VerifyPage })));
 const NotificationsPage = React.lazy(() => import('./components/common/NotificationsPage').then((m) => ({ default: m.NotificationsPage })));
@@ -50,7 +51,7 @@ const KNOWN_VIEWS = [
   'students_management', 'subjects_classes', 'analytics', 'reports',
   'quiz_results', 'quiz_preview', 'quizzes', 'dashboard',
   'my_points', 'leaderboard', 'approvals', 'activity_log', 'settings', 'notifications', 'banners', 'question_bank', 'outcomes', 'certificates', 'grading',
-  'privacy', 'terms',
+  'privacy', 'terms', 'attendance',
 ];
 
 /** المسار الحالي، ويتحدّث مع زر الرجوع والروابط الداخلية (لصفحات ما قبل الدخول) */
@@ -131,6 +132,7 @@ const AppContent: React.FC = () => {
     settings: currentUser.role === 'admin',
     banners: currentUser.role === 'admin',
     certificates: hasPerm(currentUser, 'can_award_badges'),
+    attendance: hasPerm(currentUser, 'can_view_attendance') || hasPerm(currentUser, 'can_manage_attendance'),
     grading: currentUser.role === 'admin' || currentUser.role === 'teacher' || hasPerm(currentUser, 'can_grade_essays'),
     quiz_results: isStaff,
     quiz_preview: isStaff,
@@ -246,6 +248,7 @@ const AppContent: React.FC = () => {
         {currentView === 'notifications' && <NotificationsPage />}
         {(currentView === 'privacy' || currentView === 'terms') && <LegalPage doc={currentView} />}
         {currentView === 'certificates' && <CertificatesPage />}
+        {currentView === 'attendance' && <AttendancePage />}
         {currentView === 'grading' && <GradingPage />}
         {currentView === 'my_points' && currentUser.role === 'student' && <MyPoints />}
         {currentView === 'leaderboard' && hasPerm(currentUser, 'can_view_leaderboard') && <Leaderboard />}

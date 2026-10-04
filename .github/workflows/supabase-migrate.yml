@@ -36,6 +36,7 @@ on:
           - supabase/migrations/019_maintenance_login_style.sql
           - supabase/migrations/020_login_identity.sql
           - supabase/migrations/021_student_home.sql
+          - supabase/migrations/022_attendance.sql
           - supabase/migrations/023_restore_subjects.sql
           - supabase/migrations/003_rollback.sql
       db_secret:
@@ -78,6 +79,7 @@ jobs:
           select 'quiz timer function (004): ' || (to_regproc('public.itqan_start_quiz') is not null);
           select 'banners (006): ' || (to_regclass('public.banners') is not null);
           select 'branches & parents (009): ' || (to_regclass('public.branches') is not null);
+          select 'attendance (022): ' || (to_regclass('public.attendance_records') is not null);
           select 'student home: daily challenge (021): ' || (to_regproc('public.itqan_daily_challenge') is not null);
           select 'maintenance mode (019): ' || (to_regproc('itqan.maintenance_on') is not null);
           select 'certificates registry (018): ' || (to_regclass('public.certificates') is not null);

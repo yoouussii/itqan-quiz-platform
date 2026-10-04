@@ -1,4 +1,5 @@
 import React, { useMemo, useState } from 'react';
+import { AttendanceSummary } from '../common/AttendanceSummary';
 import { BookOpen, CalendarClock, CheckCircle2, Users, FileText } from 'lucide-react';
 import { exportStudentReport, reportExtras } from '../../utils/studentReport';
 import { earnedBadges } from '../../utils/points';
@@ -202,6 +203,7 @@ export const ParentDashboard: React.FC<{ onViewReview: (submissionId: string) =>
         </Card>
       </div>
 
+      <AttendanceSummary key={`att-${child.id}`} studentId={child.id} />
       <SkillsCard studentId={child.id} quizzes={quizzes} submissions={submissions} title={t('مستوى {who} في المهارات', { who: word })} />
     </div>
   );

@@ -87,3 +87,6 @@ export const isMissingRpc = (error: { code?: string; message?: string } | null |
 export const supabase: SupabaseClient = isSupabaseConfigured()
   ? createClient(supabaseUrl, supabaseAnonKey, { global: { fetch: fetchWithSession } })
   : createClient('https://placeholder-project.supabase.co', 'placeholder-anon-key');
+
+// رابط الخادم والمفتاح العام (المفتاح العام يظهر في الموقع أصلاً؛ يُستخدم في كود ربط سجل الغياب)
+export { supabaseUrl, supabaseAnonKey };
