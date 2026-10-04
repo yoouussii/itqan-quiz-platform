@@ -10,6 +10,7 @@ import {
   CalendarDays,
   ShieldCheck,
   CalendarRange,
+  BookOpenCheck,
   PenLine,
 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
@@ -60,6 +61,7 @@ const staffGroups = (u: User, pendingApprovals: number, preparationsUrl: string,
   quizzes.push({ id: 'outcomes', label: t('نواتج التعلم'), icon: Target });
   quizzes.push({ id: 'calendar', label: t('جدول الاختبارات'), icon: CalendarDays });
   quizzes.push({ id: 'analytics', label: u.role === 'teacher' ? t('نتائج طلابي') : t('النتائج والتحليلات'), icon: BarChart2 });
+  quizzes.push({ id: 'gradebook', label: t('كشف الدرجات'), icon: BookOpenCheck });
   if (u.role === 'teacher' && p.can_view_all_reports) quizzes.push({ id: 'reports', label: t('التقارير الشاملة'), icon: BarChart2 });
 
   if (isAdmin) school.push({ id: 'users', label: t('المستخدمون'), icon: Users });

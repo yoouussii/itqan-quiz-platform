@@ -41,6 +41,7 @@ const OutcomesPage = React.lazy(() => import('./components/analytics/OutcomesPag
 const SkillsCard = React.lazy(() => import('./components/analytics/OutcomesPage').then((m) => ({ default: m.SkillsCard })));
 const QuestionBankPage = React.lazy(() => import('./components/teacher/QuestionBank').then((m) => ({ default: m.QuestionBankPage })));
 const GradingPage = React.lazy(() => import('./components/teacher/GradingPage').then((m) => ({ default: m.GradingPage })));
+const GradebookPage = React.lazy(() => import('./components/staff/GradebookPage').then((m) => ({ default: m.GradebookPage })));
 const SchoolYearPage = React.lazy(() => import('./components/admin/SchoolYearPage').then((m) => ({ default: m.SchoolYearPage })));
 const BehaviorPage = React.lazy(() => import('./components/staff/BehaviorPage').then((m) => ({ default: m.BehaviorPage })));
 const ExamCalendar = React.lazy(() => import('./components/common/ExamCalendar').then((m) => ({ default: m.ExamCalendar })));
@@ -54,7 +55,7 @@ const KNOWN_VIEWS = [
   'students_management', 'subjects_classes', 'analytics', 'reports',
   'quiz_results', 'quiz_preview', 'quizzes', 'dashboard',
   'my_points', 'leaderboard', 'approvals', 'activity_log', 'settings', 'notifications', 'banners', 'question_bank', 'outcomes', 'certificates', 'grading',
-  'privacy', 'terms', 'attendance', 'calendar', 'behavior', 'school_year',
+  'privacy', 'terms', 'attendance', 'calendar', 'behavior', 'school_year', 'gradebook',
 ];
 
 /** المسار الحالي، ويتحدّث مع زر الرجوع والروابط الداخلية (لصفحات ما قبل الدخول) */
@@ -138,6 +139,7 @@ const AppContent: React.FC = () => {
     attendance: hasPerm(currentUser, 'can_view_attendance') || hasPerm(currentUser, 'can_manage_attendance'),
     behavior: hasPerm(currentUser, 'can_view_behavior') || hasPerm(currentUser, 'can_record_behavior'),
     school_year: currentUser.role === 'admin',
+    gradebook: isStaff,
     grading: currentUser.role === 'admin' || currentUser.role === 'teacher' || hasPerm(currentUser, 'can_grade_essays'),
     quiz_results: isStaff,
     quiz_preview: isStaff,
@@ -256,6 +258,7 @@ const AppContent: React.FC = () => {
         {currentView === 'attendance' && <AttendancePage />}
         {currentView === 'calendar' && <ExamCalendar />}
         {currentView === 'behavior' && <BehaviorPage />}
+        {currentView === 'gradebook' && <GradebookPage />}
         {currentView === 'school_year' && currentUser.role === 'admin' && <SchoolYearPage />}
         {currentView === 'grading' && <GradingPage />}
         {currentView === 'my_points' && currentUser.role === 'student' && <MyPoints />}
