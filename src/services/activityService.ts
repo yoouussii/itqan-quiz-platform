@@ -38,6 +38,7 @@ export const ACTION_LABELS: Record<string, string> = {
   banner_saved: 'حفظ بانر الصفحة الرئيسية',
   banner_deleted: 'حذف بانر',
   submissions_deleted: 'حذف مشاركات طلاب',
+  year_rollover: 'ترحيل السنة الدراسية',
 };
 
 /** تسجيل حدث (لا يعطّل أي عملية عند الفشل). يُحفظ محلياً أيضاً كاحتياط */
