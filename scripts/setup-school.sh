@@ -54,7 +54,8 @@ SQL
 
 if [ -n "${OWNER_KEY:-}" ]; then
   echo "▶ ضبط مفتاح لوحة صاحب المنصة"
-  "${PSQL[@]}" -v k="$OWNER_KEY" -qc "select itqan.set_owner_key(:'k')" >/dev/null
+  # متغيرات psql (:'k') لا تُستبدل مع -c، فنمرّر الأمر من stdin
+  printf '%s\n' "select itqan.set_owner_key(:'k');" | "${PSQL[@]}" -q -v k="$OWNER_KEY" >/dev/null
 fi
 
 echo "▶ التحقق"
