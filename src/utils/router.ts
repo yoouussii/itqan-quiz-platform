@@ -31,6 +31,7 @@ const SIMPLE: Record<string, string> = {
   certificates: '/certificates',
   attendance: '/attendance',
   calendar: '/calendar',
+  behavior: '/behavior',
   grading: '/grading',
   privacy: '/privacy',
   terms: '/terms',

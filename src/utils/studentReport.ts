@@ -4,6 +4,7 @@ import { computeOutcomes, pct as masteryPct, masteryLevel, MASTERY_LABEL } from 
 import type { QuizWithDetails, SubmissionWithDetails } from '../types';
 import { t, dateLocale } from '../i18n';
 import { fetchAttendance, fetchAttendanceConfig, schoolDaysBetween, isoDay } from '../services/attendanceService';
+import { fetchBehavior, fetchBehaviorConfig, conductScore } from '../services/behaviorService';
 
 const esc = (v: unknown) => String(v ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 
@@ -98,6 +99,19 @@ export async function exportStudentReport(i: StudentReportInput): Promise<void> 
       }
     } catch { /* الكشف يُطبع بدون الحضور */ }
   }
+  // السلوك والمواظبة
+  let conduct = '';
+  if (i.studentId) {
+    try {
+      const [cfg, beh, att] = await Promise.all([fetchBehaviorConfig(), fetchBehavior([i.studentId]), fetchAttendance('2000-01-01', '2100-01-01', [i.studentId])]);
+      if (cfg.catalog && Object.keys(cfg.catalog).length) {
+        const sc = conductScore(beh, att || [], cfg);
+        const n = (x: number) => String(Math.round(x * 100) / 100);
+        conduct = `<h2 style="font-size:14px;font-weight:800;margin:14px 0 6px">${esc(t('السلوك والمواظبة'))}</h2>
+          <div style="display:flex;gap:10px;flex-wrap:wrap">${box(t('درجة السلوك'), `${n(sc.behavior)} / ${n(cfg.behavior_max)}`)}${box(t('درجة المواظبة'), `${n(sc.attendance)} / ${n(cfg.attendance_max)}`)}${box(t('المخالفات'), String(sc.violations))}${box(t('السلوك الإيجابي'), String(sc.positives))}</div>`;
+      }
+    } catch { /* بدون السلوك */ }
+  }
 
   const bodyHtml = `
     <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:14px">
@@ -106,7 +120,7 @@ export async function exportStudentReport(i: StudentReportInput): Promise<void> 
     <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:14px">
       ${box(t('اختبارات مؤداة'), String(i.results.length))}${box(t('المعدل العام'), `${avg}%`)}${box(t('أعلى نسبة'), `${best}%`)}${box(t('النقاط'), `${i.points} • ${t(lvl.level.name)}`)}
     </div>
-    ${subjects}${skills}${attendance}
+    ${subjects}${skills}${attendance}${conduct}
     <h2 style="font-size:14px;font-weight:800;margin:14px 0 8px">${esc(t('النتائج التفصيلية'))}</h2>
     <table class="pdf-table"><thead><tr><th>#</th><th>${esc(t('الاختبار'))}</th><th>${esc(t('المادة'))}</th><th>${esc(t('الدرجة'))}</th><th>${esc(t('النسبة'))}</th><th>${esc(t('التاريخ'))}</th></tr></thead>
     <tbody>${rows || `<tr><td colspan="6">${esc(t('لا توجد نتائج بعد'))}</td></tr>`}</tbody></table>

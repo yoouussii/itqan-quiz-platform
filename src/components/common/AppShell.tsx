@@ -8,6 +8,7 @@ import {
   Award,
   CalendarCheck,
   CalendarDays,
+  ShieldCheck,
   PenLine,
 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
@@ -67,6 +68,7 @@ const staffGroups = (u: User, pendingApprovals: number, preparationsUrl: string,
   if (hasPerm(u, 'can_view_leaderboard')) school.push({ id: 'leaderboard', label: t('لوحة الشرف'), icon: Trophy });
   if (hasPerm(u, 'can_award_badges')) school.push({ id: 'certificates', label: t('الشهادات'), icon: Award });
   if (hasPerm(u, 'can_view_attendance') || hasPerm(u, 'can_manage_attendance')) school.push({ id: 'attendance', label: t('الحضور والغياب'), icon: CalendarCheck });
+  if (hasPerm(u, 'can_view_behavior') || hasPerm(u, 'can_record_behavior')) school.push({ id: 'behavior', label: t('السلوك والمواظبة'), icon: ShieldCheck });
 
   system.push({ id: 'notifications', label: t('الإشعارات'), icon: Bell });
   if (hasPerm(u, 'can_view_activity_log')) system.push({ id: 'activity_log', label: t('سجل النشاط'), icon: ScrollText });

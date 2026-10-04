@@ -13,6 +13,7 @@ import { DevicePushCard } from '../common/DevicePushCard';
 import { DailyChallenge } from './DailyChallenge';
 import { shortName } from '../../utils/names';
 import { AttendanceSummary } from '../common/AttendanceSummary';
+import { ConductSummary } from '../common/ConductSummary';
 import { StudentHomeData, fetchStudentHome } from '../../services/studentHomeService';
 
 interface StudentDashboardProps {
@@ -418,6 +419,7 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({ onStartQuiz,
             {LevelCard}
             {BoardCard}
             {me && <AttendanceSummary studentId={me} />}
+            {me && <ConductSummary studentId={me} />}
           </div>
           {ResultsCard}
         </div>
@@ -427,6 +429,7 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({ onStartQuiz,
           {LevelCard}
           {BoardCard}
           {me && <AttendanceSummary studentId={me} />}
+            {me && <ConductSummary studentId={me} />}
         </aside>
       </div>
 
