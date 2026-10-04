@@ -1,0 +1,113 @@
+# حفظ مرفقات الواجبات في Google Drive بدل قاعدة البيانات (041)
+# Actions ← Setup Drive storage ← Run workflow
+#
+# قبل التشغيل (مرة واحدة) — الخطوات بالتفصيل في docs/DRIVE_STORAGE.md:
+#   1) شغّل 041_homework_drive.sql من «Supabase migrate».
+#   2) أضف من Settings ← Secrets and variables ← Actions:
+#      GOOGLE_CLIENT_ID، GOOGLE_CLIENT_SECRET، GOOGLE_REFRESH_TOKEN
+#   (SUPABASE_ACCESS_TOKEN و SUPABASE_PROJECT_REF موجودان من إعداد الإشعارات.)
+#
+# ماذا يفعل: يتحقق من إذن Google، وينشئ مجلد «إتقان - مرفقات الواجبات» في Drive (مرة واحدة)،
+# ويرفع دالة homework-drive، ويفعّل الحفظ في Drive. الملفات القديمة تبقى في قاعدة البيانات وتعمل كما هي.
+# للرجوع لقاعدة البيانات: شغّله مع اختيار mode = db.
+name: Setup Drive storage
+
+on:
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: 'مكان حفظ المرفقات الجديدة'
+        required: true
+        default: drive
+        type: choice
+        options: [drive, db]
+      db_secret:
+        description: 'اسم سر قاعدة البيانات (اتركه كما هو للمدرسة الأساسية)'
+        required: false
+        default: SUPABASE_DB_URL
+        type: string
+      project_ref_secret:
+        description: 'اسم سر معرّف المشروع (اتركه كما هو للمدرسة الأساسية)'
+        required: false
+        default: SUPABASE_PROJECT_REF
+        type: string
+
+jobs:
+  setup:
+    runs-on: ubuntu-latest
+    env:
+      DATABASE_URL: ${{ secrets[inputs.db_secret] }}
+      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+      PROJECT_REF: ${{ secrets[inputs.project_ref_secret] }}
+      GOOGLE_CLIENT_ID: ${{ secrets.GOOGLE_CLIENT_ID }}
+      GOOGLE_CLIENT_SECRET: ${{ secrets.GOOGLE_CLIENT_SECRET }}
+      GOOGLE_REFRESH_TOKEN: ${{ secrets.GOOGLE_REFRESH_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check database
+        run: |
+          test -n "$DATABASE_URL" || { echo "::error::السر «${{ inputs.db_secret }}» غير موجود."; exit 1; }
+          sudo apt-get -qq update && sudo apt-get -qq install -y postgresql-client >/dev/null
+          psql "$DATABASE_URL" -tAc "select to_regclass('itqan.storage_config') is not null" | grep -q t \
+            || { echo "::error::شغّل 041_homework_drive.sql أولاً من Supabase migrate."; exit 1; }
+
+      - name: Back to database storage
+        if: inputs.mode == 'db'
+        run: |
+          psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -qc "update itqan.storage_config set mode = 'db', updated_at = now() where id = 1"
+          echo "✓ المرفقات الجديدة تُحفظ في قاعدة البيانات. ملفات Drive السابقة تبقى تعمل."
+
+      - name: Check Google access
+        if: inputs.mode == 'drive'
+        run: |
+          for k in GOOGLE_CLIENT_ID GOOGLE_CLIENT_SECRET GOOGLE_REFRESH_TOKEN SUPABASE_ACCESS_TOKEN PROJECT_REF; do
+            test -n "${!k}" || { echo "::error::السر $k غير موجود (راجع docs/DRIVE_STORAGE.md)."; exit 1; }
+          done
+          RES=$(curl -sS https://oauth2.googleapis.com/token \
+            -d client_id="$GOOGLE_CLIENT_ID" -d client_secret="$GOOGLE_CLIENT_SECRET" \
+            -d refresh_token="$GOOGLE_REFRESH_TOKEN" -d grant_type=refresh_token)
+          TOKEN=$(echo "$RES" | jq -r '.access_token // empty')
+          if [ -z "$TOKEN" ]; then
+            echo "::error::Google رفض الإذن: $(echo "$RES" | jq -r '.error_description // .error // "unknown"'). أعد إنشاء GOOGLE_REFRESH_TOKEN (docs/DRIVE_STORAGE.md)."
+            exit 1
+          fi
+          echo "::add-mask::$TOKEN"
+          echo "TOKEN=$TOKEN" >> "$GITHUB_ENV"
+
+      - name: Drive folder
+        if: inputs.mode == 'drive'
+        run: |
+          NAME='إتقان - مرفقات الواجبات'
+          Q=$(jq -rn --arg n "$NAME" '"name = \"" + $n + "\" and mimeType = \"application/vnd.google-apps.folder\" and trashed = false"')
+          FOLDER=$(curl -sS -G https://www.googleapis.com/drive/v3/files -H "Authorization: Bearer $TOKEN" \
+            --data-urlencode "q=$Q" --data-urlencode "fields=files(id)" | jq -r '.files[0].id // empty')
+          if [ -z "$FOLDER" ]; then
+            FOLDER=$(curl -sS https://www.googleapis.com/drive/v3/files?fields=id -H "Authorization: Bearer $TOKEN" \
+              -H 'Content-Type: application/json' \
+              -d "$(jq -n --arg n "$NAME" '{name: $n, mimeType: "application/vnd.google-apps.folder"}')" | jq -r '.id // empty')
+            test -n "$FOLDER" || { echo "::error::تعذر إنشاء المجلد في Drive. تأكد من تفعيل Google Drive API."; exit 1; }
+            echo "أُنشئ المجلد «$NAME» في Drive."
+          else
+            echo "المجلد موجود مسبقاً."
+          fi
+          echo "FOLDER=$FOLDER" >> "$GITHUB_ENV"
+
+      - uses: supabase/setup-cli@v1
+        if: inputs.mode == 'drive'
+        with:
+          version: latest
+
+      - name: Deploy homework-drive
+        if: inputs.mode == 'drive'
+        run: |
+          supabase secrets set --project-ref "$PROJECT_REF" \
+            GOOGLE_CLIENT_ID="$GOOGLE_CLIENT_ID" GOOGLE_CLIENT_SECRET="$GOOGLE_CLIENT_SECRET" \
+            GOOGLE_REFRESH_TOKEN="$GOOGLE_REFRESH_TOKEN" DRIVE_FOLDER_ID="$FOLDER"
+          supabase functions deploy homework-drive --project-ref "$PROJECT_REF" --no-verify-jwt
+
+      - name: Enable
+        if: inputs.mode == 'drive'
+        run: |
+          psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -qc "update itqan.storage_config set mode = 'drive', last_error = null, last_error_at = null, updated_at = now() where id = 1"
+          echo "✓ مرفقات الواجبات الجديدة تُحفظ الآن في Google Drive (مجلد «إتقان - مرفقات الواجبات»)."

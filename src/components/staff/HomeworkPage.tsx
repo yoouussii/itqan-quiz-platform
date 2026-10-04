@@ -5,7 +5,7 @@ import { PageHeader, Card, Button, Chip } from '../common/ui';
 import { FileChips, FilePicker, LinksBlock, StateChip, dueText, uploadErrorText } from '../common/Homework';
 import {
   Homework, HwFile, HwLink, HwStorage, HwSubmission, createHomework, deleteFile, deleteHomework, fetchFiles, fetchHomework,
-  fetchHomeworkStorage, fetchSubmissions, fmtSize, gradeSubmission, hwState, purgeHomework, safeUrl, updateHomework, uploadFile,
+  fetchHomeworkStorage, fetchSubmissions, fmtSize, maxFileMb, gradeSubmission, hwState, purgeHomework, safeUrl, updateHomework, uploadFile,
 } from '../../services/homeworkService';
 import { FREE_DB_LIMIT } from '../../services/schoolYearService';
 import { uiDir, t, dateLocale } from '../../i18n';
@@ -65,22 +65,31 @@ export const HomeworkPage: React.FC = () => {
 
   return (
     <div className="space-y-5">
-      <PageHeader title={t('الواجبات')} subtitle={isTeacher ? t('واجبات فصولك المسندة: انشر، وتابع التسليم، وصحّح') : t('كل واجبات المدرسة وتسليمات الطلاب')}
-        actions={canPublish && !noAssignment ? <Button icon={Plus} onClick={() => setEditing('new')}>{t('واجب جديد')}</Button> : undefined} />
+      <PageHeader title={t('الواجبات')} subtitle={isTeacher ? t('واجبات فصولك المسندة: انشر، وتابع التسليم، وصحّح') : t('كل واجبات المدرسة وتسليمات الطلاب')} />
       {noAssignment && <Card className="p-4 text-sm text-amber-800 dark:text-amber-200 bg-amber-50 dark:bg-amber-950/40 border-amber-200 dark:border-amber-900">{t('لا توجد فصول أو مواد مسندة لك بعد. اطلب من مدير النظام إسنادها من صفحة المستخدمين.')}</Card>}
       {isAdmin && <StorageCard onPurged={() => void load()} />}
 
-      {myClasses.length > 1 && (
-        <label className="text-sm text-slate-600 dark:text-slate-300 flex items-center gap-2">{t('الفصل')}
-          <select value={classFilter} onChange={(e) => setClassFilter(e.target.value)} className={inp}>
-            <option value="">{t('كل الفصول')}</option>
-            {myClasses.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-          </select>
-        </label>
+      {/* شريط الأدوات بجانب العنوان (لا في طرف الشاشة) */}
+      {((canPublish && !noAssignment) || myClasses.length > 1) && (
+        <div className="flex flex-wrap items-center gap-3">
+          {canPublish && !noAssignment && <Button size="sm" icon={Plus} onClick={() => setEditing('new')}>{t('واجب جديد')}</Button>}
+          {myClasses.length > 1 && (
+            <label className="text-sm text-slate-600 dark:text-slate-300 flex items-center gap-2">{t('الفصل')}
+              <select value={classFilter} onChange={(e) => setClassFilter(e.target.value)} className={inp}>
+                <option value="">{t('كل الفصول')}</option>
+                {myClasses.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+              </select>
+            </label>
+          )}
+        </div>
       )}
 
       {loading ? null : !shown.length ? (
-        <Card className="p-10 text-center text-slate-500"><NotebookPen className="w-10 h-10 mx-auto mb-2 text-slate-300" />{t('لا توجد واجبات بعد')}</Card>
+        <Card className="p-10 text-center text-slate-500 space-y-3">
+          <NotebookPen className="w-10 h-10 mx-auto text-slate-300" />
+          <p>{t('لا توجد واجبات بعد')}</p>
+          {canPublish && !noAssignment && <Button variant="secondary" size="sm" icon={Plus} onClick={() => setEditing('new')}>{t('انشر أول واجب')}</Button>}
+        </Card>
       ) : (
         <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
           {shown.map((h) => {
@@ -227,7 +236,7 @@ const HomeworkEditor: React.FC<{ hw: Homework | null; classes: { id: string; nam
             )}
             <div className="flex flex-wrap items-center gap-3">
               <FilePicker onPick={(f) => setPending([...pending, ...f])} label={t('إضافة ملفات')} />
-              <span className="text-xs text-slate-500">{t('PDF أو صور أو Word، حتى 5 ميجابايت للملف. للفيديو أضف رابطاً.')}</span>
+              <span className="text-xs text-slate-500">{t('PDF أو صور أو Word، حتى {n} ميجابايت للملف. للفيديو أضف رابطاً.', { n: maxFileMb() })}</span>
             </div>
           </fieldset>
         </div>
@@ -339,7 +348,7 @@ const StorageCard: React.FC<{ onPurged: () => void }> = ({ onPurged }) => {
   const [before, setBefore] = useState(() => { const d = new Date(); d.setMonth(d.getMonth() - 3); return d.toISOString().slice(0, 10); });
   const load = () => void fetchHomeworkStorage().then(setSt);
   useEffect(load, []);
-  if (!st || !st.homework) return null;
+  if (!st || (!st.homework && st.mode !== 'drive')) return null;
   const purge = async () => {
     if (!window.confirm(t('حذف كل الواجبات المنشورة قبل {d} بتسليماتها ومرفقاتها نهائياً؟', { d: before }))) return;
     const r = await purgeHomework(before);
@@ -349,7 +358,11 @@ const StorageCard: React.FC<{ onPurged: () => void }> = ({ onPurged }) => {
   return (
     <Card className="p-4 flex flex-wrap items-center gap-3 text-sm">
       <HardDrive className="w-5 h-5 text-indigo-600" />
-      <span className="text-slate-700 dark:text-slate-200">{t('مرفقات الواجبات: {n} ملف · {s} ({p}% من مساحة الخطة المجانية)', { n: st.files, s: fmtSize(st.bytes), p: Math.round((st.bytes / FREE_DB_LIMIT) * 1000) / 10 })}</span>
+      <span className="text-slate-700 dark:text-slate-200">
+        {t('مرفقات الواجبات: {n} ملف · {s} ({p}% من مساحة الخطة المجانية)', { n: st.files, s: fmtSize(st.bytes), p: Math.round((st.bytes / FREE_DB_LIMIT) * 1000) / 10 })}
+        {st.mode === 'drive' && <span className="block text-xs text-emerald-700 dark:text-emerald-400">{t('الملفات الجديدة تُحفظ في Google Drive: {n} ملف · {s}', { n: st.drive_files || 0, s: fmtSize(st.drive_bytes || 0) })}</span>}
+        {st.mode === 'drive' && st.drive_error && <span className="block text-xs text-rose-700 dark:text-rose-400" role="alert">{t('تعذر الرفع إلى Google Drive مؤخراً، فحُفظت الملفات في قاعدة البيانات مؤقتاً. أعد تشغيل «Setup Drive storage» (قد يكون الإذن انتهى).')}</span>}
+      </span>
       <span className="ms-auto flex flex-wrap items-center gap-2">
         <label className="flex items-center gap-1.5 text-slate-600 dark:text-slate-300">{t('حذف الواجبات قبل')}<input type="date" value={before} max={new Date().toISOString().slice(0, 10)} onChange={(e) => setBefore(e.target.value)} className={inp} /></label>
         <Button size="sm" variant="secondary" icon={Trash2} onClick={() => void purge()}>{t('تنظيف')}</Button>
