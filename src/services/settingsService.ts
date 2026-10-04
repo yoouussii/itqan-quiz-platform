@@ -62,6 +62,8 @@ const BRANDING_KEYS = ['school_name', 'school_logo', 'brand_color', 'maintenance
 
 // v2: النسخة السابقة كانت تحفظ «بلا اعتماد» على الأجهزة حتى لو لم يختره المدير
 const KEY = 'itqan_settings_v2';
+/** هل وصلت هوية المدرسة لهذا الجهاز من قبل؟ (جهاز جديد = لا، فننتظرها بدل إظهار الشكل الافتراضي) */
+export const hasCachedSettings = (): boolean => { try { return localStorage.getItem(KEY) != null; } catch { return false; } };
 export const loadSettings = (): AppSettings => ({ ...DEFAULT_SETTINGS, ...readJson<Partial<AppSettings>>(KEY, {}) });
 
 export async function syncSettings(): Promise<boolean> {

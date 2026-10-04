@@ -38,7 +38,7 @@ import {
 import { logActivity } from '../services/activityService';
 import { Banner, loadBannerCache, syncBanners, saveBannerRemote, deleteBannerRemote } from '../services/bannerService';
 import { loadAwardsCache, makeAward, pushAward, pullAwards } from '../services/awardsService';
-import { AppSettings, loadSettings, syncSettings, saveSettings, syncPublicBranding } from '../services/settingsService';
+import { AppSettings, loadSettings, syncSettings, saveSettings, syncPublicBranding, hasCachedSettings } from '../services/settingsService';
 import { applyBrandColor, BRAND_PRESETS } from '../utils/brand';
 import { setPrintBrand } from '../utils/exportPdf';
 import { disablePush } from '../services/pushService';
@@ -147,6 +147,8 @@ interface AppContextType {
   awards: StudentAward[];
   giveAward: (p: { student: User; title: string; note?: string; points: number }) => Promise<{ ok: boolean; error?: string }>;
   settings: AppSettings;
+  /** وصلت هوية المدرسة (أو كانت محفوظة على الجهاز): شاشة الدخول تنتظرها على الجهاز الجديد */
+  brandingReady: boolean;
   updateSettings: (patch: Partial<AppSettings>) => Promise<void>;
   changeMyPassword: (current: string, next: string) => Promise<{ ok: boolean; error?: string }>;
   /** المستخدم الحالي ما زال يستخدم كلمة المرور الافتراضية (يُطلب منه تغييرها) */
@@ -618,6 +620,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [awards, setAwards] = useState<StudentAward[]>(() => loadAwardsCache());
   const [banners, setBanners] = useState<Banner[]>(() => loadBannerCache());
   const [settings, setSettings] = useState<AppSettings>(() => loadSettings());
+  const [brandingReady, setBrandingReady] = useState<boolean>(() => !isSupabaseConfigured() || hasCachedSettings());
+  // شبكة بطيئة جداً: لا نترك شاشة الدخول معلّقة أكثر من 4 ثوانٍ
+  useEffect(() => { if (brandingReady) return; const id = setTimeout(() => setBrandingReady(true), 4000); return () => clearTimeout(id); }, [brandingReady]);
   const [branches, setBranches] = useState<Branch[]>(() => loadBranchCache());
   const seenNotifRef = useRef<Set<string> | null>(null);
   // هوية المدرسة: اللون وعنوان التبويب
@@ -767,7 +772,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       if (isSupabaseConfigured()) {
         // شاشة الدخول: اسم المدرسة وشعارها ولونها فقط
         // + وضع الصيانة: يُقرأ للجميع حتى بعد تسجيل الدخول (دالة عامة خفيفة)
-        await syncPublicBranding();
+        if (await syncPublicBranding()) setSettings(loadSettings());
+        setBrandingReady(true);
         if (slow) try {
           await syncUsersFromSupabase();
           await syncSubjectsFromSupabase();
@@ -2175,6 +2181,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         awards,
         giveAward,
         settings,
+        brandingReady,
         updateSettings,
         changeMyPassword,
         passwordIsDefault,
