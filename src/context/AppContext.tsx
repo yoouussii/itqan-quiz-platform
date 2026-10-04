@@ -459,9 +459,11 @@ function dropRemotelyDeleted<T extends { id: string }>(seenKey: string, local: T
 }
 
 async function syncSubjectsFromSupabase(): Promise<void> {
-  const deleted = StorageService.getDeletedSubjectIds();
   const { data, error } = await supabase.from('subjects').select('*');
   if (error || !Array.isArray(data)) return;
+  // الخادم هو المرجع: مادة موجودة عليه تظهر دائماً حتى لو حُذفت محلياً على هذا الجهاز (حذف فشل أو استُعيدت)
+  StorageService.forgetDeletedIds('subject', data.filter((r: any) => r && r.id).map((r: any) => String(r.id)));
+  const deleted = StorageService.getDeletedSubjectIds();
   // النسخ القديمة المكررة تُخفى فقط إن كانت المادة الأصلية موجودة على الخادم
   setKnownSubjectIds(data.filter((r: any) => r && r.id).map((r: any) => String(r.id)));
   let local = (StorageService.getSubjects() || []).filter(
@@ -509,11 +511,11 @@ async function syncSubjectsFromSupabase(): Promise<void> {
 }
 
 async function syncClassesFromSupabase(): Promise<void> {
-  const deleted = StorageService.getDeletedClassIds();
-  let local = (StorageService.getClasses() || []).filter((c) => !deleted.includes(c.id));
-
   const { data, error } = await supabase.from('classes').select('*');
   if (error || !Array.isArray(data)) return;
+  StorageService.forgetDeletedIds('class', data.filter((r: any) => r && r.id).map((r: any) => String(r.id)));
+  const deleted = StorageService.getDeletedClassIds();
+  let local = (StorageService.getClasses() || []).filter((c) => !deleted.includes(c.id));
 
   const rows = data.filter((r: any) => r && r.id && !deleted.includes(r.id));
   local = dropRemotelyDeleted('itqan_seen_remote_class_ids', local, new Set<string>(rows.map((r: any) => r.id)));
@@ -1753,16 +1755,17 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const deleteSubjectItem = async (id: string) => {
     const subj = StorageService.getSubjects().find((x) => x.id === id);
     log('subject_deleted', { type: 'subject', id, name: subj?.name || id });
-    StorageService.deleteSubject(id);
-    setSubjects((prev) => prev.filter((s) => s.id !== id));
     if (isSupabaseConfigured()) {
-      try {
-        const { error } = await supabase.from('subjects').delete().eq('id', id);
-        if (error) console.warn('[deleteSubjectItem] Supabase warning:', error.message);
-      } catch (e) {
-        console.warn('[deleteSubjectItem] network error:', e);
+      // الحذف من الخادم أولاً؛ رفض الصلاحية لا يُرجع خطأ بل صفر صفوف، فنتحقق من الصفوف المحذوفة
+      const { data, error } = await supabase.from('subjects').delete().eq('id', id).select('id');
+      if (error || !Array.isArray(data) || data.length === 0) {
+        showToast(t('تعذر حذف المادة من الخادم (تحقق من الصلاحية أو الاتصال)'), 'error');
+        await refreshData();
+        return;
       }
     }
+    StorageService.deleteSubject(id);
+    setSubjects((prev) => prev.filter((s) => s.id !== id));
     await refreshData();
     showToast(t('تم حذف المادة بنجاح'), 'info');
   };
@@ -1823,16 +1826,16 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const deleteClassItem = async (id: string) => {
-    StorageService.deleteClass(id);
-    setClasses((prev) => prev.filter((c) => c.id !== id));
     if (isSupabaseConfigured()) {
-      try {
-        const { error } = await supabase.from('classes').delete().eq('id', id);
-        if (error) console.warn('[deleteClassItem] Supabase warning:', error.message);
-      } catch (e) {
-        console.warn('[deleteClassItem] network error:', e);
+      const { data, error } = await supabase.from('classes').delete().eq('id', id).select('id');
+      if (error || !Array.isArray(data) || data.length === 0) {
+        showToast(t('تعذر حذف الفصل من الخادم (تحقق من الصلاحية أو الاتصال)'), 'error');
+        await refreshData();
+        return;
       }
     }
+    StorageService.deleteClass(id);
+    setClasses((prev) => prev.filter((c) => c.id !== id));
     await refreshData();
     showToast(t('تم حذف الفصل بنجاح'), 'info');
   };

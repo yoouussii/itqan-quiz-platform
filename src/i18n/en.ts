@@ -1903,4 +1903,6 @@ export const EN: Record<string, string> = {
   'أيام متتالية': 'Day streak',
   'تحدي اليوم ({score})': 'Today\'s challenge ({score})',
   'حذف مادة': 'Subject deleted',
+  'تعذر حذف المادة من الخادم (تحقق من الصلاحية أو الاتصال)': "Couldn't delete the subject on the server (check permissions or connection)",
+  'تعذر حذف الفصل من الخادم (تحقق من الصلاحية أو الاتصال)': "Couldn't delete the class on the server (check permissions or connection)",
 };

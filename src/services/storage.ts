@@ -356,6 +356,14 @@ public static getCurrentUser(): User | null {
     }
   }
 
+  /** يُلغي علامة «محذوف محلياً» عن عناصر ما زالت موجودة على الخادم (الخادم هو المرجع) */
+  public static forgetDeletedIds(kind: 'subject' | 'class', ids: string[]): void {
+    if (!ids.length) return;
+    const key = kind === 'subject' ? STORAGE_KEYS.DELETED_SUBJECT_IDS : STORAGE_KEYS.DELETED_CLASS_IDS;
+    const drop = new Set(ids);
+    setLocalItem(key, getLocalItem<string[]>(key, []).filter((x) => !drop.has(x)));
+  }
+
   public static getDeletedClassIds(): string[] {
     return getLocalItem<string[]>(STORAGE_KEYS.DELETED_CLASS_IDS, []);
   }
