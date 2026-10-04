@@ -2035,4 +2035,12 @@ export const EN: Record<string, string> = {
   'الصف العاشر': 'Grade 10',
   'الصف الحادي عشر': 'Grade 11',
   'الصف الثاني عشر': 'Grade 12',
+  'حدد نوع طلاب كل شيت من بطاقة «الشيتات ونوع طلابها» قبل الاستيراد.': 'Set each sheet\'s student type in the "Sheets" card before importing.',
+  'الشيتات ونوع طلابها': 'Sheets and student type',
+  '«طلاب المنصة»: تُطابق الأسماء مع حسابات الطلاب. «سجل فقط»: صفوف ليس لطلابها حسابات، تُسجَّل في الحضور فقط بدون إنشاء حسابات.': '"Platform students": names are matched to student accounts. "Register only": grades without accounts, recorded for attendance only without creating accounts.',
+  'يتحدث مع كل مزامنة من الشيت أو رفع ملف': 'Updates with every sheet sync or file upload',
+  'آخر تحديث من الشيت: {d}': 'Last sheet update: {d}',
+  'آخر رفع ملف: {d}': 'Last file upload: {d}',
+  'اليوم {t}': 'Today {t}',
+  'أمس {t}': 'Yesterday {t}',
 };

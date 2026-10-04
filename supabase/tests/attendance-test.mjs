@@ -1,6 +1,6 @@
 // اختبارات 022: الحضور — مطابقة الأسماء، تحويل الأسبوع/اليوم إلى تاريخ، الاستبدال عند المزامنة، الربط اليدوي، رمز الشيت، والصلاحيات.
-// و024: طلاب «سجل فقط» بلا حسابات.
-// تُشغَّل على قاعدة بيانات فيها 001–024 والبيانات التجريبية (seed.sql).
+// و024: طلاب «سجل فقط» بلا حسابات، و025: تطبيق «سجل فقط» فوراً عند الحفظ.
+// تُشغَّل على قاعدة بيانات فيها 001–025 والبيانات التجريبية (seed.sql).
 import { readFileSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
 const BASE = 'http://localhost:3001';
@@ -148,6 +148,17 @@ r = await rpc('itqan_attendance_import', { p_payload: roster([fatma]) }, W);
 ok(SQL(`select count(*) from attendance_roster where name='نورة علي'`) === '0', 'من حُذف من الشيت يُحذف من القائمة');
 ok(SQL(`select count(*) from attendance_records r where not exists (select 1 from users u where u.id=r.student_id) and not exists (select 1 from attendance_roster ro where ro.id=r.student_id)`) === '0', 'وتُحذف حركاته معه');
 ok(SQL(`select count(*) from attendance_roster where id='${saraId}'`) === '1' && SQL(`select string_agg(source, ',') from attendance_records where student_id='${saraId}'`) === 'manual', 'من له حركات يدوية يبقى بها فقط');
+
+console.log('— تحويل شيت إلى «سجل فقط» بعد المزامنة يطبَّق فوراً (025)');
+r = await rpc('itqan_attendance_import', { p_payload: { sheets: [{ sheet: 'ثاني ', students: [{ name: 'هند سالم', marks: [[1, 3, 'absent']] }, { name: 'لمى فهد', marks: [] }] }] } }, W);
+ok(r.json?.unmatched?.length === 2, 'قبل التحديد: أسماء الشيت تظهر «لم تُطابق»');
+r = await rpc('itqan_attendance_config_save', { p: { sheet_classes: { 'ثالث': 'c3', 'أول': '__roster__', 'ثاني': '__roster__' } } }, W);
+ok(r.status < 300, 'تحديد الشيت «سجل فقط» وحفظ');
+ok(SQL(`select count(*) from itqan.attendance_unmatched where sheet='ثاني'`) === '0', 'خرجت أسماؤه من «لم تُطابق» فوراً');
+ok(SQL(`select count(*) from attendance_roster where sheet='ثاني'`) === '2', 'وسُجّلت في قائمة الحضور بدون مزامنة جديدة');
+ok(SQL(`select string_agg(r.day||':'||r.kind, ',') from attendance_records r join attendance_roster ro on ro.id=r.student_id where ro.name='هند سالم'`) === '2026-08-26:absent', 'مع حركاتها من آخر مزامنة');
+r = await rpc('itqan_attendance_config_save', { p: { threshold: 3 } }, T);
+ok(r.status >= 400, 'بدون صلاحية الإدارة لا حفظ ولا تطبيق');
 
 console.log(`\n${pass} نجح، ${fail} فشل`);
 process.exit(fail ? 1 : 0);

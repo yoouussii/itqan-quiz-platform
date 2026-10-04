@@ -20,10 +20,13 @@ export const ROSTER_SHEET = '__roster__';
 /** معرّف الفصل الافتراضي لطلاب شيت «سجل فقط» */
 export const rosterClassId = (sheet: string) => `roster:${sheet}`;
 const ORD = ['', 'الأول', 'الثاني', 'الثالث', 'الرابع', 'الخامس', 'السادس', 'السابع', 'الثامن', 'التاسع', 'العاشر', 'الحادي عشر', 'الثاني عشر'];
-/** اسم العرض لشيت «سجل فقط»: «1» أو «١» ← «الصف الأول» */
+const WORDS: Record<string, number> = { 'اول': 1, 'ثاني': 2, 'ثالث': 3, 'رابع': 4, 'خامس': 5, 'سادس': 6, 'سابع': 7, 'ثامن': 8, 'تاسع': 9, 'عاشر': 10 };
+/** اسم العرض لشيت «سجل فقط»: «1» أو «١» أو «اول» ← «الصف الأول» */
 export function rosterClassName(sheet: string): string {
   const d = sheet.trim().replace(/[٠-٩]/g, (c) => String(c.charCodeAt(0) - 0x0660));
-  return /^\d{1,2}$/.test(d) && ORD[Number(d)] ? `الصف ${ORD[Number(d)]}` : sheet;
+  const w = d.replace(/^(الصف\s*)?(ال)?/, '').replace(/[أإآ]/g, 'ا');
+  const n = /^\d{1,2}$/.test(d) ? Number(d) : WORDS[w] || 0;
+  return ORD[n] ? `الصف ${ORD[n]}` : sheet;
 }
 
 const errText = (e?: string) => {
