@@ -1,6 +1,6 @@
 // اختبارات 022: الحضور — مطابقة الأسماء، تحويل الأسبوع/اليوم إلى تاريخ، الاستبدال عند المزامنة، الربط اليدوي، رمز الشيت، والصلاحيات.
-// و024: طلاب «سجل فقط» بلا حسابات، و025: تطبيق «سجل فقط» فوراً عند الحفظ، و026: أسماء الشيتات.
-// تُشغَّل على قاعدة بيانات فيها 001–026 والبيانات التجريبية (seed.sql).
+// و024: طلاب «سجل فقط» بلا حسابات، و025: تطبيق «سجل فقط» فوراً عند الحفظ، و026: أسماء الشيتات، و027: أسماء فصول «سجل فقط»، و028: التجاهل والتسجيل بدون حساب وسجل المزامنة.
+// تُشغَّل على قاعدة بيانات فيها 001–028 والبيانات التجريبية (seed.sql).
 import { readFileSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
 const BASE = 'http://localhost:3001';
@@ -165,6 +165,44 @@ r = await rpc('itqan_attendance_config', {}, W);
 ok(r.json?.sheets?.['ثالث']?.students === 6, 'شيت طلاب المنصة يظهر بعدد طلابه حتى لو طوبق كله');
 ok(r.json?.sheets?.['ثاني']?.students === 2 && r.json.sheets['ثاني'].unmatched === 2, 'وعدد من لم يُطابق في آخر وصول');
 ok(r.json?.sheets?.['أول']?.unmatched === 0, 'شيت «سجل فقط» بلا أسماء غير مطابقة');
+
+console.log('— أسماء فصول «سجل فقط» (027)');
+r = await rpc('itqan_attendance_config_save', { p: { sheet_labels: { 'أول': 'الصف الأول الابتدائي' } } }, W);
+ok(r.status < 300, 'حفظ اسم فصل لشيت «سجل فقط»');
+r = await rpc('itqan_attendance_config', {}, T);
+ok(r.json?.sheet_labels?.['أول'] === 'الصف الأول الابتدائي' && r.json?.sheet_classes?.['أول'] === '__roster__', 'الاسم محفوظ ولا يغيّر نوع الشيت');
+r = await rpc('itqan_attendance_config_save', { p: { sheet_labels: { 'أول': 'x' } } }, T);
+ok(r.status >= 400, 'بدون صلاحية الإدارة لا تغيير للأسماء');
+
+console.log('— التحكم في الأسماء غير المطابقة وسجل المزامنة (028)');
+const p4 = { sheets: [{ sheet: 'رابع', students: [{ name: 'اسم غريب', marks: [[1, 0, 'absent']] }, { name: 'طالب بلا حساب', marks: [[1, 1, 'late']] }] }] };
+r = await rpc('itqan_attendance_import', { p_payload: p4 }, W);
+ok(r.json?.unmatched?.length === 2, 'اسمان غير مطابقين في شيت طلاب المنصة');
+r = await rpc('itqan_attendance_unmatched_action', { p_sheet: 'رابع', p_name: 'اسم غريب', p_action: 'ignore' }, T);
+ok(r.status >= 400, 'بدون صلاحية الإدارة لا تجاهل');
+r = await rpc('itqan_attendance_unmatched_action', { p_sheet: 'رابع', p_name: 'اسم غريب', p_action: 'ignore' }, W);
+ok(r.status < 300 && SQL(`select count(*) from itqan.attendance_unmatched where sheet='رابع'`) === '1', 'تجاهل اسم يخرجه من القائمة');
+r = await rpc('itqan_attendance_unmatched_action', { p_sheet: 'رابع', p_name: 'طالب بلا حساب', p_action: 'roster' }, W);
+const bareId = SQL(`select id from attendance_roster where name='طالب بلا حساب'`);
+ok(r.json === 1 && bareId.startsWith('R-') && SQL(`select count(*) from attendance_records where student_id='${bareId}'`) === '1', 'تسجيل اسم بدون حساب مع حركاته');
+r = await rpc('itqan_attendance_import', { p_payload: p4 }, W);
+ok(r.json?.unmatched?.length === 0, 'في المزامنة التالية: المتجاهَل لا يعود والمسجَّل بدون حساب يُطابق');
+ok(SQL(`select count(*) from attendance_roster where id='${bareId}'`) === '1' && SQL(`select count(*) from attendance_records where student_id='${bareId}'`) === '1', 'ويبقى الطالب بدون حساب وحركاته في شيت طلاب المنصة');
+r = await rpc('itqan_attendance_config', {}, W);
+ok(Array.isArray(r.json?.ignored) && r.json.ignored.includes('اسم غريب'), 'قائمة الأسماء المتجاهلة');
+await rpc('itqan_attendance_unmatched_action', { p_sheet: '', p_name: 'اسم غريب', p_action: 'unignore' }, W);
+r = await rpc('itqan_attendance_import', { p_payload: p4 }, W);
+ok(r.json?.unmatched?.length === 1, 'إلغاء التجاهل يعيد الاسم مع المزامنة');
+r = await rpc('itqan_attendance_config', {}, W);
+const logN = r.json.log.length, firstId = r.json.log[0].id;
+r = await rpc('itqan_attendance_log_clear', { p_id: firstId }, T);
+ok(r.status >= 400, 'بدون صلاحية الإدارة لا حذف من السجل');
+await rpc('itqan_attendance_log_clear', { p_id: firstId }, W);
+r = await rpc('itqan_attendance_config', {}, W);
+ok(r.json.log.length === logN - 1 || (logN === 10 && r.json.log[0].id !== firstId), 'حذف سطر من سجل المزامنة');
+const recsBefore = SQL(`select count(*) from attendance_records`);
+await rpc('itqan_attendance_log_clear', {}, W);
+ok(SQL(`select count(*) from itqan.attendance_sync_log`) === '0' && SQL(`select count(*) from attendance_records`) === recsBefore, 'مسح السجل كله بدون حذف أي حركات');
 
 console.log(`\n${pass} نجح، ${fail} فشل`);
 process.exit(fail ? 1 : 0);
