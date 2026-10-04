@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { CalendarCheck, Upload, Link2, Copy, KeyRound, Search, Bell, Trash2, Plus, X, RefreshCw, Download, AlertTriangle, CheckCircle2, FileDown } from 'lucide-react';
+import { CalendarCheck, Upload, Link2, Copy, KeyRound, Search, Bell, Trash2, Plus, X, RefreshCw, Download, AlertTriangle, CheckCircle2, FileDown, MessageCircle } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, AreaChart, Area, ReferenceLine } from 'recharts';
 import { useApp } from '../../context/AppContext';
 import { PageHeader, Card, Button, Chip } from '../common/ui';
@@ -11,7 +11,9 @@ import {
   importAttendance, isoDay, linkAttendanceName, unmatchedAction, clearSyncLog, newAttendanceToken, saveAttendanceConfig, schoolDaysBetween,
 } from '../../services/attendanceService';
 import { supabaseUrl, supabaseAnonKey } from '../../services/supabase';
-import { exportElementToPdf } from '../../utils/exportPdf';
+import { exportElementToPdf, getPrintBrand } from '../../utils/exportPdf';
+import { WhatsAppSender } from '../common/WhatsAppSender';
+import { guardianPhone } from '../../utils/whatsapp';
 import { uiDir, t, isEn, dateLocale } from '../../i18n';
 import type { User } from '../../types';
 
@@ -56,7 +58,7 @@ const fmtDay = (d: string) => new Date(`${d}T12:00:00`).toLocaleDateString(dateL
 
 /** الحضور والغياب: لوحة وتحليلات، سجل الطلاب، والربط مع سجل الغياب (Google Sheets / Excel) */
 export const AttendancePage: React.FC = () => {
-  const { currentUser, showToast, sendAttendanceNotice } = useApp();
+  const { currentUser, showToast, sendAttendanceNotice, users } = useApp();
   const [roster, setRoster] = useState<RosterStudent[]>([]);
   const loadRoster = useCallback(() => { void fetchRoster().then(setRoster); }, []);
   useEffect(() => { loadRoster(); }, [loadRoster]);
@@ -193,6 +195,7 @@ export const AttendancePage: React.FC = () => {
 
   const loading = records === null;
   const [detail, setDetail] = useState<Detail | null>(null);
+  const [wa, setWa] = useState<{ day: string; kind: AttKind } | null>(null);
   const Kpi: React.FC<{ label: string; value: React.ReactNode; hint?: string; color?: string; open: Detail }> = ({ label, value, hint, color, open }) => (
     <button type="button" onClick={() => setDetail(open)} disabled={loading}
       className="group text-start rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-5 shadow-sm hover:border-indigo-300 hover:shadow-md dark:hover:border-indigo-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 transition">
@@ -509,6 +512,7 @@ export const AttendancePage: React.FC = () => {
         ))}
         {(tab === 'dashboard' || tab === 'students') && (
           <div className="flex flex-wrap items-center gap-2 ms-auto">
+            {tab === 'dashboard' && <Button size="sm" variant="secondary" icon={MessageCircle} onClick={() => setWa({ day: today, kind: 'absent' })}>{t('واتساب لأولياء الأمور')}</Button>}
             {tab === 'dashboard' && <Button size="sm" variant="secondary" icon={FileDown} disabled={loading} onClick={() => void exportDashPdf()}>{t('تصدير PDF')}</Button>}
             <select aria-label={t('الفترة')} value={period} onChange={(e) => setPeriod(e.target.value as Period)} className="h-10 px-3 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm">
               <option value="week">{t('هذا الأسبوع')}</option><option value="month">{t('هذا الشهر')}</option><option value="semester">{t('الفصل الدراسي')}</option><option value="custom">{t('فترة مخصصة')}</option>
@@ -529,6 +533,30 @@ export const AttendancePage: React.FC = () => {
       {tab === 'students' && Students}
       {tab === 'week' && <WeekGrid cfg={cfg} people={people} classes={classes} classId={classId} setClassId={setClassId} onOpen={setOpenStudent} />}
       {tab === 'sync' && canManage && <SyncPanel cfg={cfg} onChanged={() => { loadCfg(); loadRoster(); reload(); }} />}
+      {wa && (() => {
+        const dayRecs = (records || []).filter((r) => r.day === wa.day && r.kind === wa.kind && (!classId || studentMap.get(r.student_id)?.class_id === classId));
+        const ids = Array.from(new Set(dayRecs.map((r) => r.student_id)));
+        const recipients = ids.map((id) => { const s = studentMap.get(id); return { id, name: s?.name || id, phone: rosterIds.has(id) || !s ? '' : guardianPhone(s, users as User[]), note: classMap.get(s?.class_id || '') || '' }; })
+          .sort((a, b) => a.name.localeCompare(b.name, 'ar'));
+        const word = { absent: 'غياب', late: 'تأخر', excused: 'استئذان' }[wa.kind];
+        const tpl = `السلام عليكم ورحمة الله
+ولي أمر الطالب/ة {الطالب}
+نفيدكم بتسجيل ${word} ابنكم/ابنتكم يوم {التاريخ}.
+نأمل الحرص على الانتظام، وللاستفسار التواصل مع إدارة المدرسة.
+{المدرسة}`;
+        return (
+          <WhatsAppSender title={t('رسائل واتساب لأولياء الأمور')} recipients={recipients} template={tpl} placeholders={['الطالب', 'التاريخ', 'المدرسة']}
+            vars={{ 'التاريخ': new Date(`${wa.day}T12:00:00`).toLocaleDateString('ar-SA-u-ca-gregory-nu-latn', { weekday: 'long', day: 'numeric', month: 'long' }), 'المدرسة': getPrintBrand().name || '' }}
+            onClose={() => setWa(null)}
+            extra={<div className="flex flex-wrap gap-2 pb-2">
+              <input type="date" aria-label={t('التاريخ')} value={wa.day} max={today} onChange={(e) => setWa({ ...wa, day: e.target.value })} className="h-10 px-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm" />
+              <select aria-label={t('النوع')} value={wa.kind} onChange={(e) => setWa({ ...wa, kind: e.target.value as AttKind })} className="h-10 px-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm">
+                {KINDS.map((k) => <option key={k.k} value={k.k}>{t(k.label)}</option>)}
+              </select>
+              <span className="self-center text-sm text-slate-500">{t('{n} طالب', { n: recipients.length })}</span>
+            </div>} />
+        );
+      })()}
       {detail && (
         <KpiDetails kind={detail} recs={recs} students={students} per={stats.per} byClass={stats.byClass} days={stats.days} threshold={stats.threshold}
           studentMap={studentMap} classMap={classMap} rosterIds={rosterIds} range={range}

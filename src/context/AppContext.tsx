@@ -1519,6 +1519,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           branch_id: normalized.branch_id ?? null,
           gender: normalized.gender ?? null,
           child_ids: normalized.child_ids ?? [],
+          phone: normalized.phone ?? null,
           updated_at: now,
         };
         if (updates.password && updates.password.trim()) payload.password = updates.password.trim();

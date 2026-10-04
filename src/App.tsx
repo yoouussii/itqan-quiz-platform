@@ -41,6 +41,7 @@ const OutcomesPage = React.lazy(() => import('./components/analytics/OutcomesPag
 const SkillsCard = React.lazy(() => import('./components/analytics/OutcomesPage').then((m) => ({ default: m.SkillsCard })));
 const QuestionBankPage = React.lazy(() => import('./components/teacher/QuestionBank').then((m) => ({ default: m.QuestionBankPage })));
 const GradingPage = React.lazy(() => import('./components/teacher/GradingPage').then((m) => ({ default: m.GradingPage })));
+const ExamCalendar = React.lazy(() => import('./components/common/ExamCalendar').then((m) => ({ default: m.ExamCalendar })));
 const AttendancePage = React.lazy(() => import('./components/staff/AttendancePage').then((m) => ({ default: m.AttendancePage })));
 const CertificatesPage = React.lazy(() => import('./components/staff/CertificatesPage').then((m) => ({ default: m.CertificatesPage })));
 const VerifyPage = React.lazy(() => import('./components/legal/VerifyPage').then((m) => ({ default: m.VerifyPage })));
@@ -51,7 +52,7 @@ const KNOWN_VIEWS = [
   'students_management', 'subjects_classes', 'analytics', 'reports',
   'quiz_results', 'quiz_preview', 'quizzes', 'dashboard',
   'my_points', 'leaderboard', 'approvals', 'activity_log', 'settings', 'notifications', 'banners', 'question_bank', 'outcomes', 'certificates', 'grading',
-  'privacy', 'terms', 'attendance',
+  'privacy', 'terms', 'attendance', 'calendar',
 ];
 
 /** المسار الحالي، ويتحدّث مع زر الرجوع والروابط الداخلية (لصفحات ما قبل الدخول) */
@@ -138,7 +139,7 @@ const AppContent: React.FC = () => {
     quiz_preview: isStaff,
   };
   // ولي الأمر: الرئيسية (متابعة الأبناء) وأوراق إجاباتهم والإشعارات فقط
-  const parentOk = currentUser.role !== 'parent' || ['dashboard', 'quiz_review', 'notifications', 'privacy', 'terms'].includes(currentView);
+  const parentOk = currentUser.role !== 'parent' || ['dashboard', 'quiz_review', 'notifications', 'privacy', 'terms', 'calendar'].includes(currentView);
   const viewAvailable = KNOWN_VIEWS.includes(currentView) && viewGuards[currentView] !== false && parentOk;
 
   // رابط مباشر لاختبار أو ورقة إجابة: ننتظر أول تحميل للبيانات بدل إظهار «غير موجود»
@@ -249,6 +250,7 @@ const AppContent: React.FC = () => {
         {(currentView === 'privacy' || currentView === 'terms') && <LegalPage doc={currentView} />}
         {currentView === 'certificates' && <CertificatesPage />}
         {currentView === 'attendance' && <AttendancePage />}
+        {currentView === 'calendar' && <ExamCalendar />}
         {currentView === 'grading' && <GradingPage />}
         {currentView === 'my_points' && currentUser.role === 'student' && <MyPoints />}
         {currentView === 'leaderboard' && hasPerm(currentUser, 'can_view_leaderboard') && <Leaderboard />}
