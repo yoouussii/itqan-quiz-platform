@@ -25,6 +25,7 @@ const linkClick = (go: () => void) => (e: React.MouseEvent) => {
   go();
 };
 import { hasPerm } from '../../utils/permissions';
+import { shortName } from '../../utils/names';
 import { User } from '../../types';
 import { t } from '../../i18n';
 
@@ -301,7 +302,7 @@ const StudentShell: React.FC<{ children: React.ReactNode; banner?: React.ReactNo
             <button type="button" onClick={() => setProfile(true)} aria-label={t('الملف الشخصي')} className="flex items-center gap-2.5 rounded-xl p-1 md:ps-3 md:ms-1 md:border-s border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800">
               <Avatar name={currentUser.name} role={currentUser.role} userId={currentUser.id} size="sm" showBadge />
               <span className="hidden lg:block text-start">
-                <span className="block text-sm font-bold text-slate-900 dark:text-white">{currentUser.name}</span>
+                <span className="block text-sm font-bold text-slate-900 dark:text-white max-w-[14rem] truncate" title={currentUser.name}>{shortName(currentUser.name || '')}</span>
               </span>
             </button>
             <button type="button" onClick={logout} title={t('تسجيل الخروج')} aria-label={t('تسجيل الخروج')} className="hidden md:flex w-11 h-11 items-center justify-center rounded-xl text-slate-500 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/50">
