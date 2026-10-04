@@ -58,6 +58,44 @@ await rpc('itqan_owner_set_license', { p_key: KEY, p: {} });
 r = await rpc('itqan_license');
 ok(JSON.stringify(r.json) === '{}', 'مسح الاشتراك يعيده بلا قيود');
 
+console.log('— القفل الحقيقي (039)');
+if (SQL(`select to_regproc('itqan.license_blocked') is not null`) === 't') {
+  SQL(`insert into users (id,name,role,national_id,password,class_id) values ('lk-st','طالب القفل','student','9951','stud1234','c1') on conflict do nothing`);
+  const st = await (await rpc('itqan_login', { p_national_id: '9951', p_password: 'stud1234' })).json.token;
+  const tch = await (await rpc('itqan_login', { p_national_id: '2020', p_password: 'teach123' })).json.token;
+  ok(st && tch, 'الدخول قبل الانتهاء');
+  r = await req('GET', '/users?select=id&limit=1', { token: st });
+  ok(Array.isArray(r.json) && r.json.length > 0, 'الطالب يقرأ قبل الانتهاء');
+  // منتهٍ بلا إيقاف: لا شيء يتغير
+  await rpc('itqan_owner_set_license', { p_key: KEY, p: { expires_at: '2020-01-01', block_on_expiry: false } });
+  r = await req('GET', '/users?select=id&limit=1', { token: st });
+  ok(Array.isArray(r.json) && r.json.length > 0, 'منتهٍ بلا خيار الإيقاف: يعمل كالمعتاد');
+  // منتهٍ مع الإيقاف
+  await rpc('itqan_owner_set_license', { p_key: KEY, p: { expires_at: '2020-01-01', block_on_expiry: true } });
+  ok(SQL(`select count(*) from itqan.sessions s join users u on u.id::text = s.user_id where u.role::text <> 'admin'`) === '0', 'تفعيل الإيقاف ينهي جلسات غير المديرين فوراً');
+  r = await req('GET', '/users?select=id&limit=1', { token: st });
+  ok(Array.isArray(r.json) && r.json.length === 0, 'الطالب لا يقرأ أي بيانات بطلب مباشر');
+  r = await req('GET', '/submissions?select=id&limit=1', { token: tch });
+  ok(Array.isArray(r.json) && r.json.length === 0, 'ولا المعلم');
+  r = await rpc('itqan_login', { p_national_id: '9951', p_password: 'stud1234' });
+  ok(r.status >= 400 && /license_expired/.test(JSON.stringify(r.json)), 'دخول الطالب يُرفض على الخادم');
+  // جلسة أُنشئت قبل انتهاء التاريخ (تحاكي مرور منتصف الليل): uid() يرفضها
+  SQL(`update itqan.owner_config set license = '{}' where id = 1`);
+  const st2 = await (await rpc('itqan_login', { p_national_id: '9951', p_password: 'stud1234' })).json.token;
+  // تجاوز المشغّل لمحاكاة مرور التاريخ دون حدث (الجلسة تبقى موجودة)
+  SQL(`alter table itqan.owner_config disable trigger itqan_owner_license; update itqan.owner_config set license = jsonb_build_object('expires_at','2020-01-01','block_on_expiry',true) where id = 1; alter table itqan.owner_config enable trigger itqan_owner_license`);
+  ok(SQL(`select count(*) from itqan.sessions where user_id = 'lk-st'`) !== '0', 'الجلسة ما زالت موجودة في الجدول');
+  r = await req('GET', '/users?select=id&limit=1', { token: st2 });
+  ok(Array.isArray(r.json) && r.json.length === 0, 'الجلسة المفتوحة قبل الانتهاء لا تعمل بعده');
+  r = await req('GET', '/users?select=id&limit=1', { token: A });
+  ok(Array.isArray(r.json) && r.json.length > 0, 'مدير النظام يبقى قادراً على العمل');
+  r = await rpc('itqan_login', { p_national_id: '1010', p_password: 'admin123' });
+  ok(r.json?.ok === true, 'ويستطيع تسجيل الدخول');
+  await rpc('itqan_owner_set_license', { p_key: KEY, p: {} });
+  r = await rpc('itqan_login', { p_national_id: '9951', p_password: 'stud1234' });
+  ok(r.json?.ok === true, 'بعد التجديد يعود الدخول');
+}
+
 console.log('— سجل المدارس');
 r = await rpc('itqan_owner_school_save', { p_key: KEY, p: { name: 'مدرسة 2', url: 'http://insecure.example', anon_key: 'k' } });
 ok(r.status >= 400, 'الرابط يجب أن يكون https');

@@ -2503,4 +2503,6 @@ export const EN: Record<string, string> = {
   'أساسية': 'Basic',
   'متقدمة': 'Advanced',
   'مؤسسية': 'Enterprise',
+  'انتهى اشتراك المدرسة في المنصة، والدخول متاح لمدير النظام فقط حتى التجديد.': 'The school\'s subscription has ended; only the system admin can sign in until it is renewed.',
+  'قفل حقيقي من قاعدة البيانات: لا دخول ولا قراءة بيانات لغير المدير حتى التجديد.': 'A real database-level lock: no sign-in or data access for anyone but the admin until renewal.',
 };

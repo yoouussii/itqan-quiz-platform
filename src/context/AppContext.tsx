@@ -969,6 +969,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           );
           return false;
         }
+        if (error && /license_expired/i.test(error.message || '')) {
+          showToast(t('انتهى اشتراك المدرسة في المنصة، والدخول متاح لمدير النظام فقط حتى التجديد.'), 'info');
+          return false;
+        }
         if (error && /maintenance/i.test(error.message || '')) {
           await syncPublicBranding();
           setSettings(loadSettings());
