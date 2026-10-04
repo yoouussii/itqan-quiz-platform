@@ -2,6 +2,7 @@ import React, { useMemo, useState } from 'react';
 import { AttendanceSummary } from '../common/AttendanceSummary';
 import { ConductSummary } from '../common/ConductSummary';
 import { StudentGradebook } from '../common/StudentGradebook';
+import { RemedialCard } from '../common/RemedialCard';
 import { SurveyPrompt } from '../common/SurveyPrompt';
 import { BookOpen, CalendarClock, CheckCircle2, Users, FileText } from 'lucide-react';
 import { exportStudentReport, reportExtras } from '../../utils/studentReport';
@@ -208,6 +209,7 @@ export const ParentDashboard: React.FC<{ onViewReview: (submissionId: string) =>
       </div>
 
       <StudentGradebook key={`gb-${child.id}`} student={child} />
+      <RemedialCard key={`rp-${child.id}`} studentId={child.id} />
       <AttendanceSummary key={`att-${child.id}`} studentId={child.id} />
       <ConductSummary key={`cond-${child.id}`} studentId={child.id} />
       <SkillsCard studentId={child.id} quizzes={quizzes} submissions={submissions} title={t('مستوى {who} في المهارات', { who: word })} />

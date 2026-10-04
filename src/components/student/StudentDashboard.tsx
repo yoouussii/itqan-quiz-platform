@@ -15,6 +15,7 @@ import { shortName } from '../../utils/names';
 import { AttendanceSummary } from '../common/AttendanceSummary';
 import { ConductSummary } from '../common/ConductSummary';
 import { SurveyPrompt } from '../common/SurveyPrompt';
+import { RemedialCard } from '../common/RemedialCard';
 import { StudentHomeData, fetchStudentHome } from '../../services/studentHomeService';
 
 interface StudentDashboardProps {
@@ -422,6 +423,7 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({ onStartQuiz,
             {BoardCard}
             {me && <AttendanceSummary studentId={me} />}
             {me && <ConductSummary studentId={me} />}
+            {me && <RemedialCard studentId={me} />}
           </div>
           {ResultsCard}
         </div>
@@ -432,6 +434,7 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({ onStartQuiz,
           {BoardCard}
           {me && <AttendanceSummary studentId={me} />}
             {me && <ConductSummary studentId={me} />}
+            {me && <RemedialCard studentId={me} />}
         </aside>
       </div>
 

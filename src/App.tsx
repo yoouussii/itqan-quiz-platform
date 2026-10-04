@@ -5,6 +5,7 @@ import { Footer } from './components/common/Footer';
 import { Toast } from './components/common/Toast';
 import { AuthScreen } from './components/auth/AuthScreen';
 import { MaintenanceScreen } from './components/auth/MaintenanceScreen';
+import { LicenseBanner, LicenseBlocked, isBlocked, useLicense } from './components/common/LicenseGate';
 
 
 import { hasPerm } from './utils/permissions';
@@ -41,6 +42,8 @@ const OutcomesPage = React.lazy(() => import('./components/analytics/OutcomesPag
 const SkillsCard = React.lazy(() => import('./components/analytics/OutcomesPage').then((m) => ({ default: m.SkillsCard })));
 const QuestionBankPage = React.lazy(() => import('./components/teacher/QuestionBank').then((m) => ({ default: m.QuestionBankPage })));
 const GradingPage = React.lazy(() => import('./components/teacher/GradingPage').then((m) => ({ default: m.GradingPage })));
+const RemedialPage = React.lazy(() => import('./components/staff/RemedialPage').then((m) => ({ default: m.RemedialPage })));
+const PortfolioPage = React.lazy(() => import('./components/staff/PortfolioPage').then((m) => ({ default: m.PortfolioPage })));
 const VisitsPage = React.lazy(() => import('./components/staff/VisitsPage').then((m) => ({ default: m.VisitsPage })));
 const SurveysPage = React.lazy(() => import('./components/staff/SurveysPage').then((m) => ({ default: m.SurveysPage })));
 const GradebookPage = React.lazy(() => import('./components/staff/GradebookPage').then((m) => ({ default: m.GradebookPage })));
@@ -49,6 +52,7 @@ const BehaviorPage = React.lazy(() => import('./components/staff/BehaviorPage').
 const ExamCalendar = React.lazy(() => import('./components/common/ExamCalendar').then((m) => ({ default: m.ExamCalendar })));
 const AttendancePage = React.lazy(() => import('./components/staff/AttendancePage').then((m) => ({ default: m.AttendancePage })));
 const CertificatesPage = React.lazy(() => import('./components/staff/CertificatesPage').then((m) => ({ default: m.CertificatesPage })));
+const OwnerPage = React.lazy(() => import('./components/owner/OwnerPage').then((m) => ({ default: m.OwnerPage })));
 const VerifyPage = React.lazy(() => import('./components/legal/VerifyPage').then((m) => ({ default: m.VerifyPage })));
 const NotificationsPage = React.lazy(() => import('./components/common/NotificationsPage').then((m) => ({ default: m.NotificationsPage })));
 
@@ -57,7 +61,7 @@ const KNOWN_VIEWS = [
   'students_management', 'subjects_classes', 'analytics', 'reports',
   'quiz_results', 'quiz_preview', 'quizzes', 'dashboard',
   'my_points', 'leaderboard', 'approvals', 'activity_log', 'settings', 'notifications', 'banners', 'question_bank', 'outcomes', 'certificates', 'grading',
-  'privacy', 'terms', 'attendance', 'calendar', 'behavior', 'school_year', 'gradebook', 'visits', 'surveys',
+  'privacy', 'terms', 'attendance', 'calendar', 'behavior', 'school_year', 'gradebook', 'visits', 'surveys', 'remedial', 'portfolio',
 ];
 
 /** المسار الحالي، ويتحدّث مع زر الرجوع والروابط الداخلية (لصفحات ما قبل الدخول) */
@@ -100,6 +104,7 @@ const AppContent: React.FC = () => {
     submissions,
     switchUser,
     passwordIsDefault,
+    logout,
     isPreview,
     exitPreview,
     dataReady,
@@ -109,6 +114,7 @@ const AppContent: React.FC = () => {
   const pathname = usePathname();
   const { settings } = useApp();
   const [adminLogin, setAdminLogin] = React.useState(false);
+  const license = useLicense(!!currentUser);
 
   // If user is not logged in or in login view
   if (!currentUser || currentView === 'login') {
@@ -125,6 +131,9 @@ const AppContent: React.FC = () => {
       </div>
     );
   }
+
+  // انتهاء اشتراك المدرسة مع خيار الإيقاف (038): غير المدير يرى شاشة الإيقاف
+  if (isBlocked(license, currentUser.role)) return <LicenseBlocked onLogout={logout} />;
 
   // صفحات تتطلب صلاحية أو بيانات مسبقة: إن لم تتوفر نعيد المستخدم للوحة التحكم بدل شاشة فارغة
   const isStaff = currentUser.role === 'admin' || currentUser.role === 'teacher' || currentUser.role === 'supervisor';
@@ -144,6 +153,8 @@ const AppContent: React.FC = () => {
     gradebook: isStaff,
     visits: isStaff,
     surveys: true,
+    remedial: isStaff,
+    portfolio: isStaff,
     grading: currentUser.role === 'admin' || currentUser.role === 'teacher' || hasPerm(currentUser, 'can_grade_essays'),
     quiz_results: isStaff,
     quiz_preview: isStaff,
@@ -193,7 +204,7 @@ const AppContent: React.FC = () => {
             <span>{t('وضع الصيانة مفعّل: لا يستطيع أحد غيرك الدخول للمنصة الآن.')}</span>
             <button type="button" onClick={() => setCurrentView('settings')} className="px-3 py-1.5 rounded-lg bg-rose-700 hover:bg-rose-800 text-white">{t('إيقاف الصيانة')}</button>
           </div>
-        ) : null}
+        ) : currentUser.role === 'admin' ? <LicenseBanner lic={license} /> : null}
       >
 
         <React.Suspense
@@ -265,6 +276,8 @@ const AppContent: React.FC = () => {
         {currentView === 'gradebook' && <GradebookPage />}
         {currentView === 'visits' && isStaff && <VisitsPage />}
         {currentView === 'surveys' && <SurveysPage />}
+        {currentView === 'remedial' && isStaff && <RemedialPage />}
+        {currentView === 'portfolio' && isStaff && <PortfolioPage />}
         {currentView === 'school_year' && currentUser.role === 'admin' && <SchoolYearPage />}
         {currentView === 'grading' && <GradingPage />}
         {currentView === 'my_points' && currentUser.role === 'student' && <MyPoints />}
@@ -349,6 +362,11 @@ const LangRoot: React.FC = () => {
 };
 
 /** صفحة التحقق من الشهادات: عامة ومستقلة عن جلسة الدخول وتوجيه الصفحات */
+const OwnerRoot: React.FC = () => {
+  applyLang(loadLangPref());
+  return <React.Suspense fallback={<Spinner />}><OwnerPage /></React.Suspense>;
+};
+
 const VerifyRoot: React.FC = () => {
   applyLang(loadLangPref());
   return <React.Suspense fallback={<Spinner />}><VerifyPage /></React.Suspense>;
@@ -356,6 +374,7 @@ const VerifyRoot: React.FC = () => {
 
 export default function App() {
   if (/^\/verify(\/|$)/.test(window.location.pathname)) return <VerifyRoot />;
+  if (/^\/owner\/?$/.test(window.location.pathname)) return <OwnerRoot />;
   return (
     <AppProvider>
       <LangRoot />

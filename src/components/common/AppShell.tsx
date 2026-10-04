@@ -13,6 +13,8 @@ import {
   BookOpenCheck,
   Eye as EyeIcon,
   ClipboardList,
+  LifeBuoy,
+  FolderOpen,
   PenLine,
 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
@@ -61,6 +63,7 @@ const staffGroups = (u: User, pendingApprovals: number, preparationsUrl: string,
   if (isAdmin || u.role === 'teacher' || hasPerm(u, 'can_grade_essays')) quizzes.push({ id: 'grading', label: t('التصحيح'), icon: PenLine, badge: pendingGrading });
   quizzes.push({ id: 'question_bank', label: t('بنك الأسئلة'), icon: Library });
   quizzes.push({ id: 'outcomes', label: t('نواتج التعلم'), icon: Target });
+  quizzes.push({ id: 'remedial', label: t('الخطط العلاجية'), icon: LifeBuoy });
   quizzes.push({ id: 'calendar', label: t('جدول الاختبارات'), icon: CalendarDays });
   quizzes.push({ id: 'analytics', label: u.role === 'teacher' ? t('نتائج طلابي') : t('النتائج والتحليلات'), icon: BarChart2 });
   quizzes.push({ id: 'gradebook', label: t('كشف الدرجات'), icon: BookOpenCheck });
@@ -75,6 +78,7 @@ const staffGroups = (u: User, pendingApprovals: number, preparationsUrl: string,
   if (hasPerm(u, 'can_view_attendance') || hasPerm(u, 'can_manage_attendance')) school.push({ id: 'attendance', label: t('الحضور والغياب'), icon: CalendarCheck });
   if (hasPerm(u, 'can_view_behavior') || hasPerm(u, 'can_record_behavior')) school.push({ id: 'behavior', label: t('السلوك والمواظبة'), icon: ShieldCheck });
   school.push({ id: 'visits', label: t('الزيارات الصفية'), icon: EyeIcon });
+  school.push({ id: 'portfolio', label: u.role === 'teacher' ? t('ملف إنجازي') : t('ملفات إنجاز المعلمين'), icon: FolderOpen });
   if (hasPerm(u, 'can_manage_surveys')) school.push({ id: 'surveys', label: t('الاستبيانات'), icon: ClipboardList });
 
   system.push({ id: 'notifications', label: t('الإشعارات'), icon: Bell });
