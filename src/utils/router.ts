@@ -37,6 +37,7 @@ const SIMPLE: Record<string, string> = {
   visits: '/visits',
   surveys: '/surveys',
   remedial: '/remedial',
+  homework: '/homework',
   portfolio: '/portfolio',
   grading: '/grading',
   privacy: '/privacy',

@@ -50,6 +50,8 @@ export const BACKUP_TABLES: { table: string; label: string }[] = [
   { table: 'gradebook_columns', label: 'أعمدة كشف الدرجات' },
   { table: 'gradebook_marks', label: 'درجات الكشف' },
   { table: 'gradebook_weights', label: 'أوزان الاختبارات' },
+  { table: 'homework', label: 'الواجبات' },
+  { table: 'homework_submissions', label: 'تسليمات الواجبات' },
   { table: 'class_visits', label: 'الزيارات الصفية' },
   { table: 'surveys', label: 'الاستبيانات' },
   { table: 'survey_responses', label: 'إجابات الاستبيانات' },

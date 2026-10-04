@@ -16,6 +16,7 @@ import { AttendanceSummary } from '../common/AttendanceSummary';
 import { ConductSummary } from '../common/ConductSummary';
 import { SurveyPrompt } from '../common/SurveyPrompt';
 import { RemedialCard } from '../common/RemedialCard';
+import { HomeworkCard } from '../common/Homework';
 import { StudentHomeData, fetchStudentHome } from '../../services/studentHomeService';
 
 interface StudentDashboardProps {
@@ -412,6 +413,7 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({ onStartQuiz,
         <div className="lg:col-span-2 space-y-5">
           {ChallengeCard}
           {AvailableCard}
+          {currentUser && <HomeworkCard student={currentUser} canSubmit />}
           {NextCard}
           {EmptyCard}
           <BannerStrip embedded />

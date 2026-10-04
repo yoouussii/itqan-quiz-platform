@@ -47,7 +47,7 @@ export const Logo: React.FC<LogoProps> = ({
         <div className="flex flex-col leading-tight min-w-0">
           <div className="flex items-center gap-1.5 whitespace-nowrap">
             <span
-              className={`font-black tracking-tight font-cairo leading-tight text-slate-900 dark:text-white truncate max-w-[12rem] ${sizeClasses.text}`}
+              className={`font-black tracking-tight font-cairo leading-tight text-slate-900 dark:text-white truncate max-w-[8.5rem] sm:max-w-[12rem] ${sizeClasses.text}`}
               title={schoolName || undefined}
             >
               {schoolName || t('منصة إتقان')}

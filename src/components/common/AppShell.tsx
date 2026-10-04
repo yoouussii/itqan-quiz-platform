@@ -16,6 +16,7 @@ import {
   LifeBuoy,
   FolderOpen,
   PenLine,
+  NotebookPen,
 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 import { Avatar } from './Avatar';
@@ -63,6 +64,7 @@ const staffGroups = (u: User, pendingApprovals: number, preparationsUrl: string,
   if (isAdmin || u.role === 'teacher' || hasPerm(u, 'can_grade_essays')) quizzes.push({ id: 'grading', label: t('التصحيح'), icon: PenLine, badge: pendingGrading });
   quizzes.push({ id: 'question_bank', label: t('بنك الأسئلة'), icon: Library });
   quizzes.push({ id: 'outcomes', label: t('نواتج التعلم'), icon: Target });
+  quizzes.push({ id: 'homework', label: t('الواجبات'), icon: NotebookPen });
   quizzes.push({ id: 'remedial', label: t('الخطط العلاجية'), icon: LifeBuoy });
   quizzes.push({ id: 'calendar', label: t('جدول الاختبارات'), icon: CalendarDays });
   quizzes.push({ id: 'analytics', label: u.role === 'teacher' ? t('نتائج طلابي') : t('النتائج والتحليلات'), icon: BarChart2 });
@@ -105,6 +107,7 @@ const PARENT_TABS = (): NavItem[] => [
 
 const STUDENT_TABS = (): NavItem[] => [
   { id: 'dashboard', label: t('الرئيسية'), icon: Home },
+  { id: 'homework', label: t('واجباتي'), icon: NotebookPen },
   { id: 'analytics', label: t('نتائجي'), icon: BarChart2 },
   { id: 'calendar', label: t('الجدول'), icon: CalendarDays },
   { id: 'my_points', label: t('نقاطي'), icon: Sparkles },
@@ -300,8 +303,8 @@ const StudentShell: React.FC<{ children: React.ReactNode; banner?: React.ReactNo
     <div className="min-h-screen flex flex-col">
       <header className="sticky top-0 z-20 bg-white/95 dark:bg-slate-900/95 backdrop-blur border-b border-slate-200 dark:border-slate-800">
         <div className="max-w-6xl mx-auto h-16 px-4 sm:px-6 flex items-center justify-between gap-4">
-          <div className="flex items-center gap-8">
-            <button type="button" onClick={() => setCurrentView('dashboard')} aria-label={t('الرئيسية')}><Logo size="sm" /></button>
+          <div className="flex items-center gap-4 lg:gap-8 min-w-0">
+            <button type="button" onClick={() => setCurrentView('dashboard')} aria-label={t('الرئيسية')} className="min-w-0"><Logo size="sm" /></button>
             <nav className="hidden md:flex items-center gap-1" aria-label={t('القائمة الرئيسية')}>
               {tabs.filter((tab) => tab.id !== 'notifications').map((tab) => (
                 <a
@@ -309,14 +312,14 @@ const StudentShell: React.FC<{ children: React.ReactNode; banner?: React.ReactNo
                   href={pathFor({ view: tab.id })}
                   onClick={linkClick(() => setCurrentView(tab.id))}
                   aria-current={currentView === tab.id ? 'page' : undefined}
-                  className={`h-10 px-4 inline-flex items-center rounded-xl text-[15px] font-semibold transition-colors ${currentView === tab.id ? 'bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300' : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'}`}
+                  className={`h-10 px-3 lg:px-4 inline-flex items-center rounded-xl text-[15px] font-semibold whitespace-nowrap transition-colors ${currentView === tab.id ? 'bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300' : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'}`}
                 >
-                  {tab.id === 'my_points' ? t('نقاطي وأوسمتي') : tab.label}
+                  {tab.id === 'my_points' ? <><span className="xl:hidden">{tab.label}</span><span className="hidden xl:inline">{t('نقاطي وأوسمتي')}</span></> : tab.label}
                 </a>
               ))}
             </nav>
           </div>
-          <div className="flex items-center gap-1">
+          <div className="flex items-center gap-1 shrink-0">
             <LangToggle />
             <ThemeButton />
             <NotificationBell />

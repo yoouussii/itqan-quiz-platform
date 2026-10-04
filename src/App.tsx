@@ -42,6 +42,8 @@ const OutcomesPage = React.lazy(() => import('./components/analytics/OutcomesPag
 const SkillsCard = React.lazy(() => import('./components/analytics/OutcomesPage').then((m) => ({ default: m.SkillsCard })));
 const QuestionBankPage = React.lazy(() => import('./components/teacher/QuestionBank').then((m) => ({ default: m.QuestionBankPage })));
 const GradingPage = React.lazy(() => import('./components/teacher/GradingPage').then((m) => ({ default: m.GradingPage })));
+const HomeworkPage = React.lazy(() => import('./components/staff/HomeworkPage').then((m) => ({ default: m.HomeworkPage })));
+const HomeworkStudentPage = React.lazy(() => import('./components/student/HomeworkStudentPage').then((m) => ({ default: m.HomeworkStudentPage })));
 const RemedialPage = React.lazy(() => import('./components/staff/RemedialPage').then((m) => ({ default: m.RemedialPage })));
 const PortfolioPage = React.lazy(() => import('./components/staff/PortfolioPage').then((m) => ({ default: m.PortfolioPage })));
 const VisitsPage = React.lazy(() => import('./components/staff/VisitsPage').then((m) => ({ default: m.VisitsPage })));
@@ -61,7 +63,7 @@ const KNOWN_VIEWS = [
   'students_management', 'subjects_classes', 'analytics', 'reports',
   'quiz_results', 'quiz_preview', 'quizzes', 'dashboard',
   'my_points', 'leaderboard', 'approvals', 'activity_log', 'settings', 'notifications', 'banners', 'question_bank', 'outcomes', 'certificates', 'grading',
-  'privacy', 'terms', 'attendance', 'calendar', 'behavior', 'school_year', 'gradebook', 'visits', 'surveys', 'remedial', 'portfolio',
+  'privacy', 'terms', 'attendance', 'calendar', 'behavior', 'school_year', 'gradebook', 'visits', 'surveys', 'remedial', 'portfolio', 'homework',
 ];
 
 /** المسار الحالي، ويتحدّث مع زر الرجوع والروابط الداخلية (لصفحات ما قبل الدخول) */
@@ -155,6 +157,7 @@ const AppContent: React.FC = () => {
     visits: isStaff,
     surveys: true,
     remedial: isStaff,
+    homework: isStaff || currentUser.role === 'student',
     portfolio: isStaff,
     grading: currentUser.role === 'admin' || currentUser.role === 'teacher' || hasPerm(currentUser, 'can_grade_essays'),
     quiz_results: isStaff,
@@ -278,6 +281,8 @@ const AppContent: React.FC = () => {
         {currentView === 'visits' && isStaff && <VisitsPage />}
         {currentView === 'surveys' && <SurveysPage />}
         {currentView === 'remedial' && isStaff && <RemedialPage />}
+        {currentView === 'homework' && isStaff && <HomeworkPage />}
+        {currentView === 'homework' && currentUser.role === 'student' && <HomeworkStudentPage />}
         {currentView === 'portfolio' && isStaff && <PortfolioPage />}
         {currentView === 'school_year' && currentUser.role === 'admin' && <SchoolYearPage />}
         {currentView === 'grading' && <GradingPage />}
