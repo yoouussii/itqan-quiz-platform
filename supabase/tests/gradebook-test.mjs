@@ -48,7 +48,7 @@ ok(r.status >= 400, 'الوزن بين 0 و100');
 r = await req('GET', '/gradebook_weights?quiz_id=eq.gq-1', { token: SU });
 ok(rows(r).length === 1, 'المشرف يقرأ الأوزان');
 r = await req('GET', '/gradebook_weights?quiz_id=eq.gq-1', { token: S });
-ok(rows(r).length === 0, 'الطالب لا يقرأ الأوزان');
+ok(rows(r).length === (SQL(`select to_regproc('itqan.family_class_ids') is not null`) === 't' ? 1 : 0), 'الطالب يقرأ الأوزان بعد 035 فقط (قراءة)');
 
 console.log('— الأعمدة اليدوية');
 r = await req('POST', '/gradebook_columns', { token: S, body: { class_id: 'c1', subject_id: 's1', title: 'x', created_by: 'gst' } });
@@ -78,11 +78,35 @@ ok(r.status >= 400, 'لا درجات سالبة');
 r = await req('GET', `/gradebook_marks?column_id=eq.${col}`, { token: SU });
 ok(rows(r).length === 1, 'المشرف يقرأ الدرجات');
 r = await req('GET', `/gradebook_marks?column_id=eq.${col}`, { token: P });
-ok(rows(r).length === 0, 'ولي الأمر لا يقرأ الدرجات اليدوية');
+ok(rows(r).length === (SQL(`select to_regproc('itqan.family_class_ids') is not null`) === 't' ? 1 : 0), 'ولي الأمر يقرأ درجة ابنه فقط (بعد 035)');
 r = await req('DELETE', `/gradebook_columns?id=eq.${col}`, { token: T2 });
 ok(rows(r).length === 0, 'معلم آخر لا يحذف العمود');
 r = await req('DELETE', `/gradebook_columns?id=eq.${col}`, { token: A });
 ok(rows(r).length === 1 && SQL(`select count(*) from gradebook_marks where column_id='${col}'`) === '0', 'المدير يحذف العمود ودرجاته معه');
+
+console.log('— الطالب وولي الأمر (035)');
+const has035 = SQL(`select to_regproc('itqan.family_class_ids') is not null`) === 't';
+if (has035) {
+  r = await req('POST', '/gradebook_columns', { token: T, body: { class_id: 'c1', subject_id: 's1', title: 'الواجبات', max_score: 10, weight: 1, created_by: 'u-teach' } });
+  const col2 = rows(r)[0]?.id;
+  r = await req('POST', '/gradebook_columns', { token: T, body: { class_id: 'c2', subject_id: 's1', title: 'فصل آخر', max_score: 10, weight: 1, created_by: 'u-teach' } });
+  const col3 = rows(r)[0]?.id;
+  await mark(T, { column_id: col2, student_id: 'gst', score: 7, updated_by: 'u-teach' });
+  SQL(`insert into users (id,name,role,national_id,password,class_id) values ('gst2','طالب آخر','student','9706','stud1234','c1') on conflict do nothing`);
+  await mark(T, { column_id: col2, student_id: 'gst2', score: 3, updated_by: 'u-teach' });
+  r = await req('GET', `/gradebook_marks?column_id=eq.${col2}`, { token: P });
+  ok(rows(r).length === 1 && rows(r)[0].student_id === 'gst', 'ولي الأمر يقرأ درجة ابنه فقط');
+  r = await req('GET', `/gradebook_marks?column_id=eq.${col2}`, { token: S });
+  ok(rows(r).length === 1 && rows(r)[0].student_id === 'gst', 'الطالب يقرأ درجته فقط');
+  r = await req('GET', '/gradebook_columns?subject_id=eq.s1', { token: P });
+  ok(rows(r).some((c) => c.id === col2) && !rows(r).some((c) => c.id === col3), 'ولي الأمر يرى أعمدة فصل ابنه فقط');
+  r = await req('GET', '/gradebook_weights?quiz_id=eq.gq-1', { token: P });
+  ok(rows(r).length === 1, 'ولي الأمر يقرأ الأوزان');
+  r = await mark(P, { column_id: col2, student_id: 'gst', score: 10, updated_by: 'gpar' });
+  ok(r.status >= 400, 'ولي الأمر لا يعدّل الدرجات');
+  r = await req('PATCH', `/gradebook_columns?id=eq.${col2}`, { token: S, body: { weight: 0 } });
+  ok(rows(r).length === 0, 'الطالب لا يعدّل الأعمدة');
+}
 
 console.log(`\n${pass} نجح، ${fail} فشل`);
 process.exit(fail ? 1 : 0);
