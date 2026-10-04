@@ -29,6 +29,7 @@ const SIMPLE: Record<string, string> = {
   question_bank: '/bank',
   outcomes: '/outcomes',
   certificates: '/certificates',
+  attendance: '/attendance',
   grading: '/grading',
   privacy: '/privacy',
   terms: '/terms',

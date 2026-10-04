@@ -33,6 +33,9 @@ export const PERMISSION_DEFS: PermDef[] = [
   { key: 'can_view_leaderboard', label: 'لوحة المتصدرين ونقاط الطلاب', short: 'المتصدرون', group: 'التفاعل والتحفيز' },
   { key: 'can_award_badges', label: 'منح الأوسمة والجوائز للطلاب', short: 'منح جوائز', group: 'التفاعل والتحفيز' },
 
+  { key: 'can_view_attendance', label: 'عرض لوحة الحضور والغياب والتأخر', short: 'عرض الحضور', group: 'الحضور' },
+  { key: 'can_manage_attendance', label: 'إدارة الحضور: استيراد سجل الغياب والتسجيل والربط مع Google Sheets', short: 'إدارة الحضور', group: 'الحضور' },
+
   { key: 'can_view_activity_log', label: 'عرض سجل النشاط', short: 'سجل النشاط', group: 'النظام' },
   { key: 'can_access_preparations', label: 'رابط متابعة تحضير مزن', short: 'تحضير مزن', group: 'النظام' },
 ];

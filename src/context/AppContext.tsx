@@ -130,6 +130,8 @@ interface AppContextType {
   sendAnnouncement: (p: { title: string; body: string; audience: NotifAudience }) => Promise<{ ok: boolean; error?: string }>;
   /** إشعار تذكير للطلاب الموجّه إليهم الاختبار ولم يسلّموه بعد. يُرجع عدد الطلاب المُذكَّرين */
   remindLateStudents: (quizId: string) => Promise<number>;
+  /** إشعار طلاب (وأولياء أمورهم) بشأن الحضور؛ لصاحب صلاحية إدارة الحضور أو عرضه */
+  sendAttendanceNotice: (studentIds: string[], title: string, body: string, toParents: boolean) => Promise<boolean>;
   /** بانرات الصفحة الرئيسية (كلها؛ الظاهر منها يُحدد حسب الدور والتاريخ) */
   banners: Banner[];
   saveBanner: (b: Banner) => Promise<boolean>;
@@ -1907,6 +1909,18 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return late.length;
   };
 
+  const sendAttendanceNotice: AppContextType['sendAttendanceNotice'] = async (studentIds, title, body, toParents) => {
+    const me = currentUserRef.current;
+    if (!me || !studentIds.length || !(hasPerm(me, 'can_manage_attendance') || hasPerm(me, 'can_view_attendance'))) return false;
+    const ids = new Set(studentIds);
+    const parents = toParents
+      ? StorageService.getUsers().filter((u) => u.role === 'parent' && ((u as any).child_ids || []).some((c: string) => ids.has(c))).map((u) => u.id)
+      : [];
+    await notify({ type: 'announcement', title, body, audience: { student_ids: studentIds, ...(parents.length ? { user_ids: parents } : {}) } });
+    log('attendance_notice', { type: 'user', id: studentIds[0], name: title }, `${studentIds.length}`);
+    return true;
+  };
+
   const notifyApprovers = async (quizId: string) => {
     const quiz = StorageService.getQuizById(quizId);
     if (!quiz) return;
@@ -2145,6 +2159,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         markNotificationsRead,
         sendAnnouncement,
         remindLateStudents,
+        sendAttendanceNotice,
         banners,
         saveBanner,
         deleteBanner,

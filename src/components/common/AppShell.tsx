@@ -6,6 +6,7 @@ import {
   Library,
   Target,
   Award,
+  CalendarCheck,
   PenLine,
 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
@@ -63,6 +64,7 @@ const staffGroups = (u: User, pendingApprovals: number, preparationsUrl: string,
   if (isAdmin) school.push({ id: 'banners', label: t('الإعلانات والبانرات'), icon: Images });
   if (hasPerm(u, 'can_view_leaderboard')) school.push({ id: 'leaderboard', label: t('لوحة الشرف'), icon: Trophy });
   if (hasPerm(u, 'can_award_badges')) school.push({ id: 'certificates', label: t('الشهادات'), icon: Award });
+  if (hasPerm(u, 'can_view_attendance') || hasPerm(u, 'can_manage_attendance')) school.push({ id: 'attendance', label: t('الحضور والغياب'), icon: CalendarCheck });
 
   system.push({ id: 'notifications', label: t('الإشعارات'), icon: Bell });
   if (hasPerm(u, 'can_view_activity_log')) system.push({ id: 'activity_log', label: t('سجل النشاط'), icon: ScrollText });
