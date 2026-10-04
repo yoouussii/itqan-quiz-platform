@@ -36,6 +36,7 @@ on:
           - supabase/migrations/019_maintenance_login_style.sql
           - supabase/migrations/020_login_identity.sql
           - supabase/migrations/021_student_home.sql
+          - supabase/migrations/023_restore_subjects.sql
           - supabase/migrations/003_rollback.sql
       db_secret:
         description: 'اسم سر قاعدة البيانات (اتركه كما هو للمدرسة الأساسية، أو اكتب سر مدرسة أخرى مثل DB_URL_SCHOOL2)'

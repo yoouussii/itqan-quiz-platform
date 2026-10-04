@@ -1903,4 +1903,5 @@ export const EN: Record<string, string> = {
   '{greeting} يا {name}': '{greeting}, {name}',
   'أيام متتالية': 'Day streak',
   'تحدي اليوم ({score})': 'Today\'s challenge ({score})',
+  'حذف مادة': 'Subject deleted',
 };

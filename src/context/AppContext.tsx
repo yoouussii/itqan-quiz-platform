@@ -27,7 +27,7 @@ import {
   extractMissingColumn,
   DEFAULT_PASSWORD,
 } from '../services/storage';
-import { canonSubjectId, isRetiredSubject } from '../utils/subjectAliases';
+import { canonSubjectId, isRetiredSubject, setKnownSubjectIds } from '../utils/subjectAliases';
 import { loadAvatarCache, avatarMapFromCache, saveMyAvatar, syncAvatars } from '../services/avatarService';
 import { hasPerm, normalizePerms, PERM_KEYS } from '../utils/permissions';
 import {
@@ -460,12 +460,13 @@ function dropRemotelyDeleted<T extends { id: string }>(seenKey: string, local: T
 
 async function syncSubjectsFromSupabase(): Promise<void> {
   const deleted = StorageService.getDeletedSubjectIds();
+  const { data, error } = await supabase.from('subjects').select('*');
+  if (error || !Array.isArray(data)) return;
+  // النسخ القديمة المكررة تُخفى فقط إن كانت المادة الأصلية موجودة على الخادم
+  setKnownSubjectIds(data.filter((r: any) => r && r.id).map((r: any) => String(r.id)));
   let local = (StorageService.getSubjects() || []).filter(
     (s) => !deleted.includes(s.id) && !isRetiredSubject(s.id)
   );
-
-  const { data, error } = await supabase.from('subjects').select('*');
-  if (error || !Array.isArray(data)) return;
 
   const rows = data.filter(
     (r: any) => r && r.id && !deleted.includes(r.id) && !isRetiredSubject(r.id)
@@ -1750,6 +1751,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const deleteSubjectItem = async (id: string) => {
+    const subj = StorageService.getSubjects().find((x) => x.id === id);
+    log('subject_deleted', { type: 'subject', id, name: subj?.name || id });
     StorageService.deleteSubject(id);
     setSubjects((prev) => prev.filter((s) => s.id !== id));
     if (isSupabaseConfigured()) {
