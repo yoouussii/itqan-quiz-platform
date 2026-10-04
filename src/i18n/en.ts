@@ -2376,4 +2376,6 @@ export const EN: Record<string, string> = {
   'المعدل محسوب بأوزان المعلم، وتُحتسب أفضل محاولة في كل اختبار، وغير المؤدّى لا يدخل في المعدل.': 'The average uses the teacher\'s weights, counts the best attempt on each quiz, and excludes missing work.',
   'أقسام الإعدادات': 'Settings sections',
   'مفعّل': 'On',
+  'لا توجد فصول أو مواد مسندة إليك بعد': 'No classes or subjects are assigned to you yet',
+  'يظهر كشف الدرجات لفصولك وموادك المسندة فقط. تواصل مع إدارة المدرسة لإسنادها إلى حسابك.': 'The gradebook shows only your assigned classes and subjects. Contact the school administration to assign them to your account.',
 };
