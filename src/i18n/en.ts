@@ -2081,4 +2081,13 @@ export const EN: Record<string, string> = {
   'إلغاء التجاهل': 'Unignore',
   'مسح سجل المزامنة كله؟ (لا يحذف أي حركات حضور)': 'Clear the whole sync log? (No attendance entries are deleted)',
   'مسح السجل': 'Clear log',
+  'تقرير الحضور والغياب': 'Attendance report',
+  'نسبة الحضور {r}': 'Attendance rate {r}',
+  'تقرير PDF': 'PDF report',
+  'المظلل: تجاوز حد الغياب ({n} أيام)': 'Shaded: over the absence limit ({n} days)',
+  'تقرير حضور: {c}': 'Attendance report: {c}',
+  'توقيع ولي الأمر': 'Parent signature',
+  'سجل حضور: {name}': 'Attendance record: {name}',
+  'المصدر': 'Source',
+  'ملاحظة': 'Note',
 };

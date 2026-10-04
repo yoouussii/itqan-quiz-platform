@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { CalendarCheck, Upload, Link2, Copy, KeyRound, Search, Bell, Trash2, Plus, X, RefreshCw, Download, AlertTriangle, CheckCircle2 } from 'lucide-react';
+import { CalendarCheck, Upload, Link2, Copy, KeyRound, Search, Bell, Trash2, Plus, X, RefreshCw, Download, AlertTriangle, CheckCircle2, FileDown } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, AreaChart, Area, ReferenceLine } from 'recharts';
 import { useApp } from '../../context/AppContext';
 import { PageHeader, Card, Button, Chip } from '../common/ui';
@@ -11,6 +11,7 @@ import {
   importAttendance, isoDay, linkAttendanceName, unmatchedAction, clearSyncLog, newAttendanceToken, saveAttendanceConfig, schoolDaysBetween,
 } from '../../services/attendanceService';
 import { supabaseUrl, supabaseAnonKey } from '../../services/supabase';
+import { exportElementToPdf } from '../../utils/exportPdf';
 import { uiDir, t, isEn, dateLocale } from '../../i18n';
 import type { User } from '../../types';
 
@@ -31,6 +32,10 @@ type Klass = { id: string; name: string };
 type Detail = AttKind | 'flagged' | 'rate';
 const pct = (r: number) => `${Math.round(r * 1000) / 10}%`;
 const rateTone = (r: number) => (r >= 0.95 ? 'ok' : r >= 0.9 ? 'warn' : 'bad') as 'ok' | 'warn' | 'bad';
+const escH = (v: unknown) => String(v ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+const pdfBox = (label: string, value: string, color?: string) =>
+  `<div style="flex:1;min-width:110px;border:1px solid #cbd5e1;border-radius:12px;padding:10px 12px"><div style="font-size:11px;opacity:.7">${color ? `<span style="display:inline-block;width:8px;height:8px;border-radius:9px;background:${color};margin-inline-end:4px"></span>` : ''}${escH(label)}</div><div style="font-size:20px;font-weight:900;margin-top:2px">${escH(value)}</div></div>`;
+
 function downloadCsv(name: string, rows: string[][]) {
   const blob = new Blob(['\uFEFF' + rows.map((r) => r.map((c) => `"${String(c).replace(/"/g, '""')}"`).join(',')).join('\n')], { type: 'text/csv;charset=utf-8' });
   const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = name; a.click();
@@ -195,7 +200,7 @@ export const AttendancePage: React.FC = () => {
       <div className="text-3xl font-extrabold tabular-nums text-slate-900 dark:text-white mt-1">{value}</div>
       <div className="flex items-center justify-between gap-2 mt-1">
         <span className="text-xs text-slate-500 dark:text-slate-400">{hint}</span>
-        <span className="text-xs font-semibold text-indigo-600 dark:text-indigo-400 opacity-70 group-hover:opacity-100">{t('التفاصيل')}</span>
+        <span data-pdf-hide className="text-xs font-semibold text-indigo-600 dark:text-indigo-400 opacity-70 group-hover:opacity-100">{t('التفاصيل')}</span>
       </div>
     </button>
   );
@@ -212,8 +217,52 @@ export const AttendancePage: React.FC = () => {
   };
   const chartTip = { contentStyle: { borderRadius: 12, border: '1px solid #e2e8f0', fontSize: 13, direction: uiDir() as any } };
 
+  // تقرير حضور الفصل (أو كل الفصول) للطباعة: ملخص + جدول الطلاب بمعادلات الشيت
+  const exportClassPdf = async () => {
+    const list = [...students].sort((a, b) => a.name.localeCompare(b.name, 'ar'));
+    const rows = list.map((s, i) => {
+      const p = stats.per.get(s.id) || { absent: 0, late: 0, excused: 0 };
+      const r = Math.max(0, 1 - p.absent / stats.days);
+      const flag = p.absent >= stats.threshold ? ' style="background:#fff1f2"' : '';
+      return `<tr${flag}><td>${i + 1}</td><td>${escH(s.name)}</td><td>${escH(classMap.get(s.class_id || '') || '')}</td><td>${p.absent}</td><td>${p.late}</td><td>${p.excused}</td><td><b>${p.absent + p.late + p.excused}</b></td><td dir="ltr">${pct(r)}</td></tr>`;
+    }).join('');
+    const bodyHtml = `
+      <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:14px">
+        ${pdfBox(t('الطلاب'), String(list.length))}${pdfBox(t('نسبة الحضور'), pct(stats.rate))}${pdfBox(t('أيام الغياب'), String(stats.count.absent), KINDS[0].color)}${pdfBox(t('مرات التأخر'), String(stats.count.late), KINDS[1].color)}${pdfBox(t('الاستئذان'), String(stats.count.excused), KINDS[2].color)}${pdfBox(t('تجاوزوا حد الغياب'), String(stats.flagged.filter((x) => list.some((s) => s.id === x.id)).length))}
+      </div>
+      <table class="pdf-table"><thead><tr><th>#</th><th>${escH(t('الطالب'))}</th><th>${escH(t('الفصل'))}</th><th>${escH(t('غياب'))}</th><th>${escH(t('تأخر'))}</th><th>${escH(t('استئذان'))}</th><th>${escH(t('المجموع'))}</th><th>${escH(t('نسبة الحضور'))}</th></tr></thead><tbody>${rows}</tbody></table>
+      <p style="font-size:11px;opacity:.7;margin-top:8px">${escH(t('نسبة الحضور = 1 − (أيام الغياب ÷ أيام الدراسة {n})', { n: stats.days }))} · ${escH(t('المظلل: تجاوز حد الغياب ({n} أيام)', { n: stats.threshold }))}</p>
+      <div style="display:flex;justify-content:space-between;margin-top:36px;font-size:12px"><span>${escH(t('وكيل شؤون الطلاب'))}: ....................</span><span>${escH(t('مدير المدرسة'))}: ....................</span></div>`;
+    try {
+      await exportElementToPdf({ bodyHtml, orientation: 'portrait', title: t('تقرير حضور: {c}', { c: classId ? classMap.get(classId) || '' : t('كل الفصول') }), subtitle: `${range.from} → ${range.to}` });
+    } catch (e: any) { showToast(e?.message || t('تعذر تصدير PDF'), 'error'); }
+  };
+
+  // تصدير اللوحة PDF: الرسوم كما تظهر + جدول الطلاب بمعادلات الشيت
+  const dashRef = useRef<HTMLDivElement>(null);
+  const exportDashPdf = async () => {
+    if (!dashRef.current) return;
+    const periodName = { week: 'هذا الأسبوع', month: 'هذا الشهر', semester: 'الفصل الدراسي', custom: 'فترة مخصصة' }[period];
+    const rows = [...students]
+      .map((s) => { const p = stats.per.get(s.id) || { absent: 0, late: 0, excused: 0 }; return { s, p, total: p.absent + p.late + p.excused }; })
+      .sort((a, b) => b.p.absent - a.p.absent || b.total - a.total || a.s.name.localeCompare(b.s.name, 'ar'))
+      .map(({ s, p, total }, i) => [i + 1, s.name, classMap.get(s.class_id || '') || '', p.absent, p.late, p.excused, total, pct(Math.max(0, 1 - p.absent / stats.days))]);
+    try {
+      await exportElementToPdf({
+        element: dashRef.current,
+        title: t('تقرير الحضور والغياب'),
+        subtitle: [t(periodName), `${range.from} → ${range.to}`, classId ? classMap.get(classId) || '' : t('كل الفصول'),
+          t('نسبة الحضور {r}', { r: pct(stats.rate) }), t('{n} يوم دراسي', { n: stats.days })].filter(Boolean).join(' • '),
+        table: { headers: ['#', t('الطالب'), t('الفصل'), t('غياب'), t('تأخر'), t('استئذان'), t('المجموع'), t('نسبة الحضور')], rows },
+        tableTitle: t('سجل الطلاب'),
+      });
+    } catch (e: any) {
+      showToast(e?.message || t('تعذر تصدير PDF'), 'error');
+    }
+  };
+
   const Dashboard = (
-    <div className="space-y-5">
+    <div className="space-y-5" ref={dashRef}>
       {!cfg?.start_date && (
         <Card className="p-4 flex items-center gap-3 border-amber-300 bg-amber-50 dark:bg-amber-950/40 dark:border-amber-800">
           <AlertTriangle className="w-5 h-5 text-amber-600 shrink-0" />
@@ -243,7 +292,7 @@ export const AttendancePage: React.FC = () => {
               );
             })}
           </div>
-          <div className="inline-flex p-1 rounded-xl bg-slate-100 dark:bg-slate-800">
+          <div data-pdf-hide className="inline-flex p-1 rounded-xl bg-slate-100 dark:bg-slate-800">
             {([['day', 'يومي'], ['week', 'أسبوعي'], ['month', 'شهري']] as const).map(([g, l]) => (
               <button key={g} type="button" onClick={() => setGran(g)} className={`h-8 px-3 rounded-lg text-sm font-bold ${gran === g ? 'bg-white dark:bg-slate-700 shadow-sm text-slate-900 dark:text-white' : 'text-slate-600 dark:text-slate-300'}`}>{t(l)}</button>
             ))}
@@ -355,7 +404,7 @@ export const AttendancePage: React.FC = () => {
         <Card className="overflow-hidden">
           <div className="flex items-center justify-between px-5 pt-4 pb-2">
             <h2 className="font-bold text-slate-900 dark:text-white">{t('الأكثر غياباً')}</h2>
-            {stats.flagged.some((x) => !rosterIds.has(x.id)) && <Button size="sm" variant="secondary" icon={Bell} onClick={() => void notifyFlagged(stats.flagged.map((x) => x.id))}>{t('إشعار المتجاوزين وأولياء أمورهم')}</Button>}
+             {stats.flagged.some((x) => !rosterIds.has(x.id)) && <Button data-pdf-hide size="sm" variant="secondary" icon={Bell} onClick={() => void notifyFlagged(stats.flagged.map((x) => x.id))}>{t('إشعار المتجاوزين وأولياء أمورهم')}</Button>}
           </div>
           {stats.top.length === 0 ? <p className="px-5 pb-6 text-sm text-slate-500">{t('لا توجد سجلات في هذه الفترة')}</p> : stats.top.slice(0, 10).map((x) => {
             const s = studentMap.get(x.id);
@@ -413,6 +462,7 @@ export const AttendancePage: React.FC = () => {
           <option value="absent">{t('الأكثر غياباً')}</option><option value="total">{t('الأكثر في المجموع')}</option><option value="name">{t('أبجدياً')}</option>
         </select>
         <Button size="sm" variant="secondary" icon={Download} onClick={exportCsv}>{t('تصدير Excel')}</Button>
+        <Button size="sm" variant="secondary" icon={FileDown} onClick={() => void exportClassPdf()}>{t('تقرير PDF')}</Button>
       </div>
       <div className="overflow-x-auto">
         <table className="w-full text-sm min-w-[560px]">
@@ -459,6 +509,7 @@ export const AttendancePage: React.FC = () => {
         ))}
         {(tab === 'dashboard' || tab === 'students') && (
           <div className="flex flex-wrap items-center gap-2 ms-auto">
+            {tab === 'dashboard' && <Button size="sm" variant="secondary" icon={FileDown} disabled={loading} onClick={() => void exportDashPdf()}>{t('تصدير PDF')}</Button>}
             <select aria-label={t('الفترة')} value={period} onChange={(e) => setPeriod(e.target.value as Period)} className="h-10 px-3 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm">
               <option value="week">{t('هذا الأسبوع')}</option><option value="month">{t('هذا الشهر')}</option><option value="semester">{t('الفصل الدراسي')}</option><option value="custom">{t('فترة مخصصة')}</option>
             </select>
@@ -644,6 +695,17 @@ const StudentDrawer: React.FC<{ student: User; className: string; canManage: boo
     setNote(''); load(); onChanged();
   };
   const del = async (id: number) => { if (!window.confirm(t('حذف هذه الحركة؟'))) return; await deleteAttendance(id); load(); onChanged(); };
+  const printReport = async () => {
+    const rows = (list || []).map((r, i) => `<tr><td>${i + 1}</td><td>${escH(fmtDay(r.day))}</td><td>${escH(t(KIND_LABEL[r.kind]))}</td><td>${escH(r.source === 'sheet' ? t('من سجل الغياب') : t('سُجّل من المنصة'))}</td><td>${escH(r.note)}</td></tr>`).join('');
+    const bodyHtml = `
+      <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:14px">${pdfBox(t('الطالب'), student.name)}${pdfBox(t('الفصل'), className || '—')}</div>
+      <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:14px">${KINDS.map((k) => pdfBox(t(k.label), String(counts[k.k]), k.color)).join('')}${pdfBox(t('المجموع'), String(counts.absent + counts.late + counts.excused))}</div>
+      <table class="pdf-table"><thead><tr><th>#</th><th>${escH(t('التاريخ'))}</th><th>${escH(t('النوع'))}</th><th>${escH(t('المصدر'))}</th><th>${escH(t('ملاحظة'))}</th></tr></thead>
+      <tbody>${rows || `<tr><td colspan="5">${escH(t('لا توجد حركات مسجلة'))}</td></tr>`}</tbody></table>
+      <div style="display:flex;justify-content:space-between;margin-top:36px;font-size:12px"><span>${escH(t('وكيل شؤون الطلاب'))}: ....................</span><span>${escH(t('توقيع ولي الأمر'))}: ....................</span></div>`;
+    try { await exportElementToPdf({ bodyHtml, orientation: 'portrait', title: t('سجل حضور: {name}', { name: student.name }), subtitle: className }); }
+    catch (e: any) { showToast(e?.message || t('تعذر تصدير PDF'), 'error'); }
+  };
   return (
     <div className="fixed inset-0 z-[60] bg-slate-900/50 flex justify-end" onClick={onClose} role="dialog" aria-modal="true" aria-label={student.name}>
       <div className="w-full max-w-md h-full bg-white dark:bg-slate-900 shadow-2xl flex flex-col" onClick={(e) => e.stopPropagation()} dir={uiDir()}>
@@ -652,6 +714,7 @@ const StudentDrawer: React.FC<{ student: User; className: string; canManage: boo
             <h2 className="text-lg font-extrabold text-slate-900 dark:text-white">{student.name}</h2>
             <p className="text-sm text-slate-500">{className}{noAccount ? ` · ${t('بدون حساب على المنصة')}` : ''}</p>
           </div>
+          <Button size="sm" variant="secondary" icon={FileDown} disabled={list === null} onClick={() => void printReport()}>{t('تقرير PDF')}</Button>
           <button type="button" onClick={onClose} aria-label={t('إغلاق')} className="w-9 h-9 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 flex items-center justify-center"><X className="w-5 h-5" /></button>
         </div>
         <div className="grid grid-cols-3 gap-2 p-5">
