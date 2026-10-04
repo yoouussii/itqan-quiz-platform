@@ -18,6 +18,7 @@ const LKEY = 'itqan_activity_local_v1';
 
 export const ACTION_LABELS: Record<string, string> = {
   quiz_created: 'إنشاء اختبار',
+  subject_deleted: 'حذف مادة',
   quiz_updated: 'تعديل اختبار',
   quiz_deleted: 'حذف اختبار',
   quiz_approved: 'اعتماد اختبار',
