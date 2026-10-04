@@ -14,6 +14,7 @@ import { DailyChallenge } from './DailyChallenge';
 import { shortName } from '../../utils/names';
 import { AttendanceSummary } from '../common/AttendanceSummary';
 import { ConductSummary } from '../common/ConductSummary';
+import { SurveyPrompt } from '../common/SurveyPrompt';
 import { StudentHomeData, fetchStudentHome } from '../../services/studentHomeService';
 
 interface StudentDashboardProps {
@@ -404,6 +405,7 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({ onStartQuiz,
           </button>
         </div>
       </section>
+      <SurveyPrompt />
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-5 items-start">
         <div className="lg:col-span-2 space-y-5">

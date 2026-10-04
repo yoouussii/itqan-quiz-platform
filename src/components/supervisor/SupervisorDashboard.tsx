@@ -1,4 +1,5 @@
 import React, { useMemo } from 'react';
+import { SurveyPrompt } from '../common/SurveyPrompt';
 import { ShieldAlert, ExternalLink } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 import { StorageService } from '../../services/storage';
@@ -22,6 +23,7 @@ export const SupervisorDashboard: React.FC = () => {
 
   return (
     <div className="max-w-7xl mx-auto py-8 px-4 sm:px-6 lg:px-8 space-y-8" dir={uiDir()}>
+      <SurveyPrompt />
       <div className="bg-gradient-to-r from-sky-700 via-sky-800 to-cyan-900 rounded-3xl p-6 sm:p-8 text-white shadow-xl">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div className="flex items-center gap-4">
