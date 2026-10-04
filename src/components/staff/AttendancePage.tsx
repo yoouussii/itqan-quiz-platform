@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { CalendarCheck, Upload, Link2, Copy, KeyRound, Search, Bell, Trash2, Plus, X, RefreshCw, Download, AlertTriangle, CheckCircle2 } from 'lucide-react';
-import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts';
+import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, AreaChart, Area, ReferenceLine } from 'recharts';
 import { useApp } from '../../context/AppContext';
 import { PageHeader, Card, Button, Chip } from '../common/ui';
 import { hasPerm } from '../../utils/permissions';
@@ -8,7 +8,7 @@ import { shortName } from '../../utils/names';
 import { AttKind, parseAttendanceWorkbook, appsScriptCode, SheetPayload } from '../../utils/attendanceSheet';
 import {
   AttConfig, AttRecord, ImportResult, RosterStudent, ROSTER_SHEET, rosterClassId, rosterClassName, fetchRoster, addAttendance, deleteAttendance, fetchAttendance, fetchAttendanceConfig,
-  importAttendance, isoDay, linkAttendanceName, newAttendanceToken, saveAttendanceConfig, schoolDaysBetween,
+  importAttendance, isoDay, linkAttendanceName, unmatchedAction, clearSyncLog, newAttendanceToken, saveAttendanceConfig, schoolDaysBetween,
 } from '../../services/attendanceService';
 import { supabaseUrl, supabaseAnonKey } from '../../services/supabase';
 import { uiDir, t, isEn, dateLocale } from '../../i18n';
@@ -36,15 +36,15 @@ function downloadCsv(name: string, rows: string[][]) {
   const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = name; a.click();
 }
 /** طلاب المنصة + طلاب «سجل فقط» (بلا حسابات) في شكل واحد، وفصولهم */
-function usePeople(roster: RosterStudent[]) {
+function usePeople(roster: RosterStudent[], labels: Record<string, string> = {}) {
   const { users, classes } = useApp();
   return useMemo(() => {
     const platform = (users as User[]).filter((u) => u.role === 'student');
     const extra = roster.map((r) => ({ id: r.id, name: r.name, role: 'student', class_id: rosterClassId(r.sheet) } as unknown as User));
     const sheets = Array.from(new Set(roster.map((r) => r.sheet))).sort((a, b) => a.localeCompare(b, 'ar', { numeric: true }));
-    const allClasses: Klass[] = [...classes.map((c) => ({ id: c.id, name: c.name })), ...sheets.map((sh) => ({ id: rosterClassId(sh), name: t(rosterClassName(sh)) }))];
+    const allClasses: Klass[] = [...classes.map((c) => ({ id: c.id, name: c.name })), ...sheets.map((sh) => ({ id: rosterClassId(sh), name: labels[sh]?.trim() || t(rosterClassName(sh)) }))];
     return { people: [...platform, ...extra], allClasses, rosterIds: new Set(roster.map((r) => r.id)) };
-  }, [users, classes, roster]);
+  }, [users, classes, roster, labels]);
 }
 
 const fmtDay = (d: string) => new Date(`${d}T12:00:00`).toLocaleDateString(dateLocale(), { weekday: 'short', day: 'numeric', month: 'short' });
@@ -55,10 +55,10 @@ export const AttendancePage: React.FC = () => {
   const [roster, setRoster] = useState<RosterStudent[]>([]);
   const loadRoster = useCallback(() => { void fetchRoster().then(setRoster); }, []);
   useEffect(() => { loadRoster(); }, [loadRoster]);
-  const { people, allClasses: classes, rosterIds } = usePeople(roster);
   const canManage = hasPerm(currentUser, 'can_manage_attendance');
   const [tab, setTab] = useState<Tab>('dashboard');
   const [cfg, setCfg] = useState<AttConfig | null>(null);
+  const { people, allClasses: classes, rosterIds } = usePeople(roster, cfg?.sheet_labels);
   const [period, setPeriod] = useState<Period>('semester');
   const today = isoDay(new Date());
   const [customFrom, setCustomFrom] = useState(isoDay(new Date(Date.now() - 30 * 864e5)));
@@ -137,6 +137,40 @@ export const AttendancePage: React.FC = () => {
     return { days, count, rate, per, series, weekSeries, top, flagged, byClass: byClass.sort((a, b) => a.rate - b.rate), byDow: byDow.map((v, i) => ({ label: dowNames[i], ...v })), threshold };
   }, [recs, students, classes, cfg, range]);
 
+  // ---------- اتجاه الحضور: يومي / أسبوعي / شهري (أيام الدراسة بلا حركات تظهر صفراً) ----------
+  const [gran, setGran] = useState<'day' | 'week' | 'month'>('day');
+  const [hidden, setHidden] = useState<AttKind[]>([]);
+  const trend = useMemo(() => {
+    const from = cfg?.start_date && range.from < cfg.start_date ? cfg.start_date : range.from;
+    const st = cfg?.start_date ? new Date(`${cfg.start_date}T12:00:00`).getTime() : 0;
+    const keyOf = (day: string) => {
+      const d = new Date(`${day}T12:00:00`);
+      if (gran === 'day') return { key: day, label: fmtDay(day), full: d.toLocaleDateString(dateLocale(), { weekday: 'long', day: 'numeric', month: 'long' }) };
+      if (gran === 'month') { const k = day.slice(0, 7); const l = d.toLocaleDateString(dateLocale(), { month: 'long', year: 'numeric' }); return { key: k, label: l, full: l }; }
+      if (st) { const w = Math.floor((d.getTime() - st) / (7 * 864e5)) + 1; const l = t('الأسبوع {n}', { n: w }); return { key: String(1000 + w), label: l, full: l }; }
+      const sun = new Date(d); sun.setDate(d.getDate() - d.getDay()); const l = t('أسبوع {d}', { d: sun.toLocaleDateString(dateLocale(), { day: 'numeric', month: 'short' }) });
+      return { key: isoDay(sun), label: l, full: l };
+    };
+    type B = { key: string; label: string; full: string; absent: number; late: number; excused: number; schoolDays: number; total: number; rate: number };
+    const map = new Map<string, B>();
+    const end = new Date(`${range.to}T12:00:00`);
+    for (const d = new Date(`${from}T12:00:00`); d <= end; d.setDate(d.getDate() + 1)) {
+      if (d.getDay() > 4) continue;
+      const k = keyOf(isoDay(d));
+      const b = map.get(k.key) || { ...k, absent: 0, late: 0, excused: 0, schoolDays: 0, total: 0, rate: 1 };
+      b.schoolDays++; map.set(k.key, b);
+    }
+    recs.forEach((r) => { const b = map.get(keyOf(r.day).key); if (b) b[r.kind]++; });
+    const out = Array.from(map.values()).sort((a, b) => a.key.localeCompare(b.key));
+    out.forEach((b) => {
+      b.total = b.absent + b.late + b.excused;
+      b.rate = students.length ? Math.max(0, 1 - b.absent / (students.length * b.schoolDays)) : 1;
+    });
+    const peak = out.reduce<B | null>((m, b) => (!m || b.absent > m.absent ? b : m), null);
+    const avg = out.length ? out.reduce((a, b) => a + b.absent, 0) / out.length : 0;
+    return { series: out.map((b) => ({ ...b, ratePct: Math.round(b.rate * 1000) / 10 })), peak: peak && peak.absent > 0 ? peak : null, avg };
+  }, [recs, students, cfg, range, gran]);
+
   const notifyFlagged = async (all: string[]) => {
     // طلاب «سجل فقط» بلا حسابات ولا أولياء أمور على المنصة
     const ids = all.filter((id) => !rosterIds.has(id));
@@ -195,22 +229,76 @@ export const AttendancePage: React.FC = () => {
         <Kpi label={t('تجاوزوا حد الغياب')} value={stats.flagged.length} hint={t('{n} أيام غياب فأكثر', { n: stats.threshold })} open="flagged" />
       </div>
 
+      <Card className="p-5">
+        <div className="flex flex-wrap items-center gap-3 mb-4">
+          <h2 className="font-bold text-slate-900 dark:text-white me-auto">{t('اتجاه الغياب والتأخر والاستئذان')}</h2>
+          <div className="flex flex-wrap gap-1.5" role="group" aria-label={t('إظهار وإخفاء')}>
+            {KINDS.map((k) => {
+              const off = hidden.includes(k.k);
+              return (
+                <button key={k.k} type="button" aria-pressed={!off} onClick={() => setHidden((h) => (off ? h.filter((x) => x !== k.k) : [...h, k.k]))}
+                  className={`inline-flex items-center gap-1.5 h-8 px-2.5 rounded-lg border text-xs font-bold transition ${off ? 'border-slate-200 dark:border-slate-700 text-slate-400 line-through' : 'border-slate-300 dark:border-slate-600 text-slate-700 dark:text-slate-200'}`}>
+                  <span className="w-2.5 h-2.5 rounded-sm" style={{ background: off ? '#cbd5e1' : k.color }} />{t(k.label)}
+                </button>
+              );
+            })}
+          </div>
+          <div className="inline-flex p-1 rounded-xl bg-slate-100 dark:bg-slate-800">
+            {([['day', 'يومي'], ['week', 'أسبوعي'], ['month', 'شهري']] as const).map(([g, l]) => (
+              <button key={g} type="button" onClick={() => setGran(g)} className={`h-8 px-3 rounded-lg text-sm font-bold ${gran === g ? 'bg-white dark:bg-slate-700 shadow-sm text-slate-900 dark:text-white' : 'text-slate-600 dark:text-slate-300'}`}>{t(l)}</button>
+            ))}
+          </div>
+        </div>
+        {trend.series.length && stats.count.absent + stats.count.late + stats.count.excused > 0 ? (
+          <>
+            <div className="h-80" dir="ltr">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={trend.series} margin={{ top: 8, right: 8, left: -14, bottom: 0 }} barCategoryGap={gran === 'day' ? '18%' : '30%'}>
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
+                  <XAxis dataKey="label" tick={{ fontSize: 11 }} interval="preserveStartEnd" minTickGap={18} />
+                  <YAxis allowDecimals={false} tick={{ fontSize: 11 }} />
+                  {trend.avg > 0 && !hidden.includes('absent') && <ReferenceLine y={trend.avg} stroke="#e5484d" strokeDasharray="4 4" strokeOpacity={0.6} />}
+                  <Tooltip cursor={{ fill: 'rgba(99,102,241,0.08)' }} content={({ active, payload }: any) => {
+                    if (!active || !payload?.length) return null;
+                    const b = payload[0].payload;
+                    return (
+                      <div dir={uiDir()} className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-lg px-3 py-2 text-sm min-w-[11rem]">
+                        <div className="font-bold text-slate-900 dark:text-white mb-1">{b.full}</div>
+                        {KINDS.map((k) => <div key={k.k} className="flex items-center justify-between gap-4"><span className="inline-flex items-center gap-1.5 text-slate-600 dark:text-slate-300"><span className="w-2 h-2 rounded-sm" style={{ background: k.color }} />{t(k.label)}</span><b className="tabular-nums">{b[k.k]}</b></div>)}
+                        <div className="flex items-center justify-between gap-4 mt-1 pt-1 border-t border-slate-100 dark:border-slate-800 text-slate-600 dark:text-slate-300"><span>{t('نسبة الحضور')}</span><b dir="ltr" className="tabular-nums">{b.ratePct}%</b></div>
+                        {gran !== 'day' && <div className="text-xs text-slate-500 mt-0.5">{t('{n} يوم دراسي', { n: b.schoolDays })}</div>}
+                      </div>
+                    );
+                  }} />
+                  {KINDS.filter((k) => !hidden.includes(k.k)).map((k, i, arr) => <Bar key={k.k} dataKey={k.k} stackId="a" fill={k.color} radius={i === arr.length - 1 ? [4, 4, 0, 0] : 0} maxBarSize={56} />)}
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+            <div className="flex flex-wrap gap-x-6 gap-y-1 mt-3 text-xs text-slate-600 dark:text-slate-300">
+              {trend.peak && <span>{t('أعلى غياب: {d} ({n})', { d: trend.peak.full, n: trend.peak.absent })}</span>}
+              <span>{t(gran === 'day' ? 'متوسط الغياب اليومي: {n}' : gran === 'week' ? 'متوسط الغياب الأسبوعي: {n}' : 'متوسط الغياب الشهري: {n}', { n: Math.round(trend.avg * 10) / 10 })}</span>
+              <span className="inline-flex items-center gap-1.5"><span className="w-4 border-t-2 border-dashed border-rose-400" />{t('خط المتوسط')}</span>
+            </div>
+          </>
+        ) : <p className="text-sm text-slate-500 py-16 text-center">{loading ? t('جارٍ التحميل…') : t('لا توجد سجلات في هذه الفترة')}</p>}
+      </Card>
+
       <div className="grid lg:grid-cols-3 gap-5">
         <Card className="p-5 lg:col-span-2">
-          <div className="flex items-center justify-between mb-3">
-            <h2 className="font-bold text-slate-900 dark:text-white">{t('الحضور يوماً بيوم')}</h2>
-            <div className="flex gap-3 text-xs text-slate-600 dark:text-slate-300">{KINDS.map((k) => <span key={k.k} className="inline-flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-sm" style={{ background: k.color }} />{t(k.label)}</span>)}</div>
-          </div>
-          {stats.series.length ? (
-            <div className="h-64" dir="ltr">
+          <h2 className="font-bold text-slate-900 dark:text-white mb-1">{t('نسبة الحضور عبر الوقت')}</h2>
+          <p className="text-xs text-slate-500 mb-3">{t('الخط المتقطع: هدف 95%')}</p>
+          {trend.series.length ? (
+            <div className="h-60" dir="ltr">
               <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={stats.series} margin={{ top: 4, right: 8, left: -18, bottom: 0 }}>
+                <AreaChart data={trend.series} margin={{ top: 8, right: 8, left: -14, bottom: 0 }}>
+                  <defs><linearGradient id="attRate" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#10b981" stopOpacity={0.35} /><stop offset="100%" stopColor="#10b981" stopOpacity={0.02} /></linearGradient></defs>
                   <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
-                  <XAxis dataKey="label" tick={{ fontSize: 11 }} interval="preserveStartEnd" />
-                  <YAxis allowDecimals={false} tick={{ fontSize: 11 }} />
-                  <Tooltip {...chartTip} formatter={(v: any, n: any) => [v, t(KIND_LABEL[n as AttKind] || n)]} />
-                  {KINDS.map((k, i) => <Bar key={k.k} dataKey={k.k} stackId="a" fill={k.color} radius={i === 2 ? [4, 4, 0, 0] : 0} />)}
-                </BarChart>
+                  <XAxis dataKey="label" tick={{ fontSize: 11 }} interval="preserveStartEnd" minTickGap={18} />
+                  <YAxis tick={{ fontSize: 11 }} domain={[(min: number) => Math.max(0, Math.floor(Math.min(min, 90) / 5) * 5), 100]} unit="%" />
+                  <ReferenceLine y={95} stroke="#64748b" strokeDasharray="4 4" />
+                  <Tooltip {...chartTip} labelFormatter={(_: any, p: any) => p?.[0]?.payload?.full || ''} formatter={(v: any) => [`${v}%`, t('نسبة الحضور')]} />
+                  <Area type="monotone" dataKey="ratePct" stroke="#10b981" strokeWidth={2} fill="url(#attRate)" dot={gran !== 'day' ? { r: 3 } : false} activeDot={{ r: 5 }} />
+                </AreaChart>
               </ResponsiveContainer>
             </div>
           ) : <p className="text-sm text-slate-500 py-16 text-center">{loading ? t('جارٍ التحميل…') : t('لا توجد سجلات في هذه الفترة')}</p>}
@@ -234,17 +322,29 @@ export const AttendancePage: React.FC = () => {
         </Card>
       </div>
 
-      {stats.weekSeries.length > 0 && (
+      {stats.byClass.length > 1 && (
         <Card className="p-5">
-          <h2 className="font-bold text-slate-900 dark:text-white mb-3">{t('حسب أسابيع السجل')}</h2>
-          <div className="h-56" dir="ltr">
+          <h2 className="font-bold text-slate-900 dark:text-white mb-1">{t('مقارنة الفصول')}</h2>
+          <p className="text-xs text-slate-500 mb-3">{t('متوسط الحركات لكل طالب، ليكون العدد عادلاً بين الفصول الكبيرة والصغيرة')}</p>
+          <div dir="ltr" style={{ height: 40 + stats.byClass.length * 38 }}>
             <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={stats.weekSeries} margin={{ top: 4, right: 8, left: -18, bottom: 0 }}>
-                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
-                <XAxis dataKey="label" tick={{ fontSize: 11 }} />
-                <YAxis allowDecimals={false} tick={{ fontSize: 11 }} />
-                <Tooltip {...chartTip} formatter={(v: any, n: any) => [v, t(KIND_LABEL[n as AttKind] || n)]} />
-                {KINDS.map((k, i) => <Bar key={k.k} dataKey={k.k} stackId="w" fill={k.color} radius={i === 2 ? [4, 4, 0, 0] : 0} />)}
+              <BarChart layout="vertical" data={[...stats.byClass].sort((a, b) => (b.absent + b.late + b.excused) / b.students - (a.absent + a.late + a.excused) / a.students).map((c) => ({ ...c, a: +(c.absent / c.students).toFixed(2), l: +(c.late / c.students).toFixed(2), e: +(c.excused / c.students).toFixed(2) }))} margin={{ top: 0, right: 16, left: 8, bottom: 0 }} barCategoryGap="28%">
+                <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#e2e8f0" />
+                <XAxis type="number" tick={{ fontSize: 11 }} />
+                <YAxis type="category" dataKey="name" width={170} tick={{ fontSize: 12 }} />
+                <Tooltip cursor={{ fill: 'rgba(99,102,241,0.08)' }} content={({ active, payload }: any) => {
+                  if (!active || !payload?.length) return null;
+                  const c = payload[0].payload;
+                  return (
+                    <div dir={uiDir()} className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-lg px-3 py-2 text-sm min-w-[12rem]">
+                      <div className="font-bold text-slate-900 dark:text-white">{c.name}</div>
+                      <div className="text-xs text-slate-500 mb-1">{t('{n} طالب', { n: c.students })}</div>
+                      {KINDS.map((k) => <div key={k.k} className="flex items-center justify-between gap-4"><span className="inline-flex items-center gap-1.5 text-slate-600 dark:text-slate-300"><span className="w-2 h-2 rounded-sm" style={{ background: k.color }} />{t(k.label)}</span><b className="tabular-nums">{c[k.k]}</b></div>)}
+                      <div className="flex items-center justify-between gap-4 mt-1 pt-1 border-t border-slate-100 dark:border-slate-800"><span>{t('نسبة الحضور')}</span><b dir="ltr">{pct(c.rate)}</b></div>
+                    </div>
+                  );
+                }} />
+                {([['a', 0], ['l', 1], ['e', 2]] as const).filter(([, i]) => !hidden.includes(KINDS[i].k)).map(([key, i], j, arr) => <Bar key={key} dataKey={key} stackId="c" fill={KINDS[i].color} radius={j === arr.length - 1 ? [0, 4, 4, 0] : 0} maxBarSize={22} />)}
               </BarChart>
             </ResponsiveContainer>
           </div>
@@ -609,12 +709,13 @@ const SyncPanel: React.FC<{ cfg: AttConfig | null; onChanged: () => void }> = ({
   const [weeks, setWeeks] = useState(cfg?.weeks || 18);
   const [threshold, setThreshold] = useState(cfg?.threshold || 3);
   const [mapping, setMapping] = useState<Record<string, string>>(cfg?.sheet_classes || {});
+  const [labels, setLabels] = useState<Record<string, string>>(cfg?.sheet_labels || {});
   const [parsed, setParsed] = useState<SheetPayload | null>(null);
   const [result, setResult] = useState<ImportResult | null>(null);
   const [busy, setBusy] = useState(false);
   const [token, setToken] = useState('');
   const fileRef = useRef<HTMLInputElement>(null);
-  useEffect(() => { if (cfg) { setStart(cfg.start_date || ''); setWeeks(cfg.weeks); setThreshold(cfg.threshold); setMapping(cfg.sheet_classes || {}); } }, [cfg]);
+  useEffect(() => { if (cfg) { setStart(cfg.start_date || ''); setWeeks(cfg.weeks); setThreshold(cfg.threshold); setMapping(cfg.sheet_classes || {}); setLabels(cfg.sheet_labels || {}); } }, [cfg]);
   const students = useMemo(() => (users as User[]).filter((u) => u.role === 'student').sort((a, b) => a.name.localeCompare(b.name, 'ar')), [users]);
   // أسماء الشيتات: من الملف المرفوع، أو الإعداد المحفوظ، أو آخر مزامنة (أسماء لم تُطابق)
   const sheetNames = Array.from(new Set([...(parsed?.sheets.map((s) => s.sheet) || []), ...Object.keys(mapping), ...(cfg?.unmatched.map((u) => u.sheet) || []), ...Object.keys(cfg?.sheets || {})]))
@@ -622,7 +723,7 @@ const SyncPanel: React.FC<{ cfg: AttConfig | null; onChanged: () => void }> = ({
 
   const save = async (extra?: Partial<AttConfig>) => {
     if (start && new Date(`${start}T12:00:00`).getDay() !== 0 && !window.confirm(t('تاريخ بداية الفصل ليس يوم أحد. الأسبوع الأول في السجل يبدأ يوم الأحد، متابعة؟'))) return false;
-    const r = await saveAttendanceConfig({ start_date: start || null, weeks, threshold, sheet_classes: mapping, ...extra });
+    const r = await saveAttendanceConfig({ start_date: start || null, weeks, threshold, sheet_classes: mapping, sheet_labels: labels, ...extra });
     showToast(r.ok ? t('حُفظ الإعداد') : t(ERR[r.error || ''] || 'تعذر الحفظ'), r.ok ? 'success' : 'error');
     if (r.ok) onChanged();
     return r.ok;
@@ -717,6 +818,13 @@ const SyncPanel: React.FC<{ cfg: AttConfig | null; onChanged: () => void }> = ({
                     <button type="button" role="radio" aria-checked={!roster} className={seg(!roster)} onClick={() => setMapping((m) => ({ ...m, [sh]: roster ? '' : (m[sh] || '') }))}>{t('طلابه لهم حسابات')}</button>
                     <button type="button" role="radio" aria-checked={roster} className={seg(roster)} onClick={() => setMapping((m) => ({ ...m, [sh]: ROSTER_SHEET }))}>{t('بدون حسابات (حضور فقط)')}</button>
                   </div>
+                  {roster && (
+                    <label className="w-full flex items-center gap-2 text-xs font-semibold text-slate-600 dark:text-slate-300">
+                      <span className="shrink-0">{t('اسم الفصل')}</span>
+                      <input value={labels[sh] || ''} onChange={(e) => setLabels((l) => ({ ...l, [sh]: e.target.value }))} placeholder={t(rosterClassName(sh))} maxLength={60}
+                        className="flex-1 h-9 px-3 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm font-normal" />
+                    </label>
+                  )}
                 </div>
               );
             })}
@@ -755,14 +863,31 @@ const SyncPanel: React.FC<{ cfg: AttConfig | null; onChanged: () => void }> = ({
               {cfg.unmatched.map((u) => <UnmatchedRow key={u.sheet + u.name} u={u} students={students} classes={classes} onDone={onChanged} />)}
             </>
           )}
+          {!!cfg?.ignored?.length && (
+            <details className="pt-1">
+              <summary className="text-xs font-semibold text-slate-500 cursor-pointer">{t('أسماء متجاهَلة ({n})', { n: cfg.ignored.length })}</summary>
+              <div className="mt-2 space-y-1">
+                {cfg.ignored.map((n) => (
+                  <div key={n} className="flex items-center justify-between gap-2 text-sm py-1">
+                    <span className="text-slate-700 dark:text-slate-200">{n}</span>
+                    <button type="button" className="text-xs font-bold text-indigo-600 hover:underline" onClick={async () => { const r = await unmatchedAction('', n, 'unignore'); if (r.ok) { showToast(t('أُلغي التجاهل، يظهر الاسم مع المزامنة القادمة'), 'success'); onChanged(); } }}>{t('إلغاء التجاهل')}</button>
+                  </div>
+                ))}
+              </div>
+            </details>
+          )}
         </Card>
         <Card className="p-5 space-y-2">
-          <h2 className="font-bold text-slate-900 dark:text-white">{t('سجل المزامنة')}</h2>
+          <div className="flex items-center justify-between gap-2">
+            <h2 className="font-bold text-slate-900 dark:text-white">{t('سجل المزامنة')}</h2>
+            {!!cfg?.log.length && <button type="button" className="text-xs font-bold text-rose-600 hover:underline" onClick={async () => { if (!window.confirm(t('مسح سجل المزامنة كله؟ (لا يحذف أي حركات حضور)'))) return; const r = await clearSyncLog(); if (r.ok) onChanged(); }}>{t('مسح السجل')}</button>}
+          </div>
           {!cfg?.log.length ? <p className="text-sm text-slate-500">{t('لا توجد مزامنات بعد')}</p> : cfg.log.map((l, i) => (
-            <div key={i} className="flex items-center gap-3 text-sm py-1.5 border-b border-slate-100 dark:border-slate-800 last:border-0">
+            <div key={l.id ?? i} className="flex items-center gap-3 text-sm py-1.5 border-b border-slate-100 dark:border-slate-800 last:border-0">
               <Chip tone={l.source === 'sheet_sync' ? 'info' : 'muted'}>{l.source === 'sheet_sync' ? t('من الشيت') : t('رفع ملف')}</Chip>
               <span className="flex-1 text-slate-700 dark:text-slate-200">{t('{n} طالب · {m} حركة', { n: l.summary.matched, m: l.summary.marks })}{l.summary.unmatched ? ` · ${t('{n} غير مطابق', { n: l.summary.unmatched })}` : ''}</span>
               <span className="text-xs text-slate-500">{fmtAt(l.at)}</span>
+              {l.id != null && <button type="button" aria-label={t('حذف')} title={t('حذف')} onClick={async () => { const r = await clearSyncLog(l.id); if (r.ok) onChanged(); }} className="w-7 h-7 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 flex items-center justify-center"><X className="w-4 h-4" /></button>}
             </div>
           ))}
         </Card>
@@ -780,6 +905,13 @@ const UnmatchedRow: React.FC<{ u: { sheet: string; name: string; count: number }
     return [...near, ...students.filter((s) => !near.includes(s))];
   }, [students, first]);
   const cls = new Map(classes.map((c) => [c.id, c.name]));
+  const act = async (a: 'ignore' | 'roster') => {
+    if (a === 'ignore' && !window.confirm(t('تجاهل «{n}»؟ لن يظهر هنا ولن تُسجَّل حركاته في المزامنات القادمة (يمكن إلغاء التجاهل لاحقاً).', { n: u.name }))) return;
+    const r = await unmatchedAction(u.sheet, u.name, a);
+    if (!r.ok) return showToast(t('تعذر الحفظ'), 'error');
+    showToast(a === 'roster' ? t('سُجّل بدون حساب وسُجّلت {n} حركة', { n: r.applied }) : t('تم التجاهل'), 'success');
+    onDone();
+  };
   const link = async () => {
     if (!sel) return;
     const r = await linkAttendanceName(u.sheet, u.name, sel);
@@ -797,6 +929,10 @@ const UnmatchedRow: React.FC<{ u: { sheet: string; name: string; count: number }
           {options.map((s) => <option key={s.id} value={s.id}>{s.name}{cls.get(s.class_id || '') ? ` — ${cls.get(s.class_id || '')}` : ''}</option>)}
         </select>
         <Button size="sm" icon={Link2} disabled={!sel} onClick={() => void link()}>{t('ربط')}</Button>
+      </div>
+      <div className="flex flex-wrap gap-2">
+        <button type="button" onClick={() => void act('roster')} className="h-8 px-3 rounded-lg text-xs font-bold border border-slate-300 dark:border-slate-600 text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800">{t('تسجيل بدون حساب')}</button>
+        <button type="button" onClick={() => void act('ignore')} className="h-8 px-3 rounded-lg text-xs font-bold text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 inline-flex items-center gap-1"><Trash2 className="w-3.5 h-3.5" />{t('تجاهل')}</button>
       </div>
     </div>
   );

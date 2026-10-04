@@ -8,10 +8,13 @@ export interface AttConfig {
   weeks: number;
   threshold: number;
   sheet_classes: Record<string, string>;
+  /** أسماء فصول شيتات «سجل فقط» التي كتبها المسؤول (027) */
+  sheet_labels?: Record<string, string>;
   /** آخر ما وصل من كل شيت (026) */
   sheets?: Record<string, { students: number; unmatched: number; at: string }>;
   has_token: boolean;
-  log: Array<{ at: string; source: 'upload' | 'sheet_sync'; by: string; summary: { sheets: number; matched: number; marks: number; unmatched: number } }>;
+  ignored?: string[];
+  log: Array<{ id?: number; at: string; source: 'upload' | 'sheet_sync'; by: string; summary: { sheets: number; matched: number; marks: number; unmatched: number } }>;
   unmatched: Array<{ sheet: string; name: string; count: number }>;
 }
 export interface ImportResult { sheets: number; matched: number; marks: number; roster?: number; unmatched: Array<{ sheet: string; name: string }> }
@@ -64,7 +67,7 @@ export async function fetchAttendanceConfig(): Promise<AttConfig | null> {
   return r.ok && r.data ? r.data : null;
 }
 
-export async function saveAttendanceConfig(p: Partial<Pick<AttConfig, 'start_date' | 'weeks' | 'threshold' | 'sheet_classes'>>) {
+export async function saveAttendanceConfig(p: Partial<Pick<AttConfig, 'start_date' | 'weeks' | 'threshold' | 'sheet_classes' | 'sheet_labels'>>) {
   const r = await safe(() => supabase.rpc('itqan_attendance_config_save', { p }) as any);
   return { ok: r.ok, error: r.ok ? undefined : errText(r.error) };
 }
@@ -77,6 +80,18 @@ export async function newAttendanceToken(): Promise<{ token?: string; error?: st
 export async function importAttendance(payload: SheetPayload): Promise<{ result?: ImportResult; error?: string }> {
   const r = await safe<ImportResult>(() => supabase.rpc('itqan_attendance_import', { p_payload: payload }) as any);
   return r.ok && r.data ? { result: r.data } : { error: errText(r.error) };
+}
+
+/** تجاهل اسم / تسجيله بدون حساب / إلغاء التجاهل (028) */
+export async function unmatchedAction(sheet: string, name: string, action: 'ignore' | 'roster' | 'unignore') {
+  const r = await safe<number>(() => supabase.rpc('itqan_attendance_unmatched_action', { p_sheet: sheet, p_name: name, p_action: action }) as any);
+  return { ok: r.ok, applied: r.data || 0, error: r.ok ? undefined : errText(r.error) };
+}
+
+/** حذف سطر من سجل المزامنة أو مسحه كله */
+export async function clearSyncLog(id?: number) {
+  const r = await safe(() => supabase.rpc('itqan_attendance_log_clear', { p_id: id ?? null }) as any);
+  return { ok: r.ok };
 }
 
 export async function linkAttendanceName(sheet: string, name: string, studentId: string) {
