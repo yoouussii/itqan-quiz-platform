@@ -1,5 +1,6 @@
 // اختبارات 022: الحضور — مطابقة الأسماء، تحويل الأسبوع/اليوم إلى تاريخ، الاستبدال عند المزامنة، الربط اليدوي، رمز الشيت، والصلاحيات.
-// تُشغَّل على قاعدة بيانات فيها 001–022 والبيانات التجريبية (seed.sql).
+// و024: طلاب «سجل فقط» بلا حسابات.
+// تُشغَّل على قاعدة بيانات فيها 001–024 والبيانات التجريبية (seed.sql).
 import { readFileSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
 const BASE = 'http://localhost:3001';
@@ -118,6 +119,35 @@ r = await req('GET', '/attendance_records?select=student_id', { token: T });
 ok(Array.isArray(r.json) && r.json.length >= 7, 'صلاحية العرض تكفي لرؤية السجلات');
 r = await req('DELETE', `/attendance_records?student_id=eq.s-a`, { token: T });
 ok(SQL(`select count(*) from attendance_records where student_id='s-a'`) !== '0', 'صلاحية العرض لا تسمح بالحذف');
+
+console.log('— «سجل فقط»: طلاب بدون حسابات (024)');
+const usersBefore = SQL(`select count(*) from users`);
+const sdBefore = SQL(`select count(*) from attendance_records where student_id='s-d'`);
+r = await rpc('itqan_attendance_config_save', { p: { sheet_classes: { 'ثالث': 'c3', 'أول': '__roster__' } } }, W);
+ok(r.status < 300, 'تحديد شيت «أول» كسجل فقط');
+const roster = (list) => ({ sheets: [{ sheet: 'أول', students: list }] });
+const sara = { name: 'سارة محمد الحربي', marks: [[1, 0, 'absent'], [1, 1, 'late']] };
+const noura = { name: 'نورة علي', marks: [[2, 2, 'excused']] };
+const fatma = { name: 'فاطمة علي الزهراني', marks: [[3, 0, 'absent']] }; // نفس اسم طالبة على المنصة
+r = await rpc('itqan_attendance_import', { p_payload: roster([sara, noura, fatma]) }, W);
+ok(r.json?.roster === 3 && r.json?.matched === 3 && r.json?.unmatched?.length === 0, 'أسماء شيت «سجل فقط» كلها تُسجَّل بلا مطابقة');
+ok(SQL(`select count(*) from attendance_roster where sheet='أول'`) === '3', 'حُفظوا في قائمة الحضور');
+ok(SQL(`select count(*) from users`) === usersBefore, 'لا تُنشأ لهم حسابات');
+ok(SQL(`select count(*) from attendance_records where student_id='s-d'`) === sdBefore, 'لا تختلط حركاتهم بطالبة المنصة ذات الاسم نفسه');
+const saraId = SQL(`select id from attendance_roster where name='سارة محمد الحربي'`);
+ok(SQL(`select string_agg(day||':'||kind, ',' order by day) from attendance_records where student_id='${saraId}'`) === '2026-08-23:absent,2026-08-24:late', 'تحويل الأسبوع/اليوم إلى تاريخ لطلاب «سجل فقط»');
+r = await req('GET', '/attendance_roster?select=id', { token: T });
+ok(Array.isArray(r.json) && r.json.length === 3, 'صاحب صلاحية العرض يرى القائمة');
+r = await req('GET', '/attendance_roster?select=id', { token: S });
+ok(Array.isArray(r.json) && r.json.length === 0, 'الطالب لا يرى القائمة');
+r = await req('POST', '/attendance_roster', { token: W, body: { sheet: 'أول', name: 'مزيف', name_norm: 'مزيف' } });
+ok(r.status >= 400, 'لا إضافة مباشرة للقائمة (فقط من الاستيراد)');
+r = await req('POST', '/attendance_records', { token: W, body: { student_id: saraId, day: '2026-09-10', kind: 'late', source: 'manual', created_by: 'u-att' } });
+ok(r.status < 300, 'تسجيل يدوي لطالب «سجل فقط»');
+r = await rpc('itqan_attendance_import', { p_payload: roster([fatma]) }, W);
+ok(SQL(`select count(*) from attendance_roster where name='نورة علي'`) === '0', 'من حُذف من الشيت يُحذف من القائمة');
+ok(SQL(`select count(*) from attendance_records r where not exists (select 1 from users u where u.id=r.student_id) and not exists (select 1 from attendance_roster ro where ro.id=r.student_id)`) === '0', 'وتُحذف حركاته معه');
+ok(SQL(`select count(*) from attendance_roster where id='${saraId}'`) === '1' && SQL(`select string_agg(source, ',') from attendance_records where student_id='${saraId}'`) === 'manual', 'من له حركات يدوية يبقى بها فقط');
 
 console.log(`\n${pass} نجح، ${fail} فشل`);
 process.exit(fail ? 1 : 0);

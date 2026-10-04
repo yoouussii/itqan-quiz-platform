@@ -12,7 +12,19 @@ export interface AttConfig {
   log: Array<{ at: string; source: 'upload' | 'sheet_sync'; by: string; summary: { sheets: number; matched: number; marks: number; unmatched: number } }>;
   unmatched: Array<{ sheet: string; name: string; count: number }>;
 }
-export interface ImportResult { sheets: number; matched: number; marks: number; unmatched: Array<{ sheet: string; name: string }> }
+export interface ImportResult { sheets: number; matched: number; marks: number; roster?: number; unmatched: Array<{ sheet: string; name: string }> }
+/** طالب في سجل الحضور فقط (بلا حساب على المنصة) */
+export interface RosterStudent { id: string; sheet: string; name: string }
+/** قيمة الشيت في sheet_classes عندما يكون «سجل فقط (بدون حسابات)» */
+export const ROSTER_SHEET = '__roster__';
+/** معرّف الفصل الافتراضي لطلاب شيت «سجل فقط» */
+export const rosterClassId = (sheet: string) => `roster:${sheet}`;
+const ORD = ['', 'الأول', 'الثاني', 'الثالث', 'الرابع', 'الخامس', 'السادس', 'السابع', 'الثامن', 'التاسع', 'العاشر', 'الحادي عشر', 'الثاني عشر'];
+/** اسم العرض لشيت «سجل فقط»: «1» أو «١» ← «الصف الأول» */
+export function rosterClassName(sheet: string): string {
+  const d = sheet.trim().replace(/[٠-٩]/g, (c) => String(c.charCodeAt(0) - 0x0660));
+  return /^\d{1,2}$/.test(d) && ORD[Number(d)] ? `الصف ${ORD[Number(d)]}` : sheet;
+}
 
 const errText = (e?: string) => {
   if (!e) return 'failed';
@@ -34,6 +46,12 @@ export async function fetchAttendance(from: string, to: string, studentIds?: str
     if (r.data.length < 1000) break;
   }
   return all;
+}
+
+/** طلاب سجل الحضور بلا حسابات */
+export async function fetchRoster(): Promise<RosterStudent[]> {
+  const r = await safe<RosterStudent[]>(() => supabase.from('attendance_roster').select('id,sheet,name').order('name').range(0, 4999) as any);
+  return r.ok && Array.isArray(r.data) ? r.data : [];
 }
 
 export async function fetchAttendanceConfig(): Promise<AttConfig | null> {
