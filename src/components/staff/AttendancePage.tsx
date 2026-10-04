@@ -28,6 +28,13 @@ const ERR: Record<string, string> = {
   bad_payload: 'لم يُعثر على سجل غياب بالشكل المتوقع في الملف',
 };
 type Klass = { id: string; name: string };
+type Detail = AttKind | 'flagged' | 'rate';
+const pct = (r: number) => `${Math.round(r * 1000) / 10}%`;
+const rateTone = (r: number) => (r >= 0.95 ? 'ok' : r >= 0.9 ? 'warn' : 'bad') as 'ok' | 'warn' | 'bad';
+function downloadCsv(name: string, rows: string[][]) {
+  const blob = new Blob(['\uFEFF' + rows.map((r) => r.map((c) => `"${String(c).replace(/"/g, '""')}"`).join(',')).join('\n')], { type: 'text/csv;charset=utf-8' });
+  const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = name; a.click();
+}
 /** طلاب المنصة + طلاب «سجل فقط» (بلا حسابات) في شكل واحد، وفصولهم */
 function usePeople(roster: RosterStudent[]) {
   const { users, classes } = useApp();
@@ -142,16 +149,21 @@ export const AttendancePage: React.FC = () => {
   const exportCsv = () => {
     const rows = [['الطالب', 'الفصل', 'غياب', 'تأخر', 'استئذان', 'عدد أيام الغياب والتأخر والاستئذان', 'نسبة الحضور']];
     students.forEach((s) => { const p = stats.per.get(s.id); const a = p?.absent || 0; rows.push([s.name, classMap.get(s.class_id || '') || '', String(a), String(p?.late || 0), String(p?.excused || 0), String(a + (p?.late || 0) + (p?.excused || 0)), `${Math.round(Math.max(0, 1 - a / stats.days) * 1000) / 10}%`]); });
-    const blob = new Blob(['﻿' + rows.map((r) => r.map((c) => `"${c.replace(/"/g, '""')}"`).join(',')).join('\n')], { type: 'text/csv;charset=utf-8' });
-    const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = `attendance-${range.from}-${range.to}.csv`; a.click();
+    downloadCsv(`attendance-${range.from}-${range.to}.csv`, rows);
   };
 
-  const Kpi: React.FC<{ label: string; value: React.ReactNode; hint?: string; color?: string }> = ({ label, value, hint, color }) => (
-    <Card className="p-5">
+  const loading = records === null;
+  const [detail, setDetail] = useState<Detail | null>(null);
+  const Kpi: React.FC<{ label: string; value: React.ReactNode; hint?: string; color?: string; open: Detail }> = ({ label, value, hint, color, open }) => (
+    <button type="button" onClick={() => setDetail(open)} disabled={loading}
+      className="group text-start rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-5 shadow-sm hover:border-indigo-300 hover:shadow-md dark:hover:border-indigo-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 transition">
       <div className="flex items-center gap-2 text-sm font-semibold text-slate-500 dark:text-slate-400">{color && <span className="w-2.5 h-2.5 rounded-full" style={{ background: color }} />}{label}</div>
       <div className="text-3xl font-extrabold tabular-nums text-slate-900 dark:text-white mt-1">{value}</div>
-      {hint && <div className="text-xs text-slate-500 dark:text-slate-400 mt-1">{hint}</div>}
-    </Card>
+      <div className="flex items-center justify-between gap-2 mt-1">
+        <span className="text-xs text-slate-500 dark:text-slate-400">{hint}</span>
+        <span className="text-xs font-semibold text-indigo-600 dark:text-indigo-400 opacity-70 group-hover:opacity-100">{t('التفاصيل')}</span>
+      </div>
+    </button>
   );
 
   // آخر مزامنة من الشيت (أو آخر رفع ملف إن لم تكن هناك مزامنة)
@@ -165,7 +177,6 @@ export const AttendancePage: React.FC = () => {
     return `${d.toLocaleDateString(dateLocale(), { weekday: 'long', day: 'numeric', month: 'long' })} ${time}`;
   };
   const chartTip = { contentStyle: { borderRadius: 12, border: '1px solid #e2e8f0', fontSize: 13, direction: uiDir() as any } };
-  const loading = records === null;
 
   const Dashboard = (
     <div className="space-y-5">
@@ -177,11 +188,11 @@ export const AttendancePage: React.FC = () => {
         </Card>
       )}
       <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
-        <Kpi label={t('نسبة الحضور')} value={loading ? '…' : <span dir="ltr">{Math.round(stats.rate * 1000) / 10}%</span>} hint={t('{n} يوم دراسي', { n: stats.days })} />
-        <Kpi label={t('أيام الغياب')} value={stats.count.absent} color={KINDS[0].color} />
-        <Kpi label={t('مرات التأخر')} value={stats.count.late} color={KINDS[1].color} />
-        <Kpi label={t('الاستئذان')} value={stats.count.excused} color={KINDS[2].color} />
-        <Kpi label={t('تجاوزوا حد الغياب')} value={stats.flagged.length} hint={t('{n} أيام غياب فأكثر', { n: stats.threshold })} />
+        <Kpi label={t('نسبة الحضور')} value={loading ? '…' : <span dir="ltr">{Math.round(stats.rate * 1000) / 10}%</span>} hint={t('{n} يوم دراسي', { n: stats.days })} open="rate" />
+        <Kpi label={t('أيام الغياب')} value={stats.count.absent} color={KINDS[0].color} open="absent" />
+        <Kpi label={t('مرات التأخر')} value={stats.count.late} color={KINDS[1].color} open="late" />
+        <Kpi label={t('الاستئذان')} value={stats.count.excused} color={KINDS[2].color} open="excused" />
+        <Kpi label={t('تجاوزوا حد الغياب')} value={stats.flagged.length} hint={t('{n} أيام غياب فأكثر', { n: stats.threshold })} open="flagged" />
       </div>
 
       <div className="grid lg:grid-cols-3 gap-5">
@@ -367,7 +378,149 @@ export const AttendancePage: React.FC = () => {
       {tab === 'students' && Students}
       {tab === 'week' && <WeekGrid cfg={cfg} people={people} classes={classes} classId={classId} setClassId={setClassId} onOpen={setOpenStudent} />}
       {tab === 'sync' && canManage && <SyncPanel cfg={cfg} onChanged={() => { loadCfg(); loadRoster(); reload(); }} />}
+      {detail && (
+        <KpiDetails kind={detail} recs={recs} students={students} per={stats.per} byClass={stats.byClass} days={stats.days} threshold={stats.threshold}
+          studentMap={studentMap} classMap={classMap} rosterIds={rosterIds} range={range}
+          onOpenStudent={(u) => setOpenStudent(u)} onNotify={(ids) => void notifyFlagged(ids)} onClose={() => setDetail(null)} />
+      )}
       {openStudent && <StudentDrawer student={openStudent} className={classMap.get(openStudent.class_id || '') || ''} canManage={canManage} noAccount={rosterIds.has(openStudent.id)} onClose={() => setOpenStudent(null)} onChanged={reload} />}
+    </div>
+  );
+};
+
+// ---------------------------------------------------------------------
+// تفاصيل بطاقات اللوحة: من غاب/تأخر/استأذن ومتى، المتجاوزون، ونسب الحضور
+// ---------------------------------------------------------------------
+const DETAIL_TITLE: Record<Detail, string> = { absent: 'أيام الغياب', late: 'مرات التأخر', excused: 'الاستئذان', flagged: 'تجاوزوا حد الغياب', rate: 'نسبة الحضور' };
+const KpiDetails: React.FC<{
+  kind: Detail; recs: AttRecord[]; students: User[]; per: Map<string, Record<AttKind, number>>;
+  byClass: Array<{ id: string; name: string; students: number; absent: number; late: number; excused: number; rate: number }>;
+  days: number; threshold: number; studentMap: Map<string, User>; classMap: Map<string, string>; rosterIds: Set<string>;
+  range: { from: string; to: string }; onOpenStudent: (u: User) => void; onNotify: (ids: string[]) => void; onClose: () => void;
+}> = ({ kind, recs, students, per, byClass, days, threshold, studentMap, classMap, rosterIds, range, onOpenStudent, onNotify, onClose }) => {
+  const [view, setView] = useState<'students' | 'all'>('students');
+  const [q, setQ] = useState('');
+  useEffect(() => { const k = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); }; window.addEventListener('keydown', k); return () => window.removeEventListener('keydown', k); }, [onClose]);
+  const isKind = kind === 'absent' || kind === 'late' || kind === 'excused';
+  const color = isKind ? KINDS.find((k) => k.k === kind)!.color : undefined;
+  const cls = (id: string) => classMap.get(studentMap.get(id)?.class_id || '') || '';
+  const nm = (id: string) => studentMap.get(id)?.name || id;
+  const match = (id: string) => !q.trim() || nm(id).includes(q.trim()) || cls(id).includes(q.trim());
+  const zero = { absent: 0, late: 0, excused: 0 } as Record<AttKind, number>;
+  const rate = (id: string) => Math.max(0, 1 - (per.get(id)?.absent || 0) / days);
+
+  // حسب الطالب لنوع الحركة، مع أيامها
+  const kindRecs = isKind ? recs.filter((r) => r.kind === kind).sort((a, b) => b.day.localeCompare(a.day)) : [];
+  const byStudent = useMemo(() => {
+    const m = new Map<string, string[]>();
+    kindRecs.forEach((r) => m.set(r.student_id, [...(m.get(r.student_id) || []), r.day]));
+    return Array.from(m.entries()).map(([id, ds]) => ({ id, days: ds })).sort((a, b) => b.days.length - a.days.length || nm(a.id).localeCompare(nm(b.id), 'ar'));
+  }, [kindRecs]); // eslint-disable-line react-hooks/exhaustive-deps
+  const flagged = students.filter((s) => (per.get(s.id)?.absent || 0) >= threshold).sort((a, b) => (per.get(b.id)?.absent || 0) - (per.get(a.id)?.absent || 0));
+  const lowest = students.filter((s) => (per.get(s.id)?.absent || 0) > 0).sort((a, b) => rate(a.id) - rate(b.id)).slice(0, 30);
+
+  const exportRows = (): string[][] => {
+    if (isKind && view === 'all') return [['التاريخ', 'الطالب', 'الفصل', 'المصدر', 'ملاحظة'], ...kindRecs.map((r) => [r.day, nm(r.student_id), cls(r.student_id), r.source === 'sheet' ? 'سجل الغياب' : 'المنصة', r.note])];
+    if (isKind) return [['الطالب', 'الفصل', 'العدد', 'الأيام'], ...byStudent.map((x) => [nm(x.id), cls(x.id), String(x.days.length), x.days.join(' ')])];
+    if (kind === 'flagged') return [['الطالب', 'الفصل', 'غياب', 'تأخر', 'استئذان', 'نسبة الحضور'], ...flagged.map((s) => { const p = per.get(s.id) || zero; return [s.name, cls(s.id), String(p.absent), String(p.late), String(p.excused), pct(rate(s.id))]; })];
+    return [['الفصل', 'الطلاب', 'غياب', 'نسبة الحضور'], ...byClass.map((c) => [c.name, String(c.students), String(c.absent), pct(c.rate)])];
+  };
+
+  const Row: React.FC<{ id: string; children: React.ReactNode }> = ({ id, children }) => {
+    const u = studentMap.get(id);
+    return (
+      <button type="button" onClick={() => u && onOpenStudent(u)} className="w-full flex items-center gap-3 px-5 py-2.5 border-b border-slate-100 dark:border-slate-800 text-start hover:bg-slate-50 dark:hover:bg-slate-800/50">
+        <div className="flex-1 min-w-0">
+          <div className="font-semibold text-[15px] truncate text-slate-900 dark:text-white">{nm(id)}</div>
+          <div className="text-xs text-slate-500 truncate">{cls(id)}{rosterIds.has(id) ? ` · ${t('بدون حساب على المنصة')}` : ''}</div>
+        </div>
+        {children}
+      </button>
+    );
+  };
+  const empty = <p className="p-8 text-center text-sm text-slate-500">{t('لا توجد سجلات في هذه الفترة')}</p>;
+
+  return (
+    <div className="fixed inset-0 z-[60] bg-slate-900/50 flex items-end sm:items-center justify-center sm:p-6" onClick={onClose} role="dialog" aria-modal="true" aria-label={t(DETAIL_TITLE[kind])}>
+      <div className="w-full sm:max-w-2xl max-h-[90vh] bg-white dark:bg-slate-900 rounded-t-2xl sm:rounded-2xl shadow-2xl flex flex-col" onClick={(e) => e.stopPropagation()} dir={uiDir()}>
+        <div className="flex items-start gap-3 p-5 border-b border-slate-100 dark:border-slate-800">
+          <div className="flex-1 min-w-0">
+            <h2 className="text-lg font-extrabold text-slate-900 dark:text-white inline-flex items-center gap-2">{color && <span className="w-3 h-3 rounded-full" style={{ background: color }} />}{t(DETAIL_TITLE[kind])}</h2>
+            <p className="text-sm text-slate-500" dir="ltr" style={{ textAlign: 'end' }}>{range.from} → {range.to}</p>
+          </div>
+          <Button size="sm" variant="secondary" icon={Download} onClick={() => downloadCsv(`attendance-${kind}-${range.from}-${range.to}.csv`, exportRows())}>{t('تصدير Excel')}</Button>
+          <button type="button" onClick={onClose} aria-label={t('إغلاق')} className="w-9 h-9 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 flex items-center justify-center"><X className="w-5 h-5" /></button>
+        </div>
+        {kind !== 'rate' && <div className="flex flex-wrap items-center gap-2 px-5 py-3 border-b border-slate-100 dark:border-slate-800">
+          {isKind && (
+            <div className="inline-flex p-1 rounded-xl bg-slate-100 dark:bg-slate-800">
+              {([['students', 'حسب الطالب'], ['all', 'كل الحركات']] as const).map(([k, l]) => (
+                <button key={k} type="button" onClick={() => setView(k)} className={`h-8 px-3 rounded-lg text-sm font-bold ${view === k ? 'bg-white dark:bg-slate-700 shadow-sm text-slate-900 dark:text-white' : 'text-slate-600 dark:text-slate-300'}`}>{t(l)}</button>
+              ))}
+            </div>
+          )}
+          {(
+            <div className="relative flex-1 min-w-[10rem]">
+              <Search className="w-4 h-4 absolute top-2.5 start-3 text-slate-400" />
+              <input value={q} onChange={(e) => setQ(e.target.value)} placeholder={t('ابحث بالاسم أو الفصل')} className="w-full h-9 ps-9 pe-3 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm" />
+            </div>
+          )}
+          {kind === 'flagged' && flagged.some((s) => !rosterIds.has(s.id)) && (
+            <Button size="sm" variant="secondary" icon={Bell} onClick={() => onNotify(flagged.map((s) => s.id))}>{t('إشعار المتجاوزين وأولياء أمورهم')}</Button>
+          )}
+        </div>}
+        <div className="flex-1 overflow-y-auto">
+          {isKind && view === 'students' && (byStudent.filter((x) => match(x.id)).length === 0 ? empty : byStudent.filter((x) => match(x.id)).map((x) => (
+            <Row key={x.id} id={x.id}>
+              <div className="hidden sm:flex flex-wrap justify-end gap-1 max-w-[16rem]">
+                {x.days.slice(0, 4).map((d) => <span key={d} className="text-[11px] px-1.5 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300">{fmtDay(d)}</span>)}
+                {x.days.length > 4 && <span className="text-[11px] text-slate-500">+{x.days.length - 4}</span>}
+              </div>
+              <span className="w-10 text-center text-lg font-extrabold tabular-nums" style={{ color }}>{x.days.length}</span>
+            </Row>
+          )))}
+          {isKind && view === 'all' && (kindRecs.filter((r) => match(r.student_id)).length === 0 ? empty : kindRecs.filter((r) => match(r.student_id)).map((r) => (
+            <Row key={r.id} id={r.student_id}>
+              <div className="text-end">
+                <div className="text-sm font-semibold text-slate-800 dark:text-slate-100">{fmtDay(r.day)}</div>
+                <div className="text-xs text-slate-500">{r.source === 'sheet' ? t('من سجل الغياب') : t('سُجّل من المنصة')}{r.note ? ` · ${r.note}` : ''}</div>
+              </div>
+            </Row>
+          )))}
+          {kind === 'flagged' && (flagged.filter((s) => match(s.id)).length === 0 ? <p className="p-8 text-center text-sm text-slate-500">{t('لا يوجد طلاب تجاوزوا الحد في هذه الفترة')}</p> : flagged.filter((s) => match(s.id)).map((s) => {
+            const p = per.get(s.id) || zero;
+            return (
+              <Row key={s.id} id={s.id}>
+                {KINDS.map((k) => <span key={k.k} className="w-10 text-center text-sm tabular-nums font-semibold" style={{ color: k.color }} title={t(k.label)}>{p[k.k]}</span>)}
+                <Chip tone={rateTone(rate(s.id))}><span dir="ltr">{pct(rate(s.id))}</span></Chip>
+              </Row>
+            );
+          }))}
+          {kind === 'rate' && (
+            <>
+              <h3 className="px-5 pt-4 pb-2 text-sm font-bold text-slate-700 dark:text-slate-200">{t('حسب الفصول')}</h3>
+              {byClass.map((c) => (
+                <div key={c.id} className="flex items-center gap-3 px-5 py-2.5 border-b border-slate-100 dark:border-slate-800">
+                  <div className="flex-1 min-w-0">
+                    <div className="font-semibold text-[15px] truncate text-slate-900 dark:text-white">{c.name}</div>
+                    <div className="h-1.5 mt-1.5 rounded-full bg-slate-100 dark:bg-slate-800 overflow-hidden"><div className="h-full rounded-full bg-emerald-500" style={{ width: pct(c.rate) }} /></div>
+                  </div>
+                  <span className="text-xs text-slate-500 text-end whitespace-nowrap">{t('{n} طالب', { n: c.students })} · {t('غياب {n}', { n: c.absent })}</span>
+                  <Chip tone={rateTone(c.rate)}><span dir="ltr">{pct(c.rate)}</span></Chip>
+                </div>
+              ))}
+              <h3 className="px-5 pt-5 pb-2 text-sm font-bold text-slate-700 dark:text-slate-200">{t('الأقل حضوراً')}</h3>
+              {lowest.length === 0 ? <p className="px-5 pb-6 text-sm text-slate-500">{t('لا يوجد غياب مسجل في هذه الفترة')}</p> : lowest.map((s) => (
+                <Row key={s.id} id={s.id}>
+                  <span className="text-xs text-slate-500">{t('غياب {n}', { n: per.get(s.id)?.absent || 0 })}</span>
+                  <Chip tone={rateTone(rate(s.id))}><span dir="ltr">{pct(rate(s.id))}</span></Chip>
+                </Row>
+              ))}
+              <p className="px-5 py-3 text-xs text-slate-500">{t('نسبة الحضور = 1 − (أيام الغياب ÷ أيام الدراسة {n})', { n: days })}</p>
+            </>
+          )}
+        </div>
+      </div>
     </div>
   );
 };
@@ -464,7 +617,7 @@ const SyncPanel: React.FC<{ cfg: AttConfig | null; onChanged: () => void }> = ({
   useEffect(() => { if (cfg) { setStart(cfg.start_date || ''); setWeeks(cfg.weeks); setThreshold(cfg.threshold); setMapping(cfg.sheet_classes || {}); } }, [cfg]);
   const students = useMemo(() => (users as User[]).filter((u) => u.role === 'student').sort((a, b) => a.name.localeCompare(b.name, 'ar')), [users]);
   // أسماء الشيتات: من الملف المرفوع، أو الإعداد المحفوظ، أو آخر مزامنة (أسماء لم تُطابق)
-  const sheetNames = Array.from(new Set([...(parsed?.sheets.map((s) => s.sheet) || []), ...Object.keys(mapping), ...(cfg?.unmatched.map((u) => u.sheet) || [])]))
+  const sheetNames = Array.from(new Set([...(parsed?.sheets.map((s) => s.sheet) || []), ...Object.keys(mapping), ...(cfg?.unmatched.map((u) => u.sheet) || []), ...Object.keys(cfg?.sheets || {})]))
     .sort((a, b) => a.localeCompare(b, 'ar', { numeric: true }));
 
   const save = async (extra?: Partial<AttConfig>) => {
@@ -549,17 +702,24 @@ const SyncPanel: React.FC<{ cfg: AttConfig | null; onChanged: () => void }> = ({
         {sheetNames.length > 0 && (
           <Card className="p-5 space-y-3">
             <h2 className="font-bold text-slate-900 dark:text-white">{t('الشيتات ونوع طلابها')}</h2>
-            <p className="text-xs text-slate-500 dark:text-slate-400">{t('«طلاب المنصة»: تُطابق الأسماء مع حسابات الطلاب. «سجل فقط»: صفوف ليس لطلابها حسابات، تُسجَّل في الحضور فقط بدون إنشاء حسابات.')}</p>
-            {sheetNames.map((sh) => (
-              <div key={sh} className="flex items-center gap-2">
-                <span className="w-28 text-sm font-semibold truncate" title={sh}>{sh}</span>
-                <select aria-label={sh} value={mapping[sh] || ''} onChange={(e) => setMapping((m) => ({ ...m, [sh]: e.target.value }))} className="flex-1 h-10 px-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm">
-                  <option value="">{t('طلاب المنصة (كل المدرسة)')}</option>
-                  {classes.map((c) => <option key={c.id} value={c.id}>{t('طلاب المنصة: {c}', { c: c.name })}</option>)}
-                  <option value={ROSTER_SHEET}>{t('سجل فقط (طلاب بدون حسابات)')}</option>
-                </select>
-              </div>
-            ))}
+            <p className="text-sm text-slate-600 dark:text-slate-300">{t('لكل شيت في سجل الغياب: هل طلابه لهم حسابات على المنصة؟ مثلاً صفوف نافس (الثالث والسادس) لهم حسابات، وباقي صفوف الابتدائي بدون حسابات وتُسجَّل في الحضور فقط.')}</p>
+            {sheetNames.map((sh) => {
+              const roster = mapping[sh] === ROSTER_SHEET;
+              const info = cfg?.sheets?.[sh];
+              const seg = (on: boolean) => `h-9 px-3 rounded-lg text-sm font-bold transition ${on ? 'bg-indigo-600 text-white shadow-sm' : 'text-slate-600 dark:text-slate-300 hover:bg-white/70 dark:hover:bg-slate-700'}`;
+              return (
+                <div key={sh} className="flex flex-wrap items-center gap-2 py-1.5 border-b border-slate-100 dark:border-slate-800 last:border-0">
+                  <div className="flex-1 min-w-[7rem]">
+                    <div className="text-sm font-bold text-slate-900 dark:text-white truncate" title={sh}>{sh}</div>
+                    {info && <div className="text-xs text-slate-500">{t('{n} طالب', { n: info.students })}{!roster && info.unmatched > 0 ? ` · ${t('{n} لم يُطابق', { n: info.unmatched })}` : ''}</div>}
+                  </div>
+                  <div role="radiogroup" aria-label={sh} className="inline-flex p-1 rounded-xl bg-slate-100 dark:bg-slate-800">
+                    <button type="button" role="radio" aria-checked={!roster} className={seg(!roster)} onClick={() => setMapping((m) => ({ ...m, [sh]: roster ? '' : (m[sh] || '') }))}>{t('طلابه لهم حسابات')}</button>
+                    <button type="button" role="radio" aria-checked={roster} className={seg(roster)} onClick={() => setMapping((m) => ({ ...m, [sh]: ROSTER_SHEET }))}>{t('بدون حسابات (حضور فقط)')}</button>
+                  </div>
+                </div>
+              );
+            })}
             <Button onClick={() => void save()}>{t('حفظ')}</Button>
           </Card>
         )}
