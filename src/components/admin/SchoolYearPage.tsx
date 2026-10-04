@@ -17,6 +17,9 @@ const TABLE_LABEL: Record<string, string> = {
   user_avatars: 'الصور الشخصية', banners: 'البانرات', app_settings: 'الإعدادات', certificates: 'الشهادات', classes: 'الفصول',
   subjects: 'المواد', push_subscriptions: 'أجهزة الإشعارات', quiz_attempts: 'محاولات الاختبار', sessions: 'جلسات الدخول',
   daily_challenge_attempts: 'التحدي اليومي', attendance_roster: 'سجل الحضور فقط', student_awards: 'الجوائز', credentials: 'كلمات المرور (مشفرة)',
+  class_visits: 'الزيارات الصفية', surveys: 'الاستبيانات', survey_responses: 'إجابات الاستبيانات', survey_respondents: 'المجيبون',
+  gradebook_columns: 'أعمدة كشف الدرجات', gradebook_marks: 'درجات الكشف', gradebook_weights: 'أوزان الاختبارات', year_archive: 'سجل الترحيل',
+  attendance_sync_log: 'سجل المزامنة', attendance_unmatched: 'أسماء غير مطابقة', attendance_alerts: 'تنبيهات الغياب', login_attempts: 'محاولات الدخول',
 };
 
 const defaultLabel = () => { const y = new Date().getFullYear(); return `${y}–${y + 1}`; };

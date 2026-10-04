@@ -2362,4 +2362,13 @@ export const EN: Record<string, string> = {
   'الإشراف والجودة': 'Supervision & quality',
   'الإجابة على الاستبيان': 'Answer the survey',
   'عرض الزيارة': 'View visit',
+  'إجابات الاستبيانات': 'Survey answers',
+  'المجيبون': 'Respondents',
+  'أعمدة كشف الدرجات': 'Gradebook columns',
+  'درجات الكشف': 'Gradebook marks',
+  'أوزان الاختبارات': 'Quiz weights',
+  'سجل الترحيل': 'Rollover log',
+  'أسماء غير مطابقة': 'Unmatched names',
+  'تنبيهات الغياب': 'Absence alerts',
+  'محاولات الدخول': 'Login attempts',
 };
