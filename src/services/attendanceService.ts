@@ -7,6 +7,10 @@ export interface AttConfig {
   start_date: string | null;
   weeks: number;
   threshold: number;
+  /** تنبيه تلقائي لولي الأمر عند بلوغ حد الغياب (029) */
+  auto_notify?: boolean;
+  /** ملخص أسبوعي للإدارة (029) */
+  weekly_digest?: boolean;
   sheet_classes: Record<string, string>;
   /** أسماء فصول شيتات «سجل فقط» التي كتبها المسؤول (027) */
   sheet_labels?: Record<string, string>;
@@ -62,12 +66,17 @@ export async function fetchRoster(): Promise<RosterStudent[]> {
   return r.ok && Array.isArray(r.data) ? r.data : [];
 }
 
+/** فحص إرسال الملخص الأسبوعي (مرة لكل أسبوع؛ يُستدعى عند فتح صفحة الحضور) */
+export async function attendanceDigestTick() {
+  await safe(() => supabase.rpc('itqan_attendance_digest_tick') as any);
+}
+
 export async function fetchAttendanceConfig(): Promise<AttConfig | null> {
   const r = await safe<AttConfig>(() => supabase.rpc('itqan_attendance_config') as any);
   return r.ok && r.data ? r.data : null;
 }
 
-export async function saveAttendanceConfig(p: Partial<Pick<AttConfig, 'start_date' | 'weeks' | 'threshold' | 'sheet_classes' | 'sheet_labels'>>) {
+export async function saveAttendanceConfig(p: Partial<Pick<AttConfig, 'start_date' | 'weeks' | 'threshold' | 'sheet_classes' | 'sheet_labels' | 'auto_notify' | 'weekly_digest'>>) {
   const r = await safe(() => supabase.rpc('itqan_attendance_config_save', { p }) as any);
   return { ok: r.ok, error: r.ok ? undefined : errText(r.error) };
 }

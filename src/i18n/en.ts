@@ -2090,4 +2090,8 @@ export const EN: Record<string, string> = {
   'سجل حضور: {name}': 'Attendance record: {name}',
   'المصدر': 'Source',
   'ملاحظة': 'Note',
+  'تنبيه تلقائي لولي الأمر': 'Automatic parent alert',
+  'عند بلوغ غياب الطالب {n} أيام (ثم {m}، …) يصل إشعار للطالب وولي أمره تلقائياً.': 'When a student reaches {n} days absent (then {m}, …) the student and parent are notified automatically.',
+  'ملخص أسبوعي للإدارة': 'Weekly summary for management',
+  'بعد نهاية كل أسبوع دراسي يصل للمدير وأصحاب صلاحية الحضور إشعار بنسبة الحضور والغياب والمتجاوزين.': 'After each school week, the principal and attendance staff get a notification with the attendance rate, absences and students over the limit.',
 };

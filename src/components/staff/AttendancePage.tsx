@@ -7,7 +7,7 @@ import { hasPerm } from '../../utils/permissions';
 import { shortName } from '../../utils/names';
 import { AttKind, parseAttendanceWorkbook, appsScriptCode, SheetPayload } from '../../utils/attendanceSheet';
 import {
-  AttConfig, AttRecord, ImportResult, RosterStudent, ROSTER_SHEET, rosterClassId, rosterClassName, fetchRoster, addAttendance, deleteAttendance, fetchAttendance, fetchAttendanceConfig,
+  AttConfig, AttRecord, ImportResult, RosterStudent, ROSTER_SHEET, attendanceDigestTick, rosterClassId, rosterClassName, fetchRoster, addAttendance, deleteAttendance, fetchAttendance, fetchAttendanceConfig,
   importAttendance, isoDay, linkAttendanceName, unmatchedAction, clearSyncLog, newAttendanceToken, saveAttendanceConfig, schoolDaysBetween,
 } from '../../services/attendanceService';
 import { supabaseUrl, supabaseAnonKey } from '../../services/supabase';
@@ -74,7 +74,7 @@ export const AttendancePage: React.FC = () => {
   const [openStudent, setOpenStudent] = useState<User | null>(null);
 
   const loadCfg = useCallback(() => { void fetchAttendanceConfig().then(setCfg); }, []);
-  useEffect(() => { loadCfg(); }, [loadCfg]);
+  useEffect(() => { loadCfg(); void attendanceDigestTick(); }, [loadCfg]);
 
   const range = useMemo(() => {
     const now = new Date();
@@ -771,6 +771,8 @@ const SyncPanel: React.FC<{ cfg: AttConfig | null; onChanged: () => void }> = ({
   const [start, setStart] = useState(cfg?.start_date || '');
   const [weeks, setWeeks] = useState(cfg?.weeks || 18);
   const [threshold, setThreshold] = useState(cfg?.threshold || 3);
+  const [autoNotify, setAutoNotify] = useState(cfg?.auto_notify ?? true);
+  const [weeklyDigest, setWeeklyDigest] = useState(cfg?.weekly_digest ?? true);
   const [mapping, setMapping] = useState<Record<string, string>>(cfg?.sheet_classes || {});
   const [labels, setLabels] = useState<Record<string, string>>(cfg?.sheet_labels || {});
   const [parsed, setParsed] = useState<SheetPayload | null>(null);
@@ -778,7 +780,7 @@ const SyncPanel: React.FC<{ cfg: AttConfig | null; onChanged: () => void }> = ({
   const [busy, setBusy] = useState(false);
   const [token, setToken] = useState('');
   const fileRef = useRef<HTMLInputElement>(null);
-  useEffect(() => { if (cfg) { setStart(cfg.start_date || ''); setWeeks(cfg.weeks); setThreshold(cfg.threshold); setMapping(cfg.sheet_classes || {}); setLabels(cfg.sheet_labels || {}); } }, [cfg]);
+  useEffect(() => { if (cfg) { setStart(cfg.start_date || ''); setWeeks(cfg.weeks); setThreshold(cfg.threshold); setAutoNotify(cfg.auto_notify ?? true); setWeeklyDigest(cfg.weekly_digest ?? true); setMapping(cfg.sheet_classes || {}); setLabels(cfg.sheet_labels || {}); } }, [cfg]);
   const students = useMemo(() => (users as User[]).filter((u) => u.role === 'student').sort((a, b) => a.name.localeCompare(b.name, 'ar')), [users]);
   // أسماء الشيتات: من الملف المرفوع، أو الإعداد المحفوظ، أو آخر مزامنة (أسماء لم تُطابق)
   const sheetNames = Array.from(new Set([...(parsed?.sheets.map((s) => s.sheet) || []), ...Object.keys(mapping), ...(cfg?.unmatched.map((u) => u.sheet) || []), ...Object.keys(cfg?.sheets || {})]))
@@ -786,7 +788,7 @@ const SyncPanel: React.FC<{ cfg: AttConfig | null; onChanged: () => void }> = ({
 
   const save = async (extra?: Partial<AttConfig>) => {
     if (start && new Date(`${start}T12:00:00`).getDay() !== 0 && !window.confirm(t('تاريخ بداية الفصل ليس يوم أحد. الأسبوع الأول في السجل يبدأ يوم الأحد، متابعة؟'))) return false;
-    const r = await saveAttendanceConfig({ start_date: start || null, weeks, threshold, sheet_classes: mapping, sheet_labels: labels, ...extra });
+    const r = await saveAttendanceConfig({ start_date: start || null, weeks, threshold, sheet_classes: mapping, sheet_labels: labels, auto_notify: autoNotify, weekly_digest: weeklyDigest, ...extra });
     showToast(r.ok ? t('حُفظ الإعداد') : t(ERR[r.error || ''] || 'تعذر الحفظ'), r.ok ? 'success' : 'error');
     if (r.ok) onChanged();
     return r.ok;
@@ -835,6 +837,16 @@ const SyncPanel: React.FC<{ cfg: AttConfig | null; onChanged: () => void }> = ({
             </label>
             <label className="block text-sm font-semibold text-slate-700 dark:text-slate-200">{t('حد التنبيه (أيام غياب)')}
               <input type="number" min={1} max={60} value={threshold} onChange={(e) => setThreshold(Number(e.target.value) || 3)} className="mt-1 w-full h-11 px-3 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800" />
+            </label>
+          </div>
+          <div className="space-y-2 rounded-xl bg-slate-50 dark:bg-slate-800/60 p-3">
+            <label className="flex items-start gap-2.5 text-sm text-slate-700 dark:text-slate-200 cursor-pointer">
+              <input type="checkbox" checked={autoNotify} onChange={(e) => setAutoNotify(e.target.checked)} className="mt-0.5 w-4 h-4 accent-indigo-600" />
+              <span><b>{t('تنبيه تلقائي لولي الأمر')}</b><br /><span className="text-xs text-slate-500">{t('عند بلوغ غياب الطالب {n} أيام (ثم {m}، …) يصل إشعار للطالب وولي أمره تلقائياً.', { n: threshold, m: threshold * 2 })}</span></span>
+            </label>
+            <label className="flex items-start gap-2.5 text-sm text-slate-700 dark:text-slate-200 cursor-pointer">
+              <input type="checkbox" checked={weeklyDigest} onChange={(e) => setWeeklyDigest(e.target.checked)} className="mt-0.5 w-4 h-4 accent-indigo-600" />
+              <span><b>{t('ملخص أسبوعي للإدارة')}</b><br /><span className="text-xs text-slate-500">{t('بعد نهاية كل أسبوع دراسي يصل للمدير وأصحاب صلاحية الحضور إشعار بنسبة الحضور والغياب والمتجاوزين.')}</span></span>
             </label>
           </div>
           <p className="text-xs text-slate-500 dark:text-slate-400">{t('المنصة تحوّل «الأسبوع ٣، الثلاثاء» في السجل إلى تاريخه الفعلي بناءً على هذا التاريخ.')}</p>
