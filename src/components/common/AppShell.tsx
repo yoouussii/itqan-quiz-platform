@@ -32,7 +32,7 @@ const linkClick = (go: () => void) => (e: React.MouseEvent) => {
   go();
 };
 import { hasPerm } from '../../utils/permissions';
-import { shortName } from '../../utils/names';
+import { shortName, parentLabel } from '../../utils/names';
 import { User } from '../../types';
 import { t } from '../../i18n';
 
@@ -287,10 +287,11 @@ const StaffShell: React.FC<{ children: React.ReactNode; banner?: React.ReactNode
 
 /** هيكل الطالب: شريط علوي على الكمبيوتر، وشريط تنقل سفلي في الجوال */
 const StudentShell: React.FC<{ children: React.ReactNode; banner?: React.ReactNode }> = ({ children, banner }) => {
-  const { currentUser, currentView, setCurrentView, logout } = useApp();
+  const { currentUser, currentView, setCurrentView, logout, users } = useApp();
   const [profile, setProfile] = useState(false);
   if (!currentUser) return null;
   const tabs = currentUser.role === 'parent' ? PARENT_TABS() : STUDENT_TABS();
+  const displayName = currentUser.role === 'parent' ? parentLabel(currentUser, users, t) : shortName(currentUser.name || '');
   return (
     <div className="min-h-screen flex flex-col">
       <header className="sticky top-0 z-20 bg-white/95 dark:bg-slate-900/95 backdrop-blur border-b border-slate-200 dark:border-slate-800">
@@ -316,9 +317,9 @@ const StudentShell: React.FC<{ children: React.ReactNode; banner?: React.ReactNo
             <ThemeButton />
             <NotificationBell />
             <button type="button" onClick={() => setProfile(true)} aria-label={t('الملف الشخصي')} className="flex items-center gap-2.5 rounded-xl p-1 md:ps-3 md:ms-1 md:border-s border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800">
-              <Avatar name={currentUser.name} role={currentUser.role} userId={currentUser.id} size="sm" showBadge />
+              <Avatar name={displayName} role={currentUser.role} userId={currentUser.id} size="sm" showBadge />
               <span className="hidden lg:block text-start">
-                <span className="block text-sm font-bold text-slate-900 dark:text-white max-w-[14rem] truncate" title={currentUser.name}>{shortName(currentUser.name || '')}</span>
+                <span className="block text-sm font-bold text-slate-900 dark:text-white max-w-[14rem] truncate" title={currentUser.name}>{displayName}</span>
               </span>
             </button>
             <button type="button" onClick={logout} title={t('تسجيل الخروج')} aria-label={t('تسجيل الخروج')} className="hidden md:flex w-11 h-11 items-center justify-center rounded-xl text-slate-500 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/50">
