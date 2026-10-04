@@ -8,10 +8,7 @@
 -- يتطلب 003 قبله. آمن لإعادة التشغيل.
 -- =====================================================================
 
-create or replace function itqan.is_staff()
-returns boolean language sql stable security definer set search_path = '' as $$
-  select coalesce(itqan.my_role() in ('admin', 'teacher', 'supervisor'), false);
-$$;
+-- itqan.is_staff() معرّفة في 003
 
 create table if not exists public.gradebook_weights (
   quiz_id    text primary key,
@@ -85,7 +82,7 @@ create policy gbm_write on public.gradebook_marks for all to anon, authenticated
   using (itqan.is_admin() or itqan.owns_gb_column(column_id))
   with check ((itqan.is_admin() or itqan.owns_gb_column(column_id)) and updated_by = itqan.uid());
 
-grant execute on function itqan.is_staff(), itqan.owns_quiz(text), itqan.owns_gb_column(text) to anon, authenticated;
+grant execute on function itqan.owns_quiz(text), itqan.owns_gb_column(text) to anon, authenticated;
 
 notify pgrst, 'reload schema';
 
