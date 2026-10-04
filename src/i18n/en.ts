@@ -2609,4 +2609,8 @@ export const EN: Record<string, string> = {
   'نجمع الإشعارات…': 'Gathering notifications…',
   'نرنّ الجرس…': 'Ringing the bell…',
   'نرتّب الرسائل…': 'Sorting messages…',
+  'انشر أول واجب': 'Publish your first homework',
+  'PDF أو صور أو Word، حتى {n} ميجابايت للملف. للفيديو أضف رابطاً.': 'PDF, images or Word, up to {n} MB per file. For videos, add a link.',
+  'الملفات الجديدة تُحفظ في Google Drive: {n} ملف · {s}': 'New files are saved to Google Drive: {n} files · {s}',
+  'تعذر الرفع إلى Google Drive مؤخراً، فحُفظت الملفات في قاعدة البيانات مؤقتاً. أعد تشغيل «Setup Drive storage» (قد يكون الإذن انتهى).': 'Uploads to Google Drive failed recently, so files were saved to the database for now. Re-run “Setup Drive storage” (the permission may have expired).',
 };

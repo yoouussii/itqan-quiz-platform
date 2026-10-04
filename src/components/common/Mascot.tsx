@@ -124,11 +124,16 @@ export const PageLoader: React.FC<{ full?: boolean; view?: string }> = ({ full, 
   );
 };
 
-/** شريط علوي رفيع يتحرك عند كل تنقل بين الصفحات */
+/** شريط علوي رفيع عند كل تنقل، و«إتقان الصغير» يجري عليه بأداة الصفحة الجديدة */
 export const NavProgress: React.FC<{ navKey: string }> = ({ navKey }) => {
   const [tick, setTick] = useState(0);
   const first = React.useRef(true);
   useEffect(() => { if (first.current) { first.current = false; return; } setTick((x) => x + 1); }, [navKey]);
   if (!tick) return null;
-  return <div key={tick} className="itq-navbar" aria-hidden="true" />;
+  return (
+    <>
+      <div key={`b${tick}`} className="itq-navbar" aria-hidden="true" />
+      <div key={`m${tick}`} className="itq-rider" aria-hidden="true" data-testid="nav-rider"><Mascot size={26} prop={propFor(navKey)} /></div>
+    </>
+  );
 };

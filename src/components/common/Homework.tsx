@@ -3,7 +3,7 @@ import { NotebookPen, X, Paperclip, FileText, Image as ImageIcon, Link2, PlayCir
 import { useApp } from '../../context/AppContext';
 import { Button, Chip, Tone } from './ui';
 import {
-  ACCEPT, Homework, HwFile, HwState, HwSubmission, MAX_FILE_MB, deleteFile, fetchFiles, fetchHomework, fetchSubmissions,
+  ACCEPT, Homework, HwFile, HwState, HwSubmission, maxFileMb, deleteFile, fetchFiles, fetchHomework, fetchSubmissions,
   fmtSize, hwState, openFile, safeUrl, saveSubmission, uploadFile, youtubeEmbed,
 } from '../../services/homeworkService';
 import { pathFor } from '../../utils/router';
@@ -105,7 +105,7 @@ export const FilePicker: React.FC<{ onPick: (files: File[]) => void; busy?: bool
 };
 
 export const uploadErrorText = (e: string, name: string) =>
-  e === 'too_big' ? t('«{name}» أكبر من {n} ميجابايت. للفيديو استخدم رابط يوتيوب أو درايف.', { name, n: MAX_FILE_MB })
+  e === 'too_big' ? t('«{name}» أكبر من {n} ميجابايت. للفيديو استخدم رابط يوتيوب أو درايف.', { name, n: maxFileMb() })
     : e === 'too_many' ? t('وصلت للحد الأقصى لعدد الملفات') : t('تعذر رفع «{name}»', { name });
 
 /** تفاصيل الواجب للطالب (مع التسليم) أو لولي الأمر (عرض فقط) */
@@ -197,7 +197,7 @@ export const HomeworkDetailModal: React.FC<{
         {editable && (
           <div className="p-4 border-t border-slate-100 dark:border-slate-800 flex flex-wrap items-center gap-3">
             <FilePicker onPick={(f) => void pick(f)} busy={uploading} />
-            <span className="text-xs text-slate-500">{t('PDF أو صور، حتى {n} ميجابايت للملف', { n: MAX_FILE_MB })}</span>
+            <span className="text-xs text-slate-500">{t('PDF أو صور، حتى {n} ميجابايت للملف', { n: maxFileMb() })}</span>
             <Button className="ms-auto" icon={Send} disabled={busy || uploading} onClick={() => void submit()}>{busy ? t('جارٍ الحفظ…') : cur ? t('تحديث التسليم') : t('تسليم')}</Button>
           </div>
         )}

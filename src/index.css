@@ -299,13 +299,20 @@ html[dir="ltr"] .dir-icon { transform: scaleX(-1); }
 .itq-navbar {
   position: fixed; inset-inline: 0; top: 0; height: 3px; z-index: 70; pointer-events: none;
   background: linear-gradient(90deg, rgb(var(--brand-400)), rgb(var(--brand-600)));
-  transform-origin: right; animation: itq-nav 0.55s ease-out forwards;
+  transform-origin: right; animation: itq-nav 1.1s ease-out forwards;
 }
 [dir="ltr"] .itq-navbar { transform-origin: left; }
 @keyframes itq-nav {
   0% { transform: scaleX(0); opacity: 1; }
-  70% { transform: scaleX(1); opacity: 1; }
+  75% { transform: scaleX(1); opacity: 1; }
   100% { transform: scaleX(1); opacity: 0; }
+}
+/* الشخصية تجري مع طرف الشريط */
+.itq-rider { position: fixed; top: 5px; inset-inline-start: 0; z-index: 70; pointer-events: none; animation: itq-ride 1.1s ease-out forwards; }
+@keyframes itq-ride {
+  0% { inset-inline-start: 0; opacity: 1; }
+  75% { inset-inline-start: calc(100% - 44px); opacity: 1; }
+  100% { inset-inline-start: calc(100% - 44px); opacity: 0; }
 }
 
 /* ظهور ناعم للصفحة الجديدة */
@@ -316,6 +323,7 @@ html[dir="ltr"] .dir-icon { transform: scaleX(-1); }
   .itq-hop, .itq-shadow, .itq-tassel, .itq-blink, .itq-word, .itq-page-in { animation: none; }
   .itq-mascot { animation: itq-calm 1.6s infinite ease-in-out; }
   .itq-navbar { animation-duration: 0.01s; }
+  .itq-rider { display: none; }
 }
 @keyframes itq-calm { 50% { opacity: 0.6; } }
 /* ألوان أدوات الشخصية */
