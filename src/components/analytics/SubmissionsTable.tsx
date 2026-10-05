@@ -1,5 +1,18 @@
 import React, { useState, useMemo } from 'react';
-import { Search, Filter, Eye, Calendar, CheckCircle, FileSpreadsheet, ChevronLeft, ChevronRight, Lock, Ban, RotateCcw, Trash2, Award } from 'lucide-react';
+import {
+  Search,
+  Eye,
+  Calendar,
+  CheckCircle,
+  FileSpreadsheet,
+  ChevronLeft,
+  ChevronRight,
+  Lock,
+  Ban,
+  RotateCcw,
+  Trash2,
+  Award,
+} from 'lucide-react';
 import { SubmissionWithDetails } from '../../types';
 import { useApp } from '../../context/AppContext';
 import { AnswerSheetModal } from './AnswerSheetModal';

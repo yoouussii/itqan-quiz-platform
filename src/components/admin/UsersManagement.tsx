@@ -2,7 +2,6 @@ import React, { useState, useRef } from 'react';
 import { normalizePhone } from '../../utils/whatsapp';
 import * as XLSX from 'xlsx';
 import {
-  Users,
   UserPlus,
   Search,
   Trash2,
