@@ -40,14 +40,16 @@ export const ClassRecordsPage: React.FC = () => {
   const toSync = () => canManage && setTab('sync');
   const TABS: Array<[Tab, string, React.ElementType]> = [['dash', t('لوحة المتابعة'), LayoutDashboard], ['followup', t('سجلات المتابعة الصفية'), ClipboardList], ['levels', t('تتبع مستويات الطلاب'), TrendingUp], ...(canManage ? [['sync', t('الربط والاستيراد'), FolderSync] as [Tab, string, React.ElementType]] : [])];
   return (
-    <div className="space-y-5">
+    <div className="max-w-7xl mx-auto py-6 sm:py-8 px-4 sm:px-6 space-y-5" dir={uiDir()}>
       <PageHeader title={t('سجلات المتابعة')} subtitle={t('سجلات المعلمين ومستويات الطلاب من Google Drive، مع آخر تعديل لكل ملف')}
-        actions={<Button size="sm" variant="secondary" icon={RefreshCw} onClick={load}>{t('تحديث')}</Button>} />
+        actions={<div className="flex items-center gap-3">
+          {cfg?.last_sync && <span className="text-xs text-slate-500 inline-flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-emerald-500" aria-hidden="true" />{t('آخر مزامنة: {d}', { d: timeAgo(cfg.last_sync) })}</span>}
+          <Button size="sm" variant="secondary" icon={RefreshCw} onClick={load}>{t('تحديث')}</Button>
+        </div>} />
       <div className="flex flex-wrap gap-2">
         {TABS.map(([k, l, Icon]) => (
           <button key={k} type="button" onClick={() => setTab(k)} className={`h-10 px-4 rounded-xl text-sm font-bold inline-flex items-center gap-2 ${tab === k ? 'bg-indigo-600 text-white' : 'bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200'}`}><Icon className="w-4 h-4" />{l}</button>
         ))}
-        {cfg?.last_sync && <span className="ms-auto self-center text-xs text-slate-500">{t('آخر مزامنة: {d}', { d: timeAgo(cfg.last_sync) })}</span>}
       </div>
       {rows === null ? null : tab === 'dash' ? (items.length ? <RecordsDashboard items={items} tools={tools} changes={changes} canManage={canManage} onSetTool={(k, m) => void setTool(k, m)} onOpenTeacher={(k) => { setTab('followup'); setOpenFile(k); }} /> : <EmptyFollow onEmpty={toSync} />)
         : tab === 'followup' ? <FollowupTab items={items} changes={changes} openFile={openFile} setOpenFile={setOpenFile} onEmpty={toSync} />

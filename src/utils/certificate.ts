@@ -15,7 +15,9 @@ export type CertKind = 'excellence' | 'pass' | 'appreciation' | 'award' | 'thank
 export type CertGender = 'm' | 'f' | 'n';
 export type CertTemplate = 'classic' | 'royal' | 'modern' | 'minimal';
 /** qr: إظهار رمز التحقق على الشهادة المسجّلة (افتراضياً نعم) */
-export interface CertStyle { template: CertTemplate; primary: string; accent: string; qr: boolean }
+/** مكان الختم: بدل الزخرفة في الوسط، أو فوق أحد التوقيعين، أو في أحد الركنين السفليين */
+export type StampPos = 'seal' | 'principal' | 'signer' | 'corner-start' | 'corner-end';
+export interface CertStyle { template: CertTemplate; primary: string; accent: string; qr: boolean; stampPos: StampPos; /** مم */ stampSize: number; /** ارتفاع صورة التوقيع بالمم */ sigSize: number }
 
 export interface CertificateInput {
   kind: CertKind;
@@ -67,7 +69,15 @@ export const CERT_PALETTES: Array<{ id: string; label: string; primary: string; 
   { id: 'charcoal-orange', label: 'فحمي وبرتقالي', primary: '#2f3640', accent: '#d9822b' },
 ];
 
-export const DEFAULT_CERT_STYLE: CertStyle = { template: 'classic', primary: '#0f7f8f', accent: '#84ae40', qr: true };
+export const DEFAULT_CERT_STYLE: CertStyle = { template: 'classic', primary: '#0f7f8f', accent: '#84ae40', qr: true, stampPos: 'seal', stampSize: 32, sigSize: 16 };
+export const STAMP_POSITIONS: Array<{ id: StampPos; label: string }> = [
+  { id: 'seal', label: 'وسط التذييل (بدل الختم الزخرفي)' },
+  { id: 'principal', label: 'فوق توقيع المدير' },
+  { id: 'signer', label: 'فوق توقيع المعلم' },
+  { id: 'corner-start', label: 'الركن السفلي الأيمن' },
+  { id: 'corner-end', label: 'الركن السفلي الأيسر' },
+];
+const clampN = (v: unknown, lo: number, hi: number, d: number) => { const n = Number(v); return Number.isFinite(n) ? Math.min(hi, Math.max(lo, Math.round(n))) : d; };
 
 /** نوع الشهادة من نسبة الطالب ونسبة النجاح */
 export const certKindFor = (pct: number, pass: number): CertKind | null => (pct >= 90 ? 'excellence' : pct >= pass ? 'pass' : null);
@@ -81,10 +91,13 @@ export function normalizeStyle(s?: Partial<CertStyle> | null): CertStyle {
     primary: HEX.test(v.primary) ? v.primary : DEFAULT_CERT_STYLE.primary,
     accent: HEX.test(v.accent) ? v.accent : DEFAULT_CERT_STYLE.accent,
     qr: v.qr !== false,
+    stampPos: (STAMP_POSITIONS.find((x) => x.id === v.stampPos)?.id || 'seal') as StampPos,
+    stampSize: clampN(v.stampSize, 18, 55, DEFAULT_CERT_STYLE.stampSize),
+    sigSize: clampN(v.sigSize, 8, 26, DEFAULT_CERT_STYLE.sigSize),
   };
 }
 
-export interface CertBrand { companyLogo: string; schoolLogo: string; schoolName: string; principalName: string; principalTitle: string }
+export interface CertBrand { companyLogo: string; schoolLogo: string; schoolName: string; principalName: string; principalTitle: string; principalSignature: string; stamp: string }
 
 /** الهوية الثابتة من الإعدادات */
 export function certBrand(): CertBrand {
@@ -95,6 +108,8 @@ export function certBrand(): CertBrand {
     schoolName: s.cert_school_name || s.school_name || '',
     principalName: s.cert_principal_name || '',
     principalTitle: s.cert_principal_title || '',
+    principalSignature: s.cert_principal_signature || '',
+    stamp: s.cert_stamp || '',
   };
 }
 
@@ -196,13 +211,19 @@ async function page(c: CertificateInput): Promise<string> {
   const reason = c.achievement?.trim() ? [prefix, c.achievement.trim()].filter(Boolean).join(' ') : '';
   const { greg, hijri } = fmtDates(c.date);
   const qr = c.code && st.qr ? await qrFor(c.code, st.primary) : '';
-  const sigs = [
-    ...(c.signer ? [{ name: c.signer, title: c.signerTitle || (en ? 'Teacher' : 'المعلم') }] : []),
-    { name: b.principalName, title: b.principalTitle || (en ? 'School Principal' : 'مدير المدرسة') },
+  type Sig = { name: string; title: string; img?: string; role: 'signer' | 'principal' };
+  const sigs: Sig[] = [
+    ...(c.signer ? [{ name: c.signer, title: c.signerTitle || (en ? 'Teacher' : 'المعلم'), role: 'signer' as const }] : []),
+    { name: b.principalName, title: b.principalTitle || (en ? 'School Principal' : 'مدير المدرسة'), img: b.principalSignature, role: 'principal' },
   ];
-  const sig = (s?: { name: string; title: string }) => (s
-    ? `<div class="sig"><span class="sig-title">${esc(t(s.title))}</span><span class="sig-line"></span><b class="sig-name">${esc(s.name)}</b></div>`
+  // الختم (صورة): مكانه حسب الإعداد؛ «فوق توقيع المعلم» بلا معلم يعود للوسط
+  const pos: StampPos = st.stampPos === 'signer' && !c.signer ? 'seal' : st.stampPos;
+  const stampImg = (cls: string) => (b.stamp ? `<img class="stamp ${cls}" src="${esc(b.stamp)}" alt="" style="width:${st.stampSize}mm">` : '');
+  const sig = (s?: Sig) => (s
+    ? `<div class="sig"><span class="sig-title">${esc(t(s.title))}</span><span class="sig-line"${s.img ? ` style="height:${Math.max(9, st.sigSize - 2)}mm"` : ''}>${s.img ? `<img class="sig-img" src="${esc(s.img)}" alt="" style="height:${st.sigSize}mm">` : ''}${pos === s.role ? stampImg('stamp-over') : ''}</span><b class="sig-name">${esc(s.name)}</b></div>`
     : '<div class="sig"></div>');
+  const sealHtml = b.stamp && pos === 'seal' ? stampImg('stamp-seal') : sealSvg(st.primary, st.accent, st.template === 'royal');
+  const cornerStamp = b.stamp && (pos === 'corner-start' || pos === 'corner-end') ? stampImg(`stamp-corner ${pos}`) : '';
   const deco =
     st.template === 'classic' ? ['tl', 'tr', 'bl', 'br'].map((k) => `<div class="corner ${k}">${cornerSvg(st.primary, st.accent)}</div>`).join('')
     : st.template === 'modern' ? `<div class="wave w1">${wavesSvg(st.primary, st.accent, false)}</div><div class="wave w2">${wavesSvg(st.primary, st.accent, true)}</div>`
@@ -226,8 +247,9 @@ async function page(c: CertificateInput): Promise<string> {
       ${c.score || c.detail ? `<p class="meta">${c.score ? `<span class="chip">${esc(en ? 'Score' : 'الدرجة')}: <b dir="ltr">${esc(c.score)}</b></span>` : ''}${c.detail ? `<span>${esc(c.detail)}</span>` : ''}</p>` : ''}
       <p class="wish">${esc(en ? 'With best wishes for continued success' : WISH[g])}</p>
       <p class="date">${esc(en ? 'Issued on' : 'حُررت في')} ${esc(greg)}${hijri ? ` <span class="sep">•</span> ${esc(hijri)}` : ''}</p>
-      <footer class="foot">${sigs.length > 1 ? sig(sigs[0]) : verify || sig()}<div class="seal">${sealSvg(st.primary, st.accent, st.template === 'royal')}</div>${sig(sigs[sigs.length - 1])}</footer>
+      <footer class="foot">${sigs.length > 1 ? sig(sigs[0]) : verify || sig()}<div class="seal">${sealHtml}</div>${sig(sigs[sigs.length - 1])}</footer>
       ${sigs.length > 1 && verify ? `<div class="verify-row">${verify}</div>` : ''}
+      ${cornerStamp}
     </div>
   </div>
 </section>`;
@@ -268,6 +290,15 @@ html, body { margin: 0; padding: 0; background: #e5e7eb; }
 .sig-line { width: 55mm; border-bottom: 1px solid #9ca3af; height: 9mm; }
 .sig-name { font-size: 14px; color: #1f2937; min-height: 5mm; }
 .seal svg { width: 30mm; display: block; margin: 0 auto; }
+/* التوقيع والختم صوراً: multiply يُخفي أي خلفية بيضاء متبقية */
+.sig-line { position: relative; }
+.sig-img { position: absolute; left: 50%; bottom: -1.5mm; transform: translateX(-50%); max-width: 60mm; object-fit: contain; mix-blend-mode: multiply; }
+.stamp { display: block; object-fit: contain; mix-blend-mode: multiply; opacity: .92; }
+.stamp-seal { margin: 0 auto; }
+.stamp-over { position: absolute; left: 50%; bottom: -8mm; transform: translateX(-50%) rotate(-8deg); }
+.stamp-corner { position: absolute; bottom: 4mm; transform: rotate(-8deg); z-index: 3; }
+.stamp-corner.corner-start { right: 6mm; }
+.stamp-corner.corner-end { left: 6mm; }
 .verify { display: flex; align-items: center; justify-content: center; gap: 2.5mm; text-align: start; align-self: end; }
 .verify-row { margin-top: 2mm; }
 .verify-row .verify img { width: 13mm; height: 13mm; }

@@ -3,9 +3,9 @@ import { Printer, Search, ImagePlus, Trash2, Check, Ban, Copy, RotateCcw, Palett
 import { useApp } from '../../context/AppContext';
 import { PageHeader, Card, Button } from '../common/ui';
 import { hasPerm } from '../../utils/permissions';
-import { resizeLogo } from '../../utils/brand';
+import { resizeLogo, whiteToTransparent } from '../../utils/brand';
 import {
-  CERT_KINDS, CERT_TEMPLATES, CERT_PALETTES, CertKind, CertGender, CertStyle, CertificateInput, CertTemplate,
+  CERT_KINDS, CERT_TEMPLATES, CERT_PALETTES, STAMP_POSITIONS, StampPos, CertKind, CertGender, CertStyle, CertificateInput, CertTemplate,
   buildCertificatesDoc, exportCertificates, normalizeStyle, certBrand, certReasonPrefix, defaultCertTitle,
 } from '../../utils/certificate';
 import { CertRecord, NewCert, issueCertificates, listCertificates, revokeCertificate, recordToInput } from '../../services/certificateService';
@@ -213,6 +213,21 @@ export const CertificatesPage: React.FC = () => {
   const [idSchool, setIdSchool] = useState(settings.cert_school_logo || '');
   const [idPrincipal, setIdPrincipal] = useState(settings.cert_principal_name || '');
   const [idPrincipalTitle, setIdPrincipalTitle] = useState(settings.cert_principal_title || '');
+  const [idSignature, setIdSignature] = useState(settings.cert_principal_signature || '');
+  const [idStamp, setIdStamp] = useState(settings.cert_stamp || '');
+  const [cleanBg, setCleanBg] = useState(true);
+  const signatureRef = useRef<HTMLInputElement>(null);
+  const stampRef = useRef<HTMLInputElement>(null);
+  /** توقيع/ختم: تصغير ثم إزالة الخلفية البيضاء (اختياري) */
+  const pickMark = async (file: File | undefined, set: (v: string) => void) => {
+    if (!file) return;
+    try {
+      let data = await resizeLogo(file, 700);
+      if (cleanBg) data = await whiteToTransparent(data);
+      if (data.length > 450_000) return showToast(t('الصورة كبيرة جداً بعد التصغير، جرّب صورة أصغر'), 'error');
+      set(data);
+    } catch (e: any) { showToast(e?.message || t('تعذرت قراءة الصورة'), 'error'); }
+  };
   const [idStyle, setIdStyle] = useState<CertStyle>(() => normalizeStyle());
   const companyRef = useRef<HTMLInputElement>(null);
   const schoolRef = useRef<HTMLInputElement>(null);
@@ -229,6 +244,7 @@ export const CertificatesPage: React.FC = () => {
     await updateSettings({
       cert_school_name: idName.trim(), cert_company_logo: idCompany, cert_school_logo: idSchool,
       cert_principal_name: idPrincipal.trim(), cert_principal_title: idPrincipalTitle.trim(), cert_style: idStyle,
+      cert_principal_signature: idSignature, cert_stamp: idStamp,
     });
     setBusy(false);
     setSchoolName(idName.trim());
@@ -237,6 +253,7 @@ export const CertificatesPage: React.FC = () => {
   const identityPreview: CertificateInput = {
     kind: 'excellence', student: isEn() ? 'Student name' : 'محمد أحمد العتيبي', achievement: isEn() ? 'Mathematics' : 'مادة الرياضيات',
     score: '98%', schoolName: idName, style: idStyle, serial: 'ITQ-0000-0000', code: 'PREVIEW000',
+    ...(idStyle.stampPos === 'signer' ? { signer: isEn() ? 'Teacher name' : 'أ. اسم المعلم', signerTitle: isEn() ? 'Teacher' : 'المعلم' } : {}),
   };
 
   if (!canIssue) return null;
@@ -484,12 +501,41 @@ export const CertificatesPage: React.FC = () => {
                 <input id="id-principal-title" value={idPrincipalTitle} onChange={(e) => setIdPrincipalTitle(e.target.value)} placeholder={t('مدير المدرسة')} maxLength={40} className={inputCls} />
               </div>
             </div>
+            <div className="rounded-2xl border border-slate-200 dark:border-slate-700 p-3 space-y-3" data-testid="cert-marks">
+              <h3 className="text-sm font-bold text-slate-900 dark:text-white">{t('التوقيع والختم')}</h3>
+              {([['توقيع المدير', idSignature, setIdSignature, signatureRef], ['ختم المدرسة', idStamp, setIdStamp, stampRef]] as const).map(([label, val, set, ref]) => (
+                <div key={label}>
+                  <span className={labelCls}>{t(label)}</span>
+                  <div className="flex items-center gap-3">
+                    <div className="w-24 h-16 rounded-xl border border-dashed border-slate-300 dark:border-slate-700 flex items-center justify-center overflow-hidden shrink-0" style={{ backgroundImage: 'repeating-conic-gradient(#f1f5f9 0 25%, #fff 0 50%)', backgroundSize: '12px 12px' }}>
+                      {val ? <img src={val} alt="" className="max-w-full max-h-full object-contain" /> : <ImagePlus className="w-6 h-6 text-slate-400" />}
+                    </div>
+                    <Button size="sm" variant="secondary" onClick={() => ref.current?.click()}>{val ? t('تغيير') : t('رفع')}</Button>
+                    {val && <button type="button" onClick={() => set('')} className="h-9 px-2 rounded-lg text-xs font-semibold text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/50 inline-flex items-center gap-1"><Trash2 className="w-3.5 h-3.5" />{t('إزالة')}</button>}
+                    <input ref={ref} type="file" accept="image/png,image/jpeg,image/webp" className="hidden" aria-label={t(label)} onChange={(e) => { void pickMark(e.target.files?.[0], set); e.target.value = ''; }} />
+                  </div>
+                </div>
+              ))}
+              <label className="flex items-center gap-2 text-xs text-slate-600 dark:text-slate-300"><input type="checkbox" checked={cleanBg} onChange={(e) => setCleanBg(e.target.checked)} className="w-4 h-4 accent-indigo-600" />{t('إزالة الخلفية البيضاء تلقائياً عند الرفع (للصور المصوّرة على ورق)')}</label>
+              <div>
+                <label className={labelCls} htmlFor="id-stamp-pos">{t('مكان الختم')}</label>
+                <select id="id-stamp-pos" value={idStyle.stampPos} onChange={(e) => setIdStyle({ ...idStyle, stampPos: e.target.value as StampPos })} className={inputCls}>
+                  {STAMP_POSITIONS.map((x) => <option key={x.id} value={x.id}>{t(x.label)}</option>)}
+                </select>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <label className="block"><span className={labelCls}>{t('حجم الختم')} <b className="tabular-nums font-normal text-slate-500">{idStyle.stampSize} mm</b></span>
+                  <input type="range" min={18} max={55} value={idStyle.stampSize} onChange={(e) => setIdStyle({ ...idStyle, stampSize: +e.target.value })} className="w-full accent-indigo-600" aria-label={t('حجم الختم')} /></label>
+                <label className="block"><span className={labelCls}>{t('حجم التوقيع')} <b className="tabular-nums font-normal text-slate-500">{idStyle.sigSize} mm</b></span>
+                  <input type="range" min={8} max={26} value={idStyle.sigSize} onChange={(e) => setIdStyle({ ...idStyle, sigSize: +e.target.value })} className="w-full accent-indigo-600" aria-label={t('حجم التوقيع')} /></label>
+              </div>
+            </div>
             <StylePicker value={idStyle} onChange={setIdStyle} />
             <Button icon={Save} onClick={() => void saveIdentity()} disabled={busy} className="w-full justify-center">{t('حفظ الهوية البصرية')}</Button>
           </Card>
           <div className="min-w-0 space-y-2 lg:sticky lg:top-20">
             <h2 className="text-sm font-bold text-slate-900 dark:text-white">{t('معاينة')}</h2>
-            <IdentityPreview input={identityPreview} company={idCompany} school={idSchool} principal={idPrincipal} principalTitle={idPrincipalTitle} />
+            <IdentityPreview input={identityPreview} company={idCompany} school={idSchool} principal={idPrincipal} principalTitle={idPrincipalTitle} signature={idSignature} stamp={idStamp} />
           </div>
         </div>
       )}
@@ -498,6 +544,6 @@ export const CertificatesPage: React.FC = () => {
 };
 
 /** معاينة الهوية قبل حفظها (الشعارات والتوقيع من الحقول لا من الإعدادات المحفوظة) */
-const IdentityPreview: React.FC<{ input: CertificateInput; company: string; school: string; principal: string; principalTitle: string }> = ({ input, company, school, principal, principalTitle }) => (
-  <CertPreview inputs={[{ ...input, brand: { companyLogo: company, schoolLogo: school, principalName: principal, principalTitle } }]} testId="identity-preview" />
+const IdentityPreview: React.FC<{ input: CertificateInput; company: string; school: string; principal: string; principalTitle: string; signature: string; stamp: string }> = ({ input, company, school, principal, principalTitle, signature, stamp }) => (
+  <CertPreview inputs={[{ ...input, brand: { companyLogo: company, schoolLogo: school, principalName: principal, principalTitle, principalSignature: signature, stamp } }]} testId="identity-preview" />
 );
