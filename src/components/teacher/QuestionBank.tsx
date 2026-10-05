@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Library, Target, Search, Trash2, Pencil, Lock, Users as UsersIcon, Plus, Shuffle, Download, X, CheckCircle2, ChevronDown } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
-import { PageHeader, Button, Card, Chip } from '../common/ui';
+import { PageHeader, Button, Card, Chip, ListSkeleton } from '../common/ui';
 import { RichText } from '../common/RichText';
 import { uiDir, t, optionLetters } from '../../i18n';
 import { marksCount } from '../../i18n/count';
@@ -393,7 +393,7 @@ export const QuestionBankPage: React.FC = () => {
       )}
 
       {state === 'loading' && items.length === 0 ? (
-        <p className="py-12 text-center text-sm text-slate-500">{t('جارٍ التحميل')}</p>
+        <ListSkeleton />
       ) : items.length === 0 && state === 'ready' ? (
         <Card className="p-10 text-center space-y-3">
           <MascotHere className="mx-auto mb-1" />
@@ -438,7 +438,7 @@ export const BankPickerModal: React.FC<{ subjectId: string; onClose: () => void;
         </div>
         <div className="p-4 overflow-y-auto flex-1">
           {state === 'error' && <p className="text-sm font-semibold text-amber-900 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/50 rounded-xl p-3 mb-3">{t('تعذر تحميل بنك الأسئلة من الخادم. إذا كانت هذه أول مرة، شغّل تحديث قاعدة البيانات 015.')}</p>}
-          {state === 'loading' && items.length === 0 ? <p className="py-12 text-center text-sm text-slate-500">{t('جارٍ التحميل')}</p> : (
+          {state === 'loading' && items.length === 0 ? <ListSkeleton /> : (
             <BankList items={items} filters={filters} setFilters={setFilters} selected={selected} setSelected={setSelected} />
           )}
         </div>

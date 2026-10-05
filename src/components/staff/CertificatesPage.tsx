@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Printer, Search, ImagePlus, Trash2, Check, Ban, Copy, RotateCcw, Palette, ScrollText, Users as UsersIcon, User as UserIcon, PenLine, Save } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
-import { PageHeader, Card, Button } from '../common/ui';
+import { PageHeader, Card, Button, ListSkeleton } from '../common/ui';
 import { hasPerm } from '../../utils/permissions';
 import { resizeLogo, whiteToTransparent } from '../../utils/brand';
 import {
@@ -431,7 +431,7 @@ export const CertificatesPage: React.FC = () => {
             <Search className="w-4 h-4 absolute top-3 start-3 text-slate-400" />
             <input aria-label={t('بحث في السجل')} value={logQ} onChange={(e) => setLogQ(e.target.value)} placeholder={t('ابحث بالاسم أو رقم الشهادة')} className={`${inputCls} ps-9`} />
           </div>
-          {log === null ? <p className="text-sm text-slate-500 py-6 text-center">{t('جارٍ التحميل')}</p> : !shownLog.length ? (
+          {log === null ? <ListSkeleton rows={3} /> : !shownLog.length ? (
             <EmptyMascot text={t('لا توجد شهادات بعد.')} compact />
           ) : (
             <div className="overflow-x-auto rounded-xl border border-slate-200 dark:border-slate-700">

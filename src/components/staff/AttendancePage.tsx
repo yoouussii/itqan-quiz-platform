@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { CalendarCheck, Upload, Link2, Copy, KeyRound, Search, Bell, Trash2, Plus, X, RefreshCw, Download, AlertTriangle, CheckCircle2, FileDown, MessageCircle, ChevronRight, ChevronLeft, StickyNote, Pencil } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, AreaChart, Area, ReferenceLine } from 'recharts';
 import { useApp } from '../../context/AppContext';
-import { PageHeader, Card, Button, Chip } from '../common/ui';
+import { PageHeader, Card, Button, Chip, ListSkeleton } from '../common/ui';
 import { hasPerm } from '../../utils/permissions';
 import { shortName } from '../../utils/names';
 import { AttKind, parseAttendanceWorkbook, appsScriptCode, SheetPayload } from '../../utils/attendanceSheet';
@@ -340,7 +340,7 @@ export const AttendancePage: React.FC = () => {
                 </ResponsiveContainer>
               </div>
             );
-          })() : (loading ? <p className="text-sm text-slate-500 py-16 text-center">{t('جارٍ التحميل…')}</p> : <EmptyMascot text={t('لا يوجد غياب أو تأخر أو استئذان في هذا اليوم')} className="py-14" />)
+          })() : (loading ? <ListSkeleton rows={5} /> : <EmptyMascot text={t('لا يوجد غياب أو تأخر أو استئذان في هذا اليوم')} className="py-14" />)
         ) : trend.series.length && stats.count.absent + stats.count.late + stats.count.excused > 0 ? (
           <>
             <div className="h-80" dir="ltr">
@@ -372,7 +372,7 @@ export const AttendancePage: React.FC = () => {
               <span className="inline-flex items-center gap-1.5"><span className="w-4 border-t-2 border-dashed border-rose-400" />{t('خط المتوسط')}</span>
             </div>
           </>
-        ) : (loading ? <p className="text-sm text-slate-500 py-16 text-center">{t('جارٍ التحميل…')}</p> : <EmptyMascot text={t('لا توجد سجلات في هذه الفترة')} className="py-14" />)}
+        ) : (loading ? <ListSkeleton rows={5} /> : <EmptyMascot text={t('لا توجد سجلات في هذه الفترة')} className="py-14" />)}
       </Card>
 
       <div className="grid lg:grid-cols-3 gap-5">
@@ -393,7 +393,7 @@ export const AttendancePage: React.FC = () => {
                 </AreaChart>
               </ResponsiveContainer>
             </div>
-          ) : (loading ? <p className="text-sm text-slate-500 py-16 text-center">{t('جارٍ التحميل…')}</p> : <EmptyMascot text={t('لا توجد سجلات في هذه الفترة')} className="py-14" />)}
+          ) : (loading ? <ListSkeleton rows={5} /> : <EmptyMascot text={t('لا توجد سجلات في هذه الفترة')} className="py-14" />)}
         </Card>
         <Card className="p-5">
           <h2 className="font-bold text-slate-900 dark:text-white mb-3">{t('حسب أيام الأسبوع')}</h2>
@@ -836,7 +836,7 @@ const StudentDrawer: React.FC<{ student: User; className: string; canManage: boo
           </div>
         )}
         <div className="flex-1 overflow-y-auto border-t border-slate-100 dark:border-slate-800">
-          {list === null ? <p className="p-5 text-sm text-slate-500">{t('جارٍ التحميل…')}</p> : list.length === 0 ? <p className="p-5 text-sm text-slate-500">{t('لا توجد حركات مسجلة')}</p> : list.map((r) => {
+          {list === null ? <ListSkeleton rows={3} /> : list.length === 0 ? <p className="p-5 text-sm text-slate-500">{t('لا توجد حركات مسجلة')}</p> : list.map((r) => {
             const k = KINDS.find((x) => x.k === r.kind)!;
             const key = noteKey(r.day, r.kind);
             const n = notes.get(key);
@@ -1182,7 +1182,7 @@ const WeekGrid: React.FC<{ cfg: AttConfig | null; people: User[]; classes: Klass
             ))}
           </tbody>
         </table>
-        {recs === null && <p className="p-5 text-sm text-slate-500">{t('جارٍ التحميل…')}</p>}
+        {recs === null && <ListSkeleton rows={3} />}
         {!list.length && <p className="p-5 text-sm text-slate-500">{t('لا يوجد طلاب في هذا الفصل')}</p>}
       </div>
     </Card>

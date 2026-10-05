@@ -1,4 +1,5 @@
 import { BannerStrip } from '../common/BannerStrip';
+import { MorningSummaryCard } from '../admin/MorningSummaryCard';
 import React, { useMemo } from 'react';
 import { SurveyPrompt } from '../common/SurveyPrompt';
 import { ShieldAlert, ExternalLink } from 'lucide-react';
@@ -63,6 +64,7 @@ export const SupervisorDashboard: React.FC = () => {
         </div>
       </div>
       <BannerStrip embedded />
+      <MorningSummaryCard />
 
       {scope.empty && (
         <div className="p-4 rounded-2xl bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800 text-xs font-semibold text-amber-800 dark:text-amber-300 flex items-start gap-2">

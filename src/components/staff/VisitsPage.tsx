@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Eye, Plus, X, FileDown, Trash2, CheckCircle2, Save, ListChecks } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
-import { PageHeader, Card, Button, Chip } from '../common/ui';
+import { PageHeader, Card, Button, Chip, ListSkeleton } from '../common/ui';
 import { hasPerm } from '../../utils/permissions';
 import { ClassVisit, VisitItem, ackVisit, addVisit, deleteVisit, fetchVisitConfig, fetchVisits, saveVisitConfig, visitTotals } from '../../services/visitsSurveysService';
 import { exportElementToPdf } from '../../utils/exportPdf';
@@ -110,7 +110,7 @@ export const VisitsPage: React.FC = () => {
                 </select>
               )}
             </div>
-            {visits === null ? <p className="p-8 text-center text-slate-500">{t('جارٍ التحميل…')}</p> : list.length === 0 ? (
+            {visits === null ? <ListSkeleton /> : list.length === 0 ? (
               <EmptyMascot text={t('لا توجد زيارات مسجلة')} />
             ) : list.map((v) => {
               const tt = visitTotals(v);

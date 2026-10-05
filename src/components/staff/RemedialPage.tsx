@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { LifeBuoy, X, FileDown, Trash2, CheckCircle2, Ban, Send } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
-import { PageHeader, Card, Button, Chip } from '../common/ui';
+import { PageHeader, Card, Button, Chip, ListSkeleton } from '../common/ui';
 import { RemedialPlan, PlanStatus, currentMastery, deletePlan, fetchPlans, updatePlan } from '../../services/remedialService';
 import { exportElementToPdf } from '../../utils/exportPdf';
 import { PlanProgress } from '../common/RemedialCard';
@@ -58,7 +58,7 @@ export const RemedialPage: React.FC = () => {
           ))}
           {me.role !== 'parent' && <label className="ms-auto flex items-center gap-2 text-sm text-slate-700 dark:text-slate-200"><input type="checkbox" checked={mineOnly} onChange={(e) => setMineOnly(e.target.checked)} />{t('خططي فقط')}</label>}
         </div>
-        {plans === null ? <p className="p-8 text-center text-slate-500">{t('جارٍ التحميل…')}</p> : list.length === 0 ? (
+        {plans === null ? <ListSkeleton /> : list.length === 0 ? (
           <EmptyMascot text={t('لا توجد خطط. افتح خطة من صفحة «نواتج التعلم» للطلاب الذين يحتاجون علاجاً.')} />
         ) : list.map((p) => {
           const now = nowPct.get(p.id) ?? null;

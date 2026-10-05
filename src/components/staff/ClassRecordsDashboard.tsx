@@ -1,3 +1,4 @@
+import { HBarRank } from '../common/HBarRank';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Activity, AlertTriangle, CalendarDays, CheckCircle2, Clock, FileDown, Users, X } from 'lucide-react';
 import { Card, Button, Chip } from '../common/ui';
@@ -442,9 +443,8 @@ export const RecordsDashboard: React.FC<{ items: RecItem[]; tools: ToolInfo[]; c
             <h2 className="font-bold text-slate-900 dark:text-white me-auto">{teacher ? t('اكتمال الرصد في سجلات {name}', { name: teacherName }) : t('اكتمال الرصد لكل معلم')}</h2>
             <span className="text-xs text-slate-500">{teacher ? t('اضغط على سجل لفتح سجلات المعلم') : t('اضغط على معلم لعرض سجلاته')}</span>
           </div>
-          <VBarChart data={doneBars} label={t('اكتمال الرصد لكل معلم')} fixedMax={100} twoLine rtl height={230}
-            fmt={(v) => t('الرصد {n}%', { n: v })} avg={{ value: overall, label: t('المتوسط') }}
-            onSelect={(k) => (teacher ? onOpenTeacher(teacher) : setTeacher(k))} />
+          <HBarRank items={doneBars.map((b) => ({ key: b.key, label: b.short, sub: b.sub, value: b.value }))} label={t('اكتمال الرصد لكل معلم')} avg={overall}
+            fmt={(v) => `${v}%`} testid="cr-done-rank" onSelect={(k) => (teacher ? onOpenTeacher(teacher) : setTeacher(k))} />
         </Card>
         <Card className="p-5 space-y-4">
           <div>

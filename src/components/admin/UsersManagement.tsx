@@ -1,3 +1,4 @@
+import { StudentLink } from '../common/StudentProfile';
 import React, { useState, useRef } from 'react';
 import { normalizePhone } from '../../utils/whatsapp';
 import * as XLSX from 'xlsx';
@@ -817,8 +818,47 @@ export const UsersManagement: React.FC = () => {
         );
       })()}
 
+      {/* على الجوال: بطاقة لكل مستخدم بدل الجدول العريض */}
+      <ul className="md:hidden space-y-2" data-testid="users-cards">
+        {filteredUsers.map((u) => {
+          const cls = classes.find((c) => c.id === (u.class_id || u.assigned_class_ids?.[0]));
+          const roleLabel = u.job_title?.trim() || ({ admin: t('مدير نظام'), teacher: t('معلم'), supervisor: t('مشرف'), student: u.gender === 'female' ? t('طالبة') : t('طالب'), parent: t('ولي أمر') } as Record<string, string>)[u.role];
+          const detail = u.role === 'student' ? (cls?.name || t('غير مسكن في فصل'))
+            : u.role === 'parent' ? ((u.child_ids || []).map((id) => users.find((x) => x.id === id)?.name).filter(Boolean).join(t('، ')) || t('لا يوجد أبناء مرتبطون'))
+            : isStaffRole(u.role) ? [(u.assigned_subject_ids || (u.specialty_id ? [u.specialty_id] : [])).map((id) => subjects.find((x) => x.id === id)?.name).filter(Boolean).join(t('، ')), (u.assigned_class_ids || []).map((id) => classes.find((c) => c.id === id)?.name).filter(Boolean).join(t('، '))].filter(Boolean).join(' · ')
+            : t('صلاحيات كاملة');
+          const sel = selectedIds.includes(u.id);
+          return (
+            <li key={u.id} className={`rounded-2xl border p-3 bg-white dark:bg-slate-900 ${sel ? 'border-indigo-300 dark:border-indigo-800 bg-indigo-50/60 dark:bg-indigo-950/30' : 'border-slate-200 dark:border-slate-800'}`}>
+              <div className="flex items-start gap-3">
+                {u.id !== currentUser?.id && (
+                  <input type="checkbox" aria-label={t('تحديد {title}', { title: u.name })} className="accent-indigo-600 w-4 h-4 mt-3"
+                    checked={sel} onChange={() => setSelectedIds(sel ? selectedIds.filter((x) => x !== u.id) : [...selectedIds, u.id])} />
+                )}
+                <Avatar name={u.name} role={u.role} userId={u.id} size="sm" showBadge />
+                <div className="flex-1 min-w-0">
+                  {u.role === 'student'
+                    ? <StudentLink id={u.id} name={u.name} className="block font-bold text-slate-900 dark:text-white" />
+                    : <p className="font-bold text-slate-900 dark:text-white">{u.name}</p>}
+                  <p className="text-[13px] text-slate-500 dark:text-slate-400"><span className="font-semibold text-slate-700 dark:text-slate-300">{roleLabel}</span> · <span className="font-mono">{u.national_id}</span>{branchName(u.branch_id) ? ` · ${branchName(u.branch_id)}` : ''}</p>
+                  {detail && <p className="text-[13px] text-slate-500 dark:text-slate-400 mt-0.5">{detail}</p>}
+                </div>
+              </div>
+              <div className="flex items-center justify-end gap-1 mt-2 pt-2 border-t border-slate-100 dark:border-slate-800">
+                {u.role === 'student' && hasPerm(currentUser, 'can_export_reports') && (
+                  <button type="button" onClick={() => reportFor(u)} className="h-9 px-3 rounded-lg text-[13px] font-semibold text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 inline-flex items-center gap-1"><FileTextIcon className="w-4 h-4" />{t('الكشف')}</button>
+                )}
+                <button type="button" onClick={() => handleOpenEditModal(u)} className="h-9 px-3 rounded-lg text-[13px] font-semibold text-indigo-600 hover:bg-indigo-50 dark:hover:bg-indigo-950 inline-flex items-center gap-1"><Edit2 className="w-4 h-4" />{t('تعديل')}</button>
+                <button type="button" onClick={() => setPasswordResetUser(u)} aria-label={t('إعادة تعيين كلمة المرور')} className="w-9 h-9 rounded-lg text-amber-600 hover:bg-amber-50 dark:hover:bg-amber-950 flex items-center justify-center"><KeyRound className="w-4 h-4" /></button>
+                {u.role !== 'admin' && <button type="button" onClick={() => handleDelete(u.id, u.name)} aria-label={t('حذف المستخدم')} className="w-9 h-9 rounded-lg text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950 flex items-center justify-center"><Trash2 className="w-4 h-4" /></button>}
+              </div>
+            </li>
+          );
+        })}
+      </ul>
+
       {/* Users Table */}
-      <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 overflow-hidden">
+      <div className="hidden md:block bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-start text-[14.5px]">
             <thead>
@@ -878,8 +918,8 @@ export const UsersManagement: React.FC = () => {
                       <div className="flex items-center gap-3">
                         <Avatar name={u.name} role={u.role} userId={u.id} size="sm" showBadge />
                         <div>
-                          <div className="font-bold text-slate-900 dark:text-white">{u.name}</div>
-                          <div className="text-[11px] text-slate-400">ID: {u.id}</div>
+                          {u.role === 'student' ? <StudentLink id={u.id} name={u.name} className="font-bold text-slate-900 dark:text-white" /> : <div className="font-bold text-slate-900 dark:text-white">{u.name}</div>}
+                          <div className="text-[12px] text-slate-500">ID: {u.id}</div>
                         </div>
                       </div>
                     </td>

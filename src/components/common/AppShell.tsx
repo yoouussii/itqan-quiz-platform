@@ -33,6 +33,7 @@ import { ungradedSummary } from '../../utils/grading';
 import { UserMenu } from './UserMenu';
 import { GlobalSearch } from './GlobalSearch';
 import { StudentProfileHost } from './StudentProfile';
+import { OnboardingTour } from './OnboardingTour';
 
 /** رابط حقيقي للصفحة: الضغط العادي يتنقل داخل الموقع، وCtrl/الزر الأوسط يفتحها في تبويب جديد */
 const linkClick = (go: () => void) => (e: React.MouseEvent) => {
@@ -331,6 +332,7 @@ const StaffShell: React.FC<{ children: React.ReactNode; banner?: React.ReactNode
       </div>
       <StaffBottomNav onMore={() => setDrawer(true)} />
       <StudentProfileHost />
+      <OnboardingTour />
       {profile && <ProfileModal onClose={() => setProfile(false)} />}
     </div>
   );
@@ -386,6 +388,7 @@ const StudentShell: React.FC<{ children: React.ReactNode; banner?: React.ReactNo
           );
         })}
       </nav>
+      <OnboardingTour />
       {profile && <ProfileModal onClose={() => setProfile(false)} />}
     </div>
   );

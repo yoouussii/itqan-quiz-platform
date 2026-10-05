@@ -149,3 +149,19 @@ export const timeAgo = (iso?: string): string => {
   if (d < 7) return `منذ ${d} أيام`;
   return new Date(iso).toLocaleDateString('ar-SA-u-ca-gregory-nu-latn', { day: 'numeric', month: 'long' });
 };
+
+/** هيكل رمادي متحرك بشكل المحتوى أثناء التحميل (بدل النص أو الصفحة الفارغة) */
+export const Skeleton: React.FC<{ className?: string }> = ({ className = '' }) => (
+  <span className={`block rounded-lg bg-slate-200/80 dark:bg-slate-800 animate-pulse motion-reduce:animate-none ${className}`} aria-hidden="true" />
+);
+export const ListSkeleton: React.FC<{ rows?: number; className?: string }> = ({ rows = 4, className = '' }) => (
+  <div className={`p-4 space-y-3 ${className}`} role="status" aria-label={t('جارٍ التحميل')} data-testid="list-skeleton">
+    {Array.from({ length: rows }, (_, i) => (
+      <div key={i} className="flex items-center gap-3">
+        <Skeleton className="w-10 h-10 rounded-xl shrink-0" />
+        <div className="flex-1 space-y-2"><Skeleton className="h-3.5 w-2/5" /><Skeleton className="h-3 w-3/5" /></div>
+        <Skeleton className="w-14 h-7 shrink-0" />
+      </div>
+    ))}
+  </div>
+);
