@@ -4,6 +4,8 @@ import { safe } from './remote';
 export type AcsStatus = 'active' | 'done' | 'stopped';
 export interface AcsRecord {
   id: string; student_id: string; teacher_id: string; teacher_name: string; subject_id: string | null;
+  /** مادة وفصل خاصان بالدعم (047) */
+  acs_subject_id?: string | null; acs_class_id?: string | null;
   start_level: number; target_level: number; current_level: number; plan: string; status: AcsStatus;
   started_at: string; closed_at: string | null; created_at: string;
 }
@@ -30,12 +32,12 @@ export async function fetchProgress(supportIds: string[]): Promise<AcsProgress[]
   return r.data || [];
 }
 
-export async function addSupport(rows: Array<Pick<AcsRecord, 'student_id' | 'teacher_id' | 'teacher_name' | 'subject_id' | 'start_level' | 'target_level' | 'plan'> & { started_at?: string }>) {
+export async function addSupport(rows: Array<Pick<AcsRecord, 'student_id' | 'teacher_id' | 'teacher_name' | 'subject_id' | 'start_level' | 'target_level' | 'plan'> & { started_at?: string; acs_subject_id?: string | null; acs_class_id?: string | null }>) {
   const r = await safe<AcsRecord[]>(() => supabase.from('academic_support').insert(rows).select('*') as any);
   return { ok: r.ok, rows: r.data || [], error: r.error };
 }
 
-export async function updateSupport(id: string, patch: Partial<Pick<AcsRecord, 'target_level' | 'plan' | 'status' | 'subject_id'>>) {
+export async function updateSupport(id: string, patch: Partial<Pick<AcsRecord, 'target_level' | 'plan' | 'status' | 'subject_id' | 'acs_subject_id' | 'acs_class_id'>>) {
   const r = await safe<AcsRecord[]>(() => supabase.from('academic_support').update(patch).eq('id', id).select('*') as any);
   return r.data?.[0] || null;
 }
@@ -57,3 +59,32 @@ export async function deleteProgress(id: number) {
 
 export const gain = (a: Pick<AcsRecord, 'start_level' | 'current_level'>) => a.current_level - a.start_level;
 export const reached = (a: Pick<AcsRecord, 'current_level' | 'target_level'>) => a.current_level >= a.target_level;
+
+// ---------------- مواد وفصول الدعم (047) ----------------
+export interface AcsSubject { id: string; name: string }
+export interface AcsClass { id: string; name: string; subject_id: string | null; teacher_id: string | null }
+
+/** قائمة مواد وفصول الدعم؛ فارغة إن لم يُشغَّل 047 بعد */
+export async function fetchAcsCatalog(): Promise<{ ok: boolean; subjects: AcsSubject[]; classes: AcsClass[] }> {
+  const [s, c] = await Promise.all([
+    safe<AcsSubject[]>(() => supabase.from('acs_subjects').select('id,name').order('name') as any),
+    safe<AcsClass[]>(() => supabase.from('acs_classes').select('id,name,subject_id,teacher_id').order('name') as any),
+  ]);
+  return { ok: s.ok && c.ok, subjects: s.data || [], classes: c.data || [] };
+}
+
+export async function saveAcsSubject(p: { id?: string; name: string; created_by?: string }) {
+  const r = await safe<AcsSubject[]>(() => (p.id ? supabase.from('acs_subjects').update({ name: p.name }).eq('id', p.id) : supabase.from('acs_subjects').insert({ name: p.name, created_by: p.created_by })).select('id,name') as any);
+  return { ok: r.ok && !!r.data?.length, error: r.error };
+}
+
+export async function saveAcsClass(p: { id?: string; name: string; subject_id: string | null; teacher_id: string | null; created_by?: string }) {
+  const row = { name: p.name, subject_id: p.subject_id, teacher_id: p.teacher_id };
+  const r = await safe<AcsClass[]>(() => (p.id ? supabase.from('acs_classes').update(row).eq('id', p.id) : supabase.from('acs_classes').insert({ ...row, created_by: p.created_by })).select('id') as any);
+  return { ok: r.ok && !!r.data?.length, error: r.error };
+}
+
+export async function deleteAcsItem(kind: 'subject' | 'class', id: string) {
+  const r = await safe<any[]>(() => supabase.from(kind === 'subject' ? 'acs_subjects' : 'acs_classes').delete().eq('id', id).select('id') as any);
+  return r.ok && (r.data || []).length > 0;
+}

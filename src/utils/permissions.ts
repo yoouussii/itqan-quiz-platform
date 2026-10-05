@@ -41,6 +41,7 @@ export const PERMISSION_DEFS: PermDef[] = [
   { key: 'can_record_behavior', label: 'تسجيل المخالفات والسلوك الإيجابي للطلاب', short: 'تسجيل السلوك', group: 'السلوك والمواظبة' },
 
   { key: 'can_academic_support', label: 'معلم دعم أكاديمي: يضيف الطلاب المحتاجين ويسجل مستواهم وملاحظاته (المشرف يرى الكل)', short: 'الدعم الأكاديمي', group: 'الدعم الأكاديمي' },
+  { key: 'can_manage_acs_catalog', label: 'إدارة مواد وفصول الدعم: إنشاء مواد ومجموعات خاصة بالدعم وتعديلها وحذفها', short: 'مواد وفصول الدعم', group: 'الدعم الأكاديمي' },
 
   { key: 'can_view_class_records', label: 'عرض سجلات المتابعة الصفية وتتبع مستويات الطلاب (من Drive)', short: 'عرض السجلات', group: 'سجلات المتابعة' },
   { key: 'can_manage_class_records', label: 'إدارة سجلات المتابعة: ربط مجلدات Drive ورفع الملفات وحذفها', short: 'إدارة السجلات', group: 'سجلات المتابعة' },

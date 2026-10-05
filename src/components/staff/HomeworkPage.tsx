@@ -64,7 +64,7 @@ export const HomeworkPage: React.FC = () => {
     editor={editing && editing !== 'new' ? <HomeworkEditor hw={editing} classes={myClasses} subjects={mySubjects} onClose={() => setEditing(null)} onSaved={() => { setEditing(null); void load(); }} /> : null} />;
 
   return (
-    <div className="space-y-5">
+    <div className="max-w-7xl mx-auto py-6 sm:py-8 px-4 sm:px-6 space-y-5" dir={uiDir()}>
       <PageHeader title={t('الواجبات')} subtitle={isTeacher ? t('واجبات فصولك المسندة: انشر، وتابع التسليم، وصحّح') : t('كل واجبات المدرسة وتسليمات الطلاب')} />
       {noAssignment && <Card className="p-4 text-sm text-amber-800 dark:text-amber-200 bg-amber-50 dark:bg-amber-950/40 border-amber-200 dark:border-amber-900">{t('لا توجد فصول أو مواد مسندة لك بعد. اطلب من مدير النظام إسنادها من صفحة المستخدمين.')}</Card>}
       {isAdmin && <StorageCard onPurged={() => void load()} />}

@@ -24,7 +24,8 @@ SQL(`insert into users (id,name,role,national_id,password,teacher_permissions) v
   ('as-t2','معلم بلا صلاحية','teacher','9702','teach1234','{}'),
   ('as-t3','معلم دعم آخر','teacher','9708','teach1234','{"can_academic_support":true}'),
   ('as-sup','مشرف الدعم','supervisor','9703','sup12345','{"can_academic_support":true}'),
-  ('as-n','كاتب ملاحظات','teacher','9709','teach1234','{"can_note_attendance":true}') on conflict do nothing`);
+  ('as-n','كاتب ملاحظات','teacher','9709','teach1234','{"can_note_attendance":true}'),
+  ('as-cat','مسؤول مواد الدعم','teacher','9710','teach1234','{"can_manage_acs_catalog":true}') on conflict do nothing`);
 SQL(`insert into users (id,name,role,national_id,password,class_id) values ('as-s','طالب الدعم','student','9704','stud1234','c1'),('as-s2','طالب آخر','student','9707','stud1234','c1') on conflict do nothing`);
 SQL(`insert into users (id,name,role,national_id,password,child_ids) values ('as-p','ولي أمر الدعم','parent','9705','par1234','["as-s"]') on conflict do nothing`);
 
@@ -118,6 +119,28 @@ await req('DELETE', `/attendance_notes?id=eq.${nid}`, { token: T2 });
 ok(SQL(`select count(*) from attendance_notes where id=${nid}`) === '1', 'بلا صلاحية: لا حذف');
 await req('DELETE', `/attendance_notes?id=eq.${nid}`, { token: N });
 ok(SQL(`select count(*) from attendance_notes where id=${nid}`) === '0', 'صاحب الصلاحية يحذف');
+
+console.log('— مواد وفصول الدعم (047)');
+SQL(`delete from academic_support where acs_class_id is not null; delete from acs_classes where true; delete from acs_subjects where true`);
+const CAT = await login('9710', 'teach1234');
+r = await req('POST', '/acs_subjects', { token: T, body: { name: 'مهارات القراءة' } });
+ok(r.status >= 400, 'معلم الدعم بلا صلاحية الإدارة لا ينشئ مادة دعم');
+r = await req('POST', '/acs_subjects', { token: CAT, body: { name: 'مهارات القراءة' } });
+const sub = rows(r)[0]?.id;
+ok(r.status < 300 && sub, 'صاحب صلاحية إدارة المواد ينشئ مادة دعم');
+r = await req('POST', '/acs_subjects', { token: A, body: { name: ' مهارات القراءة ' } });
+ok(r.status >= 400, 'لا تتكرر أسماء مواد الدعم');
+r = await req('POST', '/acs_classes', { token: A, body: { name: 'مجموعة القراءة 1', subject_id: sub, teacher_id: 'as-t' } });
+const grp = rows(r)[0]?.id;
+ok(r.status < 300 && grp, 'المدير ينشئ فصل دعم');
+ok(rows(await req('GET', '/acs_classes?select=id', { token: S })).length === 1, 'الطالب يقرأ أسماء فصول الدعم (لبطاقته)');
+r = await req('PATCH', `/acs_classes?id=eq.${grp}`, { token: T, body: { name: 'تغيير' } });
+ok(SQL(`select name from acs_classes where id='${grp}'`) === 'مجموعة القراءة 1', 'معلم الدعم لا يعدّل فصول الدعم');
+r = await req('POST', '/academic_support', { token: T, body: rec({ student_id: 'as-s2', subject_id: null, acs_subject_id: sub, acs_class_id: grp }) });
+ok(r.status < 300 && rows(r)[0]?.acs_class_id === grp, 'معلم الدعم يضيف طالباً بمادة وفصل الدعم');
+ok(/مهارات القراءة/.test(SQL(`select body from notifications where ref_type='academic_support' and body like '%طالب آخر%' order by created_at desc limit 1`)) && /مجموعة القراءة 1/.test(SQL(`select body from notifications where ref_type='academic_support' and body like '%طالب آخر%' order by created_at desc limit 1`)), 'إشعار الانضمام يذكر مادة الدعم وفصله');
+await req('DELETE', `/acs_classes?id=eq.${grp}`, { token: CAT });
+ok(SQL(`select count(*) from academic_support where student_id='as-s2'`) === '1' && SQL(`select coalesce(acs_class_id,'null') from academic_support where student_id='as-s2'`) === 'null', 'حذف فصل الدعم يزيل الارتباط ولا يحذف سجل الطالب');
 
 console.log(`\n${pass} نجح، ${fail} فشل`);
 process.exit(fail ? 1 : 0);
