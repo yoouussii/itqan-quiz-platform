@@ -1,11 +1,11 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { HeartHandshake, Plus, X, Trash2, FileDown, FileSpreadsheet, Save, Search, Target, Users, TrendingUp, CheckCircle2 } from 'lucide-react';
+import { HeartHandshake, Plus, X, Trash2, FileDown, FileSpreadsheet, Save, Search, Target, Users, TrendingUp, CheckCircle2, Layers, Pencil } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 import { PageHeader, Card, Button, Chip } from '../common/ui';
 import { ChartLegend, Change, DumbbellChart, EntryLine, ProgressLine, fmtDate } from '../common/AcademicSupport';
 import { schoolStart, weekLabel } from '../../utils/schoolWeek';
 import {
-  AcsProgress, AcsRating, AcsRecord, AcsStatus, RATINGS, addProgress, addSupport, deleteProgress, deleteSupport, fetchProgress, fetchSupport, gain, reached, updateSupport,
+  AcsClass, AcsProgress, AcsRating, AcsRecord, AcsStatus, AcsSubject, RATINGS, addProgress, addSupport, deleteAcsItem, deleteProgress, deleteSupport, fetchAcsCatalog, fetchProgress, fetchSupport, gain, reached, saveAcsClass, saveAcsSubject, updateSupport,
 } from '../../services/academicSupportService';
 import { hasPerm } from '../../utils/permissions';
 import { exportElementToPdf } from '../../utils/exportPdf';
@@ -36,6 +36,13 @@ export const AcademicSupportPage: React.FC = () => {
   const [q, setQ] = useState('');
   const [adding, setAdding] = useState(false);
   const [openId, setOpenId] = useState<string | null>(null);
+  const canCatalog = me.role === 'admin' || hasPerm(me, 'can_manage_acs_catalog');
+  const [cat, setCat] = useState<{ subjects: AcsSubject[]; classes: AcsClass[] }>({ subjects: [], classes: [] });
+  const [catOpen, setCatOpen] = useState(false);
+  const [acsClass, setAcsClass] = useState('');
+  const [acsSubject, setAcsSubject] = useState('');
+  const loadCat = useCallback(() => { void fetchAcsCatalog().then((c) => setCat({ subjects: c.subjects, classes: c.classes })); }, []);
+  useEffect(loadCat, [loadCat]);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -47,9 +54,12 @@ export const AcademicSupportPage: React.FC = () => {
   const userMap = useMemo(() => new Map((users as User[]).map((u) => [u.id, u])), [users]);
   const nameOf = (id: string) => userMap.get(id)?.name || id;
   const classOf = (id: string) => classes.find((c) => c.id === userMap.get(id)?.class_id)?.name || '';
-  const subjectOf = (id: string | null) => subjects.find((s) => s.id === id)?.name || '';
+  // مادة السجل: مادة الدعم (047) إن وُجدت، وإلا مادة المدرسة (سجلات قديمة)
+  const subjectOf = (r: Pick<AcsRecord, 'subject_id' | 'acs_subject_id'>) => cat.subjects.find((s) => s.id === r.acs_subject_id)?.name || subjects.find((s) => s.id === r.subject_id)?.name || '';
+  const acsClassOf = (r: Pick<AcsRecord, 'acs_class_id'>) => cat.classes.find((c) => c.id === r.acs_class_id)?.name || '';
   const teachers = useMemo(() => [...new Map(rows.map((r) => [r.teacher_id, r.teacher_name])).entries()], [rows]);
   const shown = rows.filter((r) => (status === 'all' || r.status === status) && (!teacher || r.teacher_id === teacher)
+    && (!acsClass || r.acs_class_id === acsClass) && (!acsSubject || r.acs_subject_id === acsSubject)
     && (!q.trim() || nameOf(r.student_id).includes(q.trim())));
   const lastAt = (id: string) => { const p = prog.filter((x) => x.support_id === id && x.level != null); return p.length ? p[p.length - 1].at : null; };
 
@@ -63,11 +73,11 @@ export const AcademicSupportPage: React.FC = () => {
   const open = rows.find((r) => r.id === openId) || null;
 
   const exportReport = async () => {
-    const trs = shown.map((r, i) => `<tr><td>${i + 1}</td><td>${escH(nameOf(r.student_id))}</td><td>${escH(classOf(r.student_id))}</td><td>${escH(subjectOf(r.subject_id))}</td><td>${escH(r.teacher_name)}</td><td>${r.start_level}%</td><td>${r.current_level}%</td><td dir="ltr">${gain(r) > 0 ? '+' : ''}${gain(r)}</td><td>${r.target_level}%</td><td>${escH(lastAt(r.id) ? fmtDate(lastAt(r.id)!) : '—')}</td><td>${escH(t(STATUS[r.status].label))}</td></tr>`).join('');
+    const trs = shown.map((r, i) => `<tr><td>${i + 1}</td><td>${escH(nameOf(r.student_id))}</td><td>${escH(classOf(r.student_id))}</td><td>${escH(acsClassOf(r))}</td><td>${escH(subjectOf(r))}</td><td>${escH(r.teacher_name)}</td><td>${r.start_level}%</td><td>${r.current_level}%</td><td dir="ltr">${gain(r) > 0 ? '+' : ''}${gain(r)}</td><td>${r.target_level}%</td><td>${escH(lastAt(r.id) ? fmtDate(lastAt(r.id)!) : '—')}</td><td>${escH(t(STATUS[r.status].label))}</td></tr>`).join('');
     const bodyHtml = `
       <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:14px">${pdfBox(t('عدد الطلاب'), String(kpi.n))}${pdfBox(t('متوسط الاستلام'), `${kpi.start}%`)}${pdfBox(t('متوسط الآن'), `${kpi.now}%`)}${pdfBox(t('متوسط التحسن'), `${kpi.gain > 0 ? '+' : ''}${kpi.gain}`)}${pdfBox(t('بلغوا الهدف'), String(kpi.reached))}</div>
-      <table class="pdf-table"><thead><tr><th>#</th><th>${escH(t('الطالب'))}</th><th>${escH(t('الفصل'))}</th><th>${escH(t('المادة'))}</th><th>${escH(t('المعلم'))}</th><th>${escH(t('عند الاستلام'))}</th><th>${escH(t('الآن'))}</th><th>${escH(t('التغير'))}</th><th>${escH(t('الهدف'))}</th><th>${escH(t('آخر قياس'))}</th><th>${escH(t('الحالة'))}</th></tr></thead>
-      <tbody>${trs || `<tr><td colspan="11">—</td></tr>`}</tbody></table>`;
+      <table class="pdf-table"><thead><tr><th>#</th><th>${escH(t('الطالب'))}</th><th>${escH(t('الفصل'))}</th><th>${escH(t('فصل الدعم'))}</th><th>${escH(t('المادة'))}</th><th>${escH(t('المعلم'))}</th><th>${escH(t('عند الاستلام'))}</th><th>${escH(t('الآن'))}</th><th>${escH(t('التغير'))}</th><th>${escH(t('الهدف'))}</th><th>${escH(t('آخر قياس'))}</th><th>${escH(t('الحالة'))}</th></tr></thead>
+      <tbody>${trs || `<tr><td colspan="12">—</td></tr>`}</tbody></table>`;
     try { await exportElementToPdf({ bodyHtml, orientation: 'landscape', title: t('تقرير الدعم الأكاديمي'), subtitle: new Date().toLocaleDateString() }); }
     catch (e: any) { showToast(e?.message || t('تعذر تصدير PDF'), 'error'); }
   };
@@ -78,7 +88,7 @@ export const AcademicSupportPage: React.FC = () => {
     const start = await schoolStart();
     const rl = (r: AcsRating | null) => (r ? t(RATINGS.find((x) => x.k === r)!.label) : '');
     const summary = shown.map((r) => ({
-      [t('الطالب')]: nameOf(r.student_id), [t('الفصل')]: classOf(r.student_id), [t('المادة')]: subjectOf(r.subject_id) || t('عام'), [t('المعلم')]: r.teacher_name,
+      [t('الطالب')]: nameOf(r.student_id), [t('الفصل')]: classOf(r.student_id), [t('فصل الدعم')]: acsClassOf(r), [t('المادة')]: subjectOf(r) || t('عام'), [t('المعلم')]: r.teacher_name,
       [t('تاريخ الاستلام')]: r.started_at, [t('عند الاستلام')]: r.start_level, [t('الآن')]: r.current_level, [t('التغير')]: gain(r), [t('الهدف')]: r.target_level,
       [t('بلغ الهدف')]: reached(r) ? '✓' : '', [t('آخر قياس')]: lastAt(r.id) || '', [t('الحالة')]: t(STATUS[r.status].label), [t('خطة الدعم')]: r.plan,
     }));
@@ -97,10 +107,21 @@ export const AcademicSupportPage: React.FC = () => {
   };
 
   return (
-    <div className="space-y-5">
+    <div className="max-w-7xl mx-auto py-6 sm:py-8 px-4 sm:px-6 space-y-5" dir={uiDir()}>
       <PageHeader title={t('الدعم الأكاديمي')} subtitle={seeAll ? t('كل طلاب برنامج الدعم: مستوى الاستلام، والتقدم، وبلوغ الهدف') : t('طلابك في برنامج الدعم: سجّل مستواهم وتابع تقدمهم')} />
       <div className="flex flex-wrap items-center gap-2.5">
         {canAdd && <Button size="sm" icon={Plus} onClick={() => setAdding(true)}>{t('إضافة طلاب')}</Button>}
+        {canCatalog && <Button size="sm" variant="secondary" icon={Layers} onClick={() => setCatOpen(true)}>{t('مواد وفصول الدعم')}</Button>}
+        {cat.classes.length > 0 && (
+          <select value={acsClass} onChange={(e) => setAcsClass(e.target.value)} className={inp} aria-label={t('فصل الدعم')}>
+            <option value="">{t('كل فصول الدعم')}</option>{cat.classes.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+          </select>
+        )}
+        {cat.subjects.length > 0 && (
+          <select value={acsSubject} onChange={(e) => setAcsSubject(e.target.value)} className={inp} aria-label={t('مادة الدعم')}>
+            <option value="">{t('كل مواد الدعم')}</option>{cat.subjects.map((x) => <option key={x.id} value={x.id}>{x.name}</option>)}
+          </select>
+        )}
         <Button size="sm" variant="secondary" icon={FileDown} disabled={!shown.length} onClick={() => void exportReport()}>{t('تقرير PDF')}</Button>
         <Button size="sm" variant="secondary" icon={FileSpreadsheet} disabled={!shown.length} onClick={() => void exportExcel()}>{t('Excel')}</Button>
         <select value={status} onChange={(e) => setStatus(e.target.value as any)} className={inp} aria-label={t('الحالة')}>
@@ -145,14 +166,15 @@ export const AcademicSupportPage: React.FC = () => {
           <Card className="overflow-x-auto">
             <table className="w-full text-sm min-w-[760px]">
               <thead className="bg-slate-50 dark:bg-slate-800/60 text-slate-600 dark:text-slate-300 text-xs">
-                <tr>{[t('الطالب'), t('الفصل'), t('المادة'), ...(seeAll ? [t('المعلم')] : []), t('عند الاستلام'), t('الآن'), t('التغير'), t('الهدف'), t('آخر قياس'), t('الحالة')].map((h) => <th key={h} className="px-3 py-2.5 text-start font-semibold">{h}</th>)}</tr>
+                <tr>{[t('الطالب'), t('الفصل'), ...(cat.classes.length ? [t('فصل الدعم')] : []), t('المادة'), ...(seeAll ? [t('المعلم')] : []), t('عند الاستلام'), t('الآن'), t('التغير'), t('الهدف'), t('آخر قياس'), t('الحالة')].map((h) => <th key={h} className="px-3 py-2.5 text-start font-semibold">{h}</th>)}</tr>
               </thead>
               <tbody>
                 {shown.map((r) => (
                   <tr key={r.id} onClick={() => setOpenId(r.id)} className="border-t border-slate-100 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800/40 cursor-pointer" data-testid="acs-table-row">
                     <td className="px-3 py-2.5 font-semibold text-slate-900 dark:text-white">{nameOf(r.student_id)}</td>
                     <td className="px-3 py-2.5 text-slate-600 dark:text-slate-300">{classOf(r.student_id)}</td>
-                    <td className="px-3 py-2.5 text-slate-600 dark:text-slate-300">{subjectOf(r.subject_id) || '—'}</td>
+                    {cat.classes.length > 0 && <td className="px-3 py-2.5 text-slate-600 dark:text-slate-300">{acsClassOf(r) || '—'}</td>}
+                    <td className="px-3 py-2.5 text-slate-600 dark:text-slate-300">{subjectOf(r) || '—'}</td>
                     {seeAll && <td className="px-3 py-2.5 text-slate-600 dark:text-slate-300">{r.teacher_name}</td>}
                     <td className="px-3 py-2.5 tabular-nums">{r.start_level}%</td>
                     <td className="px-3 py-2.5 tabular-nums font-bold">{r.current_level}%</td>
@@ -168,19 +190,24 @@ export const AcademicSupportPage: React.FC = () => {
         </>
       )}
 
-      {adding && <AddStudentsModal existing={new Set(rows.filter((r) => r.status === 'active').map((r) => r.student_id))} onClose={() => setAdding(false)} onSaved={() => { setAdding(false); void load(); }} />}
-      {open && <SupportDrawer rec={open} points={prog.filter((p) => p.support_id === open.id)} studentName={nameOf(open.student_id)} className={classOf(open.student_id)} subjectName={subjectOf(open.subject_id)}
+      {catOpen && <CatalogModal cat={cat} onClose={() => setCatOpen(false)} onChanged={loadCat} />}
+      {adding && <AddStudentsModal cat={cat} existing={new Set(rows.filter((r) => r.status === 'active').map((r) => r.student_id))} onClose={() => setAdding(false)} onSaved={() => { setAdding(false); void load(); }} />}
+      {open && <SupportDrawer rec={open} points={prog.filter((p) => p.support_id === open.id)} studentName={nameOf(open.student_id)} className={classOf(open.student_id)} subjectName={subjectOf(open)} acsClassName={acsClassOf(open)} cat={cat}
         canEdit={me.role === 'admin' || open.teacher_id === me.id} onClose={() => setOpenId(null)} onChanged={() => void load()} />}
     </div>
   );
 };
 
 /** إضافة طلاب للبرنامج: اختيار الفصل والطلاب، ومستوى الاستلام لكل طالب */
-const AddStudentsModal: React.FC<{ existing: Set<string>; onClose: () => void; onSaved: () => void }> = ({ existing, onClose, onSaved }) => {
+const AddStudentsModal: React.FC<{ cat: { subjects: AcsSubject[]; classes: AcsClass[] }; existing: Set<string>; onClose: () => void; onSaved: () => void }> = ({ cat, existing, onClose, onSaved }) => {
   const { currentUser, users, classes, subjects, showToast } = useApp();
   const [classId, setClassId] = useState('');
   const [picked, setPicked] = useState<Record<string, number>>({});
   const [subjectId, setSubjectId] = useState('');
+  const [groupId, setGroupId] = useState('');
+  // مواد الدعم الخاصة إن أُنشئت، وإلا مواد المدرسة (التوافق مع ما قبل 047)
+  const useAcs = cat.subjects.length > 0;
+  const pickGroup = (id: string) => { setGroupId(id); const g = cat.classes.find((c) => c.id === id); if (g?.subject_id && useAcs) setSubjectId(g.subject_id); };
   const [target, setTarget] = useState(80);
   const [plan, setPlan] = useState('');
   const [startedAt, setStartedAt] = useState(today());
@@ -191,7 +218,7 @@ const AddStudentsModal: React.FC<{ existing: Set<string>; onClose: () => void; o
     const ids = Object.keys(picked);
     if (!ids.length) return showToast(t('اختر طالباً واحداً على الأقل'), 'error');
     setBusy(true);
-    const r = await addSupport(ids.map((id) => ({ student_id: id, teacher_id: currentUser!.id, teacher_name: currentUser!.name, subject_id: subjectId || null, start_level: Math.max(0, Math.min(100, Math.round(picked[id]))), target_level: target, plan: plan.trim(), started_at: startedAt || today() })));
+    const r = await addSupport(ids.map((id) => ({ student_id: id, teacher_id: currentUser!.id, teacher_name: currentUser!.name, subject_id: useAcs ? null : subjectId || null, acs_subject_id: useAcs ? subjectId || null : null, acs_class_id: groupId || null, start_level: Math.max(0, Math.min(100, Math.round(picked[id]))), target_level: target, plan: plan.trim(), started_at: startedAt || today() })));
     setBusy(false);
     if (!r.ok) return showToast(t('تعذر الحفظ'), 'error');
     showToast(t('أُضيف {n} طالب للبرنامج وأُشعر أولياء الأمور', { n: r.rows.length }), 'success');
@@ -207,12 +234,17 @@ const AddStudentsModal: React.FC<{ existing: Set<string>; onClose: () => void; o
         </div>
         <div className="flex-1 overflow-y-auto p-5 space-y-4">
           <div className="flex flex-wrap gap-3">
-            <label className="text-sm text-slate-600 dark:text-slate-300 flex flex-col gap-1">{t('الفصل')}
+            <label className="text-sm text-slate-600 dark:text-slate-300 flex flex-col gap-1">{t('فصل الطالب في المدرسة')}
               <select value={classId} onChange={(e) => setClassId(e.target.value)} className={inp}><option value="">{t('كل الفصول')}</option>{[...classes].sort((a, b) => a.name.localeCompare(b.name, 'ar')).map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}</select>
             </label>
             <label className="text-sm text-slate-600 dark:text-slate-300 flex flex-col gap-1">{t('المادة')}
-              <select value={subjectId} onChange={(e) => setSubjectId(e.target.value)} className={inp}><option value="">{t('عام')}</option>{subjects.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}</select>
+              <select value={subjectId} onChange={(e) => setSubjectId(e.target.value)} className={inp}><option value="">{t('عام')}</option>{(useAcs ? cat.subjects : subjects).map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}</select>
             </label>
+            {cat.classes.length > 0 && (
+              <label className="text-sm text-slate-600 dark:text-slate-300 flex flex-col gap-1">{t('فصل الدعم')}
+                <select value={groupId} onChange={(e) => pickGroup(e.target.value)} className={inp}><option value="">{t('بدون')}</option>{cat.classes.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}</select>
+              </label>
+            )}
             <label className="text-sm text-slate-600 dark:text-slate-300 flex flex-col gap-1">{t('الهدف')}
               <select value={target} onChange={(e) => setTarget(Number(e.target.value))} className={inp}>{[60, 70, 75, 80, 85, 90].map((n) => <option key={n} value={n}>{n}%</option>)}</select>
             </label>
@@ -256,7 +288,7 @@ const AddStudentsModal: React.FC<{ existing: Set<string>; onClose: () => void; o
 };
 
 /** سجل طالب في البرنامج: الرسم، القياسات، تسجيل قياس، الهدف والخطة والحالة، وتقرير PDF */
-const SupportDrawer: React.FC<{ rec: AcsRecord; points: AcsProgress[]; studentName: string; className: string; subjectName: string; canEdit: boolean; onClose: () => void; onChanged: () => void }> = ({ rec, points, studentName, className, subjectName, canEdit, onClose, onChanged }) => {
+const SupportDrawer: React.FC<{ rec: AcsRecord; points: AcsProgress[]; studentName: string; className: string; subjectName: string; acsClassName: string; cat: { subjects: AcsSubject[]; classes: AcsClass[] }; canEdit: boolean; onClose: () => void; onChanged: () => void }> = ({ rec, points, studentName, className, subjectName, acsClassName, cat, canEdit, onClose, onChanged }) => {
   const { currentUser, showToast } = useApp();
   const [mode, setMode] = useState<'note' | 'measure'>('note');
   const [rating, setRating] = useState<AcsRating | null>(null);
@@ -273,7 +305,7 @@ const SupportDrawer: React.FC<{ rec: AcsRecord; points: AcsProgress[]; studentNa
     if (!r) return showToast(t('تعذر الحفظ'), 'error');
     setNote(''); setRating(null); showToast(mode === 'measure' ? t('سُجّل القياس وأُشعر ولي الأمر') : t('سُجّلت الملاحظة وأُشعر ولي الأمر'), 'success'); onChanged();
   };
-  const saveMeta = async (patch: Partial<Pick<AcsRecord, 'plan' | 'target_level' | 'status'>>) => {
+  const saveMeta = async (patch: Partial<Pick<AcsRecord, 'plan' | 'target_level' | 'status' | 'acs_class_id' | 'acs_subject_id'>>) => {
     if (!(await updateSupport(rec.id, patch))) return showToast(t('تعذر الحفظ'), 'error');
     showToast(t('تم الحفظ'), 'success'); onChanged();
   };
@@ -285,7 +317,7 @@ const SupportDrawer: React.FC<{ rec: AcsRecord; points: AcsProgress[]; studentNa
     const rl = (r: AcsRating | null) => (r ? t(RATINGS.find((x) => x.k === r)!.label) : '');
     const trs = [{ at: rec.started_at, level: rec.start_level as number | null, rating: null as AcsRating | null, note: t('عند الاستلام') }, ...points].map((p, i) => `<tr><td>${i + 1}</td><td>${escH(weekLabel(p.at, start))}</td><td>${p.level != null ? `${p.level}%` : '—'}</td><td>${escH(rl(p.rating))}</td><td>${escH(p.note)}</td></tr>`).join('');
     const bodyHtml = `
-      <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:14px">${pdfBox(t('الطالب'), studentName)}${pdfBox(t('الفصل'), className || '—')}${pdfBox(t('المادة'), subjectName || t('عام'))}${pdfBox(t('المعلم'), rec.teacher_name)}</div>
+      <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:14px">${pdfBox(t('الطالب'), studentName)}${pdfBox(t('الفصل'), className || '—')}${acsClassName ? pdfBox(t('فصل الدعم'), acsClassName) : ''}${pdfBox(t('المادة'), subjectName || t('عام'))}${pdfBox(t('المعلم'), rec.teacher_name)}</div>
       <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:14px">${pdfBox(t('عند الاستلام'), `${rec.start_level}%`)}${pdfBox(t('الآن'), `${rec.current_level}%`)}${pdfBox(t('التغير'), `${gain(rec) > 0 ? '+' : ''}${gain(rec)}`)}${pdfBox(t('الهدف'), `${rec.target_level}%`)}</div>
       ${rec.plan ? `<p style="white-space:pre-wrap;margin-bottom:12px"><b>${escH(t('خطة الدعم'))}:</b> ${escH(rec.plan)}</p>` : ''}
       <table class="pdf-table"><thead><tr><th>#</th><th>${escH(t('التاريخ'))}</th><th>${escH(t('المستوى'))}</th><th>${escH(t('التقييم'))}</th><th>${escH(t('ملاحظة'))}</th></tr></thead><tbody>${trs}</tbody></table>
@@ -299,7 +331,7 @@ const SupportDrawer: React.FC<{ rec: AcsRecord; points: AcsProgress[]; studentNa
         <div className="flex items-start gap-3 p-5 border-b border-slate-100 dark:border-slate-800">
           <div className="flex-1 min-w-0">
             <h2 className="text-lg font-extrabold text-slate-900 dark:text-white">{studentName}</h2>
-            <p className="text-sm text-slate-500">{[className, subjectName, rec.teacher_name, t('منذ {d}', { d: fmtDate(rec.started_at) })].filter(Boolean).join(' · ')}</p>
+            <p className="text-sm text-slate-500">{[className, acsClassName, subjectName, rec.teacher_name, t('منذ {d}', { d: fmtDate(rec.started_at) })].filter(Boolean).join(' · ')}</p>
           </div>
           <Button size="sm" variant="secondary" icon={FileDown} onClick={() => void printOne()}>{t('تقرير PDF')}</Button>
           <button type="button" onClick={onClose} aria-label={t('إغلاق')} className="w-9 h-9 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 flex items-center justify-center"><X className="w-5 h-5" /></button>
@@ -354,6 +386,20 @@ const SupportDrawer: React.FC<{ rec: AcsRecord; points: AcsProgress[]; studentNa
           </div>
           {canEdit && (
             <div className="rounded-2xl border border-slate-200 dark:border-slate-700 p-4 space-y-3">
+              {(cat.classes.length > 0 || cat.subjects.length > 0) && (
+                <div className="flex flex-wrap gap-2">
+                  {cat.classes.length > 0 && (
+                    <label className="text-sm text-slate-600 dark:text-slate-300 flex items-center gap-2">{t('فصل الدعم')}
+                      <select value={rec.acs_class_id || ''} onChange={(e) => void saveMeta({ acs_class_id: e.target.value || null })} className={inp}><option value="">{t('بدون')}</option>{cat.classes.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}</select>
+                    </label>
+                  )}
+                  {cat.subjects.length > 0 && (
+                    <label className="text-sm text-slate-600 dark:text-slate-300 flex items-center gap-2">{t('مادة الدعم')}
+                      <select value={rec.acs_subject_id || ''} onChange={(e) => void saveMeta({ acs_subject_id: e.target.value || null })} className={inp}><option value="">{t('عام')}</option>{cat.subjects.map((x) => <option key={x.id} value={x.id}>{x.name}</option>)}</select>
+                    </label>
+                  )}
+                </div>
+              )}
               <label className="text-sm text-slate-600 dark:text-slate-300 flex items-center gap-2">{t('الهدف')}
                 <select value={target} onChange={(e) => setTarget(Number(e.target.value))} className={inp}>{[60, 70, 75, 80, 85, 90, 95, 100].map((n) => <option key={n} value={n}>{n}%</option>)}</select>
               </label>
@@ -368,6 +414,89 @@ const SupportDrawer: React.FC<{ rec: AcsRecord; points: AcsProgress[]; studentNa
             </div>
           )}
           {!canEdit && rec.plan && <p className="text-sm whitespace-pre-wrap text-slate-700 dark:text-slate-200"><b>{t('خطة الدعم')}:</b> {rec.plan}</p>}
+        </div>
+      </div>
+    </div>
+  );
+};
+
+/** مواد وفصول خاصة بالدعم: إنشاء وتعديل وحذف (للمدير ومن لديه صلاحية إدارتها) */
+const CatalogModal: React.FC<{ cat: { subjects: AcsSubject[]; classes: AcsClass[] }; onClose: () => void; onChanged: () => void }> = ({ cat, onClose, onChanged }) => {
+  const { currentUser, users, showToast } = useApp();
+  const [subName, setSubName] = useState('');
+  const [cls, setCls] = useState<{ id?: string; name: string; subject_id: string; teacher_id: string }>({ name: '', subject_id: '', teacher_id: '' });
+  const [editSub, setEditSub] = useState<{ id: string; name: string } | null>(null);
+  const supportTeachers = (users as User[]).filter((u) => (u.role === 'teacher' || u.role === 'supervisor' || u.role === 'admin') && (u.role === 'admin' || hasPerm(u, 'can_academic_support'))).sort((a, b) => a.name.localeCompare(b.name, 'ar'));
+  const err = (e?: string) => showToast(/duplicate|unique/i.test(e || '') ? t('الاسم موجود من قبل') : /policy|permission|row-level/i.test(e || '') ? t('ليس لديك صلاحية — أو لم يُشغَّل التحديث 047 بعد') : t('تعذر الحفظ'), 'error');
+  const addSubject = async () => {
+    const name = (editSub ? editSub.name : subName).trim(); if (!name) return;
+    const r = await saveAcsSubject({ id: editSub?.id, name, created_by: currentUser!.id });
+    if (!r.ok) return err(r.error);
+    setSubName(''); setEditSub(null); onChanged();
+  };
+  const saveClass = async () => {
+    if (!cls.name.trim()) return showToast(t('اكتب اسم الفصل'), 'error');
+    const r = await saveAcsClass({ id: cls.id, name: cls.name.trim(), subject_id: cls.subject_id || null, teacher_id: cls.teacher_id || null, created_by: currentUser!.id });
+    if (!r.ok) return err(r.error);
+    setCls({ name: '', subject_id: '', teacher_id: '' }); onChanged();
+  };
+  const del = async (kind: 'subject' | 'class', id: string, name: string) => {
+    if (!window.confirm(t('حذف «{name}»؟ لن تُحذف سجلات الطلاب، فقط يُزال ارتباطها به.', { name }))) return;
+    if (await deleteAcsItem(kind, id)) onChanged(); else showToast(t('تعذر الحذف'), 'error');
+  };
+  const teacherName = (id: string | null) => (users as User[]).find((u) => u.id === id)?.name || '';
+  return (
+    <div className="fixed inset-0 z-[60] bg-slate-900/50 flex items-end sm:items-center justify-center sm:p-4" role="dialog" aria-modal="true" aria-label={t('مواد وفصول الدعم')} onClick={onClose}>
+      <div className="w-full sm:max-w-3xl max-h-[94vh] bg-white dark:bg-slate-900 rounded-t-3xl sm:rounded-3xl shadow-2xl flex flex-col" onClick={(e) => e.stopPropagation()} dir={uiDir()} data-testid="acs-catalog">
+        <div className="flex items-center gap-3 p-5 border-b border-slate-100 dark:border-slate-800">
+          <Layers className="w-6 h-6 text-indigo-600" />
+          <div className="flex-1"><h2 className="font-bold text-lg text-slate-900 dark:text-white">{t('مواد وفصول الدعم')}</h2><p className="text-xs text-slate-500">{t('خاصة ببرنامج الدعم فقط، ولا تظهر في مواد المدرسة وفصولها.')}</p></div>
+          <button type="button" aria-label={t('إغلاق')} onClick={onClose} className="w-9 h-9 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 flex items-center justify-center"><X className="w-5 h-5" /></button>
+        </div>
+        <div className="flex-1 overflow-y-auto p-5 grid md:grid-cols-2 gap-5">
+          <section className="space-y-3">
+            <h3 className="font-bold text-slate-900 dark:text-white">{t('مواد الدعم')} <span className="text-xs font-normal text-slate-500">({cat.subjects.length})</span></h3>
+            <div className="flex gap-2">
+              <input value={editSub ? editSub.name : subName} onChange={(e) => (editSub ? setEditSub({ ...editSub, name: e.target.value }) : setSubName(e.target.value))} onKeyDown={(e) => { if (e.key === 'Enter') void addSubject(); }} maxLength={80} placeholder={t('مثال: مهارات القراءة')} className={`${inp} flex-1`} aria-label={t('اسم مادة الدعم')} />
+              <Button size="sm" icon={editSub ? Save : Plus} onClick={() => void addSubject()}>{editSub ? t('حفظ') : t('إضافة')}</Button>
+              {editSub && <Button size="sm" variant="ghost" onClick={() => setEditSub(null)}>{t('إلغاء')}</Button>}
+            </div>
+            <ul className="divide-y divide-slate-100 dark:divide-slate-800 rounded-xl border border-slate-200 dark:border-slate-700">
+              {cat.subjects.length === 0 && <li className="p-3 text-sm text-slate-500">{t('لا توجد مواد دعم بعد')}</li>}
+              {cat.subjects.map((x) => (
+                <li key={x.id} className="flex items-center gap-2 px-3 py-2 text-sm">
+                  <span className="flex-1 font-semibold text-slate-800 dark:text-slate-100">{x.name}</span>
+                  <button type="button" aria-label={t('تعديل')} onClick={() => setEditSub({ id: x.id, name: x.name })} className="w-8 h-8 rounded-lg text-slate-400 hover:text-indigo-600 flex items-center justify-center"><Pencil className="w-4 h-4" /></button>
+                  <button type="button" aria-label={t('حذف')} onClick={() => void del('subject', x.id, x.name)} className="w-8 h-8 rounded-lg text-slate-400 hover:text-rose-600 flex items-center justify-center"><Trash2 className="w-4 h-4" /></button>
+                </li>
+              ))}
+            </ul>
+          </section>
+          <section className="space-y-3">
+            <h3 className="font-bold text-slate-900 dark:text-white">{t('فصول الدعم')} <span className="text-xs font-normal text-slate-500">({cat.classes.length})</span></h3>
+            <div className="rounded-xl border border-slate-200 dark:border-slate-700 p-3 space-y-2">
+              <input value={cls.name} onChange={(e) => setCls({ ...cls, name: e.target.value })} maxLength={80} placeholder={t('مثال: مجموعة القراءة — الصف الثالث')} className={`${inp} w-full`} aria-label={t('اسم فصل الدعم')} />
+              <div className="grid grid-cols-2 gap-2">
+                <select value={cls.subject_id} onChange={(e) => setCls({ ...cls, subject_id: e.target.value })} className={inp} aria-label={t('مادة الدعم')}><option value="">{t('بدون مادة')}</option>{cat.subjects.map((x) => <option key={x.id} value={x.id}>{x.name}</option>)}</select>
+                <select value={cls.teacher_id} onChange={(e) => setCls({ ...cls, teacher_id: e.target.value })} className={inp} aria-label={t('معلم الدعم')}><option value="">{t('بدون معلم محدد')}</option>{supportTeachers.map((u) => <option key={u.id} value={u.id}>{u.name}</option>)}</select>
+              </div>
+              <div className="flex gap-2">
+                <Button size="sm" icon={cls.id ? Save : Plus} onClick={() => void saveClass()}>{cls.id ? t('حفظ') : t('إضافة فصل')}</Button>
+                {cls.id && <Button size="sm" variant="ghost" onClick={() => setCls({ name: '', subject_id: '', teacher_id: '' })}>{t('إلغاء')}</Button>}
+              </div>
+            </div>
+            <ul className="divide-y divide-slate-100 dark:divide-slate-800 rounded-xl border border-slate-200 dark:border-slate-700">
+              {cat.classes.length === 0 && <li className="p-3 text-sm text-slate-500">{t('لا توجد فصول دعم بعد')}</li>}
+              {cat.classes.map((c) => (
+                <li key={c.id} className="flex items-center gap-2 px-3 py-2 text-sm">
+                  <span className="flex-1 min-w-0"><span className="block font-semibold text-slate-800 dark:text-slate-100 truncate">{c.name}</span>
+                    <span className="block text-xs text-slate-500 truncate">{[cat.subjects.find((x) => x.id === c.subject_id)?.name, teacherName(c.teacher_id)].filter(Boolean).join(' · ') || '—'}</span></span>
+                  <button type="button" aria-label={t('تعديل')} onClick={() => setCls({ id: c.id, name: c.name, subject_id: c.subject_id || '', teacher_id: c.teacher_id || '' })} className="w-8 h-8 rounded-lg text-slate-400 hover:text-indigo-600 flex items-center justify-center"><Pencil className="w-4 h-4" /></button>
+                  <button type="button" aria-label={t('حذف')} onClick={() => void del('class', c.id, c.name)} className="w-8 h-8 rounded-lg text-slate-400 hover:text-rose-600 flex items-center justify-center"><Trash2 className="w-4 h-4" /></button>
+                </li>
+              ))}
+            </ul>
+          </section>
         </div>
       </div>
     </div>

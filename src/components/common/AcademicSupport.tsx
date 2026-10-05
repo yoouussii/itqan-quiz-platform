@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { HeartHandshake, TrendingUp, TrendingDown, Minus } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
-import { AcsProgress, AcsRecord, RATINGS, fetchProgress, fetchSupport, gain } from '../../services/academicSupportService';
+import { AcsProgress, AcsRecord, RATINGS, fetchAcsCatalog, fetchProgress, fetchSupport, gain } from '../../services/academicSupportService';
 import { schoolStart, weekLabel } from '../../utils/schoolWeek';
 import { Chip } from './ui';
 import { t, dateLocale } from '../../i18n';
@@ -137,7 +137,8 @@ export const AcademicSupportCard: React.FC<{ studentId: string; className?: stri
   const [rows, setRows] = useState<AcsRecord[]>([]);
   const [prog, setProg] = useState<AcsProgress[]>([]);
   const [start, setStart] = useState<string | null>(null);
-  useEffect(() => { void schoolStart().then(setStart); }, []);
+  const [acsSubjects, setAcsSubjects] = useState<Array<{ id: string; name: string }>>([]);
+  useEffect(() => { void schoolStart().then(setStart); void fetchAcsCatalog().then((c) => setAcsSubjects(c.subjects)); }, []);
   useEffect(() => {
     void fetchSupport([studentId]).then(async (r) => {
       const list = r.rows.filter((x) => x.status === 'active' || (x.closed_at && Date.now() - new Date(x.closed_at).getTime() < 60 * 864e5));
@@ -152,7 +153,7 @@ export const AcademicSupportCard: React.FC<{ studentId: string; className?: stri
         const all = prog.filter((p) => p.support_id === a.id);
         const pts = all.filter((p) => p.level != null);
         const recent = [...all].reverse().slice(0, 3);
-        const subject = subjects.find((s) => s.id === a.subject_id)?.name;
+        const subject = acsSubjects.find((s) => s.id === a.acs_subject_id)?.name || subjects.find((s) => s.id === a.subject_id)?.name;
         return (
           <div key={a.id} className="space-y-2">
             <p className="text-sm text-slate-700 dark:text-slate-200 leading-7">
