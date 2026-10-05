@@ -410,6 +410,7 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({ onStartQuiz,
           </button>
         </div>
       </section>
+      <BannerStrip embedded />
       <SurveyPrompt />
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-5 items-start">
@@ -420,7 +421,6 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({ onStartQuiz,
           {me && <GoalsCard studentId={me} editable />}
           {NextCard}
           {EmptyCard}
-          <BannerStrip embedded />
           <DevicePushCard compact />
           {RingsCard}
           <div className="lg:hidden space-y-5">

@@ -1,7 +1,8 @@
+import { FilterBar, useRememberedState } from '../common/FilterBar';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { exportElementToPdf } from '../../utils/exportPdf';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
-import { ArrowUp, ArrowDown, Minus, Filter, AlertTriangle, Bell, Users as UsersIcon, Sparkles, FileText, Table2, LineChart as LineIcon, RotateCcw, Download, EyeOff, Building2, UserCheck } from 'lucide-react';
+import { ArrowUp, ArrowDown, Minus, AlertTriangle, Bell, Users as UsersIcon, Sparkles, FileText, Table2, LineChart as LineIcon, Download, EyeOff, Building2, UserCheck } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 import { StorageService } from '../../services/storage';
 import { Card, Button } from '../common/ui';
@@ -68,7 +69,7 @@ export const AnalyticsInsights: React.FC<{ onDrill?: (subs: SubmissionWithDetail
   const exportRef = useRef<HTMLDivElement>(null);
   const { currentUser, submissions, quizzes, users, subjects, classes, branches, theme, awards, sendAnnouncement, setCurrentView, showToast } = useApp();
   const dark = theme === 'dark';
-  const [f, setF] = useState<AnalyticsFilters>(emptyFilters);
+  const [f, setF] = useRememberedState<AnalyticsFilters>('analytics', emptyFilters());
   const [heatAsTable, setHeatAsTable] = useState(false);
   const [trendAsTable, setTrendAsTable] = useState(false);
   const [riskLimit, setRiskLimit] = useState(8);
@@ -229,9 +230,13 @@ export const AnalyticsInsights: React.FC<{ onDrill?: (subs: SubmissionWithDetail
   return (
     <section className="space-y-5" data-testid="analytics-insights">
       {/* الفلاتر في صف واحد فوق كل الرسوم */}
-      <Card className="p-3 flex flex-wrap items-center gap-2" role="group" aria-label={t('فلاتر التحليلات')}>
-        <Filter className="w-4 h-4 text-slate-500" aria-hidden />
-        <div className="inline-flex max-w-full overflow-x-auto rounded-xl bg-slate-100 dark:bg-slate-800 p-0.5" role="radiogroup" aria-label={t('الفترة')}>
+      <FilterBar label={t('فلاتر التحليلات')} active={[f.period !== 'term', !!f.subjectId, !!f.classId, !!f.teacherId, !!f.branchId].filter(Boolean).length} onReset={() => setF(emptyFilters())} summary={[t((PERIODS.find((p) => p.id === f.period) || PERIODS[2]).label), f.subjectId && subjectName(f.subjectId), f.classId && className(f.classId)].filter(Boolean) as string[]}
+        actions={canExport ? (
+          <button type="button" onClick={() => void exportPdf()} className="inline-flex items-center gap-1.5 h-8 px-3 rounded-lg border border-slate-300 dark:border-slate-700 text-xs font-bold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800">
+            <Download className="w-3.5 h-3.5" /><span className="hidden sm:inline">{t('تصدير اللوحة PDF')}</span><span className="sm:hidden">PDF</span>
+          </button>
+        ) : undefined}>
+<div className="inline-flex max-w-full overflow-x-auto rounded-xl bg-slate-100 dark:bg-slate-800 p-0.5" role="radiogroup" aria-label={t('الفترة')}>
           {PERIODS.map((p) => (
             <button key={p.id} type="button" role="radio" aria-checked={f.period === p.id} onClick={() => set({ period: p.id })}
               className={`shrink-0 whitespace-nowrap px-3 py-1.5 rounded-lg text-xs font-bold transition ${f.period === p.id ? 'bg-white dark:bg-slate-900 text-indigo-700 dark:text-indigo-300 shadow-sm' : 'text-slate-600 dark:text-slate-300 hover:text-slate-900'}`}>
@@ -259,17 +264,7 @@ export const AnalyticsInsights: React.FC<{ onDrill?: (subs: SubmissionWithDetail
             {branches.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}
           </select>
         )}
-        {filtered && (
-          <button type="button" onClick={() => setF(emptyFilters())} className="inline-flex items-center gap-1 text-xs font-bold text-indigo-600 dark:text-indigo-400 hover:underline">
-            <RotateCcw className="w-3.5 h-3.5" />{t('إعادة ضبط')}
-          </button>
-        )}
-        {canExport && (
-          <button type="button" onClick={() => void exportPdf()} className="ms-auto inline-flex items-center gap-1.5 h-8 px-3 rounded-lg border border-slate-300 dark:border-slate-700 text-xs font-bold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800">
-            <Download className="w-3.5 h-3.5" />{t('تصدير اللوحة PDF')}
-          </button>
-        )}
-      </Card>
+      </FilterBar>
       {filtered && onDrill && <p className="text-[11px] text-slate-500 dark:text-slate-400 -mt-3">{t('جدول النتائج في آخر الصفحة يعرض {n} تسليماً مطابقاً للفلاتر.', { n: current.length })}</p>}
 
       <div ref={exportRef} className="space-y-5">

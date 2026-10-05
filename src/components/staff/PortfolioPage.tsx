@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { FolderOpen, FileDown } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
-import { PageHeader, Card, Button } from '../common/ui';
+import { PageHeader, Card, Button, ListSkeleton } from '../common/ui';
 import { supabase } from '../../services/supabase';
 import { safe } from '../../services/remote';
 import { visitTotals, ClassVisit } from '../../services/visitsSurveysService';
@@ -149,7 +149,7 @@ export const PortfolioPage: React.FC = () => {
           </Card>
           <Card className="p-0 overflow-hidden">
             <div className="px-5 pt-4 pb-2 font-bold text-slate-900 dark:text-white">{t('الزيارات الصفية')}</div>
-            {!extra ? <p className="p-6 text-center text-slate-500 text-sm">{t('جارٍ التحميل…')}</p> : extra.visits.length === 0 ? <p className="p-6 text-center text-slate-500 text-sm">{t('لا توجد زيارات في هذه الفترة')}</p> : (
+            {!extra ? <ListSkeleton rows={2} /> : extra.visits.length === 0 ? <p className="p-6 text-center text-slate-500 text-sm">{t('لا توجد زيارات في هذه الفترة')}</p> : (
               <ul>{extra.visits.map((v) => (
                 <li key={v.id} className="flex items-center gap-3 px-5 py-2 border-t border-slate-100 dark:border-slate-800 text-sm">
                   <span className="flex-1 truncate text-slate-800 dark:text-slate-100">{v.lesson || '—'}</span>

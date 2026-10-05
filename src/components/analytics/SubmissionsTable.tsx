@@ -1,3 +1,4 @@
+import { StudentLink } from '../common/StudentProfile';
 import React, { useState, useMemo } from 'react';
 import {
   Search,
@@ -419,7 +420,34 @@ export const SubmissionsTable: React.FC<SubmissionsTableProps> = ({
         );
       })()}
 
-      <div className="overflow-x-auto">
+      {/* على الجوال: بطاقة لكل تسليم */}
+      <ul className="md:hidden divide-y divide-slate-100 dark:divide-slate-800" data-testid="subs-cards">
+        {paginatedSubmissions.length === 0 ? (
+          <li className="py-10 text-center text-slate-500 text-sm"><MascotHere className="mx-auto mb-1" />{t('لا توجد نتائج مطابقة لمعايير البحث الحالية')}</li>
+        ) : paginatedSubmissions.map((sub) => (
+          <li key={sub.id} className="p-3 space-y-1.5">
+            <div className="flex items-start gap-2">
+              {canDelete && <input type="checkbox" className="accent-rose-600 mt-1" aria-label={t('تحديد مشاركة {name}', { name: sub.student?.name || '' })} checked={picked.includes(sub.id)} onChange={() => setPicked(picked.includes(sub.id) ? picked.filter((x) => x !== sub.id) : [...picked, sub.id])} />}
+              <div className="flex-1 min-w-0">
+                {!isStudent && <StudentLink id={sub.student_id} name={sub.student?.name || t('طالب مسجل')} className="block text-sm font-bold text-slate-900 dark:text-white" />}
+                <p className={`text-[13px] ${sub.quiz?.is_deleted ? 'text-slate-400 line-through' : 'text-slate-700 dark:text-slate-200'}`}>{sub.quiz?.title}</p>
+                <p className="text-[12px] text-slate-500">{[!isStudent ? sub.student_class?.name : '', sub.subject?.name, formatDate(sub.completed_at)].filter(Boolean).join(' · ')}</p>
+              </div>
+              <div className="text-end shrink-0">
+                <div className="font-bold text-sm text-slate-900 dark:text-white tabular-nums">{sub.score}<span className="text-slate-400 text-xs font-normal">/{sub.total_possible_score}</span></div>
+                {getPercentageBadge(sub.percentage)}
+              </div>
+            </div>
+            <div className="flex items-center gap-1.5 flex-wrap">
+              <button type="button" onClick={() => setSelectedSubmission(sub)} className="inline-flex items-center gap-1 px-3 h-8 rounded-lg text-xs font-semibold bg-indigo-50 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-300"><Eye className="w-3.5 h-3.5" />{t('عرض الإجابة')}</button>
+              {!isStudent && sub.integrity && <IntegrityBadge integrity={sub.integrity} />}
+              {!isStudent && certFor(sub) && <button type="button" onClick={() => void exportCertificates([certFor(sub)!])} className="inline-flex items-center gap-1 px-2.5 h-8 rounded-lg text-xs font-bold bg-amber-50 dark:bg-amber-950/40 text-amber-800 dark:text-amber-300"><Award className="w-3.5 h-3.5" />{t('شهادة')}</button>}
+            </div>
+          </li>
+        ))}
+      </ul>
+
+      <div className="hidden md:block overflow-x-auto">
         <table className="w-full text-start text-xs">
           <thead>
             <tr className="bg-slate-50/80 dark:bg-slate-800/60 text-slate-500 dark:text-slate-400 font-bold border-b border-slate-100 dark:border-slate-800">
@@ -463,9 +491,7 @@ export const SubmissionsTable: React.FC<SubmissionsTableProps> = ({
                       <div className="flex items-center gap-2.5">
                         <Avatar name={sub.student?.name || t('ط')} role={sub.student?.role} userId={sub.student_id} size="sm" />
                         <div>
-                          <div className="font-bold text-slate-900 dark:text-white group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors">
-                            {sub.student?.name || t('طالب مسجل')}
-                          </div>
+                          <StudentLink id={sub.student_id} name={sub.student?.name || t('طالب مسجل')} className="font-bold text-slate-900 dark:text-white group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors" />
                           <div className="text-[11px] font-mono text-slate-400">
                             {t('هوية:')}{' '}{sub.student?.national_id || '—'}
                           </div>

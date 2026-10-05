@@ -10,7 +10,6 @@ import { LicenseBanner, LicenseBlocked, isBlocked, useLicense } from './componen
 
 import { hasPerm, pageAllowed } from './utils/permissions';
 import { ForcePasswordChange } from './components/common/ForcePasswordChange';
-import { BannerStrip } from './components/common/BannerStrip';
 import { PageHeader } from './components/common/ui';
 import { replaceNextNavigation, PUBLIC_PATHS } from './utils/router';
 import { Lang, applyLang, loadLangPref, saveLangPref, t, uiDir } from './i18n';
@@ -325,8 +324,6 @@ const AppContent: React.FC = () => {
         {/* View 8: Default Dashboard based on RBAC */}
         {currentView === 'dashboard' && (
           <>
-            {/* بانرات المدرسة (صور وتهاني) أعلى الصفحة الرئيسية للجميع */}
-            {isStaff && <BannerStrip />}
             {currentUser.role === 'admin' && <AdminDashboard />}
             {currentUser.role === 'teacher' && <TeacherDashboard />}
             {currentUser.role === 'supervisor' && <SupervisorDashboard />}

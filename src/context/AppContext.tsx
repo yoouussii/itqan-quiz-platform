@@ -950,7 +950,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     replaceNextNavigation();
     // (صفحة الخصوصية/الشروط المفتوحة قبل الدخول لا تُعاد بعده: الرئيسية)
     applyRoute(PUBLIC_PATHS[window.location.pathname] ? { view: 'dashboard' } : routeForUser(normalizeUser(user), window.location.pathname));
-    showToast(t('مرحباً بك يا {name}', { name: user.name }), 'success');
+    // الترحيب مرة واحدة في اليوم لكل مستخدم
+    try {
+      const k = `itqan_welcome_${user.id}`, today = new Date().toDateString();
+      if (localStorage.getItem(k) !== today) { localStorage.setItem(k, today); showToast(t('مرحباً بك يا {name}', { name: user.name }), 'success'); }
+    } catch { showToast(t('مرحباً بك يا {name}', { name: user.name }), 'success'); }
   };
 
   /** حفظ بيانات المستخدم القادمة من الخادم في النسخة المحلية */

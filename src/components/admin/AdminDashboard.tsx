@@ -12,6 +12,7 @@ import { hasPerm } from '../../utils/permissions';
 import { Avatar } from '../common/Avatar';
 import { Button, Card, Chip, PageHeader, SectionTitle, StatTile, greeting, scoreTone, timeAgo, todayLabel } from '../common/ui';
 import { uiDir, t, isEn } from '../../i18n';
+import { BannerStrip } from '../common/BannerStrip';
 import { MorningSummaryCard } from './MorningSummaryCard';
 import { EmptyMascot } from '../common/Mascot';
 
@@ -129,6 +130,7 @@ export const AdminDashboard: React.FC = () => {
           </>
         }
       />
+      <BannerStrip embedded />
 
       <MorningSummaryCard />
 

@@ -1,7 +1,7 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
-  FileQuestion, BarChart2, Users, PlusCircle, Menu, X, LogOut, Moon, Sun,
-  Layers, ChevronDown, UserCheck, ClipboardCheck, Trophy, ScrollText, Settings as SettingsIcon,
+  FileQuestion, BarChart2, Users, PlusCircle, Menu, X, LogOut,
+  Layers, ChevronDown, ClipboardCheck, Trophy, ScrollText, Settings as SettingsIcon,
   ExternalLink, Sparkles, Store, Gauge, Images, Bell, Home, LucideIcon,
   Library,
   Target,
@@ -19,6 +19,8 @@ import {
   NotebookPen,
   HeartHandshake,
   FolderSync,
+  Star,
+  Plus,
 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 import { Avatar } from './Avatar';
@@ -28,7 +30,10 @@ import { NotificationBell } from './NotificationBell';
 import { Footer } from './Footer';
 import { pathFor } from '../../utils/router';
 import { ungradedSummary } from '../../utils/grading';
-import { LangToggle } from '../../i18n/LangContext';
+import { UserMenu } from './UserMenu';
+import { GlobalSearch } from './GlobalSearch';
+import { StudentProfileHost } from './StudentProfile';
+import { OnboardingTour } from './OnboardingTour';
 
 /** رابط حقيقي للصفحة: الضغط العادي يتنقل داخل الموقع، وCtrl/الزر الأوسط يفتحها في تبويب جديد */
 const linkClick = (go: () => void) => (e: React.MouseEvent) => {
@@ -39,7 +44,7 @@ const linkClick = (go: () => void) => (e: React.MouseEvent) => {
 import { hasPerm, pageAllowed } from '../../utils/permissions';
 import { shortName, parentLabel } from '../../utils/names';
 import { User } from '../../types';
-import { t } from '../../i18n';
+import { t, isEn } from '../../i18n';
 
 type NavItem = { id: string; label: string; icon: LucideIcon; href?: string; badge?: number };
 type NavGroup = { title?: string; items: NavItem[] };
@@ -123,70 +128,7 @@ const STUDENT_TABS = (): NavItem[] => [
   { id: 'notifications', label: t('الإشعارات'), icon: Bell },
 ];
 
-const ThemeButton: React.FC<{ className?: string }> = ({ className = '' }) => {
-  const { theme, toggleTheme } = useApp();
-  return (
-    <button
-      type="button"
-      onClick={toggleTheme}
-      title={theme === 'dark' ? t('الوضع النهاري') : t('الوضع الليلي')}
-      aria-label={t('تبديل مظهر العرض')}
-      className={`w-11 h-11 flex items-center justify-center rounded-xl text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors ${className}`}
-    >
-      {theme === 'dark' ? <Sun className="w-5 h-5 text-amber-400" /> : <Moon className="w-5 h-5" />}
-    </button>
-  );
-};
-
-/** معاينة الموقع بحساب مستخدم آخر (للمدير فقط) */
-const PreviewSwitcher: React.FC = () => {
-  const { currentUser, users, switchUser } = useApp();
-  const [open, setOpen] = useState(false);
-  const ref = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    const onDown = (e: MouseEvent) => ref.current && !ref.current.contains(e.target as Node) && setOpen(false);
-    document.addEventListener('mousedown', onDown);
-    return () => document.removeEventListener('mousedown', onDown);
-  }, []);
-  if (currentUser?.role !== 'admin') return null;
-  return (
-    <div className="relative" ref={ref}>
-      <button
-        type="button"
-        onClick={() => setOpen(!open)}
-        title={t('معاينة الموقع بحساب مستخدم آخر')}
-        className="h-11 flex items-center gap-1.5 px-3 rounded-xl text-sm font-semibold text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800"
-      >
-        <UserCheck className="w-4 h-4" />
-        <span className="hidden xl:inline">{t('معاينة كمستخدم')}</span>
-        <ChevronDown className="w-4 h-4 opacity-70" />
-      </button>
-      {open && (
-        <div className="absolute end-0 mt-2 w-72 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-xl z-50 p-2 text-start">
-          <p className="px-3 py-2 text-xs text-slate-500 dark:text-slate-400 border-b border-slate-100 dark:border-slate-800 mb-1">
-            {t('شاهد الموقع كما يراه المستخدم (للعرض فقط)')}
-          </p>
-          <div className="max-h-72 overflow-y-auto space-y-0.5">
-            {users.map((u) => (
-              <button
-                key={u.id}
-                type="button"
-                onClick={() => { setOpen(false); switchUser(u.id); }}
-                className={`w-full flex items-center gap-2 p-2 rounded-xl text-sm text-start ${u.id === currentUser.id ? 'bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300 font-bold' : 'text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800'}`}
-              >
-                <Avatar name={u.name} role={u.role} userId={u.id} size="xs" />
-                <span className="flex-1 font-semibold truncate">{u.name}</span>
-                <span className="text-xs text-slate-500">{roleText(u)}</span>
-              </button>
-            ))}
-          </div>
-        </div>
-      )}
-    </div>
-  );
-};
-
-const NavLink: React.FC<{ item: NavItem; active: boolean; onGo: (id: string) => void }> = ({ item, active, onGo }) => {
+const NavLink: React.FC<{ item: NavItem; active: boolean; onGo: (id: string) => void; fav?: boolean; onFav?: (id: string) => void }> = ({ item, active, onGo, fav, onFav }) => {
   const Icon = item.icon;
   const cls = `w-full h-11 flex items-center gap-3 px-3.5 rounded-xl text-[15px] transition-colors ${
     active
@@ -204,38 +146,85 @@ const NavLink: React.FC<{ item: NavItem; active: boolean; onGo: (id: string) => 
       )}
     </>
   );
-  return item.href ? (
+  const link = item.href ? (
     <a href={item.href} target="_blank" rel="noopener noreferrer" className={cls}>{inner}</a>
   ) : (
     <a href={pathFor({ view: item.id })} onClick={linkClick(() => onGo(item.id))} aria-current={active ? 'page' : undefined} className={cls}>{inner}</a>
   );
+  if (!onFav || item.id === 'dashboard') return link;
+  // نجمة التثبيت في «المفضلة»: تظهر عند المرور أو التركيز (ودائماً للمثبّتة)
+  return (
+    <div className="relative group">
+      {link}
+      <button type="button" onClick={() => onFav(item.id)} aria-pressed={fav} aria-label={fav ? t('إزالة {p} من المفضلة', { p: item.label }) : t('تثبيت {p} في المفضلة', { p: item.label })}
+        title={fav ? t('إزالة من المفضلة') : t('تثبيت في المفضلة')}
+        className={`absolute top-1/2 -translate-y-1/2 end-1 w-7 h-7 rounded-lg flex items-center justify-center hover:bg-white dark:hover:bg-slate-900 ${item.badge ? 'end-9' : ''} ${fav ? 'opacity-0 group-hover:opacity-100 focus:opacity-100 text-amber-500' : 'opacity-0 group-hover:opacity-100 focus:opacity-100 text-slate-400'}`}>
+        <Star className="w-4 h-4" fill={fav ? 'currentColor' : 'none'} />
+      </button>
+    </div>
+  );
 };
 
-const SidebarBody: React.FC<{ onNavigate?: () => void; onProfile: () => void }> = ({ onNavigate, onProfile }) => {
-  const { currentUser, currentView, setCurrentView, logout, pendingApprovalsCount, settings, submissions, quizzes } = useApp();
-  // عدد الإجابات المقالية بانتظار التصحيح (المعلم: اختباراته فقط)
-  const pendingGrading = React.useMemo(() => {
+const lsGet = (k: string, d: string[]): string[] => { try { const v = JSON.parse(localStorage.getItem(k) || 'null'); return Array.isArray(v) ? v : d; } catch { return d; } };
+const lsSet = (k: string, v: string[]) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch { /* ignore */ } };
+
+/** عدد الإجابات المقالية بانتظار التصحيح (المعلم: اختباراته فقط) */
+const usePendingGrading = () => {
+  const { currentUser, submissions, quizzes } = useApp();
+  return React.useMemo(() => {
     if (!currentUser || !(currentUser.role === 'teacher' || hasPerm(currentUser, 'can_grade_essays'))) return 0;
     const all = hasPerm(currentUser, 'can_grade_essays');
     const mine = new Set(quizzes.filter((q) => !q.is_deleted && (all || q.teacher_id === currentUser.id || q.created_by === currentUser.id)).map((q) => q.id));
     return ungradedSummary((submissions || []).filter((x) => mine.has(x.quiz_id))).essays;
   }, [currentUser, quizzes, submissions]);
+};
+
+const SidebarBody: React.FC<{ onNavigate?: () => void; onProfile: () => void }> = ({ onNavigate, onProfile }) => {
+  const { currentUser, currentView, setCurrentView, logout, pendingApprovalsCount, settings } = useApp();
+  const pendingGrading = usePendingGrading();
+  const uid = currentUser?.id || '';
+  const [favs, setFavs] = useState<string[]>(() => lsGet(`itqan_nav_favs_${uid}`, []));
+  const [folded, setFolded] = useState<string[]>(() => lsGet(`itqan_nav_folded_${uid}`, []));
   if (!currentUser) return null;
   const groups = staffGroups(currentUser, pendingApprovalsCount, settings.preparations_url, pendingGrading);
   const go = (id: string) => { setCurrentView(id); onNavigate?.(); };
   const activeId = currentView === 'students_management' ? 'users_management' : currentView;
+  const all = groups.flatMap((g) => g.items);
+  const favItems = favs.map((id) => all.find((i) => i.id === id)).filter(Boolean) as NavItem[];
+  const toggleFav = (id: string) => { const n = favs.includes(id) ? favs.filter((x) => x !== id) : [...favs, id]; setFavs(n); lsSet(`itqan_nav_favs_${uid}`, n); };
+  const toggleFold = (title: string) => { const n = folded.includes(title) ? folded.filter((x) => x !== title) : [...folded, title]; setFolded(n); lsSet(`itqan_nav_folded_${uid}`, n); };
   return (
     <div className="h-full flex flex-col">
       <button type="button" onClick={() => go('dashboard')} className="px-3 pt-1 pb-4 text-start" aria-label={t('الرئيسية')}>
         <Logo size="sm" />
       </button>
-      <nav className="flex-1 overflow-y-auto space-y-0.5" aria-label={t('القائمة الرئيسية')}>
-        {groups.map((g, i) => (
-          <div key={i}>
-            {g.title && <div className="px-3.5 pt-4 pb-1.5 text-xs font-semibold text-slate-500 dark:text-slate-400">{g.title}</div>}
-            {g.items.map((it) => <NavLink key={it.id} item={it} active={activeId === it.id} onGo={go} />)}
+      <nav className="flex-1 overflow-y-auto space-y-0.5" aria-label={t('القائمة الرئيسية')} data-testid="sidebar-nav">
+        {groups[0] && groups[0].items.map((it) => <NavLink key={it.id} item={it} active={activeId === it.id} onGo={go} />)}
+        {favItems.length > 0 && (
+          <div data-testid="nav-favs">
+            <div className="px-3.5 pt-4 pb-1.5 text-xs font-semibold text-amber-700 dark:text-amber-400 flex items-center gap-1"><Star className="w-3.5 h-3.5" fill="currentColor" />{t('المفضلة')}</div>
+            {favItems.map((it) => <NavLink key={`f-${it.id}`} item={it} active={activeId === it.id} onGo={go} fav onFav={toggleFav} />)}
           </div>
-        ))}
+        )}
+        {groups.slice(1).map((g, i) => {
+          const isFolded = !!g.title && folded.includes(g.title) && !g.items.some((it) => it.id === activeId);
+          const badge = g.items.reduce((a, it) => a + (it.badge || 0), 0);
+          return (
+            <div key={i}>
+              {g.title && (
+                <button type="button" onClick={() => toggleFold(g.title!)} aria-expanded={!isFolded}
+                  className="w-full px-3.5 pt-4 pb-1.5 text-xs font-semibold text-slate-500 dark:text-slate-400 flex items-center gap-1.5 hover:text-slate-800 dark:hover:text-slate-200">
+                  <span className="flex-1 text-start">{g.title}</span>
+                  {isFolded && badge > 0 && <span className="min-w-[18px] h-[18px] px-1 rounded-full bg-amber-100 dark:bg-amber-900/60 text-amber-800 dark:text-amber-200 text-[11px] font-bold flex items-center justify-center">{badge}</span>}
+                  {isFolded && <span className="text-[11px] font-normal">{g.items.length}</span>}
+                  <ChevronDown className={`w-3.5 h-3.5 transition-transform ${isFolded ? (isEn() ? '-rotate-90' : 'rotate-90') : ''}`} />
+                </button>
+              )}
+              {!isFolded && g.items.map((it) => <NavLink key={it.id} item={it} active={activeId === it.id} onGo={go} fav={favs.includes(it.id)} onFav={toggleFav} />)}
+            </div>
+          );
+        })}
+        {favItems.length === 0 && <p className="hidden lg:block px-3.5 pt-4 text-xs text-slate-400 dark:text-slate-500">{t('مرّر على أي صفحة واضغط ★ لتثبيتها في المفضلة')}</p>}
       </nav>
       <div className="mt-3 flex items-center gap-2 p-2 rounded-2xl bg-slate-50 dark:bg-slate-800/60">
         <button type="button" onClick={onProfile} aria-label={t('الملف الشخصي')} className="flex-1 min-w-0 flex items-center gap-2.5 text-start rounded-xl p-1 hover:bg-white dark:hover:bg-slate-800">
@@ -253,12 +242,62 @@ const SidebarBody: React.FC<{ onNavigate?: () => void; onProfile: () => void }> 
   );
 };
 
-/** هيكل الطاقم: قائمة جانبية ثابتة على الكمبيوتر، وقائمة منزلقة في الجوال */
+/** شريط التنقل السفلي للطاقم في الجوال: أهم أربع صفحات وزر «إنشاء» و«المزيد» */
+const StaffBottomNav: React.FC<{ onMore: () => void }> = ({ onMore }) => {
+  const { currentUser, currentView, setCurrentView, pendingApprovalsCount, settings, setEditingQuizId, setDuplicateQuizId } = useApp();
+  const pendingGrading = usePendingGrading();
+  if (!currentUser) return null;
+  const all = staffGroups(currentUser, pendingApprovalsCount, settings.preparations_url, pendingGrading).flatMap((g) => g.items);
+  const has = (id: string) => all.find((i) => i.id === id);
+  const role = currentUser.role;
+  const wanted = role === 'teacher' ? ['dashboard', 'grading', '+', 'analytics']
+    : role === 'supervisor' ? ['dashboard', 'approvals', 'indicators', 'analytics']
+    : ['dashboard', 'indicators', '+', 'attendance'];
+  const canCreate = (role === 'teacher' || role === 'admin') && pageAllowed(currentUser, 'create_quiz');
+  const items = wanted.map((id) => (id === '+' ? (canCreate ? '+' : null) : has(id) || null)).filter(Boolean) as Array<NavItem | '+'>;
+  // عند غياب صفحة نكمل بأخرى متاحة حتى تبقى أربع
+  for (const id of ['grading', 'analytics', 'attendance', 'homework', 'gradebook']) {
+    if (items.filter((x) => x !== '+').length >= 4 - (items.includes('+') ? 1 : 0)) break;
+    const it = has(id); if (it && !items.some((x) => x !== '+' && (x as NavItem).id === id)) items.push(it);
+  }
+  const cls = (on: boolean) => `flex-1 min-w-0 h-16 flex flex-col items-center justify-center gap-1 text-[11px] font-semibold relative ${on ? 'text-indigo-700 dark:text-indigo-300' : 'text-slate-500 dark:text-slate-400'}`;
+  return (
+    <nav className="lg:hidden fixed bottom-0 inset-x-0 z-30 bg-white dark:bg-slate-900 border-t border-slate-200 dark:border-slate-800 flex pb-[env(safe-area-inset-bottom)]" aria-label={t('التنقل')} data-testid="staff-bottom-nav">
+      {items.map((it) => {
+        if (it === '+') {
+          return (
+            <button key="create" type="button" onClick={() => { setEditingQuizId(null); setDuplicateQuizId(null); setCurrentView('create_quiz'); }} className={cls(currentView === 'create_quiz')} aria-label={t('اختبار جديد')}>
+              <span className="w-12 h-12 -mt-6 rounded-2xl bg-indigo-600 text-white flex items-center justify-center shadow-lg shadow-indigo-600/30"><Plus className="w-6 h-6" strokeWidth={2.5} /></span>
+              {t('إنشاء')}
+            </button>
+          );
+        }
+        const Icon = it.icon; const on = currentView === it.id;
+        const label = it.id === 'dashboard' ? (role === 'teacher' ? t('اختباراتي') : t('الرئيسية')) : it.id === 'analytics' ? t('النتائج') : it.id === 'indicators' ? t('المؤشرات') : it.id === 'attendance' ? t('الحضور') : it.id === 'approvals' ? t('الاعتماد') : it.label;
+        return (
+          <a key={it.id} href={pathFor({ view: it.id })} onClick={linkClick(() => setCurrentView(it.id))} aria-current={on ? 'page' : undefined} className={cls(on)}>
+            <span className="relative"><Icon className="w-[22px] h-[22px]" strokeWidth={on ? 2.4 : 1.9} />
+              {!!it.badge && <span className="absolute -top-1.5 -end-2.5 min-w-[18px] h-[18px] px-1 rounded-full bg-rose-600 text-white text-[10px] font-bold flex items-center justify-center">{it.badge > 99 ? '99+' : it.badge}</span>}
+            </span>
+            <span className="truncate max-w-full px-1">{label}</span>
+          </a>
+        );
+      })}
+      <button type="button" onClick={onMore} className={cls(false)} aria-label={t('فتح القائمة')} data-testid="nav-more">
+        <Menu className="w-[22px] h-[22px]" strokeWidth={1.9} />{t('المزيد')}
+      </button>
+    </nav>
+  );
+};
+
+/** هيكل الطاقم: قائمة جانبية ثابتة على الكمبيوتر، وقائمة منزلقة وشريط سفلي في الجوال */
 const StaffShell: React.FC<{ children: React.ReactNode; banner?: React.ReactNode }> = ({ children, banner }) => {
   const [drawer, setDrawer] = useState(false);
   const [profile, setProfile] = useState(false);
-  const { currentView } = useApp();
+  const { currentView, currentUser, pendingApprovalsCount, settings } = useApp();
   useEffect(() => setDrawer(false), [currentView]);
+  const searchPages = React.useMemo(() => (currentUser ? staffGroups(currentUser, pendingApprovalsCount, settings.preparations_url).flatMap((g) => g.items).map((i) => ({ id: i.id, label: i.label, href: i.href })) : []), [currentUser, pendingApprovalsCount, settings.preparations_url]);
+  const searchSlot = <GlobalSearch pages={searchPages} />;
   return (
     <div className="min-h-screen lg:ps-64">
       <aside className="hidden lg:block fixed inset-y-0 start-0 w-64 bg-white dark:bg-slate-900 border-e border-slate-200 dark:border-slate-800 px-3 py-5 z-30">
@@ -278,24 +317,22 @@ const StaffShell: React.FC<{ children: React.ReactNode; banner?: React.ReactNode
       )}
 
       <div className="min-h-screen flex flex-col">
-        <header className="sticky top-0 z-20 h-16 bg-white/95 dark:bg-slate-900/95 backdrop-blur border-b border-slate-200 dark:border-slate-800 flex items-center justify-between gap-3 px-4 sm:px-6">
-          <div className="flex items-center gap-2">
-            <button type="button" onClick={() => setDrawer(true)} aria-label={t('فتح القائمة')} className="lg:hidden w-11 h-11 flex items-center justify-center rounded-xl text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800">
-              <Menu className="w-6 h-6" />
-            </button>
-            <div className="lg:hidden"><Logo size="sm" showText={false} /></div>
-          </div>
+        <header className="sticky top-0 z-20 h-16 bg-white/95 dark:bg-slate-900/95 backdrop-blur border-b border-slate-200 dark:border-slate-800 flex items-center gap-2 lg:gap-3 px-4 sm:px-6">
+          <div className="lg:hidden min-w-0 flex-1"><Logo size="sm" /></div>
+          <div className="lg:flex-1 lg:max-w-md">{searchSlot}</div>
+          <div className="hidden lg:block flex-1" />
           <div className="flex items-center gap-1.5">
-            <PreviewSwitcher />
-            <LangToggle />
-            <ThemeButton />
             <NotificationBell />
+            {currentUser && <UserMenu displayName={shortName(currentUser.name || '')} roleLabel={roleText(currentUser)} onProfile={() => setProfile(true)} />}
           </div>
         </header>
         {banner}
-        <main className="flex-1 pb-12 overflow-x-clip">{children}</main>
-        <Footer />
+        <main className="flex-1 pb-24 lg:pb-12 overflow-x-clip">{children}</main>
+        <div className="hidden lg:block"><Footer /></div>
       </div>
+      <StaffBottomNav onMore={() => setDrawer(true)} />
+      <StudentProfileHost />
+      <OnboardingTour />
       {profile && <ProfileModal onClose={() => setProfile(false)} />}
     </div>
   );
@@ -303,7 +340,7 @@ const StaffShell: React.FC<{ children: React.ReactNode; banner?: React.ReactNode
 
 /** هيكل الطالب: شريط علوي على الكمبيوتر، وشريط تنقل سفلي في الجوال */
 const StudentShell: React.FC<{ children: React.ReactNode; banner?: React.ReactNode }> = ({ children, banner }) => {
-  const { currentUser, currentView, setCurrentView, logout, users } = useApp();
+  const { currentUser, currentView, setCurrentView, users } = useApp();
   const [profile, setProfile] = useState(false);
   if (!currentUser) return null;
   const tabs = currentUser.role === 'parent' ? PARENT_TABS() : STUDENT_TABS();
@@ -329,18 +366,8 @@ const StudentShell: React.FC<{ children: React.ReactNode; banner?: React.ReactNo
             </nav>
           </div>
           <div className="flex items-center gap-1 shrink-0">
-            <LangToggle />
-            <ThemeButton />
             <NotificationBell />
-            <button type="button" onClick={() => setProfile(true)} aria-label={t('الملف الشخصي')} className="flex items-center gap-2.5 rounded-xl p-1 md:ps-3 md:ms-1 md:border-s border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800">
-              <Avatar name={displayName} role={currentUser.role} userId={currentUser.id} size="sm" showBadge />
-              <span className="hidden lg:block text-start">
-                <span className="block text-sm font-bold text-slate-900 dark:text-white max-w-[14rem] truncate" title={currentUser.name}>{displayName}</span>
-              </span>
-            </button>
-            <button type="button" onClick={logout} title={t('تسجيل الخروج')} aria-label={t('تسجيل الخروج')} className="hidden md:flex w-11 h-11 items-center justify-center rounded-xl text-slate-500 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/50">
-              <LogOut className="w-5 h-5" />
-            </button>
+            <UserMenu displayName={displayName} roleLabel={roleText(currentUser)} onProfile={() => setProfile(true)} showName />
           </div>
         </div>
       </header>
@@ -361,6 +388,7 @@ const StudentShell: React.FC<{ children: React.ReactNode; banner?: React.ReactNo
           );
         })}
       </nav>
+      <OnboardingTour />
       {profile && <ProfileModal onClose={() => setProfile(false)} />}
     </div>
   );

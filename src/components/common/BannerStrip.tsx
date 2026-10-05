@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { ChevronRight, ChevronLeft, X, Pencil, Trash2 } from 'lucide-react';
+import { ChevronRight, ChevronLeft, ChevronDown, X, Pencil, Trash2 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 import { Banner, BANNER_THEMES, isBannerVisible } from '../../services/bannerService';
 import { BannerEffects } from './BannerEffects';
@@ -91,7 +91,7 @@ export const BannerStrip: React.FC<{ embedded?: boolean }> = ({ embedded = false
   const signature = allVisible.filter((b) => !b.pinned).map((b) => `${b.id}:${b.updated_at}`).join('|');
   const [dismissed, setDismissed] = useState(() => {
     try {
-      return sessionStorage.getItem(DISMISS_KEY) || '';
+      return localStorage.getItem(DISMISS_KEY) || '';
     } catch {
       return '';
     }
@@ -101,6 +101,8 @@ export const BannerStrip: React.FC<{ embedded?: boolean }> = ({ embedded = false
   const [dir, setDir] = useState<1 | -1>(1);
   // إيقاف مؤقت فقط أثناء وجود مؤشر الفأرة فوق البانر (لا عند اللمس في الجوال)
   const [hovering, setHovering] = useState(false);
+  // الشريط المختصر: سطر واحد، والضغط يعرض البانر كاملاً (البانر «الدائم» يظهر كاملاً دائماً)
+  const [expanded, setExpanded] = useState(false);
   const touchX = React.useRef<number | null>(null);
   const count = visible.length;
   const safeIndex = count ? index % count : 0;
@@ -109,13 +111,13 @@ export const BannerStrip: React.FC<{ embedded?: boolean }> = ({ embedded = false
   const holdMs = Math.max(2, Math.min(120, Number(visible[safeIndex]?.duration_seconds) || Number(slider.seconds) || ROTATE_MS / 1000)) * 1000;
   // كل تغيير (تلقائي أو يدوي) يبدأ عدّاً جديداً، فيستمر التبديل بلا توقف
   useEffect(() => {
-    if (count < 2 || hovering) return;
+    if (count < 2 || hovering || expanded) return;
     const t = setTimeout(() => {
       setDir(1);
       setIndex((i) => (i + 1) % count);
     }, holdMs);
     return () => clearTimeout(t);
-  }, [count, hovering, safeIndex, holdMs]);
+  }, [count, hovering, safeIndex, holdMs, expanded]);
 
   if (!count) return null;
   const current = visible[safeIndex];
@@ -124,6 +126,41 @@ export const BannerStrip: React.FC<{ embedded?: boolean }> = ({ embedded = false
     setIndex((i) => (i + d + count) % count);
   };
   const isAdmin = currentUser?.role === 'admin';
+  const dismiss = () => {
+    setDismissed(signature);
+    setIndex(0);
+    setExpanded(false);
+    try { localStorage.setItem(DISMISS_KEY, signature); } catch { /* ignore */ }
+  };
+
+  if (!current.pinned && !expanded) {
+    const thumb = current.images[0]?.src;
+    const bt = BANNER_THEMES[current.theme] || BANNER_THEMES.indigo;
+    return (
+      <section className={embedded ? '' : 'max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-4'} dir={uiDir()} aria-label={t('إعلانات المدرسة')} data-testid="banner-compact"
+        onPointerEnter={(e) => e.pointerType === 'mouse' && setHovering(true)}
+        onPointerLeave={(e) => e.pointerType === 'mouse' && setHovering(false)}>
+        <div className="flex items-center gap-2 rounded-2xl ps-2 pe-1.5 py-1.5 text-white shadow-sm" style={{ background: `linear-gradient(90deg, ${bt.from}, ${bt.to})` }}>
+          <button type="button" onClick={() => setExpanded(true)} className="flex-1 min-w-0 flex items-center gap-2.5 text-start rounded-xl px-1 py-0.5 hover:bg-white/10" aria-label={t('عرض الإعلان كاملاً')}>
+            {thumb ? <img src={thumb} alt="" className="w-9 h-9 rounded-lg object-cover shrink-0 ring-1 ring-white/30" /> : <span className="w-9 h-9 rounded-lg bg-white/15 flex items-center justify-center shrink-0" aria-hidden>📣</span>}
+            <span key={`${current.id}-${safeIndex}`} className="min-w-0 flex-1 banner-in">
+              <span className="block text-sm font-black truncate">{current.title || t('إعلان')}</span>
+              {current.body && <span className="block text-xs opacity-90 truncate">{current.body}</span>}
+            </span>
+            <ChevronDown className="w-4 h-4 opacity-80 shrink-0" />
+          </button>
+          {count > 1 && (
+            <span className="flex items-center shrink-0">
+              <button type="button" aria-label={t('السابق')} onClick={() => go(-1)} className="w-7 h-7 rounded-lg hover:bg-white/15 flex items-center justify-center"><ChevronRight className="w-4 h-4 dir-icon" /></button>
+              <span className="text-[11px] tabular-nums opacity-90">{safeIndex + 1}/{count}</span>
+              <button type="button" aria-label={t('التالي')} onClick={() => go(1)} className="w-7 h-7 rounded-lg hover:bg-white/15 flex items-center justify-center"><ChevronLeft className="w-4 h-4 dir-icon" /></button>
+            </span>
+          )}
+          <button type="button" aria-label={t('إخفاء الإعلانات')} title={t('إخفاء حتى يُنشر إعلان جديد')} onClick={dismiss} className="w-8 h-8 rounded-lg hover:bg-white/15 flex items-center justify-center shrink-0"><X className="w-4 h-4" /></button>
+        </div>
+      </section>
+    );
+  }
 
   return (
     <section className={embedded ? '' : 'max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-6'} dir={uiDir()} aria-label={t('إعلانات المدرسة')}
@@ -163,12 +200,13 @@ export const BannerStrip: React.FC<{ embedded?: boolean }> = ({ embedded = false
             </>
           )}
           {!current.pinned && (
-            <button type="button" aria-label={t('إخفاء البانر')} title={t('إخفاء')}
-              onClick={() => {
-                setDismissed(signature);
-                setIndex(0);
-                try { sessionStorage.setItem(DISMISS_KEY, signature); } catch { /* ignore */ }
-              }}
+            <button type="button" aria-label={t('تصغير الإعلان')} title={t('تصغير')} onClick={() => setExpanded(false)}
+              className="p-1.5 rounded-full bg-black/30 hover:bg-black/50 text-white backdrop-blur-sm">
+              <ChevronDown className="w-4 h-4 rotate-180" />
+            </button>
+          )}
+          {!current.pinned && (
+            <button type="button" aria-label={t('إخفاء البانر')} title={t('إخفاء')} onClick={dismiss}
               className="p-1.5 rounded-full bg-black/30 hover:bg-black/50 text-white backdrop-blur-sm">
               <X className="w-4 h-4" />
             </button>

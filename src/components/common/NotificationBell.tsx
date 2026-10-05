@@ -177,6 +177,7 @@ export const NotificationBell: React.FC = () => {
           type="button"
           onClick={() => setOpen(!open)}
           aria-label={t('الإشعارات')}
+          data-testid="notif-bell"
           title={t('الإشعارات')}
           className="relative p-2 text-slate-500 dark:text-slate-300 hover:text-indigo-600 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl transition-colors"
         >

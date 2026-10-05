@@ -32,6 +32,7 @@ export const ForcePasswordChange: React.FC = () => {
       <form
         onSubmit={save}
         role="dialog"
+        data-force-password=""
         aria-label={t('تغيير كلمة المرور الافتراضية')}
         className="bg-white dark:bg-slate-900 rounded-3xl w-full max-w-sm p-6 shadow-2xl border border-slate-100 dark:border-slate-800 space-y-4"
       >

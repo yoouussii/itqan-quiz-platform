@@ -24,10 +24,11 @@ export const Toast: React.FC = () => {
   // «إتقان الصغير» يحتفل بالإجراءات الناجحة ويقدّم المعلومات (لا يظهر مع الأخطاء)
   const withMascot = toastMessage.type !== 'error';
   return (
-    <div className="fixed bottom-6 end-6 z-[80] max-w-md animate-bounce-in flex items-end gap-1" role="status" aria-live="polite" data-testid="toast">
+    // في الجوال يظهر فوق شريط التنقل السفلي (لا يغطيه)، وفي الكمبيوتر في الزاوية
+    <div className={`fixed z-[80] animate-bounce-in flex items-end gap-1 inset-x-3 sm:inset-x-auto sm:end-6 sm:max-w-md ${currentView === 'take_quiz' ? 'bottom-6' : 'bottom-[calc(5rem+env(safe-area-inset-bottom))] lg:bottom-6'}`} role="status" aria-live="polite" data-testid="toast">
       {withMascot && <Mascot size={36} prop={toastMessage.type === 'success' ? 'trophy' : propFor(currentView)} className="shrink-0 -mb-1" />}
       <div
-        className={`flex items-center gap-3 ps-4 pe-2 py-3 rounded-xl border backdrop-blur-md shadow-2xl ${borderColors[toastMessage.type]}`}
+        className={`flex-1 sm:flex-none min-w-0 flex items-center gap-3 ps-4 pe-2 py-3 rounded-xl border backdrop-blur-md shadow-2xl ${borderColors[toastMessage.type]}`}
         dir={uiDir()}
       >
         {icons[toastMessage.type]}

@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { ClipboardList, Plus, X, Trash2, BarChart3, FileSpreadsheet, Star, Lock, Unlock, Save, MessageSquareText, Pencil, Link2, Share2, Info } from 'lucide-react';
 import { surveyResultsUrl, surveyShareUrl, takeSurveyLink } from '../../utils/router';
 import { useApp } from '../../context/AppContext';
-import { PageHeader, Card, Button, Chip } from '../common/ui';
+import { PageHeader, Card, Button, Chip, ListSkeleton } from '../common/ui';
 import { hasPerm } from '../../utils/permissions';
 import {
   Survey, SurveyQuestion, SurveyQType, SurveyResponse, deleteSurvey, fetchMySurveys, fetchResponses, fetchSurveyCounts, fetchSurveys,
@@ -113,7 +113,7 @@ export const SurveysPage: React.FC = () => {
       {canManage && (
         <Card className="p-0 overflow-hidden">
           <div className="px-5 pt-4 pb-2 font-bold text-slate-900 dark:text-white">{t('كل الاستبيانات')}</div>
-          {surveys === null ? <p className="p-8 text-center text-slate-500">{t('جارٍ التحميل…')}</p> : surveys.length === 0 ? (
+          {surveys === null ? <ListSkeleton /> : surveys.length === 0 ? (
             <EmptyMascot text={t('لا توجد استبيانات بعد. أنشئ أول استبيان.')} />
           ) : surveys.map((s) => (
             <div key={s.id} className="flex flex-wrap items-center gap-3 px-5 py-3 border-t border-slate-100 dark:border-slate-800">
@@ -252,7 +252,7 @@ const SurveyResults: React.FC<{ survey: Survey; onClose: () => void }> = ({ surv
           <button type="button" aria-label={t('إغلاق')} onClick={onClose} className="w-9 h-9 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 flex items-center justify-center"><X className="w-5 h-5" /></button>
         </div>
         <div className="flex-1 overflow-y-auto p-5 space-y-5">
-          {rs === null ? <p className="text-center text-slate-500">{t('جارٍ التحميل…')}</p> : rs.length === 0 ? <p className="text-center text-slate-500 py-10">{t('لا توجد إجابات بعد')}</p> : sums.map(({ q, s }, i) => (
+          {rs === null ? <ListSkeleton rows={3} /> : rs.length === 0 ? <p className="text-center text-slate-500 py-10">{t('لا توجد إجابات بعد')}</p> : sums.map(({ q, s }, i) => (
             <div key={q.id} className="rounded-2xl border border-slate-200 dark:border-slate-700 p-4">
               <div className="font-semibold text-slate-900 dark:text-white mb-2">{i + 1}. {q.text} <span className="text-xs font-normal text-slate-500">({t('{n} إجابة', { n: s.n })})</span></div>
               {s.kind === 'rating' && (

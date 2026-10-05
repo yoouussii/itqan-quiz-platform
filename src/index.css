@@ -362,3 +362,7 @@ html[dir="ltr"] .dir-icon { transform: scaleX(-1); }
 /* «إتقان الصغير» في حالات «لا يوجد»: يبقى ظاهراً بحركة هادئة */
 .itq-idle .itq-hop { animation-duration: 2.6s; }
 @media (prefers-reduced-motion: reduce) { .itq-idle .itq-hop { animation: none; } }
+
+/* وضوح الخط: لا نص أصغر من 12px، ورمادي أغمق قليلاً في الوضع النهاري ليُقرأ في الضوء القوي */
+.text-\[10px\], .text-\[11px\] { font-size: 12px; line-height: 1.45; }
+html:not(.dark) .text-slate-400:not(svg) { color: #6b7891; }

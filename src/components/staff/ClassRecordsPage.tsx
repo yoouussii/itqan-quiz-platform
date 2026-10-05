@@ -1,3 +1,4 @@
+import { HBarRank } from '../common/HBarRank';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { FolderSync, ClipboardList, TrendingUp, Upload, Copy, KeyRound, X, FileDown, Trash2, Search, RefreshCw, Users, CheckCircle2, AlertTriangle, LayoutDashboard, History } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
@@ -161,9 +162,8 @@ const FollowupTab: React.FC<{ items: RecItem[]; changes: RecordChange[]; openFil
             <div className="flex-1 overflow-y-auto p-5 grid sm:grid-cols-2 gap-3 content-start">
               <Card className="p-4 space-y-1 sm:col-span-2" data-testid="cr-teacher-chart">
                 <h3 className="font-bold text-sm text-slate-900 dark:text-white">{t('اكتمال الرصد في كل سجل')}</h3>
-                <VBarChart data={file.sheets.map((x) => ({ key: String(x.r.id), short: sheetShort(x.r.sheet_name, x.meta), title: `${x.r.sheet_name} — ${x.meta.subject}${x.meta.classLabel ? ` · ${x.meta.classLabel}` : ''}`, value: x.done, sub: t('{n} طالب', { n: x.p.students.length }) }))}
-                  label={t('اكتمال الرصد في كل سجل')} fixedMax={100} twoLine rtl height={190} fmt={(v) => t('الرصد {n}%', { n: v })}
-                  avg={{ value: file.done, label: t('المتوسط') }} onSelect={(k) => { const x = file.sheets.find((y) => String(y.r.id) === k); if (x) setView({ row: x.r, p: x.p }); }} />
+                <HBarRank items={file.sheets.map((x) => ({ key: String(x.r.id), label: sheetShort(x.r.sheet_name, x.meta), sub: `${x.meta.subject}${x.meta.classLabel ? ` · ${x.meta.classLabel}` : ''}`, value: x.done }))}
+                  label={t('اكتمال الرصد في كل سجل')} avg={file.done} onSelect={(k) => { const x = file.sheets.find((y) => String(y.r.id) === k); if (x) setView({ row: x.r, p: x.p }); }} />
               </Card>
               {file.sheets.map(({ r, p }) => {
                 const done = pct(p.filled, p.cells);

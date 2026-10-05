@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { SurveyPrompt } from '../common/SurveyPrompt';
+import { BannerStrip } from '../common/BannerStrip';
 import { Plus, PenLine, MoreHorizontal, Copy, Trash2, BellRing, Eye, Link2, Share2 } from 'lucide-react';
 import { copyQuizLink, shareQuizOnWhatsApp } from '../../utils/router';
 import { useApp } from '../../context/AppContext';
@@ -128,6 +129,7 @@ export const TeacherDashboard: React.FC = () => {
   return (
     <div className="max-w-7xl mx-auto py-8 px-4 sm:px-6 lg:px-8 space-y-6" dir={uiDir()}>
       <PageHeader title={t('اختباراتي')} subtitle={subtitle} actions={<Button icon={Plus} onClick={newQuiz}>{t('اختبار جديد')}</Button>} />
+      <BannerStrip embedded />
       <SurveyPrompt />
 
       {grading.essays > 0 && (

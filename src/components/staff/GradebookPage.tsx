@@ -1,3 +1,4 @@
+import { StudentLink } from '../common/StudentProfile';
 import React, { useEffect, useMemo, useState } from 'react';
 import { BookOpenCheck, Plus, Trash2, FileSpreadsheet, FileDown, X } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
@@ -230,7 +231,46 @@ export const GradebookPage: React.FC = () => {
 
       <Card className="p-0 overflow-hidden">
         {!students.length ? <EmptyMascot text={t('لا يوجد طلاب في هذا الفصل')} /> : (
-          <div className="overflow-x-auto" data-testid="gradebook-table">
+          <>
+          {/* على الجوال: بطاقة لكل طالب، أهم رقم بخط كبير ثم درجات الأعمدة */}
+          <ul className="md:hidden divide-y divide-slate-100 dark:divide-slate-800" data-testid="gradebook-cards">
+            {rows.map(({ s, r }) => (
+              <li key={s.id} className="p-3 space-y-2">
+                <div className="flex items-center gap-2">
+                  <StudentLink id={s.id} name={s.name} className="flex-1 min-w-0 font-semibold text-slate-900 dark:text-white truncate" />
+                  <span className="text-xs text-slate-500">{t(gradeLabel(r.pct))}</span>
+                  <span className="text-lg font-extrabold tabular-nums" style={{ color: r.pct != null ? pctColor(r.pct) : undefined }}>{r.pct ?? '—'}</span>
+                </div>
+                <div className="flex flex-wrap gap-1.5">
+                  {columns.map((c) => {
+                    const v = cell(c, s.id);
+                    if (c.kind === 'manual' && c.editable) {
+                      const k = `${c.column!.id}|${s.id}`;
+                      return (
+                        <label key={c.key} className="inline-flex items-center gap-1 h-8 ps-2 pe-1 rounded-lg bg-violet-50/60 dark:bg-violet-950/30 text-[12px] text-violet-800 dark:text-violet-300">
+                          <span className="max-w-[7rem] truncate">{c.title}</span>
+                          <input inputMode="decimal" aria-label={t('{t}: {s}', { t: c.title, s: s.name })} value={drafts[k] ?? (v ? num(v.score) : '')}
+                            onChange={(e) => setDrafts((p) => ({ ...p, [k]: e.target.value }))} onBlur={() => void commitMark(c, s.id)}
+                            onKeyDown={(e) => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); }}
+                            className="h-6 w-12 px-1 rounded-md border border-violet-200 dark:border-violet-900 bg-white dark:bg-slate-900 text-center tabular-nums" />
+                          <span className="text-slate-400">/{num(c.max)}</span>
+                        </label>
+                      );
+                    }
+                    const p = v ? (v.score / (v.max || 1)) * 100 : null;
+                    return (
+                      <span key={c.key} className="inline-flex items-center gap-1 h-8 px-2 rounded-lg bg-slate-100 dark:bg-slate-800 text-[12px]">
+                        <span className="max-w-[7rem] truncate text-slate-600 dark:text-slate-300">{c.title}</span>
+                        {v ? <b className="tabular-nums" style={{ color: pctColor(p!) }}>{num(v.score)}<span className="text-slate-400 font-normal">/{num(v.max)}</span></b> : <span className="text-slate-400">—</span>}
+                      </span>
+                    );
+                  })}
+                </div>
+              </li>
+            ))}
+            <li className="p-3 text-sm text-slate-600 dark:text-slate-300 flex justify-between"><span>{t('متوسط الفصل')}</span><b className="tabular-nums">{classAvg == null ? '—' : `${Math.round(classAvg * 10) / 10}`}</b></li>
+          </ul>
+          <div className="hidden md:block overflow-x-auto" data-testid="gradebook-table">
             <table className="w-full text-sm border-collapse">
               <thead>
                 <tr className="bg-slate-50 dark:bg-slate-800/60 text-slate-600 dark:text-slate-300 align-bottom">
@@ -257,7 +297,7 @@ export const GradebookPage: React.FC = () => {
               <tbody>
                 {rows.map(({ s, r }) => (
                   <tr key={s.id} className="border-t border-slate-100 dark:border-slate-800 hover:bg-slate-50/60 dark:hover:bg-slate-800/30">
-                    <td className="sticky start-0 bg-white dark:bg-slate-900 px-4 py-2 font-semibold text-slate-900 dark:text-white">{s.name}</td>
+                    <td className="sticky start-0 bg-white dark:bg-slate-900 px-4 py-2 font-semibold text-slate-900 dark:text-white"><StudentLink id={s.id} name={s.name} /></td>
                     {columns.map((c) => {
                       const v = cell(c, s.id);
                       if (c.kind === 'manual' && c.editable) {
@@ -294,6 +334,7 @@ export const GradebookPage: React.FC = () => {
               </tfoot>
             </table>
           </div>
+          </>
         )}
         {loading && <p className="px-4 py-2 text-xs text-slate-500">{t('جارٍ التحميل…')}</p>}
       </Card>
