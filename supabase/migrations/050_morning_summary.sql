@@ -51,7 +51,7 @@ begin
     'homework_due_today', (select count(*) from public.homework where (due_at at time zone 'Asia/Riyadh')::date = p_day),
     'homework_ungraded', (select count(*) from public.homework_submissions s join public.homework h on h.id = s.homework_id
          where s.score is null and h.max_score is not null and s.submitted_at < now() - interval '2 days'),
-    'behavior_negative', (select count(*) from public.behavior_records where day = v_prev and coalesce(points, 0) < 0),
+    'behavior_negative', (select count(*) from public.behavior_records where day = v_prev and kind = 'violation'),
     'records_stale', (select count(distinct file_key) from public.class_record_sheets
          where kind = 'followup' and (last_edit_at is null or last_edit_at < now() - interval '10 days'))
   ) into v;
