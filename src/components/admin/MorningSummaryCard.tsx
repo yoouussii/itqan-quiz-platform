@@ -53,6 +53,7 @@ export const MorningSummaryCard: React.FC = () => {
         <div className="rounded-xl bg-slate-50 dark:bg-slate-800/60 p-3 flex flex-wrap items-center gap-4 text-sm">
           <label className="inline-flex items-center gap-2"><input type="checkbox" checked={enabled} onChange={(e) => save({ enabled: e.target.checked })} className="w-4 h-4 accent-indigo-600" />{t('إرسال الملخص إشعاراً كل صباح دراسي (6:45)')}</label>
           <label className="inline-flex items-center gap-2"><input type="checkbox" disabled={!enabled} checked={roles.includes('supervisor')} onChange={(e) => save({ roles: e.target.checked ? ['admin', 'supervisor'] : ['admin'] })} className="w-4 h-4 accent-indigo-600" />{t('والمشرفون أيضاً')}</label>
+          <label className="inline-flex items-center gap-2"><input type="checkbox" checked={settings.weekly_report?.enabled !== false} onChange={(e) => void updateSettings({ weekly_report: { enabled: e.target.checked } })} className="w-4 h-4 accent-indigo-600" />{t('إرسال تقرير أسبوعي لكل ولي أمر عن أبنائه كل خميس (2:40 م)')}</label>
         </div>
       )}
       <div className="grid grid-cols-2 md:grid-cols-4 xl:grid-cols-7 gap-2">
