@@ -1,11 +1,12 @@
 import React, { useMemo, useState } from 'react';
-import { NotebookPen } from 'lucide-react';
+
 import { useApp } from '../../context/AppContext';
 import { PageHeader, Card } from '../common/ui';
 import { HomeworkDetailModal, StateChip, dueText, useStudentHomework } from '../common/Homework';
 import { Homework, hwState } from '../../services/homeworkService';
 import { t, uiDir } from '../../i18n';
 import type { User } from '../../types';
+import { MascotHere } from '../common/Mascot';
 
 type Tab = 'todo' | 'done' | 'all';
 
@@ -41,7 +42,7 @@ export const HomeworkStudentPage: React.FC = () => {
       </div>
       {!loaded ? null : !list.length ? (
         <Card className="p-10 text-center text-slate-500">
-          <NotebookPen className="w-10 h-10 mx-auto mb-2 text-slate-300" />
+          <MascotHere className="mx-auto mb-1" />
           {tab === 'todo' ? t('لا توجد واجبات مطلوبة الآن') : t('لا توجد واجبات')}
         </Card>
       ) : (

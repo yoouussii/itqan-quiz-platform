@@ -11,6 +11,7 @@ import { AttRecord, fetchAttendance, fetchAttendanceConfig, fetchRoster, isoDay,
 import { exportElementToPdf } from '../../utils/exportPdf';
 import { uiDir, t, dateLocale } from '../../i18n';
 import type { User } from '../../types';
+import { EmptyMascot } from '../common/Mascot';
 
 type Tab = 'students' | 'log' | 'settings';
 const fmtDay = (d: string) => new Date(`${d}T12:00:00`).toLocaleDateString(dateLocale(), { weekday: 'short', day: 'numeric', month: 'short' });
@@ -167,7 +168,7 @@ export const BehaviorPage: React.FC = () => {
               </button>
             );
           })}
-          {recs !== null && recs.length === 0 && <p className="p-8 text-center text-sm text-slate-500">{t('لا توجد ملاحظات سلوكية مسجلة')}</p>}
+          {recs !== null && recs.length === 0 && <EmptyMascot text={t('لا توجد ملاحظات سلوكية مسجلة')} />}
         </Card>
       )}
 
@@ -265,7 +266,7 @@ const StudentConduct: React.FC<{ student: User; className: string; cfg: Behavior
           </div>
         )}
         <div className="flex-1 overflow-y-auto">
-          {recs.length === 0 ? <p className="p-5 text-sm text-slate-500">{t('لا توجد ملاحظات سلوكية مسجلة')}</p> : recs.map((r) => (
+          {recs.length === 0 ? <EmptyMascot text={t('لا توجد ملاحظات سلوكية مسجلة')} compact /> : recs.map((r) => (
             <div key={r.id} className="flex items-center gap-3 px-5 py-2.5 border-b border-slate-100 dark:border-slate-800">
               <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ background: r.kind === 'positive' ? '#10b981' : DEG_COLOR[r.degree || 1] }} />
               <div className="flex-1 min-w-0">

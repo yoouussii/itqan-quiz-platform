@@ -109,6 +109,8 @@ export interface Quiz {
   require_fullscreen?: boolean;
   /** أسئلة مختلفة لكل طالب: عدد الأسئلة التي يأخذها كل طالب من أسئلة الاختبار (فارغ = الكل) */
   questions_per_student?: number | null;
+  /** اختبار علاجي فردي: أسئلة محددة لكل طالب (معرّف الطالب ← معرّفات الأسئلة) */
+  student_questions?: Record<string, string[]> | null;
 }
 
 export type QuestionType = 'mcq' | 'true_false' | 'essay' | 'fill_blank' | 'matching' | 'passage';

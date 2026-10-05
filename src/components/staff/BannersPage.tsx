@@ -7,6 +7,7 @@ import { fileToAvatarDataUrl } from '../../services/avatarService';
 import { toInputValue, inputToIso } from '../../utils/quizWindow';
 import { BannerCard, EDIT_BANNER_KEY, BANNER_TRANSITIONS } from '../common/BannerStrip';
 import { uiDir, t } from '../../i18n';
+import { EmptyMascot } from '../common/Mascot';
 
 const inputCls = 'w-full px-3 py-2 text-xs rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white';
 const labelCls = 'block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5';
@@ -320,7 +321,7 @@ export const BannersPage: React.FC = () => {
       {editing ? (
         <Editor initial={editing} onDone={() => setEditing(null)} />
       ) : sorted.length === 0 ? (
-        <p className="text-center text-sm text-slate-400 py-16">{t('لا توجد بانرات بعد. اضغط «بانر جديد» لإضافة صورة أو تهنئة.')}</p>
+        <EmptyMascot text={t('لا توجد بانرات بعد. اضغط «بانر جديد» لإضافة صورة أو تهنئة.')} />
       ) : (
         <ul className="space-y-4">
           {sorted.map((b, i) => {

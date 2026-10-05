@@ -9,6 +9,7 @@ import { supabaseUrl, supabaseAnonKey } from '../../services/supabase';
 import { hasPerm } from '../../utils/permissions';
 import { exportElementToPdf } from '../../utils/exportPdf';
 import { uiDir, t, dateLocale } from '../../i18n';
+import { MascotHere } from '../common/Mascot';
 
 type Tab = 'dash' | 'followup' | 'levels' | 'sync';
 const inp = 'h-10 px-3 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm';
@@ -63,7 +64,7 @@ export const ClassRecordsPage: React.FC = () => {
 // سجلات المتابعة: لوحة المعلمين (اكتمال الرصد وآخر تعديل) ← سجلات كل معلم ← عرض السجل
 // ---------------------------------------------------------------------
 const EmptyFollow: React.FC<{ onEmpty: () => void }> = ({ onEmpty }) => (
-  <Card className="p-10 text-center text-slate-500 space-y-3"><ClipboardList className="w-10 h-10 mx-auto text-slate-300" /><p>{t('لم تصل سجلات المتابعة بعد. اربط مجلد Drive أو ارفع ملفات Excel من «الربط والاستيراد».')}</p><Button size="sm" variant="secondary" onClick={onEmpty}>{t('الربط والاستيراد')}</Button></Card>
+  <Card className="p-10 text-center text-slate-500 space-y-3"><MascotHere className="mx-auto mb-1" /><p>{t('لم تصل سجلات المتابعة بعد. اربط مجلد Drive أو ارفع ملفات Excel من «الربط والاستيراد».')}</p><Button size="sm" variant="secondary" onClick={onEmpty}>{t('الربط والاستيراد')}</Button></Card>
 );
 
 const FollowupTab: React.FC<{ items: RecItem[]; changes: RecordChange[]; openFile: string | null; setOpenFile: (k: string | null) => void; onEmpty: () => void }> = ({ items: parsed, changes, openFile, setOpenFile, onEmpty }) => {
@@ -252,7 +253,7 @@ const LevelsTab: React.FC<{ rows: RecordSheet[] }> = ({ rows }) => {
   const sheets = parsed.filter((x) => x.r.file_key === file);
   useEffect(() => { if (!sheets.some((x) => x.r.id === sheetId)) setSheetId(sheets[0]?.r.id ?? null); }, [sheets, sheetId]);
   const cur = sheets.find((x) => x.r.id === sheetId);
-  if (!parsed.length) return <Card className="p-10 text-center text-slate-500"><TrendingUp className="w-10 h-10 mx-auto mb-2 text-slate-300" />{t('لم تصل ملفات تتبع المستويات بعد.')}</Card>;
+  if (!parsed.length) return <Card className="p-10 text-center text-slate-500"><MascotHere className="mx-auto mb-1" />{t('لم تصل ملفات تتبع المستويات بعد.')}</Card>;
   const fileRow = sheets[0]?.r;
   return (
     <div className="space-y-5">

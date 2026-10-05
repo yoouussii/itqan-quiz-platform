@@ -8,6 +8,7 @@ import { GbCell, bestAttempt, computeRow, gradeLabel } from '../../utils/gradebo
 import { exportElementToPdf } from '../../utils/exportPdf';
 import { uiDir, t, dateLocale } from '../../i18n';
 import type { QuizWithDetails, SubmissionWithDetails, User } from '../../types';
+import { EmptyMascot, MascotHere } from '../common/Mascot';
 
 const LS = 'itqan_gradebook_v1';
 const readPrefs = () => { try { return JSON.parse(localStorage.getItem(LS) || '{}'); } catch { return {}; } };
@@ -187,6 +188,7 @@ export const GradebookPage: React.FC = () => {
 
       {noAssignment ? (
         <Card className="p-10 text-center space-y-2" data-testid="gradebook-no-assignment">
+          <MascotHere className="mx-auto mb-1" />
           <p className="font-bold text-slate-900 dark:text-white">{t('لا توجد فصول أو مواد مسندة إليك بعد')}</p>
           <p className="text-sm text-slate-500">{t('يظهر كشف الدرجات لفصولك وموادك المسندة فقط. تواصل مع إدارة المدرسة لإسنادها إلى حسابك.')}</p>
         </Card>
@@ -227,7 +229,7 @@ export const GradebookPage: React.FC = () => {
       </Card>
 
       <Card className="p-0 overflow-hidden">
-        {!students.length ? <p className="p-10 text-center text-slate-500">{t('لا يوجد طلاب في هذا الفصل')}</p> : (
+        {!students.length ? <EmptyMascot text={t('لا يوجد طلاب في هذا الفصل')} /> : (
           <div className="overflow-x-auto" data-testid="gradebook-table">
             <table className="w-full text-sm border-collapse">
               <thead>

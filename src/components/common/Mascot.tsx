@@ -34,7 +34,7 @@ const FACE = pixels((c) => 'EW'.includes(c));
 const MOUTH = pixels((c) => c === 'M');
 
 /** أدوات تمسكها الشخصية حسب الصفحة (شبكات صغيرة بجانبها) */
-export type MascotProp = 'book' | 'pencil' | 'chart' | 'notebook' | 'calendar' | 'trophy' | 'gear' | 'bell';
+export type MascotProp = 'book' | 'pencil' | 'chart' | 'notebook' | 'calendar' | 'trophy' | 'gear' | 'bell' | 'gift';
 const PROPS: Record<MascotProp, string[]> = {
   pencil: ['rr', 'nn', 'nn', 'nn', 'll', '.d'],
   chart: ['....c', '..a.c', 'g.a.c', 'g.a.c', 'ddddd'],
@@ -44,6 +44,7 @@ const PROPS: Record<MascotProp, string[]> = {
   trophy: ['TTTTT', 'TTTTT', '.TTT.', '..T..', '.TTT.'],
   gear: ['..q..', '.qqq.', 'qq.qq', '.qqq.', '..q..'],
   bell: ['..T..', '.TTT.', '.TTT.', 'TTTTT', '..d..'],
+  gift: ['.T.T.', 'rrTrr', 'rrTrr', 'rrTrr', 'rrTrr'],
 };
 
 /** الأداة المناسبة لكل صفحة */
@@ -51,7 +52,8 @@ export function propFor(view?: string): MascotProp {
   const v = view || '';
   if (['take_quiz', 'create_quiz', 'quizzes', 'question_bank', 'approvals', 'grading', 'quiz_preview', 'quiz_review', 'outcomes'].includes(v)) return 'pencil';
   if (['analytics', 'reports', 'gradebook', 'quiz_results', 'remedial', 'academic_support'].includes(v)) return 'chart';
-  if (v === 'homework' || v === 'class_records') return 'notebook';
+  if (v === 'homework' || v === 'class_records' || v === 'portfolio') return 'notebook';
+  if (v === 'points_store') return 'gift';
   if (['attendance', 'behavior', 'calendar', 'visits', 'surveys'].includes(v)) return 'calendar';
   if (['leaderboard', 'certificates', 'my_points'].includes(v)) return 'trophy';
   if (['settings', 'school_year', 'users', 'users_management', 'subjects_classes', 'banners', 'activity_log'].includes(v)) return 'gear';
@@ -98,6 +100,7 @@ const WORDS: Record<MascotProp, () => string[]> = {
   trophy: () => [t('نلمّع الكؤوس…'), t('نجهّز الشهادات…'), t('نرتّب لوحة الشرف…')],
   gear: () => [t('نضبط الإعدادات…'), t('نشدّ البراغي…'), t('نرتّب الملفات…')],
   bell: () => [t('نجمع الإشعارات…'), t('نرنّ الجرس…'), t('نرتّب الرسائل…')],
+  gift: () => [t('نرتّب المكافآت…'), t('نعدّ النقاط…'), t('نغلّف الهدايا…')],
 };
 
 /** شاشة تحميل الصفحات: الشخصية وكلمة تتبدل */
@@ -126,6 +129,7 @@ export const PageLoader: React.FC<{ full?: boolean; view?: string }> = ({ full, 
 
 /** شريط علوي رفيع عند كل تنقل، و«إتقان الصغير» يجري عليه بأداة الصفحة الجديدة */
 export const NavProgress: React.FC<{ navKey: string }> = ({ navKey }) => {
+  setMascotView(navKey);
   const [tick, setTick] = useState(0);
   const first = React.useRef(true);
   useEffect(() => { if (first.current) { first.current = false; return; } setTick((x) => x + 1); }, [navKey]);
@@ -137,3 +141,24 @@ export const NavProgress: React.FC<{ navKey: string }> = ({ navKey }) => {
     </>
   );
 };
+
+/**
+ * حالة «لا يوجد» موحّدة: «إتقان الصغير» ثابت بأداة الصفحة الحالية مع الرسالة.
+ * compact للقوائم الصغيرة داخل البطاقات.
+ */
+export const EmptyMascot: React.FC<{ text: React.ReactNode; prop?: MascotProp; view?: string; compact?: boolean; className?: string; children?: React.ReactNode }> = ({ text, prop, view, compact, className = '', children }) => (
+  <div className={`flex flex-col items-center justify-center text-center gap-2 ${compact ? 'py-4' : 'py-10'} ${className}`} data-testid="empty-mascot">
+    <Mascot size={compact ? 36 : 56} prop={prop || propFor(view || currentViewHint)} className="itq-idle" />
+    <div className={`${compact ? 'text-xs' : 'text-sm'} text-slate-500 dark:text-slate-400 max-w-md`}>{text}</div>
+    {children}
+  </div>
+);
+
+/** الصفحة الحالية لاختيار أداة الشخصية في حالات «لا يوجد» (يضبطها التطبيق عند كل تنقل) */
+let currentViewHint = '';
+export const setMascotView = (v: string) => { currentViewHint = v; };
+
+/** «إتقان الصغير» ثابتاً بأداة الصفحة الحالية (بدل أيقونة حالات «لا يوجد») */
+export const MascotHere: React.FC<{ size?: number; className?: string; prop?: MascotProp }> = ({ size = 56, className = '', prop }) => (
+  <Mascot size={size} prop={prop || propFor(currentViewHint)} className={`itq-idle ${className}`} />
+);

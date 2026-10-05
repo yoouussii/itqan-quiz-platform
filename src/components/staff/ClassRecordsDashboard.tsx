@@ -4,6 +4,7 @@ import { Card, Button, Chip } from '../common/ui';
 import type { RecordChange, RecordSheet } from '../../services/classRecordsService';
 import { FollowSheet, RecordMeta, ToolMode, applyDue, parseFollowup, recordMeta, toolKey, toolStats } from '../../utils/classRecords';
 import { t, dateLocale, isEn } from '../../i18n';
+import { EmptyMascot } from '../common/Mascot';
 
 // ---------------------------------------------------------------------
 // أدوات مشتركة: التاريخ باليوم، ومدة منذ التعديل، وحداثة السجل
@@ -175,7 +176,7 @@ export const ChangesTimeline: React.FC<{ changes: RecordChange[]; metaOf: (c: Re
     changes.slice(0, n).forEach((c) => { const k = dayKey(c.edited_at); m.set(k, [...(m.get(k) || []), c]); });
     return [...m.entries()];
   }, [changes, n]);
-  if (!changes.length) return <p className="text-sm text-slate-500 py-6 text-center">{t('لا توجد تعديلات في هذه الفترة.')}</p>;
+  if (!changes.length) return <EmptyMascot text={t('لا توجد تعديلات في هذه الفترة.')} compact />;
   return (
     <div className="space-y-4" data-testid="cr-timeline">
       {groups.map(([k, list]) => (

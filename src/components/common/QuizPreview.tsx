@@ -1,10 +1,11 @@
 import React, { useMemo } from 'react';
-import { ArrowRight, FileQuestion, Clock, Award, CheckCircle2, Printer, KeyRound } from 'lucide-react';
+import { ArrowRight, Clock, Award, CheckCircle2, Printer, KeyRound } from 'lucide-react';
 import { printQuizPaper } from '../../utils/quizPaper';
 import { useApp } from '../../context/AppContext';
 import { StorageService } from '../../services/storage';
 import { RichText } from './RichText';
 import { uiDir, optionLetters, t } from '../../i18n';
+import { MascotHere } from './Mascot';
 
 /**
  * معاينة اختبار للقراءة فقط (زر "عرض" عند الآدمن والمعلم).
@@ -35,7 +36,7 @@ export const QuizPreview: React.FC = () => {
   if (!activeQuizId || !quiz) {
     return (
       <div className="max-w-3xl mx-auto py-16 px-4 text-center" dir={uiDir()}>
-        <FileQuestion className="w-12 h-12 mx-auto text-slate-300 dark:text-slate-600 mb-3" />
+        <MascotHere className="mx-auto mb-1" />
         <h2 className="font-bold text-lg text-slate-800 dark:text-white mb-1">
           {t('لم يتم العثور على هذا الاختبار')}
         </h2>

@@ -9,6 +9,7 @@ import { describeQuizTarget } from '../../utils/quizTarget';
 import { getWindowState } from '../../utils/quizWindow';
 import { Button, Card, Chip, PageHeader, Tone } from '../common/ui';
 import { uiDir, t } from '../../i18n';
+import { EmptyMascot } from '../common/Mascot';
 
 const statusOf = (q: QuizWithDetails): { label: string; tone: Tone } => {
   if (q.status === 'draft') return { label: t('مسودة'), tone: 'muted' };
@@ -129,7 +130,7 @@ export const AdminQuizBank: React.FC = () => {
                 );
               })}
               {list.length === 0 && (
-                <tr><td colSpan={6} className="py-12 text-center text-slate-500">{t('لا توجد اختبارات مطابقة')}</td></tr>
+                <tr><td colSpan={6}><EmptyMascot text={t('لا توجد اختبارات مطابقة')} /></td></tr>
               )}
             </tbody>
           </table>

@@ -1,5 +1,5 @@
 import React, { useMemo, useRef, useState } from 'react';
-import { MessageCircle, ArrowRight, Users, Percent, Trophy, TrendingDown, CheckCircle2, FileQuestion } from 'lucide-react';
+import { Sparkles, MessageCircle, ArrowRight, Users, Percent, Trophy, TrendingDown, CheckCircle2 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 import { StorageService } from '../../services/storage';
 import { SubmissionsTable } from './SubmissionsTable';
@@ -8,10 +8,12 @@ import { QuestionAnalysis } from '../staff/QuestionAnalysis';
 import { hasPerm } from '../../utils/permissions';
 import { exportElementToPdf, getPrintBrand } from '../../utils/exportPdf';
 import { WhatsAppSender } from '../common/WhatsAppSender';
+import { IndividualRemedialModal } from './IndividualRemedialModal';
 import { guardianPhone } from '../../utils/whatsapp';
 import type { User } from '../../types';
 import { uiDir, t, isEn } from '../../i18n';
 import { minutesCount, marksCount } from '../../i18n/count';
+import { MascotHere } from '../common/Mascot';
 
 /**
  * صفحة "تحليلات / نتائج" اختبار واحد.
@@ -21,6 +23,7 @@ import { minutesCount, marksCount } from '../../i18n/count';
 export const QuizResults: React.FC = () => {
   const { activeQuizId, setActiveQuizId, setCurrentView, quizzes, submissions, currentUser, users } = useApp();
   const [waOpen, setWaOpen] = useState(false);
+  const [remOpen, setRemOpen] = useState(false);
 
   const exportRef = useRef<HTMLDivElement>(null);
 
@@ -68,7 +71,7 @@ export const QuizResults: React.FC = () => {
   if (!activeQuizId || !quiz) {
     return (
       <div className="max-w-3xl mx-auto py-16 px-4 text-center" dir={uiDir()}>
-        <FileQuestion className="w-12 h-12 mx-auto text-slate-300 dark:text-slate-600 mb-3" />
+        <MascotHere className="mx-auto mb-1" />
         <h2 className="font-bold text-lg text-slate-800 dark:text-white mb-1">
           {t('لم يتم العثور على هذا الاختبار')}
         </h2>
@@ -175,12 +178,18 @@ export const QuizResults: React.FC = () => {
               <MessageCircle className="w-4 h-4 text-emerald-600" />{t('النتائج لأولياء الأمور')}
             </button>
           )}
+          {quizSubmissions.length > 0 && (currentUser?.role === 'teacher' || currentUser?.role === 'admin') && (
+            <button type="button" onClick={() => setRemOpen(true)} className="inline-flex items-center gap-1.5 h-9 px-3 rounded-xl border border-slate-200 dark:border-slate-700 text-sm font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800">
+              <Sparkles className="w-4 h-4 text-indigo-600" />{t('اختبار علاجي فردي')}
+            </button>
+          )}
           <PdfExportButton onClick={handleExportPdf} />
         </>}
         submissions={quizSubmissions}
         title={t('نتائج الطلاب في هذا الاختبار')}
         subtitle={t('يمكنك فتح ورقة إجابة أي طالب أو منحه صلاحية إعادة المحاولة')}
       />
+      {remOpen && quiz && <IndividualRemedialModal quiz={quiz as any} onClose={() => setRemOpen(false)} />}
       {waOpen && quiz && (() => {
         // آخر تسليم لكل طالب
         const latest = new Map<string, any>();

@@ -1,10 +1,11 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { Store, Plus, Save, Pencil, Trash2, Check, PackageCheck, XCircle, Inbox, ImagePlus, X } from 'lucide-react';
+import { Plus, Save, Pencil, Trash2, Check, PackageCheck, XCircle, ImagePlus, X } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 import { Redemption, RedemptionStatus, STATUS_LABEL, StoreItem, deleteStoreItem, fileToStoreImage, fetchRedemptions, fetchStoreItems, handleRedemption, saveStoreItem, storeError } from '../../services/storeService';
 import { PageHeader, Card, Button, Chip } from '../common/ui';
 import { timeAgo } from '../common/NotificationBell';
 import { ItemVisual } from '../common/PointsStore';
+import { Mascot } from '../common/Mascot';
 import { User } from '../../types';
 import { t, uiDir } from '../../i18n';
 
@@ -80,7 +81,7 @@ export const PointsStorePage: React.FC = () => {
             ))}
           </div>
           {shown.length === 0 ? (
-            <div className="py-10 text-center text-sm text-slate-500"><Inbox className="w-8 h-8 mx-auto mb-2 text-slate-300" />{t('لا توجد طلبات')}</div>
+            <div className="py-10 text-center text-sm text-slate-500 flex flex-col items-center gap-2"><Mascot size={48} prop="gift" />{t('لا توجد طلبات')}</div>
           ) : (
             <ul className="divide-y divide-slate-100 dark:divide-slate-800">
               {shown.map((r) => (
@@ -140,7 +141,7 @@ export const PointsStorePage: React.FC = () => {
             </div>
           </Card>
           {items.length === 0 ? (
-            <Card className="p-10 text-center text-sm text-slate-500"><Store className="w-8 h-8 mx-auto mb-2 text-slate-300" />{t('أضف أول مكافأة ليظهر المتجر للطلاب في صفحة «نقاطي».')}</Card>
+            <Card className="p-10 text-center text-sm text-slate-500 flex flex-col items-center gap-2"><Mascot size={56} prop="gift" />{t('أضف أول مكافأة ليظهر المتجر للطلاب في صفحة «نقاطي».')}</Card>
           ) : (
             <div className="grid grid-cols-[repeat(auto-fill,minmax(15rem,1fr))] gap-3">
               {items.map((it) => {

@@ -6,7 +6,7 @@ import { RemedialCard } from '../common/RemedialCard';
 import { HomeworkCard } from '../common/Homework';
 import { AcademicSupportCard } from '../common/AcademicSupport';
 import { SurveyPrompt } from '../common/SurveyPrompt';
-import { BookOpen, CalendarClock, CheckCircle2, Users, FileText } from 'lucide-react';
+import { BookOpen, CalendarClock, CheckCircle2, FileText } from 'lucide-react';
 import { exportStudentReport, reportExtras } from '../../utils/studentReport';
 import { earnedBadges } from '../../utils/points';
 import { formatFullArabicDate } from '../../utils/dateUtils';
@@ -24,6 +24,7 @@ import { minutesCount } from '../../i18n/count';
 import { SkillsCard } from '../analytics/OutcomesPage';
 import { DevicePushCard } from '../common/DevicePushCard';
 import { WeeklyReportCard } from '../common/WeeklyReportCard';
+import { MascotHere } from '../common/Mascot';
 
 /** موعد الانتهاء مختصراً: «ينتهي اليوم» أو «ينتهي 4 أكتوبر» */
 const shortEnd = (end?: string) => {
@@ -89,7 +90,7 @@ export const ParentDashboard: React.FC<{ onViewReview: (submissionId: string) =>
     return (
       <div className="max-w-3xl mx-auto py-10 px-4" dir={uiDir()}>
         <Card className="p-8 text-center space-y-2">
-          <Users className="w-10 h-10 mx-auto text-slate-400" />
+          <MascotHere className="mx-auto mb-1" />
           <h1 className="text-xl font-bold text-slate-900 dark:text-white">{t('لا يوجد أبناء مرتبطون بحسابك بعد')}</h1>
           <p className="text-[15px] text-slate-500 dark:text-slate-400">{t('تواصل مع إدارة المدرسة لربط حسابك بحساب ابنك أو ابنتك.')}</p>
         </Card>

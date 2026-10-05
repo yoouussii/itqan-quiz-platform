@@ -6,6 +6,7 @@ import { hasPerm } from '../../utils/permissions';
 import { AppNotification, NotifAudience } from '../../services/notificationService';
 import { notifAction, notifLines } from './notificationActions';
 import { uiDir, t, isEn } from '../../i18n';
+import { EmptyMascot } from './Mascot';
 
 export const NOTIF_ICONS: Record<string, string> = {
   quiz_published: '📝', quiz_pending: '🕓', quiz_approved: '✅', quiz_rejected: '❌',
@@ -197,7 +198,7 @@ export const NotificationBell: React.FC = () => {
             </div>
             <div className="max-h-96 overflow-y-auto divide-y divide-slate-100 dark:divide-slate-800">
               {notifications.length === 0 ? (
-                <p className="text-xs text-slate-400 text-center py-8">{t('لا توجد إشعارات حالياً')}</p>
+                <EmptyMascot text={t('لا توجد إشعارات حالياً')} compact />
               ) : (
                 notifications.slice(0, 40).map((n) => (
                   <div key={n.id} className="relative group">

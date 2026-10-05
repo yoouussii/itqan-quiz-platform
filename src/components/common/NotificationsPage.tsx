@@ -5,6 +5,7 @@ import { NOTIF_ICONS, NotifBody, timeAgo, useOpenNotification } from './Notifica
 import { describeAudience, isStudentAudience } from './notificationActions';
 import { uiDir, t } from '../../i18n';
 import { DevicePushCard } from './DevicePushCard';
+import { EmptyMascot } from './Mascot';
 
 const btnGhost = 'px-3 py-1.5 rounded-xl text-[11px] font-bold text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800';
 const btnDanger =
@@ -78,7 +79,7 @@ const AdminNotifications: React.FC = () => {
       </div>
 
       {sorted.length === 0 ? (
-        <p className="text-center text-sm text-slate-400 py-16">{t('لا توجد إشعارات في النظام')}</p>
+        <EmptyMascot text={t('لا توجد إشعارات في النظام')} />
       ) : (
         <ul className="space-y-2">
           {sorted.map((n) => (
@@ -154,7 +155,7 @@ export const NotificationsPage: React.FC = () => {
       {filter === 'manage' && isAdmin ? (
         <AdminNotifications />
       ) : list.length === 0 ? (
-        <p className="text-center text-sm text-slate-400 py-16">{t('لا توجد إشعارات')}</p>
+        <EmptyMascot text={t('لا توجد إشعارات')} />
       ) : (
         <ul className="space-y-3">
           {list.map((n) => {

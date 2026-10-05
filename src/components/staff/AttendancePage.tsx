@@ -16,6 +16,7 @@ import { WhatsAppSender } from '../common/WhatsAppSender';
 import { guardianPhone } from '../../utils/whatsapp';
 import { uiDir, t, isEn, dateLocale } from '../../i18n';
 import type { User } from '../../types';
+import { EmptyMascot } from '../common/Mascot';
 
 const KINDS: Array<{ k: AttKind; label: string; color: string; tone: 'bad' | 'warn' | 'info' }> = [
   { k: 'absent', label: 'غياب', color: '#e5484d', tone: 'bad' },
@@ -339,7 +340,7 @@ export const AttendancePage: React.FC = () => {
                 </ResponsiveContainer>
               </div>
             );
-          })() : <p className="text-sm text-slate-500 py-16 text-center">{loading ? t('جارٍ التحميل…') : t('لا يوجد غياب أو تأخر أو استئذان في هذا اليوم')}</p>
+          })() : (loading ? <p className="text-sm text-slate-500 py-16 text-center">{t('جارٍ التحميل…')}</p> : <EmptyMascot text={t('لا يوجد غياب أو تأخر أو استئذان في هذا اليوم')} className="py-14" />)
         ) : trend.series.length && stats.count.absent + stats.count.late + stats.count.excused > 0 ? (
           <>
             <div className="h-80" dir="ltr">
@@ -371,7 +372,7 @@ export const AttendancePage: React.FC = () => {
               <span className="inline-flex items-center gap-1.5"><span className="w-4 border-t-2 border-dashed border-rose-400" />{t('خط المتوسط')}</span>
             </div>
           </>
-        ) : <p className="text-sm text-slate-500 py-16 text-center">{loading ? t('جارٍ التحميل…') : t('لا توجد سجلات في هذه الفترة')}</p>}
+        ) : (loading ? <p className="text-sm text-slate-500 py-16 text-center">{t('جارٍ التحميل…')}</p> : <EmptyMascot text={t('لا توجد سجلات في هذه الفترة')} className="py-14" />)}
       </Card>
 
       <div className="grid lg:grid-cols-3 gap-5">
@@ -392,7 +393,7 @@ export const AttendancePage: React.FC = () => {
                 </AreaChart>
               </ResponsiveContainer>
             </div>
-          ) : <p className="text-sm text-slate-500 py-16 text-center">{loading ? t('جارٍ التحميل…') : t('لا توجد سجلات في هذه الفترة')}</p>}
+          ) : (loading ? <p className="text-sm text-slate-500 py-16 text-center">{t('جارٍ التحميل…')}</p> : <EmptyMascot text={t('لا توجد سجلات في هذه الفترة')} className="py-14" />)}
         </Card>
         <Card className="p-5">
           <h2 className="font-bold text-slate-900 dark:text-white mb-3">{t('حسب أيام الأسبوع')}</h2>
@@ -448,7 +449,7 @@ export const AttendancePage: React.FC = () => {
             <h2 className="font-bold text-slate-900 dark:text-white">{t('الأكثر غياباً')}</h2>
              {stats.flagged.some((x) => !rosterIds.has(x.id)) && <Button data-pdf-hide size="sm" variant="secondary" icon={Bell} onClick={() => void notifyFlagged(stats.flagged.map((x) => x.id))}>{t('إشعار المتجاوزين وأولياء أمورهم')}</Button>}
           </div>
-          {stats.top.length === 0 ? <p className="px-5 pb-6 text-sm text-slate-500">{t('لا توجد سجلات في هذه الفترة')}</p> : stats.top.slice(0, 10).map((x) => {
+          {stats.top.length === 0 ? <EmptyMascot text={t('لا توجد سجلات في هذه الفترة')} /> : stats.top.slice(0, 10).map((x) => {
             const s = studentMap.get(x.id);
             return (
               <button key={x.id} type="button" onClick={() => s && setOpenStudent(s)} className="w-full flex items-center gap-3 px-5 py-2.5 border-t border-slate-100 dark:border-slate-800 text-start hover:bg-slate-50 dark:hover:bg-slate-800/50">
@@ -663,7 +664,7 @@ const KpiDetails: React.FC<{
       </button>
     );
   };
-  const empty = <p className="p-8 text-center text-sm text-slate-500">{t('لا توجد سجلات في هذه الفترة')}</p>;
+  const empty = <EmptyMascot text={t('لا توجد سجلات في هذه الفترة')} />;
 
   return (
     <div className="fixed inset-0 z-[60] bg-slate-900/50 flex items-end sm:items-center justify-center sm:p-6" onClick={onClose} role="dialog" aria-modal="true" aria-label={t(DETAIL_TITLE[kind])}>

@@ -17,6 +17,7 @@ import {
 import { useApp } from '../../context/AppContext';
 import { Subject, SchoolClass, User } from '../../types';
 import { uiDir, t } from '../../i18n';
+import { EmptyMascot } from '../common/Mascot';
 
 export const SubjectsClassesManagement: React.FC = () => {
   const {
@@ -441,7 +442,7 @@ export const SubjectsClassesManagement: React.FC = () => {
             </button>
           </form>
           <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 divide-y divide-slate-100 dark:divide-slate-800">
-            {branches.length === 0 && <p className="p-6 text-center text-slate-500">{t('لا توجد فروع بعد')}</p>}
+            {branches.length === 0 && <EmptyMascot text={t('لا توجد فروع بعد')} />}
             {branches.map((b) => {
               const members = users.filter((u) => u.branch_id === b.id);
               const nStudents = members.filter((u) => u.role === 'student').length;

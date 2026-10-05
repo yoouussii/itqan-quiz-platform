@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { X, Search } from 'lucide-react';
 import { KpiSection } from '../../utils/kpiSections';
 import { uiDir, t } from '../../i18n';
+import { EmptyMascot } from './Mascot';
 
 const MAX_ROWS = 300;
 
@@ -33,9 +34,7 @@ const SectionTable: React.FC<{ section: KpiSection }> = ({ section }) => {
       </div>
 
       {rows.length === 0 ? (
-        <p className="text-xs text-slate-400 py-6 text-center border border-dashed border-slate-200 dark:border-slate-700 rounded-xl">
-          {term ? t('لا نتائج مطابقة للبحث') : section.emptyText || t('لا توجد بيانات')}
-        </p>
+        <EmptyMascot compact text={term ? t('لا نتائج مطابقة للبحث') : section.emptyText || t('لا توجد بيانات')} className="border border-dashed border-slate-200 dark:border-slate-700 rounded-xl" />
       ) : (
         <div className="overflow-x-auto rounded-xl border border-slate-200 dark:border-slate-700">
           <table className="w-full text-start text-xs">

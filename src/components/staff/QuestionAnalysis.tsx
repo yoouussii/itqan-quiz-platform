@@ -5,6 +5,7 @@ import { StorageService } from '../../services/storage';
 import { stripHtml } from '../common/RichText';
 import { t } from '../../i18n';
 import { itemAnalysis } from '../../utils/analytics';
+import { EmptyMascot } from '../common/Mascot';
 
 /** تصنيف معامل التمييز (المعايير الشائعة في القياس التربوي) */
 const discLabel = (d: number) => (d >= 0.4 ? 'ممتاز' : d >= 0.3 ? 'جيد' : d >= 0.2 ? 'مقبول' : 'ضعيف');
@@ -70,7 +71,7 @@ export const QuestionAnalysis: React.FC<{ quizId: string }> = ({ quizId }) => {
         </p>
       )}
       {rows.length === 0 ? (
-        <p className="text-xs text-slate-400">{t('لا توجد أسئلة قابلة للتحليل (الاختيار من متعدد / صح وخطأ).')}</p>
+        <EmptyMascot text={t('لا توجد أسئلة قابلة للتحليل (الاختيار من متعدد / صح وخطأ).')} compact />
       ) : (
         <div className="overflow-x-auto rounded-xl border border-slate-200 dark:border-slate-700">
           <table className="w-full text-start text-xs">
