@@ -183,31 +183,56 @@ function trim(g) {
   });
 }
 
+var XLSX_TYPES = ['application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', 'application/vnd.ms-excel'];
+
+// كل ملفات Google Sheets و Excel في المجلد وما بداخله
 function collect(folder, path, out) {
-  var files = folder.getFilesByType(MimeType.GOOGLE_SHEETS);
-  while (files.hasNext()) out.push({ file: files.next(), path: path });
+  var files = folder.getFiles();
+  while (files.hasNext()) {
+    var f = files.next(), t = f.getMimeType();
+    if (t === MimeType.GOOGLE_SHEETS || XLSX_TYPES.indexOf(t) >= 0) out.push({ file: f, path: path, excel: t !== MimeType.GOOGLE_SHEETS });
+  }
   var subs = folder.getFolders();
-  while (subs.hasNext()) { var f = subs.next(); collect(f, path ? path + ' / ' + f.getName() : f.getName(), out); }
+  while (subs.hasNext()) { var d = subs.next(); collect(d, path ? path + ' / ' + d.getName() : d.getName(), out); }
+}
+
+function drive(method, path, body) {
+  var r = UrlFetchApp.fetch('https://www.googleapis.com/drive/v3/' + path, { method: method, contentType: 'application/json', muteHttpExceptions: true,
+    headers: { Authorization: 'Bearer ' + ScriptApp.getOAuthToken() }, payload: body ? JSON.stringify(body) : undefined });
+  if (r.getResponseCode() >= 300) throw new Error('Drive: ' + r.getContentText());
+  return r.getContentText() ? JSON.parse(r.getContentText()) : {};
+}
+
+function readSheets(id) {
+  return SpreadsheetApp.openById(id).getSheets().map(function (sh) {
+    var n = Math.min(sh.getLastRow(), 300), m = Math.min(sh.getLastColumn(), 60);
+    return { sheet: sh.getName().trim(), grid: n && m ? trim(sh.getRange(1, 1, n, m).getValues()) : [] };
+  }).filter(function (s) { return s.grid.length >= 2; });
+}
+
+// ملف Excel: نسخة مؤقتة محوّلة إلى Google Sheets تُقرأ ثم تُحذف (الملف الأصلي لا يتغير)
+function readExcel(id) {
+  var tmp = drive('post', 'files/' + id + '/copy?supportsAllDrives=true&fields=id', { name: 'itqan-tmp', mimeType: MimeType.GOOGLE_SHEETS });
+  try { return readSheets(tmp.id); } finally { try { drive('delete', 'files/' + tmp.id + '?supportsAllDrives=true'); } catch (e) { DriveApp.getFileById(tmp.id).setTrashed(true); } }
 }
 
 function syncAll() {
-  var props = PropertiesService.getScriptProperties();
+  var props = PropertiesService.getScriptProperties(), started = Date.now();
   FOLDERS.forEach(function (fo) {
     var list = [];
     collect(DriveApp.getFolderById(fo.id), '', list);
-    var keys = [];
+    var keys = list.map(function (it) { return it.file.getId(); });
     list.forEach(function (it) {
-      var id = it.file.getId(); keys.push(id);
+      if (Date.now() - started > 4.5 * 60 * 1000) return; // حد وقت التشغيل: الباقي في المرة القادمة
+      var id = it.file.getId();
       var stamp = String(it.file.getLastUpdated().getTime());
       if (props.getProperty(id) === stamp) return; // لم يتغير
-      var ss = SpreadsheetApp.openById(id), info = lastEdit(id);
-      var sheets = ss.getSheets().map(function (sh) {
-        var n = Math.min(sh.getLastRow(), 300), m = Math.min(sh.getLastColumn(), 60);
-        return { sheet: sh.getName().trim(), grid: n && m ? trim(sh.getRange(1, 1, n, m).getValues()) : [] };
-      }).filter(function (s) { return s.grid.length >= 2; });
-      call('itqan_records_import', { p_token: ITQAN_TOKEN, p_payload: { kind: fo.kind, file_key: id, file_name: ss.getName(), folder_path: it.path,
-        last_edit_by: info.by, last_edit_at: info.at || it.file.getLastUpdated().toISOString(), full: true, sheets: sheets } });
-      props.setProperty(id, stamp);
+      try {
+        var info = lastEdit(id), sheets = it.excel ? readExcel(id) : readSheets(id);
+        call('itqan_records_import', { p_token: ITQAN_TOKEN, p_payload: { kind: fo.kind, file_key: id, file_name: it.file.getName().replace(/\\.xlsx?$/i, ''), folder_path: it.path,
+          last_edit_by: info.by, last_edit_at: info.at || it.file.getLastUpdated().toISOString(), full: true, sheets: sheets } });
+        props.setProperty(id, stamp);
+      } catch (e) { console.error(it.file.getName() + ': ' + e); }
     });
     if (keys.length) call('itqan_records_prune', { p_kind: fo.kind, p_keys: keys, p_token: ITQAN_TOKEN });
   });
