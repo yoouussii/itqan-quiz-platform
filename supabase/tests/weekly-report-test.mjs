@@ -73,5 +73,21 @@ ok(/^sent \d+$/.test(SQL(`select itqan.weekly_parent_notify()`)), 'يرسل ال
 const n = JSON.parse(SQL(`select row_to_json(x) from (select title, audience, ref_id from notifications where ref_type='weekly_report' and ref_id='wr-s' order by created_at desc limit 1) x`) || '{}');
 ok(Number(SQL(`select count(*) from notifications where ref_type='weekly_report'`)) > before && n.audience?.user_ids?.[0] === 'wr-p' && n.title.includes('طالب التقرير'), 'إشعار لولي الأمر باسم ابنه');
 
+console.log('— المواعيد (053)');
+SQL(`delete from itqan.auto_runs`);
+const rt = "(now() at time zone 'Asia/Riyadh')";
+SQL(`insert into app_settings (key,value) values ('weekly_report', jsonb_build_object('enabled',true,'day', extract(dow from ${rt})::int,'time', to_char(${rt} + interval '20 min','HH24:MI'))) on conflict (key) do update set value=excluded.value`);
+SQL(`insert into app_settings (key,value) values ('morning_summary', jsonb_build_object('enabled',true,'time', to_char(${rt} + interval '20 min','HH24:MI'))) on conflict (key) do update set value=excluded.value`);
+ok(SQL(`select coalesce(itqan.auto_tick(), 'none')`) === 'none', 'قبل الموعد: لا إرسال');
+SQL(`update app_settings set value = value || jsonb_build_object('time', to_char(${rt} - interval '2 min','HH24:MI')) where key in ('weekly_report','morning_summary')`);
+const tick = SQL(`select itqan.auto_tick()`);
+ok(/weekly:sent/.test(tick) && /morning:/.test(tick), 'في الموعد: يُرسل التقرير والملخص');
+ok(SQL(`select coalesce(itqan.auto_tick(), 'none')`) === 'none', 'لا يتكرر في اليوم نفسه');
+SQL(`delete from itqan.auto_runs; update app_settings set value = value || jsonb_build_object('day', (extract(dow from ${rt})::int + 1) % 7) where key = 'weekly_report'`);
+ok(!/weekly/.test(SQL(`select coalesce(itqan.auto_tick(), 'none')`)), 'في غير يومه: لا تقرير');
+ok((await req('POST', '/rpc/auto_tick', { token: A, body: {} })).status >= 400, 'التشغيل غير متاح من الواجهة');
+ok((await req('POST', '/rpc/itqan_auto_runs', { token: P, body: {} })).json === null, 'سجل التشغيل للمدير فقط');
+SQL(`delete from itqan.auto_runs; delete from app_settings where key in ('weekly_report','morning_summary')`);
+
 console.log(`\n${pass} نجح، ${fail} فشل`);
 process.exit(fail ? 1 : 0);

@@ -94,5 +94,15 @@ await req('PATCH', `/store_items?id=eq.${day}`, { token: M, body: { active: fals
 r = await rpc('itqan_store_redeem', S, { p_item: day });
 ok(r.status >= 400 && /unavailable/.test(JSON.stringify(r.json)), 'المكافأة الموقوفة لا تُستبدل');
 
+console.log('— صورة المكافأة (054)');
+const IMG = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==';
+r = await req('POST', '/store_items', { token: M, body: { title: 'كوب', cost: 5, image: IMG } });
+const cup = rows(r)[0]?.id;
+ok(r.status < 300 && cup, 'مكافأة بصورة');
+r = await req('POST', '/store_items', { token: M, body: { title: 'خبيث', cost: 5, image: 'javascript:alert(1)' } });
+ok(r.status >= 400, 'تُرفض الصورة التي ليست data:image');
+r = await rpc('itqan_store_redeem', S, { p_item: cup });
+ok(r.status < 300 && SQL(`select item_image = '${IMG}' from store_redemptions where id='${r.json?.id}'`) === 't', 'الطلب يحفظ نسخة من الصورة');
+
 console.log(`\n${pass} نجح، ${fail} فشل`);
 process.exit(fail ? 1 : 0);
