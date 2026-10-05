@@ -177,6 +177,7 @@ interface AppContextType {
 
   toastMessage: ToastMessage | null;
   showToast: (text: string, type?: ToastType) => void;
+  hideToast: () => void;
   theme: 'light' | 'dark';
   toggleTheme: () => void;
 
@@ -725,7 +726,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setToastMessage({ text, type });
     // إلغاء مؤقت التنبيه السابق حتى لا يُخفي التنبيه الجديد قبل أوانه
     if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
-    toastTimerRef.current = setTimeout(() => setToastMessage(null), 4000);
+    // مدة أطول للقراءة (والأخطاء أطول)، ويمكن إغلاقه يدوياً
+    toastTimerRef.current = setTimeout(() => setToastMessage(null), type === 'error' ? 8000 : 6000);
+  }, []);
+  const hideToast = useCallback(() => {
+    if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
+    setToastMessage(null);
   }, []);
 
   /** إعادة حساب القوائم من النسخة المحلية فوراً (بدون شبكة) */
@@ -2205,6 +2211,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         setDuplicateQuizId,
         toastMessage,
         showToast,
+        hideToast,
         theme,
         toggleTheme,
         login,

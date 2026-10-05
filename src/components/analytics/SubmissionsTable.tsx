@@ -1,20 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import {
-  Search,
-  Filter,
-  Eye,
-  Calendar,
-  CheckCircle,
-  FileSpreadsheet,
-  GraduationCap,
-  ChevronLeft,
-  ChevronRight,
-  Lock,
-  Ban,
-  RotateCcw,
-  Trash2,
-  Award,
-} from 'lucide-react';
+import { Search, Filter, Eye, Calendar, CheckCircle, FileSpreadsheet, ChevronLeft, ChevronRight, Lock, Ban, RotateCcw, Trash2, Award } from 'lucide-react';
 import { SubmissionWithDetails } from '../../types';
 import { useApp } from '../../context/AppContext';
 import { AnswerSheetModal } from './AnswerSheetModal';
@@ -26,6 +11,7 @@ import { t, isEn } from '../../i18n';
 import { IntegrityBadge } from '../common/IntegrityBadge';
 import { certKindFor, exportCertificates, CertificateInput } from '../../utils/certificate';
 import { ungradedEssayCount } from '../../utils/grading';
+import { MascotHere } from '../common/Mascot';
 
 interface SubmissionsTableProps {
   submissions: SubmissionWithDetails[];
@@ -439,7 +425,7 @@ export const SubmissionsTable: React.FC<SubmissionsTableProps> = ({
             {paginatedSubmissions.length === 0 ? (
               <tr>
                 <td colSpan={(isStudent ? 6 : 8) + (canDelete ? 1 : 0)} className="py-12 text-center text-slate-400">
-                  <GraduationCap className="w-10 h-10 mx-auto mb-2 text-slate-300 dark:text-slate-600" />
+                  <MascotHere className="mx-auto mb-1" />
                   <p className="font-semibold text-sm text-slate-600 dark:text-slate-300">
                     {t('لا توجد نتائج مطابقة لمعايير البحث الحالية')}
                   </p>

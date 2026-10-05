@@ -3,6 +3,7 @@ import { ScrollText, RefreshCw } from 'lucide-react';
 import { ACTION_LABELS, ActivityEntry, fetchActivity } from '../../services/activityService';
 import { formatFullArabicDate } from '../../utils/dateUtils';
 import { uiDir, t } from '../../i18n';
+import { EmptyMascot } from '../common/Mascot';
 
 const ROLE_TEXT: Record<string, string> = { admin: 'مدير', teacher: 'معلم', supervisor: 'مشرف', student: 'طالب', parent: 'ولي أمر' };
 
@@ -62,7 +63,7 @@ export const ActivityLogPage: React.FC = () => {
           <thead><tr className="bg-slate-50 dark:bg-slate-800/60 text-slate-500 font-bold"><th className="py-3 px-3">{t('الوقت')}</th><th className="py-3 px-3">{t('المنفّذ')}</th><th className="py-3 px-3">{t('الإجراء')}</th><th className="py-3 px-3">{t('الهدف')}</th><th className="py-3 px-3">{t('تفاصيل')}</th></tr></thead>
           <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
             {loading && <tr><td colSpan={5} className="py-10 text-center text-slate-400">{t('جاري التحميل...')}</td></tr>}
-            {!loading && shown.length === 0 && <tr><td colSpan={5} className="py-10 text-center text-slate-400">{t('لا توجد أحداث مطابقة')}</td></tr>}
+            {!loading && shown.length === 0 && <tr><td colSpan={5}><EmptyMascot text={t('لا توجد أحداث مطابقة')} /></td></tr>}
             {shown.map((r) => (
               <tr key={r.id} data-action={r.action}>
                 <td className="py-2.5 px-3 whitespace-nowrap text-slate-500">{formatFullArabicDate(r.created_at)}</td>

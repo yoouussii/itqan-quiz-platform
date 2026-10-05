@@ -68,6 +68,9 @@ on:
           - supabase/migrations/052_points_store.sql
           - supabase/migrations/053_auto_schedule.sql
           - supabase/migrations/054_store_item_image.sql
+          - supabase/migrations/055_individual_remedial.sql
+          - supabase/migrations/056_student_goals.sql
+          - supabase/migrations/057_school_indicators.sql
           - supabase/migrations/003_rollback.sql
       db_secret:
         description: 'اسم سر قاعدة البيانات (اتركه كما هو للمدرسة الأساسية، أو اكتب سر مدرسة أخرى مثل DB_URL_SCHOOL2)'
@@ -133,6 +136,9 @@ jobs:
           select 'points store (052): ' || (to_regclass('public.store_items') is not null);
           select 'auto schedule (053): ' || (to_regproc('itqan.auto_tick') is not null);
           select 'store item image (054): ' || exists(select 1 from information_schema.columns where table_schema = 'public' and table_name = 'store_items' and column_name = 'image');
+          select 'individual remedial (055): ' || exists(select 1 from information_schema.columns where table_schema = 'public' and table_name = 'quizzes' and column_name = 'student_questions');
+          select 'student goals (056): ' || (to_regclass('public.student_goals') is not null);
+          select 'school indicators (057): ' || (to_regproc('public.itqan_school_indicators') is not null);
           select 'owner key set: ' || coalesce((select key_hash is not null from itqan.owner_config where id = 1), false);
           select 'student home: daily challenge (021): ' || (to_regproc('public.itqan_daily_challenge') is not null);
           select 'maintenance mode (019): ' || (to_regproc('itqan.maintenance_on') is not null);

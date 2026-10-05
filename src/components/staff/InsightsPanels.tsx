@@ -10,6 +10,7 @@ import {
 } from '../../utils/kpiSections';
 import { Submission, User, QuizWithDetails } from '../../types';
 import { t } from '../../i18n';
+import { EmptyMascot } from '../common/Mascot';
 
 type ModalKind = 'students' | 'teachers' | 'quizzes' | 'avg' | 'participation' | 'risk' | null;
 const avg = (n: number[]) => (n.length ? Math.round(n.reduce((a, b) => a + b, 0) / n.length) : 0);
@@ -163,7 +164,7 @@ export const InsightsPanels: React.FC<Props> = ({ mode, students, teachers, quiz
         <section className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200/80 dark:border-slate-800 p-6 space-y-3">
           <h2 className="font-bold text-base text-slate-900 dark:text-white">{t('أداء الصفوف')}</h2>
           {classRows.length === 0 ? (
-            <p className="text-xs text-slate-400">{t('لا توجد بيانات صفوف')}</p>
+            <EmptyMascot text={t('لا توجد بيانات صفوف')} compact />
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full text-start text-xs">
@@ -193,7 +194,7 @@ export const InsightsPanels: React.FC<Props> = ({ mode, students, teachers, quiz
             <Trophy className="w-4 h-4 text-amber-500" />{' '}{t('الأوائل')}
           </h2>
           {topStudents.length === 0 ? (
-            <p className="text-xs text-slate-400">{t('لا توجد نتائج بعد')}</p>
+            <EmptyMascot text={t('لا توجد نتائج بعد')} compact />
           ) : (
             <ol className="space-y-2">
               {topStudents.map((x, i) => (
@@ -215,7 +216,7 @@ export const InsightsPanels: React.FC<Props> = ({ mode, students, teachers, quiz
         <section className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200/80 dark:border-slate-800 p-6 space-y-3">
           <h2 className="font-bold text-base text-slate-900 dark:text-white">{t('أداء المعلمين')}</h2>
           {teacherRows.length === 0 ? (
-            <p className="text-xs text-slate-400">{t('لا يوجد معلمون ضمن نطاقك')}</p>
+            <EmptyMascot text={t('لا يوجد معلمون ضمن نطاقك')} compact />
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full text-start text-xs">

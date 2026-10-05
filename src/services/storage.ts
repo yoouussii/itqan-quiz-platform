@@ -526,7 +526,8 @@ public static getCurrentUser(): User | null {
     const allQuestions = getLocalItem<Question[]>(STORAGE_KEYS.QUESTIONS, []);
     const newQuestions: Question[] = questions.map((q, idx) => ({
       ...q,
-      id: `q-${quizId}-${idx + 1}-${Date.now()}`,
+      // معرّفات الاختبار العلاجي الفردي تُحدد مسبقاً لأن أسئلة كل طالب مربوطة بها
+      id: String((q as any).id || '').startsWith('rq-') ? (q as any).id : `q-${quizId}-${idx + 1}-${Date.now()}`,
       quiz_id: quizId,
     }));
     setLocalItem(STORAGE_KEYS.QUESTIONS, [...allQuestions, ...newQuestions]);

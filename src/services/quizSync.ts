@@ -84,6 +84,8 @@ function quizToRow(
     shuffle_options: quiz.shuffle_options ?? false,
     require_fullscreen: quiz.require_fullscreen ?? false,
     questions_per_student: quiz.questions_per_student || null,
+    // يُرسل فقط عند وجوده، فلا يتعطل الحفظ قبل تشغيل 055
+    ...(quiz.student_questions ? { student_questions: quiz.student_questions } : {}),
     target_type: targetType,
     class_id: targetType === 'class' ? primary?.target_id ?? null : null,
     student_ids:
@@ -164,6 +166,7 @@ function rowToBundle(row: any): {
     shuffle_options: !!row.shuffle_options,
     require_fullscreen: !!row.require_fullscreen,
     questions_per_student: Number(row.questions_per_student) > 0 ? Number(row.questions_per_student) : null,
+    student_questions: row.student_questions && typeof row.student_questions === 'object' ? row.student_questions : null,
   };
 
   return { quiz, questions, assignments };

@@ -5,6 +5,7 @@ import { describeQuizTarget } from '../../utils/quizTarget';
 import { formatQuizDateTime } from '../../utils/quizWindow';
 import { timeAgo } from '../common/NotificationBell';
 import { uiDir, t } from '../../i18n';
+import { EmptyMascot } from '../common/Mascot';
 
 /** اعتماد الاختبارات: قائمة الاختبارات التي أرسلها المعلمون وتنتظر الموافقة قبل أن تظهر للطلاب */
 export const ApprovalsPage: React.FC = () => {
@@ -40,7 +41,7 @@ export const ApprovalsPage: React.FC = () => {
       <section className="space-y-3">
         <h2 className="font-bold text-base text-slate-900 dark:text-white">{t('بانتظار الاعتماد (')}{pending.length})</h2>
         {pending.length === 0 ? (
-          <p className="text-xs text-slate-400 py-8 text-center border border-dashed border-slate-200 dark:border-slate-700 rounded-2xl">{t('لا توجد اختبارات بانتظار الاعتماد')}</p>
+          <EmptyMascot text={t('لا توجد اختبارات بانتظار الاعتماد')} className="border border-dashed border-slate-200 dark:border-slate-700 rounded-2xl" />
         ) : (
           pending.map((q) => (
             <div key={q.id} data-quiz={q.id} className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800 p-5 space-y-3">

@@ -10,6 +10,7 @@ import {
 import { FREE_DB_LIMIT } from '../../services/schoolYearService';
 import { uiDir, t, dateLocale } from '../../i18n';
 import type { User } from '../../types';
+import { MascotHere } from '../common/Mascot';
 
 const inp = 'h-10 px-3 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm';
 const pad = (n: number) => String(n).padStart(2, '0');
@@ -86,7 +87,7 @@ export const HomeworkPage: React.FC = () => {
 
       {loading ? null : !shown.length ? (
         <Card className="p-10 text-center text-slate-500 space-y-3">
-          <NotebookPen className="w-10 h-10 mx-auto text-slate-300" />
+          <MascotHere className="mx-auto mb-1" />
           <p>{t('لا توجد واجبات بعد')}</p>
           {canPublish && !noAssignment && <Button variant="secondary" size="sm" icon={Plus} onClick={() => setEditing('new')}>{t('انشر أول واجب')}</Button>}
         </Card>

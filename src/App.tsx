@@ -43,6 +43,7 @@ const OutcomesPage = React.lazy(() => import('./components/analytics/OutcomesPag
 const SkillsCard = React.lazy(() => import('./components/analytics/OutcomesPage').then((m) => ({ default: m.SkillsCard })));
 const QuestionBankPage = React.lazy(() => import('./components/teacher/QuestionBank').then((m) => ({ default: m.QuestionBankPage })));
 const GradingPage = React.lazy(() => import('./components/teacher/GradingPage').then((m) => ({ default: m.GradingPage })));
+const IndicatorsPage = React.lazy(() => import('./components/staff/IndicatorsPage').then((m) => ({ default: m.IndicatorsPage })));
 const PointsStorePage = React.lazy(() => import('./components/staff/PointsStorePage').then((m) => ({ default: m.PointsStorePage })));
 const ClassRecordsPage = React.lazy(() => import('./components/staff/ClassRecordsPage').then((m) => ({ default: m.ClassRecordsPage })));
 const AcademicSupportPage = React.lazy(() => import('./components/staff/AcademicSupportPage').then((m) => ({ default: m.AcademicSupportPage })));
@@ -67,7 +68,7 @@ const KNOWN_VIEWS = [
   'students_management', 'subjects_classes', 'analytics', 'reports',
   'quiz_results', 'quiz_preview', 'quizzes', 'dashboard',
   'my_points', 'leaderboard', 'approvals', 'activity_log', 'settings', 'notifications', 'banners', 'question_bank', 'outcomes', 'certificates', 'grading',
-  'privacy', 'terms', 'attendance', 'calendar', 'behavior', 'school_year', 'gradebook', 'visits', 'surveys', 'remedial', 'portfolio', 'homework', 'academic_support', 'class_records', 'points_store',
+  'privacy', 'terms', 'attendance', 'calendar', 'behavior', 'school_year', 'gradebook', 'visits', 'surveys', 'remedial', 'portfolio', 'homework', 'academic_support', 'class_records', 'points_store', 'indicators',
 ];
 
 /** المسار الحالي، ويتحدّث مع زر الرجوع والروابط الداخلية (لصفحات ما قبل الدخول) */
@@ -160,6 +161,7 @@ const AppContent: React.FC = () => {
     homework: isStaff || currentUser.role === 'student',
     class_records: hasPerm(currentUser, 'can_view_class_records') || hasPerm(currentUser, 'can_manage_class_records'),
     points_store: isStaff && hasPerm(currentUser, 'can_manage_store'),
+    indicators: currentUser.role === 'admin' || currentUser.role === 'supervisor' || hasPerm(currentUser, 'can_view_all_reports'),
     academic_support: isStaff && (hasPerm(currentUser, 'can_academic_support') || currentUser.role === 'admin'),
     portfolio: isStaff,
     grading: currentUser.role === 'admin' || currentUser.role === 'teacher' || hasPerm(currentUser, 'can_grade_essays'),
@@ -279,6 +281,7 @@ const AppContent: React.FC = () => {
         {currentView === 'academic_support' && isStaff && <AcademicSupportPage />}
         {currentView === 'class_records' && isStaff && <ClassRecordsPage />}
         {currentView === 'points_store' && isStaff && <PointsStorePage />}
+        {currentView === 'indicators' && isStaff && <IndicatorsPage />}
         {currentView === 'homework' && currentUser.role === 'student' && <HomeworkStudentPage />}
         {currentView === 'portfolio' && isStaff && <PortfolioPage />}
         {currentView === 'school_year' && currentUser.role === 'admin' && <SchoolYearPage />}

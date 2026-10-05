@@ -7,6 +7,7 @@ import { RichText } from '../common/RichText';
 import { EssayItem, essayItems } from '../../utils/grading';
 import { uiDir, t } from '../../i18n';
 import { hasPerm } from '../../utils/permissions';
+import { MascotHere } from '../common/Mascot';
 
 /**
  * «التصحيح»: كل الإجابات المقالية في مكان واحد، تُصحَّح واحدة تلو الأخرى.
@@ -116,7 +117,7 @@ export const GradingPage: React.FC = () => {
 
         {!item ? (
           <Card className="p-10 text-center space-y-2" data-testid="grading-empty">
-            <CheckCircle2 className="w-12 h-12 mx-auto text-emerald-500" />
+            <MascotHere className="mx-auto mb-1" />
             <p className="font-bold text-slate-900 dark:text-white">{show === 'pending' ? t('أحسنت! لا توجد إجابات بانتظار التصحيح') : t('لا توجد إجابات مصحّحة بعد')}</p>
             {show === 'pending' && all.length > 0 && <button type="button" onClick={() => setShow('graded')} className="text-sm font-bold text-indigo-600 dark:text-indigo-400 hover:underline">{t('مراجعة الإجابات المصحّحة')}</button>}
           </Card>

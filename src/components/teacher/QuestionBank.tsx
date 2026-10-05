@@ -11,6 +11,7 @@ import {
   BankItem, Difficulty, DIFFICULTIES, loadBankCache, syncBank, saveBankItems, deleteBankItems,
   newBankItem, sameQuestion, pickRandom, toQuizQuestion, markBankUsed,
 } from '../../services/bankService';
+import { EmptyMascot, MascotHere } from '../common/Mascot';
 
 /** تمرير أسئلة من البنك إلى محرر اختبار جديد */
 export const BANK_TO_EDITOR_KEY = 'itqan_bank_to_editor';
@@ -119,7 +120,7 @@ const BankList: React.FC<{
       </div>
 
       {shown.length === 0 ? (
-        <div className="py-12 text-center text-sm text-slate-500 dark:text-slate-400">{t('لا توجد أسئلة مطابقة')}</div>
+        <EmptyMascot text={t('لا توجد أسئلة مطابقة')} />
       ) : (
         <ul className="space-y-2">
           {shown.map((b) => {
@@ -316,7 +317,7 @@ const ImportModal: React.FC<{ existing: BankItem[]; onClose: () => void; onDone:
         </div>
         <p className="text-sm text-slate-500 dark:text-slate-400">{t('تُنسخ الأسئلة بمادة الاختبار، والأسئلة الموجودة في البنك تُتخطّى. صنّفها بعدها حسب الوحدة والصعوبة.')}</p>
         <div className="overflow-y-auto flex-1 space-y-1.5">
-          {list.length === 0 && <p className="py-8 text-center text-sm text-slate-500">{t('لا توجد اختبارات بأسئلة')}</p>}
+          {list.length === 0 && <EmptyMascot text={t('لا توجد اختبارات بأسئلة')} />}
           {list.map((q) => (
             <label key={q.id} className="flex items-center gap-3 p-2.5 rounded-xl border border-slate-200 dark:border-slate-800 cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800/50">
               <input type="checkbox" checked={picked.includes(q.id)} onChange={() => setPicked(picked.includes(q.id) ? picked.filter((x) => x !== q.id) : [...picked, q.id])} className="w-4 h-4 accent-indigo-600" />
@@ -395,7 +396,7 @@ export const QuestionBankPage: React.FC = () => {
         <p className="py-12 text-center text-sm text-slate-500">{t('جارٍ التحميل')}</p>
       ) : items.length === 0 && state === 'ready' ? (
         <Card className="p-10 text-center space-y-3">
-          <Library className="w-12 h-12 mx-auto text-slate-300 dark:text-slate-600" />
+          <MascotHere className="mx-auto mb-1" />
           <p className="font-bold text-slate-800 dark:text-slate-100">{t('البنك فارغ')}</p>
           <p className="text-sm text-slate-500 dark:text-slate-400 max-w-md mx-auto">{t('أضف أسئلة من اختباراتك السابقة، أو احفظ أي سؤال من محرر الاختبار بزر «حفظ في البنك».')}</p>
           {canAdd && <Button icon={Download} onClick={() => setImporting(true)}>{t('من اختبارات سابقة')}</Button>}

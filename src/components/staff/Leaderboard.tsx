@@ -12,6 +12,7 @@ import { exportStudentReport, reportExtras } from '../../utils/studentReport';
 import { formatFullArabicDate } from '../../utils/dateUtils';
 import { User } from '../../types';
 import { uiDir, t } from '../../i18n';
+import { EmptyMascot } from '../common/Mascot';
 
 const PERIODS: Array<{ id: Period; label: string }> = [
   { id: 'week', label: 'آخر 7 أيام' },
@@ -180,7 +181,7 @@ export const Leaderboard: React.FC = () => {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-              {rows.length === 0 && (<tr><td colSpan={9} className="py-10 text-center text-slate-400">{t('لا توجد بيانات ضمن هذه الفلاتر')}</td></tr>)}
+              {rows.length === 0 && (<tr><td colSpan={9}><EmptyMascot text={t('لا توجد بيانات ضمن هذه الفلاتر')} /></td></tr>)}
               {rows.map((r, i) => (
                 <tr key={r.s.id} data-student={r.s.id}>
                   <td className="py-2.5 px-3 font-bold text-slate-400">{i + 1}</td>

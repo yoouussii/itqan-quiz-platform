@@ -7,6 +7,7 @@ import { exportElementToPdf } from '../../utils/exportPdf';
 import { PlanProgress } from '../common/RemedialCard';
 import { uiDir, t, dateLocale } from '../../i18n';
 import type { User } from '../../types';
+import { EmptyMascot } from '../common/Mascot';
 
 const esc = (v: unknown) => String(v ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 const fmt = (d?: string | null) => (d ? new Date(d.length <= 10 ? `${d}T12:00:00` : d).toLocaleDateString(dateLocale(), { day: 'numeric', month: 'short', year: 'numeric' }) : '—');
@@ -58,7 +59,7 @@ export const RemedialPage: React.FC = () => {
           {me.role !== 'parent' && <label className="ms-auto flex items-center gap-2 text-sm text-slate-700 dark:text-slate-200"><input type="checkbox" checked={mineOnly} onChange={(e) => setMineOnly(e.target.checked)} />{t('خططي فقط')}</label>}
         </div>
         {plans === null ? <p className="p-8 text-center text-slate-500">{t('جارٍ التحميل…')}</p> : list.length === 0 ? (
-          <p className="p-10 text-center text-slate-500">{t('لا توجد خطط. افتح خطة من صفحة «نواتج التعلم» للطلاب الذين يحتاجون علاجاً.')}</p>
+          <EmptyMascot text={t('لا توجد خطط. افتح خطة من صفحة «نواتج التعلم» للطلاب الذين يحتاجون علاجاً.')} />
         ) : list.map((p) => {
           const now = nowPct.get(p.id) ?? null;
           return (

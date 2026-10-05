@@ -8,6 +8,7 @@ import { visitTotals, ClassVisit } from '../../services/visitsSurveysService';
 import { exportElementToPdf } from '../../utils/exportPdf';
 import { uiDir, t, dateLocale } from '../../i18n';
 import type { QuizWithDetails, SubmissionWithDetails, User } from '../../types';
+import { EmptyMascot } from '../common/Mascot';
 
 const esc = (v: unknown) => String(v ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 const iso = (d: Date) => d.toISOString().slice(0, 10);
@@ -123,7 +124,7 @@ export const PortfolioPage: React.FC = () => {
         <label className="text-sm text-slate-600 dark:text-slate-300 flex flex-col gap-1">{t('إلى')}<input type="date" value={to} min={from} onChange={(e) => setTo(e.target.value)} className={inp} /></label>
         {teacher && <p className="text-sm text-slate-500 ms-auto">{[teacherSubjects, teacherClasses].filter(Boolean).join(' · ')}</p>}
       </Card>
-      {!teacher ? <Card className="p-10 text-center text-slate-500">{t('لا يوجد معلمون')}</Card> : (<>
+      {!teacher ? <Card><EmptyMascot text={t('لا يوجد معلمون')} /></Card> : (<>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3" data-testid="portfolio-tiles">
           {tiles.map(([l, v]) => <Card key={l} className="p-4"><div className="text-xs font-semibold text-slate-500">{t(l)}</div><div className="text-2xl font-extrabold tabular-nums text-slate-900 dark:text-white mt-0.5">{v}</div></Card>)}
         </div>
@@ -135,7 +136,7 @@ export const PortfolioPage: React.FC = () => {
         <div className="grid lg:grid-cols-2 gap-5 items-start">
           <Card className="p-0 overflow-hidden">
             <div className="px-5 pt-4 pb-2 font-bold text-slate-900 dark:text-white">{t('الاختبارات')} <span className="text-sm font-normal text-slate-500">({data.bySubject.map((s) => `${s.name}: ${s.n}`).join('، ') || '—'})</span></div>
-            {data.list.length === 0 ? <p className="p-6 text-center text-slate-500 text-sm">{t('لا توجد اختبارات في هذه الفترة')}</p> : (
+            {data.list.length === 0 ? <EmptyMascot text={t('لا توجد اختبارات في هذه الفترة')} /> : (
               <ul>{data.list.map((q, i) => (
                 <li key={i} className="flex items-center gap-3 px-5 py-2 border-t border-slate-100 dark:border-slate-800 text-sm">
                   <span className="flex-1 truncate text-slate-800 dark:text-slate-100">{q.title}</span>

@@ -11,6 +11,7 @@ import {
 import { CertRecord, NewCert, issueCertificates, listCertificates, revokeCertificate, recordToInput } from '../../services/certificateService';
 import { uiDir, t, isEn } from '../../i18n';
 import type { User } from '../../types';
+import { EmptyMascot } from '../common/Mascot';
 
 type Mode = 'student' | 'manual' | 'group';
 type Tab = 'issue' | 'log' | 'identity';
@@ -431,7 +432,7 @@ export const CertificatesPage: React.FC = () => {
             <input aria-label={t('بحث في السجل')} value={logQ} onChange={(e) => setLogQ(e.target.value)} placeholder={t('ابحث بالاسم أو رقم الشهادة')} className={`${inputCls} ps-9`} />
           </div>
           {log === null ? <p className="text-sm text-slate-500 py-6 text-center">{t('جارٍ التحميل')}</p> : !shownLog.length ? (
-            <p className="text-sm text-slate-500 py-6 text-center">{t('لا توجد شهادات بعد.')}</p>
+            <EmptyMascot text={t('لا توجد شهادات بعد.')} compact />
           ) : (
             <div className="overflow-x-auto rounded-xl border border-slate-200 dark:border-slate-700">
               <table className="w-full text-sm" data-testid="cert-log">

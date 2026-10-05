@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { CalendarClock, RotateCcw, BookOpen, CheckCircle2 } from 'lucide-react';
+import { CalendarClock, RotateCcw, BookOpen } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 import { QuizWithDetails, SubmissionWithDetails } from '../../types';
 import { parseWindowStart, parseWindowEnd, formatQuizDateTime } from '../../utils/quizWindow';
@@ -19,6 +19,8 @@ import { RemedialCard } from '../common/RemedialCard';
 import { HomeworkCard } from '../common/Homework';
 import { AcademicSupportCard } from '../common/AcademicSupport';
 import { StudentHomeData, fetchStudentHome } from '../../services/studentHomeService';
+import { MascotHere } from '../common/Mascot';
+import { GoalsCard } from '../common/Goals';
 
 interface StudentDashboardProps {
   onStartQuiz: (quizId: string) => void;
@@ -241,7 +243,7 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({ onStartQuiz,
 
   const EmptyCard = !available.length && !nextUp && (
     <Card className="p-6 flex items-center gap-4">
-      <span className="w-12 h-12 rounded-full bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-400 flex items-center justify-center shrink-0"><CheckCircle2 className="w-6 h-6" /></span>
+      <MascotHere size={48} className="shrink-0" />
       <div>
         <div className="font-bold text-base text-slate-900 dark:text-white">{t('لا توجد اختبارات متاحة الآن')}</div>
         <div className="text-sm text-slate-500 dark:text-slate-400">{t('عندما يضيف معلموك اختباراً جديداً سيظهر هنا ويصلك إشعار.')}</div>
@@ -415,6 +417,7 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({ onStartQuiz,
           {ChallengeCard}
           {AvailableCard}
           {currentUser && <HomeworkCard student={currentUser} canSubmit />}
+          {me && <GoalsCard studentId={me} editable />}
           {NextCard}
           {EmptyCard}
           <BannerStrip embedded />

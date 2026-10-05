@@ -7,6 +7,7 @@ import { ClassVisit, VisitItem, ackVisit, addVisit, deleteVisit, fetchVisitConfi
 import { exportElementToPdf } from '../../utils/exportPdf';
 import { uiDir, t, dateLocale } from '../../i18n';
 import type { User } from '../../types';
+import { EmptyMascot } from '../common/Mascot';
 
 const esc = (v: unknown) => String(v ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 const fmtDay = (d: string) => new Date(`${d}T12:00:00`).toLocaleDateString(dateLocale(), { weekday: 'short', day: 'numeric', month: 'long', year: 'numeric' });
@@ -110,7 +111,7 @@ export const VisitsPage: React.FC = () => {
               )}
             </div>
             {visits === null ? <p className="p-8 text-center text-slate-500">{t('جارٍ التحميل…')}</p> : list.length === 0 ? (
-              <p className="p-10 text-center text-slate-500">{t('لا توجد زيارات مسجلة')}</p>
+              <EmptyMascot text={t('لا توجد زيارات مسجلة')} />
             ) : list.map((v) => {
               const tt = visitTotals(v);
               return (

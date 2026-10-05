@@ -8,6 +8,7 @@ import { computeOutcomes, pct, masteryLevel, MASTERY_LABEL, OutcomeStat } from '
 import { syncBank, loadBankCache, pickRandom } from '../../services/bankService';
 import { BANK_TO_EDITOR_KEY } from '../teacher/QuestionBank';
 import type { QuizWithDetails, SubmissionWithDetails } from '../../types';
+import { MascotHere } from '../common/Mascot';
 
 const BAR: Record<'ok' | 'warn' | 'bad', string> = { ok: 'bg-emerald-500', warn: 'bg-amber-500', bad: 'bg-rose-500' };
 const selectCls = 'h-10 px-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm text-slate-900 dark:text-white';
@@ -136,7 +137,7 @@ export const OutcomesPage: React.FC = () => {
 
       {stats.length === 0 ? (
         <Card className="p-10 text-center space-y-2">
-          <Target className="w-12 h-12 mx-auto text-slate-300 dark:text-slate-600" />
+          <MascotHere className="mx-auto mb-1" />
           <p className="font-bold text-slate-800 dark:text-slate-100">{t('لا توجد بيانات مهارات بعد')}</p>
           <p className="text-sm text-slate-500 dark:text-slate-400 max-w-md mx-auto">{t('اكتب ناتج التعلم لكل سؤال في محرر الاختبار. بعد أن يسلّم الطلاب يظهر هنا مستوى إتقان كل مهارة، ومن يحتاج علاجاً.')}</p>
         </Card>

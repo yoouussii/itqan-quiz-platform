@@ -10,6 +10,7 @@ import {
 } from '../../services/visitsSurveysService';
 import { uiDir, t, dateLocale } from '../../i18n';
 import { SurveyAnswerModal } from '../common/SurveyPrompt';
+import { EmptyMascot } from '../common/Mascot';
 
 const ROLE_LABEL: Record<string, string> = { parent: 'أولياء الأمور', student: 'الطلاب', teacher: 'المعلمون', supervisor: 'المشرفون' };
 const QTYPE_LABEL: Record<SurveyQType, string> = { rating: 'تقييم من 1 إلى 5', choice: 'اختيار من متعدد', text: 'إجابة نصية' };
@@ -100,7 +101,7 @@ export const SurveysPage: React.FC = () => {
       {(pending.length > 0 || !canManage) && (
         <Card className="p-5 space-y-3">
           <h2 className="font-bold text-slate-900 dark:text-white">{t('بانتظار إجابتك')}</h2>
-          {pending.length === 0 ? <p className="text-sm text-slate-500">{t('لا توجد استبيانات جديدة الآن. شكراً لمشاركتك!')}</p> : pending.map((s) => (
+          {pending.length === 0 ? <EmptyMascot text={t('لا توجد استبيانات جديدة الآن. شكراً لمشاركتك!')} /> : pending.map((s) => (
             <div key={s.id} className="flex flex-wrap items-center gap-3 rounded-2xl border border-indigo-100 dark:border-indigo-900 bg-indigo-50/50 dark:bg-indigo-950/20 p-4">
               <div className="flex-1 min-w-[200px]"><div className="font-semibold text-slate-900 dark:text-white">{s.title}</div>{s.description && <div className="text-sm text-slate-600 dark:text-slate-300">{s.description}</div>}</div>
               <Button onClick={() => setAnswering(s)}>{t('أجب الآن')}</Button>
@@ -113,7 +114,7 @@ export const SurveysPage: React.FC = () => {
         <Card className="p-0 overflow-hidden">
           <div className="px-5 pt-4 pb-2 font-bold text-slate-900 dark:text-white">{t('كل الاستبيانات')}</div>
           {surveys === null ? <p className="p-8 text-center text-slate-500">{t('جارٍ التحميل…')}</p> : surveys.length === 0 ? (
-            <p className="p-10 text-center text-slate-500">{t('لا توجد استبيانات بعد. أنشئ أول استبيان.')}</p>
+            <EmptyMascot text={t('لا توجد استبيانات بعد. أنشئ أول استبيان.')} />
           ) : surveys.map((s) => (
             <div key={s.id} className="flex flex-wrap items-center gap-3 px-5 py-3 border-t border-slate-100 dark:border-slate-800">
               <div className="flex-1 min-w-[220px]">

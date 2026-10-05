@@ -11,6 +11,7 @@ import { hasPerm } from '../../utils/permissions';
 import { exportElementToPdf } from '../../utils/exportPdf';
 import { uiDir, t } from '../../i18n';
 import type { User } from '../../types';
+import { MascotHere } from '../common/Mascot';
 
 const inp = 'h-10 px-3 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm';
 const escH = (v: unknown) => String(v ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
@@ -152,7 +153,7 @@ export const AcademicSupportPage: React.FC = () => {
 
       {loading ? null : !shown.length ? (
         <Card className="p-10 text-center text-slate-500 space-y-3">
-          <HeartHandshake className="w-10 h-10 mx-auto text-slate-300" />
+          <MascotHere className="mx-auto mb-1" />
           <p>{rows.length ? t('لا يوجد طلاب بهذا التصنيف') : t('لا يوجد طلاب في برنامج الدعم بعد')}</p>
           {canAdd && !rows.length && <Button variant="secondary" size="sm" icon={Plus} onClick={() => setAdding(true)}>{t('إضافة أول طالب')}</Button>}
         </Card>

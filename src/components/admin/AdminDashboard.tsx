@@ -13,6 +13,7 @@ import { Avatar } from '../common/Avatar';
 import { Button, Card, Chip, PageHeader, SectionTitle, StatTile, greeting, scoreTone, timeAgo, todayLabel } from '../common/ui';
 import { uiDir, t, isEn } from '../../i18n';
 import { MorningSummaryCard } from './MorningSummaryCard';
+import { EmptyMascot } from '../common/Mascot';
 
 const avgOf = (vals: number[]) => (vals.length ? Math.round(vals.reduce((a, b) => a + b, 0) / vals.length) : 0);
 
@@ -165,7 +166,7 @@ export const AdminDashboard: React.FC = () => {
 
         <Card className="lg:col-span-2 p-5 sm:p-6 flex flex-col gap-4">
           <SectionTitle>{t('أداء الفصول')}</SectionTitle>
-          {classPerf.length === 0 && <p className="text-sm text-slate-500 py-6 text-center">{t('لا توجد نتائج بعد')}</p>}
+          {classPerf.length === 0 && <EmptyMascot text={t('لا توجد نتائج بعد')} compact />}
           {classPerf.map(({ c, avg }) => (
             <div key={c.id}>
               <div className="flex justify-between text-sm mb-1.5">
@@ -188,7 +189,7 @@ export const AdminDashboard: React.FC = () => {
           <SectionTitle action={<button type="button" onClick={() => setCurrentView('analytics')} className="text-sm font-semibold text-indigo-700 dark:text-indigo-400 hover:underline">{t('عرض الكل')}</button>}>
             {t('آخر التسليمات')}
           </SectionTitle>
-          {recent.length === 0 && <p className="text-sm text-slate-500 py-6 text-center">{t('لا توجد تسليمات بعد')}</p>}
+          {recent.length === 0 && <EmptyMascot text={t('لا توجد تسليمات بعد')} compact />}
           {recent.map((s) => {
             const st = users.find((u) => u.id === s.student_id);
             const q = quizzes.find((x) => x.id === s.quiz_id);
@@ -209,7 +210,7 @@ export const AdminDashboard: React.FC = () => {
 
         <Card className="lg:col-span-2 p-5 sm:p-6">
           <SectionTitle action={<Star className="w-5 h-5 fill-amber-400 text-amber-400" />}>{t('الأوائل')}</SectionTitle>
-          {topStudents.length === 0 && <p className="text-sm text-slate-500 py-6 text-center">{t('لا توجد نتائج بعد')}</p>}
+          {topStudents.length === 0 && <EmptyMascot text={t('لا توجد نتائج بعد')} compact />}
           {topStudents.map(({ st, avg }, i) => (
             <div key={st.id} className="flex items-center gap-3 py-3 border-t border-slate-100 dark:border-slate-800 first-of-type:border-t-0">
               <span className={`w-6 font-bold tabular-nums ${i === 0 ? 'text-amber-700 dark:text-amber-400' : 'text-slate-500'}`}>{i + 1}</span>

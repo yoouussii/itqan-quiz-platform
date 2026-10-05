@@ -2,7 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import {
   FileQuestion, BarChart2, Users, PlusCircle, Menu, X, LogOut, Moon, Sun,
   Layers, ChevronDown, UserCheck, ClipboardCheck, Trophy, ScrollText, Settings as SettingsIcon,
-  ExternalLink, Sparkles, Store, Images, Bell, Home, LucideIcon,
+  ExternalLink, Sparkles, Store, Gauge, Images, Bell, Home, LucideIcon,
   Library,
   Target,
   Award,
@@ -74,6 +74,7 @@ const staffGroups = (u: User, pendingApprovals: number, preparationsUrl: string,
   quizzes.push({ id: 'gradebook', label: t('كشف الدرجات'), icon: BookOpenCheck });
   if (u.role === 'teacher' && p.can_view_all_reports) quizzes.push({ id: 'reports', label: t('التقارير الشاملة'), icon: BarChart2 });
 
+  if (isAdmin || u.role === 'supervisor' || hasPerm(u, 'can_view_all_reports')) school.push({ id: 'indicators', label: t('مؤشرات المدرسة'), icon: Gauge });
   if (isAdmin) school.push({ id: 'users', label: t('المستخدمون'), icon: Users });
   else if (p.can_add_students || p.can_add_teachers) school.push({ id: 'users_management', label: t('المستخدمون'), icon: Users });
   if (isAdmin || p.can_add_custom_subjects || p.can_manage_classes) school.push({ id: 'subjects_classes', label: t('المواد والفصول'), icon: Layers });
