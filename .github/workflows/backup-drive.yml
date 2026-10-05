@@ -1,0 +1,118 @@
+# نسخة احتياطية يومية كاملة لقاعدة البيانات في Google Drive (مجلد «إتقان - نسخ احتياطية»)
+# Actions ← Daily backup to Drive ← Run workflow (يعمل تلقائياً كل ليلة أيضاً)
+#
+# يستخدم أسراراً موجودة مسبقاً:
+#   SUPABASE_DB_URL (من Supabase migrate)، و GOOGLE_CLIENT_ID / GOOGLE_CLIENT_SECRET / GOOGLE_REFRESH_TOKEN (من Setup Drive storage)
+# اختياري: BACKUP_PASSPHRASE لتشفير الملف (AES-256) قبل رفعه.
+#
+# ماذا يفعل: pg_dump لكل بيانات المنصة (المخططان public و itqan) بصيغة مضغوطة،
+# يرفعها لمجلد خاص في Drive، يحتفظ بآخر 30 نسخة ويحذف الأقدم، ويسجّل آخر نسخة لتظهر للمدير في المنصة.
+# الاسترجاع: docs/BACKUP.md
+name: Daily backup to Drive
+
+on:
+  schedule:
+    - cron: '23 0 * * *' # يومياً 3:23 فجراً بتوقيت السعودية
+  workflow_dispatch:
+    inputs:
+      db_secret:
+        description: 'اسم سر قاعدة البيانات (اتركه كما هو للمدرسة الأساسية)'
+        required: false
+        default: SUPABASE_DB_URL
+        type: string
+      keep:
+        description: 'عدد النسخ التي تبقى في Drive'
+        required: false
+        default: '30'
+        type: string
+
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+    env:
+      DATABASE_URL: ${{ secrets[inputs.db_secret || 'SUPABASE_DB_URL'] }}
+      GOOGLE_CLIENT_ID: ${{ secrets.GOOGLE_CLIENT_ID }}
+      GOOGLE_CLIENT_SECRET: ${{ secrets.GOOGLE_CLIENT_SECRET }}
+      GOOGLE_REFRESH_TOKEN: ${{ secrets.GOOGLE_REFRESH_TOKEN }}
+      BACKUP_PASSPHRASE: ${{ secrets.BACKUP_PASSPHRASE }}
+      KEEP: ${{ inputs.keep || '30' }}
+    steps:
+      - name: Check secrets
+        run: |
+          for k in DATABASE_URL GOOGLE_CLIENT_ID GOOGLE_CLIENT_SECRET GOOGLE_REFRESH_TOKEN; do
+            test -n "${!k}" || { echo "::error::السر $k غير موجود (راجع docs/BACKUP.md)."; exit 1; }
+          done
+
+      - name: Install PostgreSQL 17 client
+        run: |
+          sudo apt-get -qq update && sudo apt-get -qq install -y postgresql-common >/dev/null
+          sudo /usr/share/postgresql-common/pgdg/apt.postgresql.org.sh -y >/dev/null
+          sudo apt-get -qq install -y postgresql-client-17 >/dev/null
+          echo "/usr/lib/postgresql/17/bin" >> "$GITHUB_PATH"
+
+      - name: Dump database
+        run: |
+          STAMP=$(TZ=Asia/Riyadh date +%Y-%m-%d_%H%M)
+          FILE="itqan-backup-$STAMP.dump"
+          pg_dump "$DATABASE_URL" --format=custom --compress=9 --no-owner \
+            --schema=public --schema=itqan --file="$FILE"
+          if [ -n "$BACKUP_PASSPHRASE" ]; then
+            gpg --batch --yes --pinentry-mode loopback --passphrase "$BACKUP_PASSPHRASE" --symmetric --cipher-algo AES256 -o "$FILE.gpg" "$FILE"
+            rm "$FILE"; FILE="$FILE.gpg"
+          fi
+          echo "FILE=$FILE" >> "$GITHUB_ENV"
+          echo "SIZE=$(stat -c %s "$FILE")" >> "$GITHUB_ENV"
+          echo "حجم النسخة: $(du -h "$FILE" | cut -f1)"
+
+      - name: Google token
+        run: |
+          RES=$(curl -sS https://oauth2.googleapis.com/token \
+            -d client_id="$GOOGLE_CLIENT_ID" -d client_secret="$GOOGLE_CLIENT_SECRET" \
+            -d refresh_token="$GOOGLE_REFRESH_TOKEN" -d grant_type=refresh_token)
+          TOKEN=$(echo "$RES" | jq -r '.access_token // empty')
+          test -n "$TOKEN" || { echo "::error::Google رفض الإذن: $(echo "$RES" | jq -r '.error_description // .error // "unknown"')"; exit 1; }
+          echo "::add-mask::$TOKEN"
+          echo "TOKEN=$TOKEN" >> "$GITHUB_ENV"
+
+      - name: Drive folder
+        run: |
+          NAME='إتقان - نسخ احتياطية'
+          Q=$(jq -rn --arg n "$NAME" '"name = \"" + $n + "\" and mimeType = \"application/vnd.google-apps.folder\" and trashed = false"')
+          FOLDER=$(curl -sS -G https://www.googleapis.com/drive/v3/files -H "Authorization: Bearer $TOKEN" \
+            --data-urlencode "q=$Q" --data-urlencode "fields=files(id)" | jq -r '.files[0].id // empty')
+          if [ -z "$FOLDER" ]; then
+            FOLDER=$(curl -sS "https://www.googleapis.com/drive/v3/files?fields=id" -H "Authorization: Bearer $TOKEN" \
+              -H 'Content-Type: application/json' \
+              -d "$(jq -n --arg n "$NAME" '{name: $n, mimeType: "application/vnd.google-apps.folder"}')" | jq -r '.id // empty')
+            test -n "$FOLDER" || { echo "::error::تعذر إنشاء مجلد النسخ في Drive."; exit 1; }
+          fi
+          echo "FOLDER=$FOLDER" >> "$GITHUB_ENV"
+
+      - name: Upload (resumable)
+        run: |
+          META=$(jq -n --arg n "$FILE" --arg f "$FOLDER" '{name: $n, parents: [$f], description: "نسخة احتياطية تلقائية من منصة إتقان"}')
+          URL=$(curl -sS -D - -o /dev/null -X POST "https://www.googleapis.com/upload/drive/v3/files?uploadType=resumable&fields=id,size" \
+            -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json; charset=UTF-8' \
+            -H "X-Upload-Content-Type: application/octet-stream" -H "X-Upload-Content-Length: $SIZE" \
+            -d "$META" | tr -d '\r' | awk 'tolower($1)=="location:" {print $2}')
+          test -n "$URL" || { echo "::error::تعذر بدء الرفع إلى Drive."; exit 1; }
+          ID=$(curl -sS -X PUT "$URL" -H "Content-Type: application/octet-stream" --data-binary "@$FILE" | jq -r '.id // empty')
+          test -n "$ID" || { echo "::error::فشل رفع النسخة إلى Drive."; exit 1; }
+          echo "FILE_ID=$ID" >> "$GITHUB_ENV"
+          echo "✓ رُفعت $FILE إلى Drive."
+
+      - name: Keep the latest copies only
+        run: |
+          IDS=$(curl -sS -G https://www.googleapis.com/drive/v3/files -H "Authorization: Bearer $TOKEN" \
+            --data-urlencode "q='$FOLDER' in parents and trashed = false" --data-urlencode "orderBy=createdTime desc" \
+            --data-urlencode "pageSize=200" --data-urlencode "fields=files(id,name)" | jq -r --argjson k "$KEEP" '.files[$k:][]?.id')
+          for id in $IDS; do curl -sS -X DELETE "https://www.googleapis.com/drive/v3/files/$id" -H "Authorization: Bearer $TOKEN" >/dev/null; done
+          echo "حُذفت $(echo "$IDS" | grep -c . || true) نسخة قديمة."
+
+      - name: Record last backup
+        if: always()
+        run: |
+          OK=$([ -n "$FILE_ID" ] && echo true || echo false)
+          V=$(jq -cn --arg at "$(date -u +%Y-%m-%dT%H:%M:%SZ)" --arg f "${FILE:-}" --argjson s "${SIZE:-0}" --argjson ok "$OK" --argjson enc "$([ -n "$BACKUP_PASSPHRASE" ] && echo true || echo false)" \
+            '{at: $at, file: $f, size: $s, ok: $ok, encrypted: $enc, keep: (env.KEEP | tonumber)}')
+          psql "$DATABASE_URL" -qc "insert into public.app_settings (key, value, updated_at) values ('auto_backup', '$V'::jsonb, now()) on conflict (key) do update set value = excluded.value, updated_at = now()" || true

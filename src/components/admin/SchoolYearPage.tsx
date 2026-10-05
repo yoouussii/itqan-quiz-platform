@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { CalendarRange, DatabaseBackup, HardDrive, FileSpreadsheet, FileJson, ArrowLeftRight, GraduationCap, History, AlertTriangle, X } from 'lucide-react';
+import { CalendarRange, DatabaseBackup, HardDrive, FileSpreadsheet, FileJson, ArrowLeftRight, GraduationCap, History, AlertTriangle, X, CloudUpload, CheckCircle2, Lock } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 import { PageHeader, Card, Button, Chip } from '../common/ui';
 import {
@@ -105,6 +105,7 @@ export const SchoolYearPage: React.FC = () => {
           </div>
           {busy.includes(':') && <p className="text-xs text-slate-500">{t('جارٍ قراءة: {t}', { t: t(busy.split(':')[1]) })}</p>}
           <p className="text-xs text-slate-500">{t('ننصح بنسخة احتياطية شهرياً، وقبل ترحيل السنة دائماً.')}</p>
+          <AutoBackupStatus />
         </Card>
 
         <Card className="p-5 space-y-3" data-testid="usage-card">
@@ -218,6 +219,36 @@ export const SchoolYearPage: React.FC = () => {
           </div>
         </div>
       )}
+    </div>
+  );
+};
+
+/** حالة النسخ الاحتياطي اليومي التلقائي على Google Drive (يكتبها سير عمل GitHub) */
+const AutoBackupStatus: React.FC = () => {
+  const { settings } = useApp();
+  const b = settings.auto_backup;
+  const box = 'rounded-2xl border p-3 text-sm flex items-start gap-2.5';
+  if (!b) return (
+    <div className={`${box} border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300`} data-testid="auto-backup">
+      <CloudUpload className="w-5 h-5 text-slate-400 shrink-0" />
+      <div><b className="text-slate-800 dark:text-slate-100">{t('النسخ اليومي التلقائي على Drive: غير مفعّل بعد')}</b>
+        <p className="text-xs mt-0.5">{t('من GitHub: Actions ← «Daily backup to Drive» ← Run workflow مرة واحدة، وبعدها يعمل تلقائياً كل ليلة.')}</p></div>
+    </div>
+  );
+  const at = new Date(b.at);
+  const stale = Date.now() - at.getTime() > 2 * 864e5;
+  const bad = !b.ok || stale;
+  return (
+    <div className={`${box} ${bad ? 'border-amber-300 bg-amber-50 dark:bg-amber-950/30 dark:border-amber-800' : 'border-emerald-200 bg-emerald-50 dark:bg-emerald-950/30 dark:border-emerald-900'}`} data-testid="auto-backup">
+      {bad ? <AlertTriangle className="w-5 h-5 text-amber-600 shrink-0" /> : <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0" />}
+      <div className="min-w-0">
+        <b className="text-slate-800 dark:text-slate-100">{!b.ok ? t('آخر نسخة تلقائية فشلت') : stale ? t('لم تُنشأ نسخة تلقائية منذ أكثر من يومين') : t('النسخ اليومي التلقائي على Drive يعمل')}</b>
+        <p className="text-xs text-slate-600 dark:text-slate-300 mt-0.5">
+          {t('آخر نسخة: {d}', { d: at.toLocaleString(dateLocale(), { weekday: 'long', day: 'numeric', month: 'long', hour: 'numeric', minute: '2-digit' }) })}
+          {b.ok && b.size ? ` · ${fmtBytes(b.size)}` : ''}{b.keep ? ` · ${t('تُحفظ آخر {n} نسخة', { n: b.keep })}` : ''}
+        </p>
+        <p className="text-xs text-slate-500 mt-0.5 flex items-center gap-1">{b.encrypted && <Lock className="w-3 h-3" />}{t('في Drive: مجلد «إتقان - نسخ احتياطية»')}{b.encrypted ? ` · ${t('مشفّرة')}` : ''}</p>
+      </div>
     </div>
   );
 };

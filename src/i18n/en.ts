@@ -2852,4 +2852,13 @@ export const EN: Record<string, string> = {
   'لا توجد فصول دعم بعد': 'No support classes yet',
   'ليس لديك صلاحية — أو لم يُشغَّل التحديث 049 بعد': 'You don\'t have permission — or update 049 hasn\'t been run yet',
   'الفصول التي تضيفها تُسند لك تلقائياً.': 'Classes you add are assigned to you automatically.',
+  'النسخ اليومي التلقائي على Drive: غير مفعّل بعد': 'Daily automatic backup to Drive: not enabled yet',
+  'من GitHub: Actions ← «Daily backup to Drive» ← Run workflow مرة واحدة، وبعدها يعمل تلقائياً كل ليلة.': 'In GitHub: Actions → «Daily backup to Drive» → Run workflow once; after that it runs every night.',
+  'آخر نسخة تلقائية فشلت': 'The last automatic backup failed',
+  'لم تُنشأ نسخة تلقائية منذ أكثر من يومين': 'No automatic backup for more than two days',
+  'النسخ اليومي التلقائي على Drive يعمل': 'Daily automatic backup to Drive is working',
+  'آخر نسخة: {d}': 'Last backup: {d}',
+  'تُحفظ آخر {n} نسخة': 'the last {n} are kept',
+  'في Drive: مجلد «إتقان - نسخ احتياطية»': 'In Drive: folder «إتقان - نسخ احتياطية»',
+  'مشفّرة': 'encrypted',
 };

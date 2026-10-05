@@ -21,6 +21,8 @@ export interface AppSettings {
   /** توقيع المدير وختم المدرسة (صور بخلفية شفافة) */
   cert_principal_signature: string;
   cert_stamp: string;
+  /** آخر نسخة احتياطية تلقائية على Drive (يكتبها سير عمل Daily backup to Drive) */
+  auto_backup: { at: string; file: string; size: number; ok: boolean; encrypted?: boolean; keep?: number } | null;
   cert_style: { template?: string; primary?: string; accent?: string; qr?: boolean; stampPos?: string; stampSize?: number; sigSize?: number } | null;
   /** وضع الصيانة (019): لا يدخل إلا المدير */
   maintenance: { on?: boolean; message?: string; until?: string } | null;
@@ -52,6 +54,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   cert_principal_title: '',
   cert_principal_signature: '',
   cert_stamp: '',
+  auto_backup: null,
   cert_style: null,
   maintenance: null,
   login_style: 'classic',
