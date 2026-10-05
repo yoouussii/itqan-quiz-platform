@@ -127,3 +127,25 @@ export function schoolDaysBetween(from: string, to: string): number {
 }
 
 export const isoDay = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+
+// ---------------------------------------------------------------------
+// ملاحظات الحضور (042): تبقى بعد كل مزامنة لسجل الغياب
+// ---------------------------------------------------------------------
+export interface AttNote { id: number; student_id: string; day: string; kind: AttKind; note: string; visible_to_parent: boolean; created_by: string; created_by_name: string; updated_at: string }
+export const noteKey = (day: string, kind: string) => `${day}|${kind}`;
+
+export async function fetchAttendanceNotes(studentIds: string[]): Promise<AttNote[]> {
+  if (!studentIds.length) return [];
+  const r = await safe<AttNote[]>(() => supabase.from('attendance_notes').select('*').in('student_id', studentIds).limit(5000) as any);
+  return r.data || [];
+}
+
+export async function saveAttendanceNote(n: Pick<AttNote, 'student_id' | 'day' | 'kind' | 'note' | 'visible_to_parent' | 'created_by' | 'created_by_name'>) {
+  const r = await safe<AttNote[]>(() => supabase.from('attendance_notes').upsert(n, { onConflict: 'student_id,day,kind' }).select('*') as any);
+  return r.data?.[0] || null;
+}
+
+export async function deleteAttendanceNote(id: number) {
+  const r = await safe<any[]>(() => supabase.from('attendance_notes').delete().eq('id', id).select('id') as any);
+  return r.ok && (r.data || []).length > 0;
+}

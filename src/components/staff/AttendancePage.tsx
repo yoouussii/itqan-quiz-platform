@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { CalendarCheck, Upload, Link2, Copy, KeyRound, Search, Bell, Trash2, Plus, X, RefreshCw, Download, AlertTriangle, CheckCircle2, FileDown, MessageCircle } from 'lucide-react';
+import { CalendarCheck, Upload, Link2, Copy, KeyRound, Search, Bell, Trash2, Plus, X, RefreshCw, Download, AlertTriangle, CheckCircle2, FileDown, MessageCircle, ChevronRight, ChevronLeft, StickyNote, Pencil } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, AreaChart, Area, ReferenceLine } from 'recharts';
 import { useApp } from '../../context/AppContext';
 import { PageHeader, Card, Button, Chip } from '../common/ui';
@@ -9,7 +9,7 @@ import { AttKind, parseAttendanceWorkbook, appsScriptCode, SheetPayload } from '
 import {
   AttConfig, AttRecord, ImportResult, RosterStudent, ROSTER_SHEET, attendanceDigestTick, rosterClassId, rosterClassName, fetchRoster, addAttendance, deleteAttendance, fetchAttendance, fetchAttendanceConfig,
   importAttendance, isoDay, linkAttendanceName, unmatchedAction, clearSyncLog, newAttendanceToken, saveAttendanceConfig, schoolDaysBetween,
-} from '../../services/attendanceService';
+  AttNote, fetchAttendanceNotes, saveAttendanceNote, deleteAttendanceNote, noteKey } from '../../services/attendanceService';
 import { supabaseUrl, supabaseAnonKey } from '../../services/supabase';
 import { exportElementToPdf, getPrintBrand } from '../../utils/exportPdf';
 import { WhatsAppSender } from '../common/WhatsAppSender';
@@ -23,7 +23,9 @@ const KINDS: Array<{ k: AttKind; label: string; color: string; tone: 'bad' | 'wa
   { k: 'excused', label: 'استئذان', color: '#2a78d6', tone: 'info' },
 ];
 const KIND_LABEL: Record<AttKind, string> = { absent: 'غياب', late: 'تأخر', excused: 'استئذان' };
-type Period = 'week' | 'month' | 'semester' | 'custom';
+type Period = 'day' | 'week' | 'month' | 'semester' | 'custom';
+const PREF = 'itqan_attendance_filter_v1';
+const readPref = (): { period?: Period; day?: string } => { try { return JSON.parse(localStorage.getItem(PREF) || '{}'); } catch { return {}; } };
 type Tab = 'dashboard' | 'students' | 'week' | 'sync';
 const ERR: Record<string, string> = {
   no_start_date: 'حدد تاريخ بداية الفصل أولاً من تبويب «الربط والاستيراد»',
@@ -66,8 +68,17 @@ export const AttendancePage: React.FC = () => {
   const [tab, setTab] = useState<Tab>('dashboard');
   const [cfg, setCfg] = useState<AttConfig | null>(null);
   const { people, allClasses: classes, rosterIds } = usePeople(roster, cfg?.sheet_labels);
-  const [period, setPeriod] = useState<Period>('semester');
+  // الفلتر يبقى محفوظاً على الجهاز (الفترة واليوم المختار)
+  const [period, setPeriod] = useState<Period>(() => readPref().period || 'semester');
   const today = isoDay(new Date());
+  const [oneDay, setOneDay] = useState(() => readPref().day || today);
+  useEffect(() => { try { localStorage.setItem(PREF, JSON.stringify({ period, day: oneDay })); } catch { /* */ } }, [period, oneDay]);
+  /** اليوم الدراسي السابق/التالي (الأحد–الخميس) */
+  const stepDay = (dir: 1 | -1) => {
+    const d = new Date(`${oneDay}T12:00:00`);
+    do { d.setDate(d.getDate() + dir); } while (d.getDay() > 4);
+    setOneDay(isoDay(d));
+  };
   const [customFrom, setCustomFrom] = useState(isoDay(new Date(Date.now() - 30 * 864e5)));
   const [customTo, setCustomTo] = useState(today);
   const [classId, setClassId] = useState('');
@@ -80,6 +91,7 @@ export const AttendancePage: React.FC = () => {
 
   const range = useMemo(() => {
     const now = new Date();
+    if (period === 'day') return { from: oneDay, to: oneDay };
     if (period === 'week') { const d = new Date(now); d.setDate(d.getDate() - d.getDay()); return { from: isoDay(d), to: today }; }
     if (period === 'month') return { from: isoDay(new Date(now.getFullYear(), now.getMonth(), 1)), to: today };
     if (period === 'semester') {
@@ -88,7 +100,7 @@ export const AttendancePage: React.FC = () => {
       return { from, to: end < today ? end : today };
     }
     return { from: customFrom, to: customTo };
-  }, [period, customFrom, customTo, cfg, today]);
+  }, [period, customFrom, customTo, cfg, today, oneDay]);
 
   const reload = useCallback(() => { setRecords(null); void fetchAttendance(range.from, range.to).then((r) => setRecords(r || [])); }, [range]);
   useEffect(() => { reload(); }, [reload]);
@@ -245,7 +257,7 @@ export const AttendancePage: React.FC = () => {
   const dashRef = useRef<HTMLDivElement>(null);
   const exportDashPdf = async () => {
     if (!dashRef.current) return;
-    const periodName = { week: 'هذا الأسبوع', month: 'هذا الشهر', semester: 'الفصل الدراسي', custom: 'فترة مخصصة' }[period];
+    const periodName = { day: 'يوم محدد', week: 'هذا الأسبوع', month: 'هذا الشهر', semester: 'الفصل الدراسي', custom: 'فترة مخصصة' }[period];
     const rows = [...students]
       .map((s) => { const p = stats.per.get(s.id) || { absent: 0, late: 0, excused: 0 }; return { s, p, total: p.absent + p.late + p.excused }; })
       .sort((a, b) => b.p.absent - a.p.absent || b.total - a.total || a.s.name.localeCompare(b.s.name, 'ar'))
@@ -283,7 +295,7 @@ export const AttendancePage: React.FC = () => {
 
       <Card className="p-5">
         <div className="flex flex-wrap items-center gap-3 mb-4">
-          <h2 className="font-bold text-slate-900 dark:text-white me-auto">{t('اتجاه الغياب والتأخر والاستئذان')}</h2>
+          <h2 className="font-bold text-slate-900 dark:text-white me-auto">{period === 'day' ? t('حركات يوم {d} حسب الفصل', { d: new Date(`${oneDay}T12:00:00`).toLocaleDateString(dateLocale(), { weekday: 'long', day: 'numeric', month: 'long' }) }) : t('اتجاه الغياب والتأخر والاستئذان')}</h2>
           <div className="flex flex-wrap gap-1.5" role="group" aria-label={t('إظهار وإخفاء')}>
             {KINDS.map((k) => {
               const off = hidden.includes(k.k);
@@ -295,13 +307,40 @@ export const AttendancePage: React.FC = () => {
               );
             })}
           </div>
-          <div data-pdf-hide className="inline-flex p-1 rounded-xl bg-slate-100 dark:bg-slate-800">
+          <div data-pdf-hide className={`inline-flex p-1 rounded-xl bg-slate-100 dark:bg-slate-800 ${period === 'day' ? 'hidden' : ''}`}>
             {([['day', 'يومي'], ['week', 'أسبوعي'], ['month', 'شهري']] as const).map(([g, l]) => (
               <button key={g} type="button" onClick={() => setGran(g)} className={`h-8 px-3 rounded-lg text-sm font-bold ${gran === g ? 'bg-white dark:bg-slate-700 shadow-sm text-slate-900 dark:text-white' : 'text-slate-600 dark:text-slate-300'}`}>{t(l)}</button>
             ))}
           </div>
         </div>
-        {trend.series.length && stats.count.absent + stats.count.late + stats.count.excused > 0 ? (
+        {period === 'day' ? (
+          stats.count.absent + stats.count.late + stats.count.excused > 0 ? (() => {
+            // يوم واحد: حركات كل فصل (غياب/تأخر/استئذان) بدل خط زمني من نقطة واحدة
+            const data = stats.byClass.filter((c) => c.absent + c.late + c.excused > 0).sort((a, b) => (b.absent + b.late + b.excused) - (a.absent + a.late + a.excused));
+            return (
+              <div style={{ height: Math.max(200, 48 + data.length * 34) }} dir="ltr" data-testid="att-day-chart">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart layout="vertical" data={data} margin={{ top: 4, right: 16, left: 8, bottom: 0 }} barCategoryGap="26%">
+                    <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#e2e8f0" />
+                    <XAxis type="number" allowDecimals={false} tick={{ fontSize: 11 }} />
+                    <YAxis type="category" dataKey="name" width={110} tick={{ fontSize: 12 }} orientation="right" />
+                    <Tooltip cursor={{ fill: 'rgba(99,102,241,0.08)' }} content={({ active, payload }: any) => {
+                      if (!active || !payload?.length) return null;
+                      const c = payload[0].payload;
+                      return (
+                        <div dir={uiDir()} className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-lg px-3 py-2 text-sm min-w-[11rem]">
+                          <div className="font-bold text-slate-900 dark:text-white mb-1">{c.name} <span className="text-xs text-slate-500">({t('{n} طالب', { n: c.students })})</span></div>
+                          {KINDS.map((k) => <div key={k.k} className="flex items-center justify-between gap-4"><span className="inline-flex items-center gap-1.5 text-slate-600 dark:text-slate-300"><span className="w-2 h-2 rounded-sm" style={{ background: k.color }} />{t(k.label)}</span><b className="tabular-nums">{c[k.k]}</b></div>)}
+                        </div>
+                      );
+                    }} />
+                    {KINDS.filter((k) => !hidden.includes(k.k)).map((k, i, arr) => <Bar key={k.k} dataKey={k.k} stackId="d" fill={k.color} radius={i === arr.length - 1 ? [0, 4, 4, 0] : 0} maxBarSize={26} />)}
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            );
+          })() : <p className="text-sm text-slate-500 py-16 text-center">{loading ? t('جارٍ التحميل…') : t('لا يوجد غياب أو تأخر أو استئذان في هذا اليوم')}</p>
+        ) : trend.series.length && stats.count.absent + stats.count.late + stats.count.excused > 0 ? (
           <>
             <div className="h-80" dir="ltr">
               <ResponsiveContainer width="100%" height="100%">
@@ -515,8 +554,15 @@ export const AttendancePage: React.FC = () => {
             {tab === 'dashboard' && <Button size="sm" variant="secondary" icon={MessageCircle} onClick={() => setWa({ day: today, kind: 'absent' })}>{t('واتساب لأولياء الأمور')}</Button>}
             {tab === 'dashboard' && <Button size="sm" variant="secondary" icon={FileDown} disabled={loading} onClick={() => void exportDashPdf()}>{t('تصدير PDF')}</Button>}
             <select aria-label={t('الفترة')} value={period} onChange={(e) => setPeriod(e.target.value as Period)} className="h-10 px-3 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm">
-              <option value="week">{t('هذا الأسبوع')}</option><option value="month">{t('هذا الشهر')}</option><option value="semester">{t('الفصل الدراسي')}</option><option value="custom">{t('فترة مخصصة')}</option>
+              <option value="day">{t('يوم محدد')}</option><option value="week">{t('هذا الأسبوع')}</option><option value="month">{t('هذا الشهر')}</option><option value="semester">{t('الفصل الدراسي')}</option><option value="custom">{t('فترة مخصصة')}</option>
             </select>
+            {period === 'day' && (
+              <span className="inline-flex items-center gap-1" data-testid="att-day-filter">
+                <button type="button" aria-label={t('اليوم السابق')} onClick={() => stepDay(-1)} className="w-10 h-10 rounded-xl border border-slate-300 dark:border-slate-700 flex items-center justify-center"><ChevronRight className="w-4 h-4 ltr:rotate-180" /></button>
+                <input type="date" aria-label={t('اليوم')} value={oneDay} max={today} onChange={(e) => e.target.value && setOneDay(e.target.value)} className="h-10 px-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm" />
+                <button type="button" aria-label={t('اليوم التالي')} disabled={oneDay >= today} onClick={() => stepDay(1)} className="w-10 h-10 rounded-xl border border-slate-300 dark:border-slate-700 flex items-center justify-center disabled:opacity-40"><ChevronLeft className="w-4 h-4 ltr:rotate-180" /></button>
+              </span>
+            )}
             {period === 'custom' && <>
               <input type="date" aria-label={t('من')} value={customFrom} onChange={(e) => setCustomFrom(e.target.value)} className="h-10 px-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm" />
               <input type="date" aria-label={t('إلى')} value={customTo} onChange={(e) => setCustomTo(e.target.value)} className="h-10 px-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm" />
@@ -710,6 +756,23 @@ const KpiDetails: React.FC<{
 const StudentDrawer: React.FC<{ student: User; className: string; canManage: boolean; noAccount?: boolean; onClose: () => void; onChanged: () => void }> = ({ student, className, canManage, noAccount, onClose, onChanged }) => {
   const { currentUser, showToast, sendAttendanceNotice } = useApp();
   const [list, setList] = useState<AttRecord[] | null>(null);
+  const canNote = hasPerm(currentUser, 'can_note_attendance') || hasPerm(currentUser, 'can_manage_attendance');
+  const [notes, setNotes] = useState<Map<string, AttNote>>(new Map());
+  const [editing, setEditing] = useState<{ key: string; day: string; kind: AttKind; text: string; visible: boolean } | null>(null);
+  const loadNotes = useCallback(() => { void fetchAttendanceNotes([student.id]).then((ns) => setNotes(new Map(ns.map((n) => [noteKey(n.day, n.kind), n])))); }, [student.id]);
+  useEffect(() => { loadNotes(); }, [loadNotes]);
+  const saveNote = async () => {
+    if (!editing) return;
+    const cur = notes.get(editing.key);
+    if (!editing.text.trim()) {
+      if (cur && await deleteAttendanceNote(cur.id)) { setEditing(null); loadNotes(); }
+      else setEditing(null);
+      return;
+    }
+    const r = await saveAttendanceNote({ student_id: student.id, day: editing.day, kind: editing.kind, note: editing.text.trim(), visible_to_parent: editing.visible, created_by: currentUser!.id, created_by_name: currentUser!.name });
+    if (!r) return showToast(t('تعذر الحفظ'), 'error');
+    setEditing(null); loadNotes(); showToast(t('حُفظت الملاحظة'), 'success');
+  };
   const [day, setDay] = useState(isoDay(new Date()));
   const [kind, setKind] = useState<AttKind>('absent');
   const [note, setNote] = useState('');
@@ -774,14 +837,36 @@ const StudentDrawer: React.FC<{ student: User; className: string; canManage: boo
         <div className="flex-1 overflow-y-auto border-t border-slate-100 dark:border-slate-800">
           {list === null ? <p className="p-5 text-sm text-slate-500">{t('جارٍ التحميل…')}</p> : list.length === 0 ? <p className="p-5 text-sm text-slate-500">{t('لا توجد حركات مسجلة')}</p> : list.map((r) => {
             const k = KINDS.find((x) => x.k === r.kind)!;
+            const key = noteKey(r.day, r.kind);
+            const n = notes.get(key);
+            const isEdit = editing?.key === key;
             return (
-              <div key={r.id} className="flex items-center gap-3 px-5 py-2.5 border-b border-slate-100 dark:border-slate-800">
-                <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ background: k.color }} />
-                <div className="flex-1 min-w-0">
-                  <div className="text-sm font-semibold text-slate-900 dark:text-white">{t(k.label)} · {fmtDay(r.day)}</div>
-                  <div className="text-xs text-slate-500">{r.source === 'sheet' ? t('من سجل الغياب') : t('سُجّل من المنصة')}{r.note ? ` · ${r.note}` : ''}</div>
+              <div key={r.id} className="px-5 py-2.5 border-b border-slate-100 dark:border-slate-800" data-testid="att-record">
+                <div className="flex items-center gap-3">
+                  <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ background: k.color }} />
+                  <div className="flex-1 min-w-0">
+                    <div className="text-sm font-semibold text-slate-900 dark:text-white">{t(k.label)} · {fmtDay(r.day)}</div>
+                    <div className="text-xs text-slate-500">{r.source === 'sheet' ? t('من سجل الغياب') : t('سُجّل من المنصة')}{r.note ? ` · ${r.note}` : ''}</div>
+                  </div>
+                  {canNote && !isEdit && <button type="button" onClick={() => setEditing({ key, day: r.day, kind: r.kind, text: n?.note || '', visible: n?.visible_to_parent || false })} aria-label={n ? t('تعديل الملاحظة') : t('إضافة ملاحظة')} title={n ? t('تعديل الملاحظة') : t('إضافة ملاحظة')} className="w-8 h-8 rounded-lg text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 dark:hover:bg-indigo-950/40 flex items-center justify-center">{n ? <Pencil className="w-4 h-4" /> : <StickyNote className="w-4 h-4" />}</button>}
+                  {canManage && r.source === 'manual' && <button type="button" onClick={() => void del(r.id)} aria-label={t('حذف')} className="w-8 h-8 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 flex items-center justify-center"><Trash2 className="w-4 h-4" /></button>}
                 </div>
-                {canManage && r.source === 'manual' && <button type="button" onClick={() => void del(r.id)} aria-label={t('حذف')} className="w-8 h-8 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 flex items-center justify-center"><Trash2 className="w-4 h-4" /></button>}
+                {n && !isEdit && (
+                  <div className="mt-1.5 ms-5 rounded-lg bg-amber-50 dark:bg-amber-950/30 px-2.5 py-1.5 text-sm text-slate-800 dark:text-slate-100" data-testid="att-note">
+                    <StickyNote className="inline w-3.5 h-3.5 me-1 text-amber-600" />{n.note}
+                    <div className="text-[11px] text-slate-500 mt-0.5">{n.created_by_name}{n.visible_to_parent ? ` · ${t('تظهر لولي الأمر')}` : ` · ${t('داخلية')}`}</div>
+                  </div>
+                )}
+                {isEdit && (
+                  <div className="mt-2 ms-5 space-y-2">
+                    <textarea autoFocus value={editing.text} onChange={(e) => setEditing({ ...editing, text: e.target.value })} rows={2} maxLength={1000} placeholder={t('مثال: اعتذر ولي الأمر بسبب مراجعة طبية')} className="w-full px-3 py-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm" />
+                    <div className="flex flex-wrap items-center gap-2">
+                      <label className="text-xs text-slate-600 dark:text-slate-300 flex items-center gap-1.5 cursor-pointer"><input type="checkbox" checked={editing.visible} onChange={(e) => setEditing({ ...editing, visible: e.target.checked })} />{t('تظهر لولي الأمر')}</label>
+                      <Button size="sm" className="ms-auto" onClick={() => void saveNote()}>{t('حفظ')}</Button>
+                      <Button size="sm" variant="ghost" onClick={() => setEditing(null)}>{t('إلغاء')}</Button>
+                    </div>
+                  </div>
+                )}
               </div>
             );
           })}
