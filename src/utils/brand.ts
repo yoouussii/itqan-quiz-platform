@@ -48,3 +48,33 @@ export function resizeLogo(file: File, max = 256, type: 'image/png' | 'image/jpe
     reader.readAsDataURL(file);
   });
 }
+
+/** إزالة الخلفية البيضاء (للتوقيع والختم المصوّرين على ورق): البكسل الفاتح يصبح شفافاً بتدرج ناعم، ثم قصّ الحواف الفارغة */
+export function whiteToTransparent(dataUrl: string, threshold = 225): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onerror = () => reject(new Error('الملف ليس صورة صالحة'));
+    img.onload = () => {
+      const c = document.createElement('canvas');
+      c.width = img.width; c.height = img.height;
+      const ctx = c.getContext('2d')!;
+      ctx.drawImage(img, 0, 0);
+      const d = ctx.getImageData(0, 0, c.width, c.height);
+      const px = d.data;
+      let minX = c.width, minY = c.height, maxX = -1, maxY = -1;
+      for (let i = 0; i < px.length; i += 4) {
+        const light = Math.min(px[i], px[i + 1], px[i + 2]);
+        if (light >= threshold) px[i + 3] = Math.round(px[i + 3] * Math.max(0, (255 - light) / (255 - threshold)) * 0.3);
+        if (px[i + 3] > 24) { const p = i / 4, x = p % c.width, y = Math.floor(p / c.width); if (x < minX) minX = x; if (x > maxX) maxX = x; if (y < minY) minY = y; if (y > maxY) maxY = y; }
+      }
+      ctx.putImageData(d, 0, 0);
+      if (maxX < 0) return resolve(c.toDataURL('image/png'));
+      const pad = 4, w = Math.min(c.width, maxX - minX + 1 + pad * 2), h = Math.min(c.height, maxY - minY + 1 + pad * 2);
+      const out = document.createElement('canvas');
+      out.width = w; out.height = h;
+      out.getContext('2d')!.drawImage(c, Math.max(0, minX - pad), Math.max(0, minY - pad), w, h, 0, 0, w, h);
+      resolve(out.toDataURL('image/png'));
+    };
+    img.src = dataUrl;
+  });
+}

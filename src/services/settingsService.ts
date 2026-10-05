@@ -18,7 +18,10 @@ export interface AppSettings {
   cert_school_name: string;
   cert_principal_name: string;
   cert_principal_title: string;
-  cert_style: { template?: string; primary?: string; accent?: string; qr?: boolean } | null;
+  /** توقيع المدير وختم المدرسة (صور بخلفية شفافة) */
+  cert_principal_signature: string;
+  cert_stamp: string;
+  cert_style: { template?: string; primary?: string; accent?: string; qr?: boolean; stampPos?: string; stampSize?: number; sigSize?: number } | null;
   /** وضع الصيانة (019): لا يدخل إلا المدير */
   maintenance: { on?: boolean; message?: string; until?: string } | null;
   /** تصميم شاشة الدخول وصورتها وعبارتها (019) */
@@ -47,6 +50,8 @@ export const DEFAULT_SETTINGS: AppSettings = {
   cert_school_name: '',
   cert_principal_name: '',
   cert_principal_title: '',
+  cert_principal_signature: '',
+  cert_stamp: '',
   cert_style: null,
   maintenance: null,
   login_style: 'classic',
