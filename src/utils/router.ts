@@ -8,7 +8,17 @@ export interface RouteState {
   quizId?: string | null;
   submissionId?: string | null;
   editingQuizId?: string | null;
+  /** رابط استبيان: للإجابة أو لنتائجه */
+  surveyId?: string | null;
+  surveyMode?: 'answer' | 'results';
 }
+
+// رابط الاستبيان المطلوب (يُقرأ مرة واحدة في صفحة الاستبيانات ثم يُمسح)
+let surveyLink: { id: string; mode: 'answer' | 'results' } | null = null;
+export const setSurveyLink = (v: typeof surveyLink) => { surveyLink = v; };
+export const takeSurveyLink = () => { const v = surveyLink; surveyLink = null; return v; };
+export const surveyShareUrl = (id: string) => `${window.location.origin}/surveys/${encodeURIComponent(id)}`;
+export const surveyResultsUrl = (id: string) => `${window.location.origin}/surveys/${encodeURIComponent(id)}/results`;
 
 const SIMPLE: Record<string, string> = {
   dashboard: '/',
@@ -92,6 +102,7 @@ export function parsePath(path: string): RouteState | null {
     return null;
   }
   if (a === 'review' && b && !c) return { view: 'quiz_review', submissionId: b };
+  if (a === 'surveys' && b) return !c ? { view: 'surveys', surveyId: b, surveyMode: 'answer' } : c === 'results' ? { view: 'surveys', surveyId: b, surveyMode: 'results' } : null;
   if (a === 'editor' && !c) return { view: 'create_quiz', editingQuizId: b || null };
   if (parts.length !== 1) return null;
   const view = Object.keys(SIMPLE).find((k) => SIMPLE[k] === `/${a}`);

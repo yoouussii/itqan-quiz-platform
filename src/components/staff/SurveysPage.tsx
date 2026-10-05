@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { ClipboardList, Plus, X, Trash2, BarChart3, FileSpreadsheet, Star, Lock, Unlock, Save, MessageSquareText, Pencil } from 'lucide-react';
+import { ClipboardList, Plus, X, Trash2, BarChart3, FileSpreadsheet, Star, Lock, Unlock, Save, MessageSquareText, Pencil, Link2, Share2, Info } from 'lucide-react';
+import { surveyResultsUrl, surveyShareUrl, takeSurveyLink } from '../../utils/router';
 import { useApp } from '../../context/AppContext';
 import { PageHeader, Card, Button, Chip } from '../common/ui';
 import { hasPerm } from '../../utils/permissions';
@@ -13,6 +14,10 @@ import { SurveyAnswerModal } from '../common/SurveyPrompt';
 const ROLE_LABEL: Record<string, string> = { parent: 'أولياء الأمور', student: 'الطلاب', teacher: 'المعلمون', supervisor: 'المشرفون' };
 const QTYPE_LABEL: Record<SurveyQType, string> = { rating: 'تقييم من 1 إلى 5', choice: 'اختيار من متعدد', text: 'إجابة نصية' };
 const qid = () => `q${Math.random().toString(36).slice(2, 8)}`;
+/** نسخ رابط للحافظة (أو عرضه لنسخه يدوياً) */
+async function copyText(url: string): Promise<boolean> {
+  try { await navigator.clipboard.writeText(url); return true; } catch { window.prompt(t('انسخ الرابط:'), url); return false; }
+}
 const fmt = (d: string) => new Date(d).toLocaleDateString(dateLocale(), { day: 'numeric', month: 'long', year: 'numeric' });
 
 /** الاستبيانات: الإنشاء والنتائج لمن لديه الصلاحية، والإجابة للفئات المستهدفة */
@@ -26,13 +31,44 @@ export const SurveysPage: React.FC = () => {
   const [editing, setEditing] = useState<Survey | 'new' | null>(null);
   const [results, setResults] = useState<Survey | null>(null);
   const [answering, setAnswering] = useState<Survey | null>(null);
+  const [mineLoaded, setMineLoaded] = useState(false);
+  // رابط مباشر: /surveys/<id> للإجابة، أو /surveys/<id>/results للنتائج
+  const [link] = useState(() => takeSurveyLink());
+  const [linkNote, setLinkNote] = useState<{ text: string; tone: 'info' | 'warn'; results?: Survey } | null>(null);
 
   const load = () => {
-    void fetchMySurveys().then(setMine);
+    void fetchMySurveys().then((l) => { setMine(l); setMineLoaded(true); });
     if (canManage) { void fetchSurveys().then(setSurveys); void fetchSurveyCounts().then(setCounts); }
   };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(load, [canManage]);
+
+  // تنفيذ الرابط المباشر بعد وصول البيانات: يفتح الاستبيان لمن هو موجّه له فقط
+  const [linkDone, setLinkDone] = useState(false);
+  useEffect(() => {
+    if (!link || linkDone || !mineLoaded || (canManage && surveys === null)) return;
+    setLinkDone(true);
+    const all = surveys || [];
+    if (link.mode === 'results') {
+      const s = all.find((x) => x.id === link.id);
+      if (!canManage) setLinkNote({ text: t('ليس لديك صلاحية عرض نتائج هذا الاستبيان.'), tone: 'warn' });
+      else if (!s) setLinkNote({ text: t('الاستبيان غير موجود أو حُذف.'), tone: 'warn' });
+      else setResults(s);
+      return;
+    }
+    const m = mine.find((x) => x.id === link.id);
+    if (m && !m.answered) { setAnswering(m); return; }
+    if (m) { setLinkNote({ text: t('أجبت عن هذا الاستبيان من قبل. شكراً لمشاركتك!'), tone: 'info' }); return; }
+    const s = all.find((x) => x.id === link.id);
+    if (s && canManage) setLinkNote({ text: !s.is_open ? t('هذا الاستبيان مغلق الآن، فلا يظهر للفئة المستهدفة.') : t('هذا الاستبيان غير موجّه لفئتك، لذا لا يمكنك الإجابة عنه. يمكنك عرض نتائجه.'), tone: 'info', results: s });
+    else setLinkNote({ text: t('هذا الاستبيان غير متاح لك: إما أنه غير موجّه لفئتك أو أنه مغلق.'), tone: 'warn' });
+  }, [link, linkDone, mineLoaded, surveys, mine, canManage]);
+
+  const copyLink = async (url: string) => { if (await copyText(url)) showToast(t('تم نسخ الرابط'), 'success'); };
+  const shareWa = (s: Survey) => {
+    const text = [`📋 ${t('استبيان: {t}', { t: s.title })}`, s.description || t('رأيك يهمنا، ولن يستغرق أكثر من دقيقة'), surveyShareUrl(s.id)].join('\n');
+    window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, '_blank', 'noopener');
+  };
 
   const toggleOpen = async (s: Survey) => {
     const r = await saveSurvey({ id: s.id, title: s.title, is_open: !s.is_open });
@@ -52,6 +88,14 @@ export const SurveysPage: React.FC = () => {
       <PageHeader title={<span className="inline-flex items-center gap-2"><ClipboardList className="w-7 h-7 text-indigo-600" />{t('الاستبيانات')}</span>}
         subtitle={canManage ? t('استبيانات لأولياء الأمور والطلاب والمعلمين، بنتائج ورسوم فورية') : t('شاركنا رأيك')}
         actions={canManage ? <Button icon={Plus} onClick={() => setEditing('new')}>{t('استبيان جديد')}</Button> : undefined} />
+
+      {linkNote && (
+        <div className={`rounded-2xl p-4 flex flex-wrap items-center gap-3 text-sm ${linkNote.tone === 'warn' ? 'bg-amber-50 dark:bg-amber-950/30 text-amber-900 dark:text-amber-200' : 'bg-indigo-50 dark:bg-indigo-950/30 text-indigo-900 dark:text-indigo-200'}`} role="status" data-testid="survey-link-note">
+          <Info className="w-5 h-5 shrink-0" /><span className="flex-1 min-w-[200px]">{linkNote.text}</span>
+          {linkNote.results && <Button size="sm" variant="secondary" icon={BarChart3} onClick={() => { setResults(linkNote.results!); setLinkNote(null); }}>{t('النتائج')}</Button>}
+          <button type="button" aria-label={t('إغلاق')} onClick={() => setLinkNote(null)} className="w-8 h-8 rounded-lg hover:bg-white/60 dark:hover:bg-slate-800 flex items-center justify-center"><X className="w-4 h-4" /></button>
+        </div>
+      )}
 
       {(pending.length > 0 || !canManage) && (
         <Card className="p-5 space-y-3">
@@ -79,6 +123,8 @@ export const SurveysPage: React.FC = () => {
               <Chip tone={s.is_open ? 'ok' : 'muted'}>{s.is_open ? t('مفتوح') : t('مغلق')}</Chip>
               <span className="text-sm tabular-nums text-slate-600 dark:text-slate-300">{t('{n} إجابة', { n: counts[s.id] || 0 })}</span>
               <Button size="sm" variant="secondary" icon={BarChart3} onClick={() => setResults(s)}>{t('النتائج')}</Button>
+              <button type="button" aria-label={t('نسخ رابط الاستبيان')} title={t('نسخ رابط الاستبيان')} onClick={() => void copyLink(surveyShareUrl(s.id))} className="w-9 h-9 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 flex items-center justify-center text-slate-500"><Link2 className="w-4 h-4" /></button>
+              <button type="button" aria-label={t('مشاركة على واتساب')} title={t('مشاركة على واتساب')} onClick={() => shareWa(s)} className="w-9 h-9 rounded-xl hover:bg-emerald-50 dark:hover:bg-emerald-950/40 flex items-center justify-center text-emerald-600"><Share2 className="w-4 h-4" /></button>
               <Button size="sm" variant={s.is_open ? 'secondary' : 'primary'} icon={s.is_open ? Lock : Unlock} onClick={() => void toggleOpen(s)}>{s.is_open ? t('إغلاق') : t('نشر')}</Button>
               <button type="button" aria-label={t('تعديل')} onClick={() => setEditing(s)} className="w-9 h-9 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 flex items-center justify-center text-slate-500"><Pencil className="w-4 h-4" /></button>
               <button type="button" aria-label={t('حذف')} onClick={() => void remove(s)} className="w-9 h-9 rounded-xl hover:bg-rose-50 dark:hover:bg-rose-950/40 flex items-center justify-center text-slate-400 hover:text-rose-600"><Trash2 className="w-4 h-4" /></button>
@@ -182,6 +228,7 @@ const SurveyEditor: React.FC<{ survey: Survey | null; locked: boolean; onClose: 
 };
 
 const SurveyResults: React.FC<{ survey: Survey; onClose: () => void }> = ({ survey, onClose }) => {
+  const { showToast } = useApp();
   const [rs, setRs] = useState<SurveyResponse[] | null>(null);
   useEffect(() => { void fetchResponses(survey.id).then(setRs); }, [survey.id]);
   const sums = useMemo(() => (rs ? survey.questions.map((q) => ({ q, s: summarize(q, rs) })) : []), [rs, survey]);
@@ -199,6 +246,7 @@ const SurveyResults: React.FC<{ survey: Survey; onClose: () => void }> = ({ surv
       <div className="w-full max-w-2xl h-full bg-white dark:bg-slate-900 shadow-2xl flex flex-col" onClick={(e) => e.stopPropagation()} dir={uiDir()} data-testid="survey-results">
         <div className="flex items-start gap-3 p-5 border-b border-slate-100 dark:border-slate-800">
           <div className="flex-1"><h2 className="font-bold text-lg text-slate-900 dark:text-white">{survey.title}</h2><p className="text-sm text-slate-500">{t('{n} إجابة', { n: rs?.length ?? 0 })}</p></div>
+          <Button size="sm" variant="secondary" icon={Link2} onClick={() => void copyText(surveyResultsUrl(survey.id)).then((ok) => ok && showToast(t('تم نسخ رابط النتائج'), 'success'))}>{t('رابط النتائج')}</Button>
           <Button size="sm" variant="secondary" icon={FileSpreadsheet} disabled={!rs?.length} onClick={() => void exportExcel()}>{t('Excel')}</Button>
           <button type="button" aria-label={t('إغلاق')} onClick={onClose} className="w-9 h-9 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 flex items-center justify-center"><X className="w-5 h-5" /></button>
         </div>

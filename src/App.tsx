@@ -165,7 +165,7 @@ const AppContent: React.FC = () => {
     quiz_preview: isStaff,
   };
   // ولي الأمر: الرئيسية (متابعة الأبناء) وأوراق إجاباتهم والإشعارات فقط
-  const parentOk = currentUser.role !== 'parent' || ['dashboard', 'quiz_review', 'notifications', 'privacy', 'terms', 'calendar'].includes(currentView);
+  const parentOk = currentUser.role !== 'parent' || ['dashboard', 'quiz_review', 'notifications', 'privacy', 'terms', 'calendar', 'surveys'].includes(currentView);
   const viewAvailable = KNOWN_VIEWS.includes(currentView) && viewGuards[currentView] !== false && parentOk && pageAllowed(currentUser, currentView);
 
   // رابط مباشر لاختبار أو ورقة إجابة: ننتظر أول تحميل للبيانات بدل إظهار «غير موجود»
