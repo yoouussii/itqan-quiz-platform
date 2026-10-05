@@ -53,6 +53,13 @@ export function buildItems(rows: RecordSheet[]): RecItem[] {
   return out;
 }
 
+/** اسم قصير للسجل على سطرين: المادة ثم الفصل */
+export const sheetShort = (sheet: string, m: RecordMeta) => {
+  if (!m.classLabel) return sheet;
+  const w = m.subject.split(/\s+/);
+  const sub = ['اللغة', 'الدراسات'].includes(w[0]) && w[1] ? w[1] : w[0];
+  return `${sub}\n${m.classLabel}`;
+};
 const ORDER = (m: RecordMeta) => (m.grade ?? 9) * 10 + (m.track === 'عام' ? 1 : m.track === 'تحفيظ' ? 2 : 3);
 const cellsText = (c: RecordChange) => c.initial ? t('{n} خلية مرصودة', { n: c.cells_filled })
   : [c.cells_filled && t('رصد {n} جديدة', { n: c.cells_filled }), c.cells_changed && t('عدّل {n}', { n: c.cells_changed }), c.cells_cleared && t('مسح {n}', { n: c.cells_cleared })].filter(Boolean).join(' · ');
@@ -76,40 +83,52 @@ const topRounded = (x: number, y: number, w: number, h: number, r: number) => {
   return `M${x},${y + h}V${y + rr}Q${x},${y} ${x + rr},${y}H${x + w - rr}Q${x + w},${y} ${x + w},${y + rr}V${y + h}Z`;
 };
 
-const VBarChart: React.FC<{ data: VBar[]; label: string; selected?: string; onSelect?: (k: string) => void; height?: number; allLabels?: boolean }> = ({ data, label, selected, onSelect, height = 190, allLabels }) => {
+export const VBarChart: React.FC<{
+  data: VBar[]; label: string; selected?: string; onSelect?: (k: string) => void; height?: number; allLabels?: boolean;
+  /** نص القيمة في التلميح (الافتراضي: عدد التعديلات) */ fmt?: (v: number) => string;
+  /** أعلى المحور ثابت (100 للنسب) */ fixedMax?: number;
+  /** خط مرجعي متقطع (المتوسط) */ avg?: { value: number; label: string };
+  /** اسم الفئة على سطرين (أول كلمتين) */ twoLine?: boolean;
+  /** ترتيب الأعمدة من اليمين في الواجهة العربية (للفئات لا للزمن) */ rtl?: boolean;
+}> = ({ data: raw, label, selected, onSelect, height = 190, allLabels, fmt, fixedMax, avg, twoLine, rtl }) => {
   const [ref, W] = useWidth();
   const [hi, setHi] = useState<number | null>(null);
-  const H = height, L = 30, R = 8, T = 10, B = 26;
+  const data = rtl && !isEn() ? [...raw].reverse() : raw;
+  const H = height, L = fixedMax === 100 ? 42 : 32, R = 8, T = 12, B = twoLine ? 38 : 26;
   const max = Math.max(1, ...data.map((d) => d.value));
-  const step = Math.max(1, Math.ceil(max / 4));
-  const top = step * Math.ceil(max / step);
+  const step = fixedMax ? fixedMax / 4 : Math.max(1, Math.ceil(max / 4));
+  const top = fixedMax || step * Math.ceil(max / step);
   const n = data.length, slot = (W - L - R) / Math.max(1, n), bw = Math.max(2, Math.min(36, slot - 2));
   const x = (i: number) => L + i * slot + (slot - bw) / 2;
-  const y = (v: number) => T + (1 - v / top) * (H - T - B);
-  const every = allLabels ? 1 : Math.max(1, Math.ceil(n / Math.max(1, Math.floor((W - L - R) / 44))));
+  const y = (v: number) => T + (1 - Math.min(v, top) / top) * (H - T - B);
+  const every = allLabels || twoLine ? 1 : Math.max(1, Math.ceil(n / Math.max(1, Math.floor((W - L - R) / 44))));
   const h = hi === null ? null : data[hi];
+  const words = (s: string) => { const w = s.includes('\n') ? s.split('\n') : (() => { const a = s.split(/\s+/).filter(Boolean); return [a[0] || '', a.slice(1).join(' ')]; })(); return [w[0] || '', w[1] || ''].map((x) => (x.length > 11 ? `${x.slice(0, 10)}…` : x)); };
   return (
     <div className="relative" ref={ref} dir="ltr">
       <svg width={W} height={H} viewBox={`0 0 ${W} ${H}`} className="block max-w-full" role="img" aria-label={label} onMouseLeave={() => setHi(null)}>
         {Array.from({ length: Math.round(top / step) + 1 }, (_, i) => i * step).map((v) => (
-          <g key={v}><line x1={L} x2={W - R} y1={y(v)} y2={y(v)} className="stroke-slate-100 dark:stroke-slate-800" /><text x={L - 6} y={y(v) + 4} textAnchor="end" className="fill-slate-400 text-[10px]">{v}</text></g>
+          <g key={v}><line x1={L} x2={W - R} y1={y(v)} y2={y(v)} className="stroke-slate-100 dark:stroke-slate-800" /><text x={L - 6} y={y(v) + 4} textAnchor="end" className="fill-slate-400 text-[10px]">{fixedMax === 100 ? `${v}%` : v}</text></g>
         ))}
         {data.map((d, i) => {
           const dim = selected && selected !== d.key;
+          const [w1, w2] = twoLine ? words(d.short) : [d.short, ''];
           return (
             <g key={d.key} onMouseEnter={() => setHi(i)} onClick={() => onSelect?.(d.key)} className={onSelect ? 'cursor-pointer' : ''}>
               <rect x={L + i * slot} y={T} width={slot} height={H - T - B} fill="transparent" />
-              {d.value > 0 && <path d={topRounded(x(i), y(d.value), bw, y(0) - y(d.value), 4)} className={selected === d.key ? 'fill-indigo-700 dark:fill-indigo-300' : dim ? 'fill-indigo-200 dark:fill-indigo-900' : hi === i ? 'fill-indigo-600 dark:fill-indigo-300' : 'fill-indigo-500 dark:fill-indigo-400'} />}
-              {i % every === 0 && <text x={x(i) + bw / 2} y={H - 8} textAnchor="middle" className="fill-slate-500 text-[10px]">{d.short}</text>}
+              {d.value > 0 && <path d={topRounded(x(i), y(d.value), bw, Math.max(1, y(0) - y(d.value)), 4)} className={selected === d.key ? 'fill-indigo-700 dark:fill-indigo-300' : dim ? 'fill-indigo-200 dark:fill-indigo-900' : hi === i ? 'fill-indigo-600 dark:fill-indigo-300' : 'fill-indigo-500 dark:fill-indigo-400'} />}
+              {i % every === 0 && <text x={x(i) + bw / 2} y={H - (twoLine ? 22 : 8)} textAnchor="middle" className="fill-slate-500 text-[10px]">{w1}{w2 && <tspan x={x(i) + bw / 2} dy={12}>{w2}</tspan>}</text>}
             </g>
           );
         })}
         <line x1={L} x2={W - R} y1={y(0)} y2={y(0)} className="stroke-slate-300 dark:stroke-slate-700" />
+        {avg && <line x1={L} x2={W - R} y1={y(avg.value)} y2={y(avg.value)} strokeDasharray="4 4" pointerEvents="none" className="stroke-slate-500 dark:stroke-slate-400" />}
       </svg>
+      {avg && <div className="flex items-center gap-1.5 text-[11px] text-slate-600 dark:text-slate-300 mt-1" dir={isEn() ? 'ltr' : 'rtl'}><span className="w-5 border-t-2 border-dashed border-slate-500 dark:border-slate-400" />{avg.label} <b className="tabular-nums" dir="ltr">{Math.round(avg.value)}%</b></div>}
       {h && (
-        <div className="absolute top-0 px-3 py-2 rounded-xl bg-slate-900 text-white text-xs shadow-lg pointer-events-none whitespace-nowrap" style={{ left: `${Math.min(70, Math.max(0, ((x(hi!) + bw / 2) / W) * 100 - 12))}%` }} dir={isEn() ? 'ltr' : 'rtl'}>
+        <div className="absolute top-0 px-3 py-2 rounded-xl bg-slate-900 text-white text-xs shadow-lg pointer-events-none whitespace-nowrap z-10" style={{ left: `${Math.min(70, Math.max(0, ((x(hi!) + bw / 2) / W) * 100 - 12))}%` }} dir={isEn() ? 'ltr' : 'rtl'}>
           <div className="font-bold">{h.title}</div>
-          <div className="tabular-nums">{t('{n} تعديل', { n: h.value })}{h.sub ? ` · ${h.sub}` : ''}</div>
+          <div className="tabular-nums">{fmt ? fmt(h.value) : t('{n} تعديل', { n: h.value })}{h.sub ? ` · ${h.sub}` : ''}</div>
         </div>
       )}
     </div>
@@ -175,6 +194,14 @@ export const ChangesTimeline: React.FC<{ changes: RecordChange[]; metaOf: (c: Re
     </div>
   );
 };
+
+const NoActivity: React.FC = () => (
+  <div className="h-[190px] flex flex-col items-center justify-center text-center text-sm text-slate-500 gap-1">
+    <Activity className="w-8 h-8 text-slate-300 dark:text-slate-600" />
+    <p>{t('لا تعديلات في هذه الفترة بعد.')}</p>
+    <p className="text-xs">{t('كل تعديل يعمله المعلم في ملفه يظهر هنا بيومه وتاريخه.')}</p>
+  </div>
+);
 
 // ---------------------------------------------------------------------
 // لوحة المتابعة: مؤشرات + النشاط اليومي + حسب يوم الأسبوع + حسب المعلم/الفصل/المادة + التفاصيل + آخر التعديلات
@@ -271,6 +298,41 @@ export const RecordsDashboard: React.FC<{ items: RecItem[]; changes: RecordChang
     XLSX.writeFile(wb, `class-records-${dayKey(new Date().toISOString())}.xlsx`);
   };
 
+  // رسم الرصد: لكل معلم، أو لكل سجل عند اختيار معلم
+  const overall = pct(filled, cells);
+  const teacherName = teachers.find(([k]) => k === teacher)?.[1] || '';
+  const doneBars: VBar[] = teacher
+    ? [...scoped].sort((a, b) => ORDER(a.meta) - ORDER(b.meta) || a.meta.subject.localeCompare(b.meta.subject, 'ar'))
+      .map((x) => ({ key: String(x.r.id), short: sheetShort(x.r.sheet_name, x.meta), title: `${x.r.sheet_name} — ${x.meta.subject}${x.meta.classLabel ? ` · ${x.meta.classLabel}` : ''}`, value: x.done, sub: t('{n} طالب', { n: x.p.students.length }) }))
+    : byTeacher.map((g) => ({ key: g.key, short: g.label, title: g.label, value: g.value, sub: g.sub }));
+
+  // حالة السجلات (حداثة آخر تعديل) وتوزيع نسب الرصد
+  const fresh = scoped.filter((x) => x.r.last_edit_at && daysSince(x.r.last_edit_at) <= 3).length;
+  const mid = scoped.filter((x) => x.r.last_edit_at && daysSince(x.r.last_edit_at) > 3 && daysSince(x.r.last_edit_at) <= 10).length;
+  const STATUS: Array<[string, number, React.ElementType, string, string]> = [
+    [t('محدَّث (آخر 3 أيام)'), fresh, CheckCircle2, 'bg-emerald-500', 'text-emerald-700 dark:text-emerald-400'],
+    [t('يحتاج متابعة (4–10 أيام)'), mid, Clock, 'bg-amber-500', 'text-amber-700 dark:text-amber-400'],
+    [t('متأخر (أكثر من 10 أيام)'), late, AlertTriangle, 'bg-rose-500', 'text-rose-700 dark:text-rose-400'],
+  ];
+  const buckets: VBar[] = [[0, 20], [20, 40], [40, 60], [60, 80], [80, 101]].map(([a, b]) => {
+    const v = scoped.filter((x) => x.done >= a && x.done < b).length;
+    const lab = `${a}–${Math.min(b, 100)}%`;
+    return { key: lab, short: lab, title: t('سجلات رصدها {r}', { r: lab }), value: v };
+  });
+
+  // اكتمال الرصد حسب أداة التقويم (المشاركة، الواجبات، الاختبارات…)
+  const byTool = (() => {
+    const m = new Map<string, { f: number; c: number; n: number }>();
+    scoped.forEach((x) => x.p.columns.filter((c) => !c.total).forEach((c, i) => {
+      const k = c.label.replace(/\s+/g, ' ').trim(); if (!k) return;
+      const g = m.get(k) || { f: 0, c: 0, n: 0 };
+      x.p.students.forEach((st) => { g.c++; if (st.values[i] !== null && st.values[i] !== undefined) g.f++; });
+      g.n++; m.set(k, g);
+    }));
+    return [...m.entries()].filter(([, g]) => g.n >= 2).sort((a, b) => b[1].n - a[1].n).slice(0, 12)
+      .map(([k, g]) => ({ key: k, label: k, value: pct(g.f, g.c), sub: t('في {n} سجل', { n: g.n }) })).sort((a, b) => b.value - a.value);
+  })();
+
   const filtersOn = teacher || cls || subject || day;
   const KPIS: Array<[React.ElementType, string, string, string]> = [
     [CheckCircle2, t('متوسط اكتمال الرصد'), `${pct(filled, cells)}%`, t('{n} سجل', { n: scoped.length })],
@@ -302,21 +364,51 @@ export const RecordsDashboard: React.FC<{ items: RecItem[]; changes: RecordChang
       </div>
 
       <div className="grid lg:grid-cols-3 gap-5">
+        <Card className="p-5 lg:col-span-2 space-y-2" data-testid="cr-done-chart">
+          <div className="flex flex-wrap items-center gap-2">
+            <h2 className="font-bold text-slate-900 dark:text-white me-auto">{teacher ? t('اكتمال الرصد في سجلات {name}', { name: teacherName }) : t('اكتمال الرصد لكل معلم')}</h2>
+            <span className="text-xs text-slate-500">{teacher ? t('اضغط على سجل لفتح سجلات المعلم') : t('اضغط على معلم لعرض سجلاته')}</span>
+          </div>
+          <VBarChart data={doneBars} label={t('اكتمال الرصد لكل معلم')} fixedMax={100} twoLine rtl height={230}
+            fmt={(v) => t('الرصد {n}%', { n: v })} avg={{ value: overall, label: t('المتوسط') }}
+            onSelect={(k) => (teacher ? onOpenTeacher(teacher) : setTeacher(k))} />
+        </Card>
+        <Card className="p-5 space-y-4">
+          <div>
+            <h2 className="font-bold text-slate-900 dark:text-white mb-2">{t('حالة السجلات حسب آخر تعديل')}</h2>
+            <div className="flex h-3 rounded-full overflow-hidden gap-0.5" aria-hidden="true">
+              {STATUS.map(([l, v, , bar]) => v > 0 && <span key={l} className={`${bar} first:rounded-s-full last:rounded-e-full`} style={{ width: `${(v / Math.max(1, scoped.length)) * 100}%` }} />)}
+            </div>
+            <ul className="mt-2 space-y-1">
+              {STATUS.map(([l, v, Icon, , txt]) => (
+                <li key={l} className="flex items-center gap-2 text-sm"><Icon className={`w-4 h-4 ${txt}`} /><span className="text-slate-700 dark:text-slate-200">{l}</span><b className="ms-auto tabular-nums text-slate-900 dark:text-white">{v}</b><span className="text-xs text-slate-500 w-10 text-end tabular-nums">{pct(v, scoped.length)}%</span></li>
+              ))}
+            </ul>
+          </div>
+          <div>
+            <h3 className="font-bold text-sm text-slate-900 dark:text-white">{t('توزيع نسب الرصد')}</h3>
+            <VBarChart data={buckets} label={t('توزيع نسب الرصد')} allLabels height={140} fmt={(v) => t('{n} سجل', { n: v })} />
+          </div>
+        </Card>
+      </div>
+
+      <div className="grid lg:grid-cols-3 gap-5">
         <Card className="p-5 lg:col-span-2 space-y-2">
           <div className="flex flex-wrap items-center gap-2">
             <h2 className="font-bold text-slate-900 dark:text-white me-auto">{t('النشاط اليومي: عدد التعديلات')}</h2>
             {day ? <Chip tone="info">{fmtDay(fromKey(day))}<button type="button" onClick={() => setDay('')} aria-label={t('إلغاء اختيار اليوم')}><X className="w-3.5 h-3.5" /></button></Chip>
               : <span className="text-xs text-slate-500">{t('اضغط على يوم لعرض تعديلاته')}</span>}
           </div>
-          <VBarChart data={daily} label={t('النشاط اليومي: عدد التعديلات')} selected={day || undefined} onSelect={(k) => setDay(day === k ? '' : k)} />
+          {scopedChanges.length ? <VBarChart data={daily} label={t('النشاط اليومي: عدد التعديلات')} selected={day || undefined} onSelect={(k) => setDay(day === k ? '' : k)} />
+            : <NoActivity />}
         </Card>
         <Card className="p-5 space-y-2">
           <h2 className="font-bold text-slate-900 dark:text-white">{t('التعديلات حسب يوم الأسبوع')}</h2>
-          <VBarChart data={weekly} label={t('التعديلات حسب يوم الأسبوع')} allLabels />
+          {scopedChanges.length ? <VBarChart data={weekly} label={t('التعديلات حسب يوم الأسبوع')} allLabels /> : <NoActivity />}
         </Card>
       </div>
 
-      <div className="grid lg:grid-cols-3 gap-5">
+      <div className="grid md:grid-cols-2 xl:grid-cols-4 gap-5">
         <Card className="p-5 space-y-3">
           <h2 className="font-bold text-slate-900 dark:text-white">{t('اكتمال الرصد حسب المعلم')}</h2>
           <HBarList rows={byTeacher} active={teacher} onPick={(k) => setTeacher(teacher === k ? '' : k)} testid="cr-by-teacher" />
@@ -328,6 +420,10 @@ export const RecordsDashboard: React.FC<{ items: RecItem[]; changes: RecordChang
         <Card className="p-5 space-y-3">
           <h2 className="font-bold text-slate-900 dark:text-white">{t('اكتمال الرصد حسب المادة')}</h2>
           <HBarList rows={bySubject} active={subject} onPick={(k) => setSubject(subject === k ? '' : k)} />
+        </Card>
+        <Card className="p-5 space-y-3">
+          <h2 className="font-bold text-slate-900 dark:text-white">{t('اكتمال الرصد حسب أداة التقويم')}</h2>
+          <HBarList rows={byTool} testid="cr-by-tool" />
         </Card>
       </div>
 
