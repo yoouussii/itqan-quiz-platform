@@ -35,7 +35,7 @@ const linkClick = (go: () => void) => (e: React.MouseEvent) => {
   e.preventDefault();
   go();
 };
-import { hasPerm } from '../../utils/permissions';
+import { hasPerm, pageAllowed } from '../../utils/permissions';
 import { shortName, parentLabel } from '../../utils/names';
 import { User } from '../../types';
 import { t } from '../../i18n';
@@ -92,11 +92,14 @@ const staffGroups = (u: User, pendingApprovals: number, preparationsUrl: string,
   if (hasPerm(u, 'can_access_preparations') && preparationsUrl) system.push({ id: 'preparations', label: t('متابعة تحضير مزن'), icon: ExternalLink, href: preparationsUrl });
 
   const home: NavItem = { id: 'dashboard', label: u.role === 'teacher' ? t('اختباراتي') : t('الرئيسية'), icon: u.role === 'teacher' ? FileQuestion : Home };
+  // الصفحات التي حددها المدير للمعلم (الأقسام)
+  const ok = (i: NavItem) => pageAllowed(u, i.id);
+  const q = quizzes.filter(ok), sc = school.filter(ok), sy = system.filter(ok);
   return [
     { items: [home] },
-    { title: t('الاختبارات'), items: quizzes },
-    ...(school.length ? [{ title: t('المدرسة'), items: school }] : []),
-    { title: t('النظام'), items: system },
+    ...(q.length ? [{ title: t('الاختبارات'), items: q }] : []),
+    ...(sc.length ? [{ title: t('المدرسة'), items: sc }] : []),
+    { title: t('النظام'), items: sy },
   ];
 };
 

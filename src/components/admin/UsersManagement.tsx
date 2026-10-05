@@ -22,7 +22,7 @@ import { UserCog } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 import { DEFAULT_PASSWORD, StorageService } from '../../services/storage';
 import { resolveClass } from '../../utils/classMatch';
-import { PERMISSION_DEFS, PERM_GROUPS, TEACHER_ALWAYS, normalizePerms, hasPerm } from '../../utils/permissions';
+import { PERMISSION_DEFS, PERM_GROUPS, TEACHER_ALWAYS, normalizePerms, hasPerm, TRACKS, PAGE_DEFS, pagesForTracks } from '../../utils/permissions';
 import { exportStudentReport, reportExtras } from '../../utils/studentReport';
 import { computePointEvents, earnedBadges, totalPoints } from '../../utils/points';
 import { formatFullArabicDate } from '../../utils/dateUtils';
@@ -255,6 +255,32 @@ export const UsersManagement: React.FC = () => {
       return next;
     });
   };
+
+  /** تعديل عدة مفاتيح في الصلاحيات معاً (الأقسام والصفحات) */
+  const patchPerms = (fn: (prev: TeacherPermissions) => TeacherPermissions) => {
+    const base = (editingUser?.teacher_permissions || teacherPermissions) as TeacherPermissions;
+    const next = fn(base);
+    setTeacherPermissions(next);
+    if (editingUser) setEditingUser((u) => (u ? { ...u, teacher_permissions: next, permissions: next } : null));
+  };
+  /** اختيار قسم: يضيف صفحاته (وإلغاؤه يزيل الصفحات التي لا تتبع قسماً آخر مختاراً) */
+  const toggleTrack = (k: string) => patchPerms((prev) => {
+    const tracks = new Set(prev.tracks || []);
+    const had = tracks.has(k);
+    if (had) tracks.delete(k); else tracks.add(k);
+    const list = [...tracks];
+    let pages = new Set(prev.pages || (had ? pagesForTracks([k]) : []));
+    if (had) { const keep = new Set(pagesForTracks(list)); pagesForTracks([k]).forEach((id) => { if (!keep.has(id)) pages.delete(id); }); }
+    else pagesForTracks([k]).forEach((id) => pages.add(id));
+    if (!list.length) pages = new Set();
+    // قسم الدعم يمنح صلاحية معلم الدعم تلقائياً
+    return { ...prev, tracks: list, pages: list.length ? [...pages] : undefined, ...(k === 'support' ? { can_academic_support: !had } : {}) };
+  });
+  const togglePage = (id: string) => patchPerms((prev) => {
+    const pages = new Set(prev.pages || PAGE_DEFS.map((p) => p.id));
+    if (pages.has(id)) pages.delete(id); else pages.add(id);
+    return { ...prev, pages: [...pages] };
+  });
 
   const togglePermissionKey = (key: keyof TeacherPermissions) => {
     setTeacherPermissions((prev) => {
@@ -966,9 +992,11 @@ export const UsersManagement: React.FC = () => {
                       {isStaffRole(u.role) ? (() => {
                         const perms: any = u.teacher_permissions || (u as any).permissions || {};
                         const on = PERMISSION_DEFS.filter((d) => perms[d.key]);
-                        if (on.length === 0) return <span className="text-slate-400">{t('صلاحيات أساسية')}</span>;
+                        const trs = TRACKS.filter((x) => (perms.tracks || []).includes(x.k));
+                        if (on.length === 0 && !trs.length) return <span className="text-slate-400">{t('صلاحيات أساسية')}</span>;
                         return (
                           <div className="flex flex-wrap gap-1 text-[10px]">
+                            {trs.map((x) => <span key={x.k} className="bg-amber-50 dark:bg-amber-950/50 text-amber-800 dark:text-amber-300 px-1.5 py-0.5 rounded font-bold">{t(x.label)}</span>)}
                             {on.map((d) => (
                               <span key={d.key} className="bg-indigo-50 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-300 px-1.5 py-0.5 rounded">
                                 {t(d.short)} ✓
@@ -1315,6 +1343,47 @@ export const UsersManagement: React.FC = () => {
                       })}
                     </div>
                   </div>
+
+                  {/* أقسام المعلم والصفحات الظاهرة له */}
+                  {(() => {
+                    const cur = (editingUser?.teacher_permissions || teacherPermissions) as TeacherPermissions;
+                    const tracks = cur.tracks || [];
+                    const pages = cur.pages;
+                    return (
+                      <div className="p-3.5 bg-slate-50 dark:bg-slate-800/60 rounded-2xl border border-slate-200 dark:border-slate-700 space-y-3" data-testid="teacher-tracks">
+                        <div>
+                          <p className="text-xs font-bold text-slate-800 dark:text-white">{t('الأقسام')}</p>
+                          <p className="text-[11px] text-slate-500 dark:text-slate-400">{t('اختر قسماً أو أكثر؛ تُحدَّد صفحاته تلقائياً ويمكنك تعديلها بالأسفل. بلا قسم = كل الصفحات حسب الصلاحيات.')}</p>
+                        </div>
+                        <div className="grid sm:grid-cols-3 gap-2">
+                          {TRACKS.map((tr) => {
+                            const on = tracks.includes(tr.k);
+                            return (
+                              <button key={tr.k} type="button" onClick={() => toggleTrack(tr.k)} aria-pressed={on}
+                                className={`text-start p-2.5 rounded-xl border transition ${on ? 'border-indigo-500 bg-indigo-50 dark:bg-indigo-950/50' : 'border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900'}`}>
+                                <span className="flex items-center gap-2 text-sm font-bold text-slate-900 dark:text-white"><input type="checkbox" checked={on} readOnly className="accent-indigo-600 pointer-events-none" />{t(tr.label)}</span>
+                                <span className="block text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">{t(tr.hint)}</span>
+                              </button>
+                            );
+                          })}
+                        </div>
+                        <div>
+                          <p className="text-xs font-bold text-slate-800 dark:text-white mb-1.5">{t('الصفحات الظاهرة له')} <span className="font-normal text-slate-500">{pages ? t('({n} صفحة)', { n: pages.length }) : t('(الكل)')}</span></p>
+                          <div className="flex flex-wrap gap-1.5">
+                            {PAGE_DEFS.map((pg) => {
+                              const on = !pages || pages.includes(pg.id);
+                              return (
+                                <button key={pg.id} type="button" onClick={() => togglePage(pg.id)} aria-pressed={on}
+                                  className={`h-8 px-2.5 rounded-lg border text-xs font-semibold ${on ? 'border-indigo-400 bg-white dark:bg-slate-900 text-indigo-700 dark:text-indigo-300' : 'border-dashed border-slate-300 dark:border-slate-600 text-slate-400 line-through'}`}>{t(pg.label)}</button>
+                              );
+                            })}
+                          </div>
+                          {pages && <button type="button" onClick={() => patchPerms((prev) => ({ ...prev, pages: undefined, tracks: [] }))} className="mt-2 text-[11px] font-semibold text-indigo-700 dark:text-indigo-300">{t('إظهار كل الصفحات')}</button>}
+                          <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-1.5">{t('«اختباراتي» والإشعارات تظهر دائماً. إخفاء صفحة لا يمنح صلاحية: بعض الصفحات تحتاج الصلاحية المناسبة أدناه أيضاً.')}</p>
+                        </div>
+                      </div>
+                    );
+                  })()}
 
                   {/* الصلاحيات الإضافية */}
                   <div className="p-3.5 bg-slate-50 dark:bg-slate-800/60 rounded-2xl border border-slate-200 dark:border-slate-700 space-y-2">
