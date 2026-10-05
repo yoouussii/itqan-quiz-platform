@@ -103,6 +103,9 @@ export interface QuizAttemptAnswer {
   selected_option: number | null;
   text_answer?: string;
   sub_answers?: Array<{ sub_question_id: string; selected_option: number | null; text_answer?: string }>;
+  selected_options?: number[];
+  order?: string[];
+  matches?: Record<string, string>;
 }
 
 export interface SyncOutcome {

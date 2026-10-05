@@ -6,6 +6,7 @@ import { RichText } from '../common/RichText';
 import { Question, QuizIntegrity } from '../../types';
 import { seededShuffle } from '../../utils/shuffle';
 import { loadAttempt, saveAttempt, clearAttempt, secondsLeft, markAttemptLeft } from '../../utils/activeAttempt';
+import { NewTypeAnswer, NewTypeAnswerInput, hasNewAnswer, isNewType } from '../common/QuestionTypes';
 import { startAttemptRemote, servedQuestionIds } from '../../services/quizSync';
 import { uiDir, t, optionLetters, isEn } from '../../i18n';
 import { questionsCount, marksCount, minutesCount } from '../../i18n/count';
@@ -48,6 +49,7 @@ export const QuizTaker: React.FC<QuizTakerProps> = ({ quizId, onFinish, onCancel
   // الاختيارات والإجابات النصية؛ مفتاح السؤال الفرعي: subKey(معرّف القطعة، معرّف السؤال الفرعي)
   const [userAnswers, setUserAnswers] = useState<Record<string, number | null>>(saved?.answers || {});
   const [textAnswers, setTextAnswers] = useState<Record<string, string>>(saved?.texts || {});
+  const [extraAnswers, setExtraAnswers] = useState<Record<string, NewTypeAnswer>>(saved?.extra || {});
   const [flaggedQuestions, setFlaggedQuestions] = useState<Record<string, boolean>>(saved?.flagged || {});
   const [timing, setTiming] = useState<{ endsAt: number; offset: number; startedAt: number } | null>(
     saved ? { endsAt: saved.ends_at, offset: saved.offset, startedAt: saved.started_at } : null
@@ -170,12 +172,13 @@ export const QuizTaker: React.FC<QuizTakerProps> = ({ quizId, onFinish, onCancel
       started_at: timing.startedAt,
       answers: userAnswers,
       texts: textAnswers,
+      extra: extraAnswers,
       flagged: flaggedQuestions,
       index: currentQuestionIndex,
       integrity,
       ...(servedIds ? { served_ids: servedIds } : {}),
     });
-  }, [hasStarted, timing, studentId, quizId, userAnswers, textAnswers, flaggedQuestions, currentQuestionIndex, integrity, servedIds]);
+  }, [hasStarted, timing, studentId, quizId, userAnswers, textAnswers, extraAnswers, flaggedQuestions, currentQuestionIndex, integrity, servedIds]);
 
   const startMessages: Record<string, string> = {
     ended: t('انتهى وقت إتاحة هذا الاختبار'),
@@ -245,7 +248,8 @@ export const QuizTaker: React.FC<QuizTakerProps> = ({ quizId, onFinish, onCancel
       : userAnswers[key] !== undefined && userAnswers[key] !== null;
 
   const isQuestionAnswered = (q: Question) =>
-    q.type === 'passage'
+    isNewType(q.type) ? hasNewAnswer(q.type, extraAnswers[q.id], q as any)
+    : q.type === 'passage'
       ? (q.sub_questions || []).length > 0 &&
         (q.sub_questions || []).every((sq) => hasAnswer(subKey(q.id, sq.id), sq.type))
       : hasAnswer(q.id, q.type);
@@ -282,7 +286,11 @@ export const QuizTaker: React.FC<QuizTakerProps> = ({ quizId, onFinish, onCancel
     closeAway(false);
     setSubmitting(true);
     const timeSpent = Math.round((Date.now() - startTime) / 1000);
-    const answersArray: QuizAttemptAnswer[] = questions.map((q) => ({
+    const answersArray: QuizAttemptAnswer[] = questions.map((q) => isNewType(q.type) ? ({
+      question_id: q.id, selected_option: null,
+      ...(extraAnswers[q.id] || {}),
+      text_answer: extraAnswers[q.id]?.text_answer?.trim() || undefined,
+    }) : ({
       question_id: q.id,
       selected_option: userAnswers[q.id] ?? null,
       text_answer: textAnswers[q.id]?.trim() || undefined,
@@ -506,6 +514,9 @@ export const QuizTaker: React.FC<QuizTakerProps> = ({ quizId, onFinish, onCancel
               );
             })}
           </div>
+        ) : isNewType(currentQ.type) ? (
+          <NewTypeAnswerInput type={currentQ.type} q={currentQ as any} value={extraAnswers[currentQ.id]} studentView={currentUser?.role === 'student'}
+            onChange={(v) => setExtraAnswers((prev) => ({ ...prev, [currentQ.id]: v }))} />
         ) : currentQ.type === 'essay' ? (
           renderEssay(currentQ.id)
         ) : (

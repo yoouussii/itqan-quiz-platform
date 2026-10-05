@@ -12,6 +12,8 @@ export interface ActiveAttempt {
   started_at: number;
   answers: Record<string, number | null>;
   texts: Record<string, string>;
+  /** إجابات الأنواع الجديدة (اختيار متعدد الإجابات، ترتيب، توصيل…) */
+  extra?: Record<string, import('../components/common/QuestionTypes').NewTypeAnswer>;
   flagged: Record<string, boolean>;
   index: number;
   /** سجل الخروج من صفحة الاختبار حتى الآن */

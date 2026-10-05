@@ -24,8 +24,21 @@ function lines(n: number) {
   return `<div class="lines">${Array.from({ length: n }, () => '<i></i>').join('')}</div>`;
 }
 
-function answerArea(q: { type?: string; options?: string[]; correct_option_index?: number; correctAnswer?: string; blankAnswer?: string; explanation?: string; marks: number; pairs?: Array<{ left: string; right: string }> }, key: boolean) {
+function answerArea(q: { type?: string; options?: string[]; correct_option_index?: number; correctAnswer?: string; blankAnswer?: string; explanation?: string; marks: number; pairs?: Array<{ left: string; right: string }>;
+  correct_indexes?: number[]; accepted_answers?: string[]; correct_number?: number | null; tolerance?: number | null; items?: Array<{ id: string; text: string }> }, key: boolean) {
   const type = q.type || 'mcq';
+  const L = optionLetters();
+  if (type === 'multi_select') {
+    const keys = q.correct_indexes || [];
+    return `<p class="hint">${esc(t('اختر كل الإجابات الصحيحة'))}</p><ol class="opts">${(q.options || []).map((o, i) => `<li class="${key && keys.includes(i) ? 'ok' : ''}"><span class="l">☐ ${esc(L[i] || i + 1)}</span><span>${rich(o)}</span></li>`).join('')}</ol>`;
+  }
+  if (type === 'fill_blank' && q.accepted_answers) return key ? `<p class="model">${esc(t('الإجابة:'))} ${esc(q.accepted_answers.filter(Boolean).join(' / '))}</p>` : lines(1);
+  if (type === 'numeric') return key ? `<p class="model">${esc(t('الإجابة:'))} ${esc(String(q.correct_number ?? ''))}${q.tolerance ? ` (± ${esc(String(q.tolerance))})` : ''}</p>` : lines(1);
+  if (type === 'ordering') {
+    const items = q.items || [];
+    const shown = key ? items : [...items].sort((a, b) => a.text.localeCompare(b.text, 'ar'));
+    return `<p class="hint">${esc(t('رتّب العناصر بكتابة رقم الترتيب في القوس'))}</p><ol class="opts">${shown.map((it) => `<li><span class="l">${key ? esc(String(items.indexOf(it) + 1)) : '(&nbsp;&nbsp;&nbsp;)'}</span><span>${esc(it.text)}</span></li>`).join('')}</ol>`;
+  }
   if ((type === 'mcq' || type === 'true_false') && (q.options || []).length) return optionsHtml(q.options, q.correct_option_index, key);
   if (type === 'true_false') return `<div class="tf"><span>( &nbsp; ) ${esc(t('صح'))}</span><span>( &nbsp; ) ${esc(t('خطأ'))}</span></div>`;
   if (type === 'fill_blank') return key ? `<p class="model">${esc(t('الإجابة:'))} ${rich(q.blankAnswer || q.correctAnswer || '')}</p>` : lines(1);
@@ -45,7 +58,10 @@ function answerArea(q: { type?: string; options?: string[]; correct_option_index
 const keyCell = (q: Question) => {
   if ((q.options || []).length && q.correct_option_index !== undefined && q.correct_option_index >= 0) return optionLetters()[q.correct_option_index] || '';
   if (q.type === 'essay') return t('مقالي');
-  if (q.type === 'fill_blank') return (q.blankAnswer || q.correctAnswer || '').replace(/<[^>]*>/g, '').slice(0, 20);
+  if (q.type === 'multi_select') return (q.correct_indexes || []).map((i) => optionLetters()[i] || i + 1).join('، ');
+  if (q.type === 'numeric') return String(q.correct_number ?? '—');
+  if (q.type === 'fill_blank') return (q.accepted_answers?.[0] || q.blankAnswer || q.correctAnswer || '').replace(/<[^>]*>/g, '').slice(0, 20);
+  if (q.type === 'ordering' || q.type === 'matching') return t('انظر السؤال');
   return '—';
 };
 
