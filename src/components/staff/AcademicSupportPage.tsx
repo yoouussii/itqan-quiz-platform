@@ -111,7 +111,7 @@ export const AcademicSupportPage: React.FC = () => {
       <PageHeader title={t('الدعم الأكاديمي')} subtitle={seeAll ? t('كل طلاب برنامج الدعم: مستوى الاستلام، والتقدم، وبلوغ الهدف') : t('طلابك في برنامج الدعم: سجّل مستواهم وتابع تقدمهم')} />
       <div className="flex flex-wrap items-center gap-2.5">
         {canAdd && <Button size="sm" icon={Plus} onClick={() => setAdding(true)}>{t('إضافة طلاب')}</Button>}
-        {canCatalog && <Button size="sm" variant="secondary" icon={Layers} onClick={() => setCatOpen(true)}>{t('مواد وفصول الدعم')}</Button>}
+        {(canCatalog || canAdd) && <Button size="sm" variant="secondary" icon={Layers} onClick={() => setCatOpen(true)}>{t('مواد وفصول الدعم')}</Button>}
         {cat.classes.length > 0 && (
           <select value={acsClass} onChange={(e) => setAcsClass(e.target.value)} className={inp} aria-label={t('فصل الدعم')}>
             <option value="">{t('كل فصول الدعم')}</option>{cat.classes.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
@@ -190,21 +190,27 @@ export const AcademicSupportPage: React.FC = () => {
         </>
       )}
 
-      {catOpen && <CatalogModal cat={cat} onClose={() => setCatOpen(false)} onChanged={loadCat} />}
-      {adding && <AddStudentsModal cat={cat} existing={new Set(rows.filter((r) => r.status === 'active').map((r) => r.student_id))} onClose={() => setAdding(false)} onSaved={() => { setAdding(false); void load(); }} />}
-      {open && <SupportDrawer rec={open} points={prog.filter((p) => p.support_id === open.id)} studentName={nameOf(open.student_id)} className={classOf(open.student_id)} subjectName={subjectOf(open)} acsClassName={acsClassOf(open)} cat={cat}
+      {catOpen && <CatalogModal cat={cat} manager={canCatalog} onClose={() => setCatOpen(false)} onChanged={loadCat} />}
+      {adding && <AddStudentsModal cat={cat} manager={canCatalog} existing={new Set(rows.filter((r) => r.status === 'active').map((r) => r.student_id))} onClose={() => setAdding(false)} onSaved={() => { setAdding(false); void load(); }} />}
+      {open && <SupportDrawer rec={open} points={prog.filter((p) => p.support_id === open.id)} studentName={nameOf(open.student_id)} className={classOf(open.student_id)} subjectName={subjectOf(open)} acsClassName={acsClassOf(open)} cat={cat} manager={canCatalog}
         canEdit={me.role === 'admin' || open.teacher_id === me.id} onClose={() => setOpenId(null)} onChanged={() => void load()} />}
     </div>
   );
 };
 
+/** فصول الدعم المتاحة لمعلم: فصوله وفصول بلا معلم (المدير ومدير القائمة: الكل) */
+const classesFor = (all: AcsClass[], teacherId: string | undefined, manager: boolean) => (manager ? all : all.filter((c) => !c.teacher_id || c.teacher_id === teacherId));
+
 /** إضافة طلاب للبرنامج: اختيار الفصل والطلاب، ومستوى الاستلام لكل طالب */
-const AddStudentsModal: React.FC<{ cat: { subjects: AcsSubject[]; classes: AcsClass[] }; existing: Set<string>; onClose: () => void; onSaved: () => void }> = ({ cat, existing, onClose, onSaved }) => {
+const AddStudentsModal: React.FC<{ cat: { subjects: AcsSubject[]; classes: AcsClass[] }; manager: boolean; existing: Set<string>; onClose: () => void; onSaved: () => void }> = ({ cat, manager, existing, onClose, onSaved }) => {
   const { currentUser, users, classes, subjects, showToast } = useApp();
+  // فصول المعلم أولاً، ويُختار فصله تلقائياً إن كان له فصل واحد
+  const myGroups = classesFor(cat.classes, currentUser?.id, manager).sort((a, b) => Number(b.teacher_id === currentUser?.id) - Number(a.teacher_id === currentUser?.id) || a.name.localeCompare(b.name, 'ar'));
+  const own = cat.classes.filter((c) => c.teacher_id === currentUser?.id);
   const [classId, setClassId] = useState('');
   const [picked, setPicked] = useState<Record<string, number>>({});
-  const [subjectId, setSubjectId] = useState('');
-  const [groupId, setGroupId] = useState('');
+  const [subjectId, setSubjectId] = useState(own.length === 1 && cat.subjects.length ? own[0].subject_id || '' : '');
+  const [groupId, setGroupId] = useState(own.length === 1 ? own[0].id : '');
   // مواد الدعم الخاصة إن أُنشئت، وإلا مواد المدرسة (التوافق مع ما قبل 047)
   const useAcs = cat.subjects.length > 0;
   const pickGroup = (id: string) => { setGroupId(id); const g = cat.classes.find((c) => c.id === id); if (g?.subject_id && useAcs) setSubjectId(g.subject_id); };
@@ -240,9 +246,9 @@ const AddStudentsModal: React.FC<{ cat: { subjects: AcsSubject[]; classes: AcsCl
             <label className="text-sm text-slate-600 dark:text-slate-300 flex flex-col gap-1">{t('المادة')}
               <select value={subjectId} onChange={(e) => setSubjectId(e.target.value)} className={inp}><option value="">{t('عام')}</option>{(useAcs ? cat.subjects : subjects).map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}</select>
             </label>
-            {cat.classes.length > 0 && (
+            {myGroups.length > 0 && (
               <label className="text-sm text-slate-600 dark:text-slate-300 flex flex-col gap-1">{t('فصل الدعم')}
-                <select value={groupId} onChange={(e) => pickGroup(e.target.value)} className={inp}><option value="">{t('بدون')}</option>{cat.classes.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}</select>
+                <select value={groupId} onChange={(e) => pickGroup(e.target.value)} className={inp} data-testid="acs-group"><option value="">{t('بدون')}</option>{myGroups.map((c) => <option key={c.id} value={c.id}>{c.name}{manager && c.teacher_id && c.teacher_id !== currentUser?.id ? ` — ${(users as User[]).find((u) => u.id === c.teacher_id)?.name || ''}` : ''}</option>)}</select>
               </label>
             )}
             <label className="text-sm text-slate-600 dark:text-slate-300 flex flex-col gap-1">{t('الهدف')}
@@ -288,7 +294,7 @@ const AddStudentsModal: React.FC<{ cat: { subjects: AcsSubject[]; classes: AcsCl
 };
 
 /** سجل طالب في البرنامج: الرسم، القياسات، تسجيل قياس، الهدف والخطة والحالة، وتقرير PDF */
-const SupportDrawer: React.FC<{ rec: AcsRecord; points: AcsProgress[]; studentName: string; className: string; subjectName: string; acsClassName: string; cat: { subjects: AcsSubject[]; classes: AcsClass[] }; canEdit: boolean; onClose: () => void; onChanged: () => void }> = ({ rec, points, studentName, className, subjectName, acsClassName, cat, canEdit, onClose, onChanged }) => {
+const SupportDrawer: React.FC<{ rec: AcsRecord; points: AcsProgress[]; studentName: string; className: string; subjectName: string; acsClassName: string; cat: { subjects: AcsSubject[]; classes: AcsClass[] }; manager: boolean; canEdit: boolean; onClose: () => void; onChanged: () => void }> = ({ rec, points, studentName, className, subjectName, acsClassName, cat, manager, canEdit, onClose, onChanged }) => {
   const { currentUser, showToast } = useApp();
   const [mode, setMode] = useState<'note' | 'measure'>('note');
   const [rating, setRating] = useState<AcsRating | null>(null);
@@ -390,7 +396,7 @@ const SupportDrawer: React.FC<{ rec: AcsRecord; points: AcsProgress[]; studentNa
                 <div className="flex flex-wrap gap-2">
                   {cat.classes.length > 0 && (
                     <label className="text-sm text-slate-600 dark:text-slate-300 flex items-center gap-2">{t('فصل الدعم')}
-                      <select value={rec.acs_class_id || ''} onChange={(e) => void saveMeta({ acs_class_id: e.target.value || null })} className={inp}><option value="">{t('بدون')}</option>{cat.classes.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}</select>
+                      <select value={rec.acs_class_id || ''} onChange={(e) => void saveMeta({ acs_class_id: e.target.value || null })} className={inp}><option value="">{t('بدون')}</option>{cat.classes.filter((c) => c.id === rec.acs_class_id || classesFor([c], rec.teacher_id, manager).length).map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}</select>
                     </label>
                   )}
                   {cat.subjects.length > 0 && (
@@ -421,13 +427,18 @@ const SupportDrawer: React.FC<{ rec: AcsRecord; points: AcsProgress[]; studentNa
 };
 
 /** مواد وفصول خاصة بالدعم: إنشاء وتعديل وحذف (للمدير ومن لديه صلاحية إدارتها) */
-const CatalogModal: React.FC<{ cat: { subjects: AcsSubject[]; classes: AcsClass[] }; onClose: () => void; onChanged: () => void }> = ({ cat, onClose, onChanged }) => {
+const CatalogModal: React.FC<{ cat: { subjects: AcsSubject[]; classes: AcsClass[] }; manager: boolean; onClose: () => void; onChanged: () => void }> = ({ cat, manager, onClose, onChanged }) => {
   const { currentUser, users, showToast } = useApp();
+  const me = currentUser!.id;
+  // معلم الدعم: الفصل يُسند له تلقائياً، ويعدّل ويحذف ما يخصه فقط
+  const blankCls = { name: '', subject_id: '', teacher_id: manager ? '' : me };
+  const ownsSub = (x: AcsSubject) => manager || x.created_by === me;
+  const ownsCls = (c: AcsClass) => manager || c.teacher_id === me;
   const [subName, setSubName] = useState('');
-  const [cls, setCls] = useState<{ id?: string; name: string; subject_id: string; teacher_id: string }>({ name: '', subject_id: '', teacher_id: '' });
+  const [cls, setCls] = useState<{ id?: string; name: string; subject_id: string; teacher_id: string }>(blankCls);
   const [editSub, setEditSub] = useState<{ id: string; name: string } | null>(null);
   const supportTeachers = (users as User[]).filter((u) => (u.role === 'teacher' || u.role === 'supervisor' || u.role === 'admin') && (u.role === 'admin' || hasPerm(u, 'can_academic_support'))).sort((a, b) => a.name.localeCompare(b.name, 'ar'));
-  const err = (e?: string) => showToast(/duplicate|unique/i.test(e || '') ? t('الاسم موجود من قبل') : /policy|permission|row-level/i.test(e || '') ? t('ليس لديك صلاحية — أو لم يُشغَّل التحديث 047 بعد') : t('تعذر الحفظ'), 'error');
+  const err = (e?: string) => showToast(/duplicate|unique/i.test(e || '') ? t('الاسم موجود من قبل') : /policy|permission|row-level/i.test(e || '') ? t('ليس لديك صلاحية — أو لم يُشغَّل التحديث 049 بعد') : t('تعذر الحفظ'), 'error');
   const addSubject = async () => {
     const name = (editSub ? editSub.name : subName).trim(); if (!name) return;
     const r = await saveAcsSubject({ id: editSub?.id, name, created_by: currentUser!.id });
@@ -438,7 +449,7 @@ const CatalogModal: React.FC<{ cat: { subjects: AcsSubject[]; classes: AcsClass[
     if (!cls.name.trim()) return showToast(t('اكتب اسم الفصل'), 'error');
     const r = await saveAcsClass({ id: cls.id, name: cls.name.trim(), subject_id: cls.subject_id || null, teacher_id: cls.teacher_id || null, created_by: currentUser!.id });
     if (!r.ok) return err(r.error);
-    setCls({ name: '', subject_id: '', teacher_id: '' }); onChanged();
+    setCls(blankCls); onChanged();
   };
   const del = async (kind: 'subject' | 'class', id: string, name: string) => {
     if (!window.confirm(t('حذف «{name}»؟ لن تُحذف سجلات الطلاب، فقط يُزال ارتباطها به.', { name }))) return;
@@ -450,24 +461,26 @@ const CatalogModal: React.FC<{ cat: { subjects: AcsSubject[]; classes: AcsClass[
       <div className="w-full sm:max-w-3xl max-h-[94vh] bg-white dark:bg-slate-900 rounded-t-3xl sm:rounded-3xl shadow-2xl flex flex-col" onClick={(e) => e.stopPropagation()} dir={uiDir()} data-testid="acs-catalog">
         <div className="flex items-center gap-3 p-5 border-b border-slate-100 dark:border-slate-800">
           <Layers className="w-6 h-6 text-indigo-600" />
-          <div className="flex-1"><h2 className="font-bold text-lg text-slate-900 dark:text-white">{t('مواد وفصول الدعم')}</h2><p className="text-xs text-slate-500">{t('خاصة ببرنامج الدعم فقط، ولا تظهر في مواد المدرسة وفصولها.')}</p></div>
+          <div className="flex-1"><h2 className="font-bold text-lg text-slate-900 dark:text-white">{t('مواد وفصول الدعم')}</h2><p className="text-xs text-slate-500">{t('خاصة ببرنامج الدعم فقط، ولا تظهر في مواد المدرسة وفصولها.')}{!manager && ` ${t('الفصول التي تضيفها تُسند لك تلقائياً.')}`}</p></div>
           <button type="button" aria-label={t('إغلاق')} onClick={onClose} className="w-9 h-9 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 flex items-center justify-center"><X className="w-5 h-5" /></button>
         </div>
         <div className="flex-1 overflow-y-auto p-5 grid md:grid-cols-2 gap-5">
           <section className="space-y-3">
             <h3 className="font-bold text-slate-900 dark:text-white">{t('مواد الدعم')} <span className="text-xs font-normal text-slate-500">({cat.subjects.length})</span></h3>
-            <div className="flex gap-2">
-              <input value={editSub ? editSub.name : subName} onChange={(e) => (editSub ? setEditSub({ ...editSub, name: e.target.value }) : setSubName(e.target.value))} onKeyDown={(e) => { if (e.key === 'Enter') void addSubject(); }} maxLength={80} placeholder={t('مثال: مهارات القراءة')} className={`${inp} flex-1`} aria-label={t('اسم مادة الدعم')} />
-              <Button size="sm" icon={editSub ? Save : Plus} onClick={() => void addSubject()}>{editSub ? t('حفظ') : t('إضافة')}</Button>
-              {editSub && <Button size="sm" variant="ghost" onClick={() => setEditSub(null)}>{t('إلغاء')}</Button>}
+            <div className="flex flex-wrap gap-2">
+              <input value={editSub ? editSub.name : subName} onChange={(e) => (editSub ? setEditSub({ ...editSub, name: e.target.value }) : setSubName(e.target.value))} onKeyDown={(e) => { if (e.key === 'Enter') void addSubject(); }} maxLength={80} placeholder={t('مثال: مهارات القراءة')} className={`${inp} flex-1 min-w-0 basis-40`} aria-label={t('اسم مادة الدعم')} />
+              <Button size="sm" className="shrink-0" icon={editSub ? Save : Plus} onClick={() => void addSubject()}>{editSub ? t('حفظ') : t('إضافة')}</Button>
+              {editSub && <Button size="sm" variant="ghost" className="shrink-0" onClick={() => setEditSub(null)}>{t('إلغاء')}</Button>}
             </div>
             <ul className="divide-y divide-slate-100 dark:divide-slate-800 rounded-xl border border-slate-200 dark:border-slate-700">
               {cat.subjects.length === 0 && <li className="p-3 text-sm text-slate-500">{t('لا توجد مواد دعم بعد')}</li>}
               {cat.subjects.map((x) => (
                 <li key={x.id} className="flex items-center gap-2 px-3 py-2 text-sm">
-                  <span className="flex-1 font-semibold text-slate-800 dark:text-slate-100">{x.name}</span>
-                  <button type="button" aria-label={t('تعديل')} onClick={() => setEditSub({ id: x.id, name: x.name })} className="w-8 h-8 rounded-lg text-slate-400 hover:text-indigo-600 flex items-center justify-center"><Pencil className="w-4 h-4" /></button>
-                  <button type="button" aria-label={t('حذف')} onClick={() => void del('subject', x.id, x.name)} className="w-8 h-8 rounded-lg text-slate-400 hover:text-rose-600 flex items-center justify-center"><Trash2 className="w-4 h-4" /></button>
+                  <span className="flex-1 min-w-0 truncate font-semibold text-slate-800 dark:text-slate-100">{x.name}</span>
+                  {ownsSub(x) && <>
+                    <button type="button" aria-label={t('تعديل')} onClick={() => setEditSub({ id: x.id, name: x.name })} className="w-8 h-8 shrink-0 rounded-lg text-slate-400 hover:text-indigo-600 flex items-center justify-center"><Pencil className="w-4 h-4" /></button>
+                    <button type="button" aria-label={t('حذف')} onClick={() => void del('subject', x.id, x.name)} className="w-8 h-8 shrink-0 rounded-lg text-slate-400 hover:text-rose-600 flex items-center justify-center"><Trash2 className="w-4 h-4" /></button>
+                  </>}
                 </li>
               ))}
             </ul>
@@ -476,13 +489,13 @@ const CatalogModal: React.FC<{ cat: { subjects: AcsSubject[]; classes: AcsClass[
             <h3 className="font-bold text-slate-900 dark:text-white">{t('فصول الدعم')} <span className="text-xs font-normal text-slate-500">({cat.classes.length})</span></h3>
             <div className="rounded-xl border border-slate-200 dark:border-slate-700 p-3 space-y-2">
               <input value={cls.name} onChange={(e) => setCls({ ...cls, name: e.target.value })} maxLength={80} placeholder={t('مثال: مجموعة القراءة — الصف الثالث')} className={`${inp} w-full`} aria-label={t('اسم فصل الدعم')} />
-              <div className="grid grid-cols-2 gap-2">
-                <select value={cls.subject_id} onChange={(e) => setCls({ ...cls, subject_id: e.target.value })} className={inp} aria-label={t('مادة الدعم')}><option value="">{t('بدون مادة')}</option>{cat.subjects.map((x) => <option key={x.id} value={x.id}>{x.name}</option>)}</select>
-                <select value={cls.teacher_id} onChange={(e) => setCls({ ...cls, teacher_id: e.target.value })} className={inp} aria-label={t('معلم الدعم')}><option value="">{t('بدون معلم محدد')}</option>{supportTeachers.map((u) => <option key={u.id} value={u.id}>{u.name}</option>)}</select>
+              <div className={`grid gap-2 ${manager ? 'grid-cols-2' : 'grid-cols-1'}`}>
+                <select value={cls.subject_id} onChange={(e) => setCls({ ...cls, subject_id: e.target.value })} className={`${inp} min-w-0`} aria-label={t('مادة الدعم')}><option value="">{t('بدون مادة')}</option>{cat.subjects.map((x) => <option key={x.id} value={x.id}>{x.name}</option>)}</select>
+                {manager && <select value={cls.teacher_id} onChange={(e) => setCls({ ...cls, teacher_id: e.target.value })} className={`${inp} min-w-0`} aria-label={t('معلم الدعم')}><option value="">{t('بدون معلم محدد')}</option>{supportTeachers.map((u) => <option key={u.id} value={u.id}>{u.name}</option>)}</select>}
               </div>
               <div className="flex gap-2">
                 <Button size="sm" icon={cls.id ? Save : Plus} onClick={() => void saveClass()}>{cls.id ? t('حفظ') : t('إضافة فصل')}</Button>
-                {cls.id && <Button size="sm" variant="ghost" onClick={() => setCls({ name: '', subject_id: '', teacher_id: '' })}>{t('إلغاء')}</Button>}
+                {cls.id && <Button size="sm" variant="ghost" onClick={() => setCls(blankCls)}>{t('إلغاء')}</Button>}
               </div>
             </div>
             <ul className="divide-y divide-slate-100 dark:divide-slate-800 rounded-xl border border-slate-200 dark:border-slate-700">
@@ -491,8 +504,10 @@ const CatalogModal: React.FC<{ cat: { subjects: AcsSubject[]; classes: AcsClass[
                 <li key={c.id} className="flex items-center gap-2 px-3 py-2 text-sm">
                   <span className="flex-1 min-w-0"><span className="block font-semibold text-slate-800 dark:text-slate-100 truncate">{c.name}</span>
                     <span className="block text-xs text-slate-500 truncate">{[cat.subjects.find((x) => x.id === c.subject_id)?.name, teacherName(c.teacher_id)].filter(Boolean).join(' · ') || '—'}</span></span>
-                  <button type="button" aria-label={t('تعديل')} onClick={() => setCls({ id: c.id, name: c.name, subject_id: c.subject_id || '', teacher_id: c.teacher_id || '' })} className="w-8 h-8 rounded-lg text-slate-400 hover:text-indigo-600 flex items-center justify-center"><Pencil className="w-4 h-4" /></button>
-                  <button type="button" aria-label={t('حذف')} onClick={() => void del('class', c.id, c.name)} className="w-8 h-8 rounded-lg text-slate-400 hover:text-rose-600 flex items-center justify-center"><Trash2 className="w-4 h-4" /></button>
+                  {ownsCls(c) && <>
+                    <button type="button" aria-label={t('تعديل')} onClick={() => setCls({ id: c.id, name: c.name, subject_id: c.subject_id || '', teacher_id: c.teacher_id || '' })} className="w-8 h-8 shrink-0 rounded-lg text-slate-400 hover:text-indigo-600 flex items-center justify-center"><Pencil className="w-4 h-4" /></button>
+                    <button type="button" aria-label={t('حذف')} onClick={() => void del('class', c.id, c.name)} className="w-8 h-8 shrink-0 rounded-lg text-slate-400 hover:text-rose-600 flex items-center justify-center"><Trash2 className="w-4 h-4" /></button>
+                  </>}
                 </li>
               ))}
             </ul>
