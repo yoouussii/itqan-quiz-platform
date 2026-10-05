@@ -2797,4 +2797,11 @@ export const EN: Record<string, string> = {
   'اكتمال الرصد حسب أداة التقويم': 'Completion by assessment type',
   'نشاط المعلم: التعديلات في آخر 30 يوماً': 'Teacher activity: edits in the last 30 days',
   'اكتمال الرصد في كل سجل': 'Completion per record',
+  'لم يحن وقتها · لا تُحسب': 'Not due yet · not counted',
+  'حالة الأداة: {name}': 'Status of {name}',
+  'تلقائي': 'Automatic',
+  'مستحقة': 'due',
+  'لم يحن وقتها': 'Not due yet',
+  'مستحقة الآن': 'Due now',
+  'تعذر الحفظ — تأكد من تشغيل التحديث 046': 'Couldn\'t save — make sure migration 046 has been run',
 };

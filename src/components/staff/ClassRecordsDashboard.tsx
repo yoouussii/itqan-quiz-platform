@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Activity, AlertTriangle, CalendarDays, CheckCircle2, Clock, FileDown, Users, X } from 'lucide-react';
 import { Card, Button, Chip } from '../common/ui';
 import type { RecordChange, RecordSheet } from '../../services/classRecordsService';
-import { FollowSheet, RecordMeta, parseFollowup, recordMeta } from '../../utils/classRecords';
+import { FollowSheet, RecordMeta, ToolMode, applyDue, parseFollowup, recordMeta, toolKey, toolStats } from '../../utils/classRecords';
 import { t, dateLocale, isEn } from '../../i18n';
 
 // ---------------------------------------------------------------------
@@ -42,15 +42,28 @@ export const Freshness: React.FC<{ at: string | null }> = ({ at }) => {
 export interface RecItem { r: RecordSheet; p: FollowSheet; meta: RecordMeta; done: number }
 const pct = (a: number, b: number) => (b ? Math.round((a / b) * 100) : 0);
 
-export function buildItems(rows: RecordSheet[]): RecItem[] {
-  const out: RecItem[] = [];
+export interface ToolInfo { key: string; records: number; filledPct: number; mode: 'auto' | ToolMode; due: boolean }
+
+/** تحليل السجلات مع استبعاد أدوات التقويم التي لم يحن وقتها من نسبة الرصد.
+ *  تلقائياً: الأداة الفارغة في كل سجلات المدرسة = لم يحن وقتها؛ ويمكن تثبيت أي أداة من الإعداد. */
+export function buildItems(rows: RecordSheet[], overrides: Record<string, ToolMode> = {}): { items: RecItem[]; tools: ToolInfo[] } {
+  const raw: Array<{ r: RecordSheet; p: FollowSheet }> = [];
   for (const r of rows) {
     if (r.kind !== 'followup') continue;
     const p = parseFollowup(r.grid);
-    if (!p || !p.students.length) continue;
-    out.push({ r, p, meta: recordMeta(r.sheet_name, p.title), done: pct(p.filled, p.cells) });
+    if (p && p.students.length) raw.push({ r, p });
   }
-  return out;
+  const stats = toolStats(raw.map((x) => x.p));
+  const tools: ToolInfo[] = [...stats.entries()].map(([key, g]) => {
+    const mode = (overrides[key] ?? 'auto') as 'auto' | ToolMode;
+    return { key, records: g.records, filledPct: pct(g.filled, g.cells), mode, due: mode === 'auto' ? g.filled > 0 : mode === 'due' };
+  }).sort((a, b) => b.records - a.records || a.key.localeCompare(b.key, 'ar'));
+  const due = new Map(tools.map((x) => [x.key, x.due]));
+  const items = raw.map(({ r, p: p0 }) => {
+    const p = applyDue(p0, (k) => due.get(k) ?? true);
+    return { r, p, meta: recordMeta(r.sheet_name, p.title), done: pct(p.filled, p.cells) };
+  });
+  return { items, tools };
 }
 
 /** اسم قصير للسجل على سطرين: المادة ثم الفصل */
@@ -195,6 +208,36 @@ export const ChangesTimeline: React.FC<{ changes: RecordChange[]; metaOf: (c: Re
   );
 };
 
+/** أدوات التقويم: نسبة الرصد لكل أداة، وما لم يحن وقته (لا يُحسب على المعلم) مع إمكانية تثبيت الحالة */
+const ToolList: React.FC<{ rows: Array<{ key: string; label: string; value: number; n: number; info?: ToolInfo }>; canManage: boolean; onSetMode: (key: string, mode: 'auto' | ToolMode) => void }> = ({ rows, canManage, onSetMode }) => (
+  <ul className="space-y-1 max-h-[26rem] overflow-y-auto pe-1" data-testid="cr-by-tool">
+    {rows.map((r) => {
+      const due = r.info?.due ?? true;
+      return (
+        <li key={r.key} className="rounded-xl px-2.5 py-2">
+          <span className="flex items-baseline gap-2">
+            <span className={`text-sm font-semibold truncate ${due ? 'text-slate-800 dark:text-slate-100' : 'text-slate-500'}`}>{r.label}</span>
+            <span className="text-[11px] text-slate-500 truncate">{t('في {n} سجل', { n: r.n })}</span>
+            <span className={`ms-auto text-sm font-bold tabular-nums ${due ? 'text-slate-900 dark:text-white' : 'text-slate-400'}`}>{r.value}%</span>
+          </span>
+          <span className="mt-1.5 block h-2 rounded-full bg-slate-100 dark:bg-slate-800 overflow-hidden" aria-hidden="true"><span className={`block h-full rounded-full ${due ? 'bg-indigo-500 dark:bg-indigo-400' : 'bg-slate-300 dark:bg-slate-600'}`} style={{ width: `${Math.max(1, r.value)}%` }} /></span>
+          <span className="mt-1 flex items-center gap-2">
+            {!due && <Chip tone="muted"><Clock className="w-3.5 h-3.5" />{t('لم يحن وقتها · لا تُحسب')}</Chip>}
+            {canManage && (
+              <select value={r.info?.mode || 'auto'} onChange={(e) => onSetMode(r.key, e.target.value as 'auto' | ToolMode)} aria-label={t('حالة الأداة: {name}', { name: r.label })}
+                className="ms-auto h-7 px-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-[11px] text-slate-600 dark:text-slate-300">
+                <option value="auto">{t('تلقائي')}{r.info?.mode === 'auto' ? ` (${r.info.due ? t('مستحقة') : t('لم يحن وقتها')})` : ''}</option>
+                <option value="due">{t('مستحقة الآن')}</option>
+                <option value="not_due">{t('لم يحن وقتها')}</option>
+              </select>
+            )}
+          </span>
+        </li>
+      );
+    })}
+  </ul>
+);
+
 const NoActivity: React.FC = () => (
   <div className="h-[190px] flex flex-col items-center justify-center text-center text-sm text-slate-500 gap-1">
     <Activity className="w-8 h-8 text-slate-300 dark:text-slate-600" />
@@ -209,7 +252,7 @@ const NoActivity: React.FC = () => (
 type Period = 7 | 14 | 30 | 90;
 const selCls = 'h-10 px-3 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm max-w-[14rem]';
 
-export const RecordsDashboard: React.FC<{ items: RecItem[]; changes: RecordChange[]; onOpenTeacher: (fileKey: string) => void }> = ({ items, changes, onOpenTeacher }) => {
+export const RecordsDashboard: React.FC<{ items: RecItem[]; tools: ToolInfo[]; changes: RecordChange[]; onOpenTeacher: (fileKey: string) => void; canManage: boolean; onSetTool: (key: string, mode: 'auto' | ToolMode) => void }> = ({ items, tools, changes, onOpenTeacher, canManage, onSetTool }) => {
   const [teacher, setTeacher] = useState('');
   const [cls, setCls] = useState('');
   const [subject, setSubject] = useState('');
@@ -320,17 +363,19 @@ export const RecordsDashboard: React.FC<{ items: RecItem[]; changes: RecordChang
     return { key: lab, short: lab, title: t('سجلات رصدها {r}', { r: lab }), value: v };
   });
 
-  // اكتمال الرصد حسب أداة التقويم (المشاركة، الواجبات، الاختبارات…)
+  // اكتمال الرصد حسب أداة التقويم (المشاركة، الواجبات، الاختبارات…) — ما لم يحن وقته يظهر منفصلاً
+  const toolMode = new Map(tools.map((x) => [x.key, x]));
   const byTool = (() => {
     const m = new Map<string, { f: number; c: number; n: number }>();
     scoped.forEach((x) => x.p.columns.filter((c) => !c.total).forEach((c, i) => {
-      const k = c.label.replace(/\s+/g, ' ').trim(); if (!k) return;
+      const k = toolKey(c.label); if (!k) return;
       const g = m.get(k) || { f: 0, c: 0, n: 0 };
       x.p.students.forEach((st) => { g.c++; if (st.values[i] !== null && st.values[i] !== undefined) g.f++; });
       g.n++; m.set(k, g);
     }));
-    return [...m.entries()].filter(([, g]) => g.n >= 2).sort((a, b) => b[1].n - a[1].n).slice(0, 12)
-      .map(([k, g]) => ({ key: k, label: k, value: pct(g.f, g.c), sub: t('في {n} سجل', { n: g.n }) })).sort((a, b) => b.value - a.value);
+    return [...m.entries()].filter(([, g]) => g.n >= 2).sort((a, b) => b[1].n - a[1].n).slice(0, 16)
+      .map(([k, g]) => ({ key: k, label: k, value: pct(g.f, g.c), n: g.n, info: toolMode.get(k) }))
+      .sort((a, b) => Number(b.info?.due ?? true) - Number(a.info?.due ?? true) || b.value - a.value);
   })();
 
   const filtersOn = teacher || cls || subject || day;
@@ -423,7 +468,7 @@ export const RecordsDashboard: React.FC<{ items: RecItem[]; changes: RecordChang
         </Card>
         <Card className="p-5 space-y-3">
           <h2 className="font-bold text-slate-900 dark:text-white">{t('اكتمال الرصد حسب أداة التقويم')}</h2>
-          <HBarList rows={byTool} testid="cr-by-tool" />
+          <ToolList rows={byTool} canManage={canManage} onSetMode={onSetTool} />
         </Card>
       </div>
 

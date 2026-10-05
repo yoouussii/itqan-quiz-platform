@@ -8,7 +8,7 @@ export interface RecordSheet {
   grid: Grid; last_edit_by: string; last_edit_at: string | null; source: 'drive' | 'upload'; synced_at: string;
 }
 export interface RecordsConfig {
-  has_token: boolean; folders: Array<{ id: string; kind: RecordKind; url?: string }>; last_sync: string | null;
+  has_token: boolean; tools?: Record<string, 'due' | 'not_due'>; folders: Array<{ id: string; kind: RecordKind; url?: string }>; last_sync: string | null;
   log: Array<{ at: string; kind: RecordKind; file: string; sheets: number; source: 'drive' | 'upload' }>;
 }
 
@@ -45,6 +45,11 @@ export async function fetchRecordChanges(days = 400): Promise<RecordChange[]> {
 export async function fetchRecordsConfig(): Promise<RecordsConfig | null> {
   const r = await safe<RecordsConfig>(() => supabase.rpc('itqan_records_config') as any);
   return r.ok && r.data ? r.data : null;
+}
+
+export async function setRecordTools(tools: Record<string, 'due' | 'not_due'>) {
+  const r = await safe<Record<string, 'due' | 'not_due'>>(() => supabase.rpc('itqan_records_set_tools', { p_tools: tools }) as any);
+  return { ok: r.ok, tools: r.data || tools };
 }
 
 export async function setupRecords(folders: RecordsConfig['folders'], newToken: boolean) {
