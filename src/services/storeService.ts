@@ -2,10 +2,10 @@ import { supabase } from './supabase';
 import { safe } from './remote';
 
 /** متجر النقاط (052) */
-export interface StoreItem { id: string; title: string; description: string; emoji: string; cost: number; stock: number | null; active: boolean; created_at: string }
+export interface StoreItem { id: string; title: string; description: string; emoji: string; image?: string | null; cost: number; stock: number | null; active: boolean; created_at: string }
 export type RedemptionStatus = 'pending' | 'approved' | 'delivered' | 'rejected' | 'cancelled';
 export interface Redemption {
-  id: string; item_id: string | null; student_id: string; item_title: string; item_emoji: string; cost: number;
+  id: string; item_id: string | null; student_id: string; item_title: string; item_emoji: string; item_image?: string | null; cost: number;
   status: RedemptionStatus; note: string; handled_by_name: string; handled_at: string | null; created_at: string;
 }
 export interface StoreBalance { earned: number; spent: number; balance: number }
@@ -39,7 +39,8 @@ export async function fetchBalance(studentId?: string): Promise<StoreBalance | n
 }
 
 export async function saveStoreItem(p: Partial<StoreItem> & { title: string; cost: number; created_by?: string }) {
-  const row = { title: p.title, description: p.description || '', emoji: p.emoji || '🎁', cost: p.cost, stock: p.stock ?? null, active: p.active ?? true };
+  const row: Record<string, unknown> = { title: p.title, description: p.description || '', emoji: p.emoji || '🎁', cost: p.cost, stock: p.stock ?? null, active: p.active ?? true };
+  if (p.image !== undefined) row.image = p.image; // قبل 054 لا يُرسل العمود
   const r = await safe<StoreItem[]>(() => (p.id ? supabase.from('store_items').update(row).eq('id', p.id) : supabase.from('store_items').insert({ ...row, created_by: p.created_by })).select('id') as any);
   return { ok: r.ok && !!r.data?.length, error: r.error };
 }
@@ -71,4 +72,29 @@ export async function cancelRedemption(id: string) {
 export async function handleRedemption(id: string, status: 'approved' | 'delivered' | 'rejected', note = '') {
   const r = await safe<Redemption>(() => supabase.rpc('itqan_store_handle', { p_id: id, p_status: status, p_note: note }) as any);
   return { ok: r.ok && !!r.data, error: r.error };
+}
+
+/** تصغير صورة المكافأة (أقصى بُعد 320px، WebP يحفظ الشفافية) */
+export function fileToStoreImage(file: File, max = 320): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onerror = () => reject(new Error('تعذرت قراءة الصورة'));
+    reader.onload = () => {
+      const img = new Image();
+      img.onerror = () => reject(new Error('الملف ليس صورة صالحة'));
+      img.onload = () => {
+        const scale = Math.min(1, max / Math.max(img.width, img.height));
+        const c = document.createElement('canvas');
+        c.width = Math.max(1, Math.round(img.width * scale));
+        c.height = Math.max(1, Math.round(img.height * scale));
+        c.getContext('2d')!.drawImage(img, 0, 0, c.width, c.height);
+        let url = c.toDataURL('image/webp', 0.82);
+        if (!url.startsWith('data:image/webp')) url = c.toDataURL('image/png');
+        if (url.length > 400000) return reject(new Error('الصورة كبيرة جداً'));
+        resolve(url);
+      };
+      img.src = String(reader.result);
+    };
+    reader.readAsDataURL(file);
+  });
 }

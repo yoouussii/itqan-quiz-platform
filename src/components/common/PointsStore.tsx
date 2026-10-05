@@ -6,12 +6,20 @@ import { Chip } from './ui';
 import { timeAgo } from './NotificationBell';
 import { t } from '../../i18n';
 
+/** صورة المكافأة إن وُجدت، وإلا رمزها */
+export const ItemVisual: React.FC<{ image?: string | null; emoji: string; size?: 'sm' | 'md' | 'lg' }> = ({ image, emoji, size = 'md' }) => {
+  const box = size === 'sm' ? 'w-9 h-9 text-2xl' : size === 'lg' ? 'w-24 h-24 text-5xl' : 'w-14 h-14 text-4xl';
+  return image
+    ? <img src={image} alt="" className={`${box} shrink-0 rounded-xl object-contain bg-slate-50 dark:bg-slate-800`} />
+    : <span className={`${box} shrink-0 flex items-center justify-center`} aria-hidden="true">{emoji}</span>;
+};
+
 /** طلبات الاستبدال (للطالب، ولولي الأمر بلا أزرار) */
 export const RedemptionList: React.FC<{ rows: Redemption[]; onCancel?: (id: string) => void }> = ({ rows, onCancel }) => (
   <ul className="space-y-2">
     {rows.map((r) => (
       <li key={r.id} className="flex items-center gap-3 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-3 py-2 text-sm">
-        <span className="text-2xl shrink-0" aria-hidden="true">{r.item_emoji}</span>
+        <ItemVisual image={r.item_image} emoji={r.item_emoji} size="sm" />
         <div className="flex-1 min-w-0">
           <div className="font-bold text-slate-900 dark:text-white truncate">{r.item_title}</div>
           <div className="text-[11px] text-slate-500">{t('{n} نقطة', { n: r.cost })} · {timeAgo(r.created_at)}{r.note ? ` · ${r.note}` : ''}</div>
@@ -69,7 +77,7 @@ export const StudentStore: React.FC = () => {
           const short = bal.balance < it.cost;
           return (
             <div key={it.id} className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4 flex flex-col gap-2">
-              <div className="text-4xl" aria-hidden="true">{it.emoji}</div>
+              <ItemVisual image={it.image} emoji={it.emoji} />
               <div className="font-bold text-slate-900 dark:text-white leading-snug">{it.title}</div>
               {it.description && <p className="text-[11px] text-slate-500 leading-relaxed">{it.description}</p>}
               <div className="mt-auto flex items-center justify-between gap-2 pt-1">
@@ -89,7 +97,7 @@ export const StudentStore: React.FC = () => {
       {confirm && (
         <div className="fixed inset-0 z-[60] bg-slate-900/50 flex items-end sm:items-center justify-center sm:p-4" role="dialog" aria-modal="true" aria-label={t('تأكيد الاستبدال')} onClick={() => setConfirm(null)}>
           <div className="w-full sm:max-w-sm bg-white dark:bg-slate-900 rounded-t-3xl sm:rounded-3xl shadow-2xl p-6 text-center space-y-3" onClick={(e) => e.stopPropagation()}>
-            <div className="text-5xl">{confirm.emoji}</div>
+            <div className="flex justify-center"><ItemVisual image={confirm.image} emoji={confirm.emoji} size="lg" /></div>
             <h2 className="font-bold text-lg text-slate-900 dark:text-white">{confirm.title}</h2>
             <p className="text-sm text-slate-600 dark:text-slate-300">{t('سيُخصم {c} نقطة ويبقى لك {r}. يصل الطلب للإدارة لاعتماده.', { c: confirm.cost, r: bal.balance - confirm.cost })}</p>
             <div className="flex gap-2 justify-center pt-1">

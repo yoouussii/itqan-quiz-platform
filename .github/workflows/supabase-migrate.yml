@@ -66,6 +66,8 @@ on:
           - supabase/migrations/050_morning_summary.sql
           - supabase/migrations/051_weekly_parent_report.sql
           - supabase/migrations/052_points_store.sql
+          - supabase/migrations/053_auto_schedule.sql
+          - supabase/migrations/054_store_item_image.sql
           - supabase/migrations/003_rollback.sql
       db_secret:
         description: 'اسم سر قاعدة البيانات (اتركه كما هو للمدرسة الأساسية، أو اكتب سر مدرسة أخرى مثل DB_URL_SCHOOL2)'
@@ -129,6 +131,8 @@ jobs:
           select 'morning summary (050): ' || (to_regproc('public.itqan_morning_summary') is not null);
           select 'weekly parent report (051): ' || (to_regproc('public.itqan_weekly_report') is not null);
           select 'points store (052): ' || (to_regclass('public.store_items') is not null);
+          select 'auto schedule (053): ' || (to_regproc('itqan.auto_tick') is not null);
+          select 'store item image (054): ' || exists(select 1 from information_schema.columns where table_schema = 'public' and table_name = 'store_items' and column_name = 'image');
           select 'owner key set: ' || coalesce((select key_hash is not null from itqan.owner_config where id = 1), false);
           select 'student home: daily challenge (021): ' || (to_regproc('public.itqan_daily_challenge') is not null);
           select 'maintenance mode (019): ' || (to_regproc('itqan.maintenance_on') is not null);

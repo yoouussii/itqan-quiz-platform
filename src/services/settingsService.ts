@@ -24,9 +24,9 @@ export interface AppSettings {
   /** آخر نسخة احتياطية تلقائية على Drive (يكتبها سير عمل Daily backup to Drive) */
   auto_backup: { at: string; file: string; size: number; ok: boolean; encrypted?: boolean; keep?: number } | null;
   /** الملخص الصباحي: إشعار يومي ومن يستلمه (050) */
-  morning_summary: { enabled?: boolean; roles?: string[] } | null;
+  morning_summary: { enabled?: boolean; roles?: string[]; time?: string } | null;
   /** التقرير الأسبوعي لأولياء الأمور كل خميس (051) */
-  weekly_report: { enabled?: boolean } | null;
+  weekly_report: { enabled?: boolean; day?: number; time?: string } | null;
   cert_style: { template?: string; primary?: string; accent?: string; qr?: boolean; stampPos?: string; stampSize?: number; sigSize?: number } | null;
   /** وضع الصيانة (019): لا يدخل إلا المدير */
   maintenance: { on?: boolean; message?: string; until?: string } | null;
