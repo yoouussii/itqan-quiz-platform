@@ -2,8 +2,8 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { FolderSync, ClipboardList, TrendingUp, Upload, Copy, KeyRound, X, FileDown, Trash2, Search, RefreshCw, Users, CheckCircle2, AlertTriangle, LayoutDashboard, History } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 import { PageHeader, Card, Button, Chip, timeAgo } from '../common/ui';
-import { RecordChange, RecordKind, RecordSheet, RecordsConfig, deleteRecordFile, fetchRecordChanges, fetchRecordSheets, fetchRecordsConfig, folderIdFrom, importRecordFile, setupRecords } from '../../services/classRecordsService';
-import { FollowSheet, LevelSheet, classLabel, lastOf, meanOf, parseLevels, recordMeta, recordsAppsScript, trimGrid } from '../../utils/classRecords';
+import { RecordChange, RecordKind, RecordSheet, RecordsConfig, deleteRecordFile, fetchRecordChanges, setRecordTools, fetchRecordSheets, fetchRecordsConfig, folderIdFrom, importRecordFile, setupRecords } from '../../services/classRecordsService';
+import { FollowSheet, LevelSheet, ToolMode, classLabel, lastOf, meanOf, parseLevels, recordMeta, recordsAppsScript, trimGrid } from '../../utils/classRecords';
 import { ChangesTimeline, Freshness, RecItem, RecordsDashboard, VBarChart, buildItems, dayKey, fmtDay, fmtFull, sheetShort } from './ClassRecordsDashboard';
 import { supabaseUrl, supabaseAnonKey } from '../../services/supabase';
 import { hasPerm } from '../../utils/permissions';
@@ -19,7 +19,7 @@ const fmtAt = (iso: string | null) => (iso ? new Date(iso).toLocaleString(dateLo
 
 /** سجلات المتابعة الصفية وتتبع مستويات الطلاب — من مجلدات Drive أو رفع Excel */
 export const ClassRecordsPage: React.FC = () => {
-  const { currentUser } = useApp();
+  const { currentUser, showToast } = useApp();
   const canManage = hasPerm(currentUser, 'can_manage_class_records');
   const [tab, setTab] = useState<Tab>('dash');
   const [rows, setRows] = useState<RecordSheet[] | null>(null);
@@ -29,7 +29,13 @@ export const ClassRecordsPage: React.FC = () => {
   // لا نُفرغ البيانات عند التحديث كي لا يُعاد تركيب التبويب (ويضيع كود الربط الظاهر)
   const load = () => { void fetchRecordSheets().then((r) => setRows(r.rows)); void fetchRecordChanges().then(setChanges); void fetchRecordsConfig().then(setCfg); };
   useEffect(load, []);
-  const items = useMemo(() => buildItems(rows || []), [rows]);
+  const { items, tools } = useMemo(() => buildItems(rows || [], (cfg?.tools || {}) as Record<string, ToolMode>), [rows, cfg?.tools]);
+  const setTool = async (key: string, mode: 'auto' | ToolMode) => {
+    const next = { ...(cfg?.tools || {}) } as Record<string, ToolMode>;
+    if (mode === 'auto') delete next[key]; else next[key] = mode;
+    const r = await setRecordTools(next);
+    if (r.ok && cfg) setCfg({ ...cfg, tools: r.tools }); else showToast(t('تعذر الحفظ — تأكد من تشغيل التحديث 046'), 'error');
+  };
   const levels = useMemo(() => (rows || []).filter((r) => r.kind === 'levels'), [rows]);
   const toSync = () => canManage && setTab('sync');
   const TABS: Array<[Tab, string, React.ElementType]> = [['dash', t('لوحة المتابعة'), LayoutDashboard], ['followup', t('سجلات المتابعة الصفية'), ClipboardList], ['levels', t('تتبع مستويات الطلاب'), TrendingUp], ...(canManage ? [['sync', t('الربط والاستيراد'), FolderSync] as [Tab, string, React.ElementType]] : [])];
@@ -43,7 +49,7 @@ export const ClassRecordsPage: React.FC = () => {
         ))}
         {cfg?.last_sync && <span className="ms-auto self-center text-xs text-slate-500">{t('آخر مزامنة: {d}', { d: timeAgo(cfg.last_sync) })}</span>}
       </div>
-      {rows === null ? null : tab === 'dash' ? (items.length ? <RecordsDashboard items={items} changes={changes} onOpenTeacher={(k) => { setTab('followup'); setOpenFile(k); }} /> : <EmptyFollow onEmpty={toSync} />)
+      {rows === null ? null : tab === 'dash' ? (items.length ? <RecordsDashboard items={items} tools={tools} changes={changes} canManage={canManage} onSetTool={(k, m) => void setTool(k, m)} onOpenTeacher={(k) => { setTab('followup'); setOpenFile(k); }} /> : <EmptyFollow onEmpty={toSync} />)
         : tab === 'followup' ? <FollowupTab items={items} changes={changes} openFile={openFile} setOpenFile={setOpenFile} onEmpty={toSync} />
         : tab === 'levels' ? <LevelsTab rows={levels} />
         : <SyncTab cfg={cfg} rows={rows} onChanged={load} />}
@@ -207,7 +213,7 @@ const SheetViewer: React.FC<{ row: RecordSheet; p: FollowSheet; onClose: () => v
             <thead className="bg-slate-50 dark:bg-slate-800/70 text-xs text-slate-600 dark:text-slate-300 sticky top-0">
               <tr>
                 <th className="px-3 py-2 text-start">{t('الطالب')}</th>
-                {gradeCols.map((c) => <th key={c.col} className="px-2 py-2 text-center font-semibold min-w-[5.5rem]">{c.label}<div className="text-[10px] font-normal text-slate-400">{c.max ?? ''}</div></th>)}
+                {gradeCols.map((c) => <th key={c.col} className={`px-2 py-2 text-center font-semibold min-w-[5.5rem] ${c.due === false ? 'text-slate-400 dark:text-slate-500' : ''}`}>{c.label}<div className="text-[10px] font-normal text-slate-400">{c.max ?? ''}</div>{c.due === false && <div className="text-[10px] font-normal text-slate-400">{t('لم يحن وقتها')}</div>}</th>)}
                 <th className="px-3 py-2 text-center">{t('المجموع')}<div className="text-[10px] font-normal text-slate-400">{totalCol?.max ?? ''}</div></th>
               </tr>
             </thead>

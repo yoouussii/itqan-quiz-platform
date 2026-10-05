@@ -16,7 +16,7 @@ const toNum = (v: unknown): number | null => {
 // ---------------------------------------------------------------------
 // سجل المتابعة الصفية: صف «اسم الطالب»، صفوف عناوين، صف الدرجات العظمى، ثم الطلاب
 // ---------------------------------------------------------------------
-export interface FollowColumn { col: number; label: string; max: number | null; total: boolean }
+export interface FollowColumn { col: number; label: string; max: number | null; total: boolean; /** false = لم يحن وقتها (لا تُحسب في الرصد) */ due?: boolean }
 export interface FollowStudent { name: string; values: Array<number | null>; total: number | null }
 export interface FollowSheet { title: string; columns: FollowColumn[]; students: FollowStudent[]; filled: number; cells: number }
 
@@ -123,6 +123,38 @@ export function classLabel(sheet: string): string {
   m = s.match(/^(\d)-(\d)$/);
   if (m) return `${ORD[+m[1]] || m[1]} ثانوي / ${m[2]}`;
   return s;
+}
+
+// ---------------------------------------------------------------------
+// أدوات التقويم المستحقة: العمود الذي لم يحن وقته لا يُحسب في نسبة الرصد
+// ---------------------------------------------------------------------
+export type ToolMode = 'due' | 'not_due';
+export const toolKey = (label: string) => label.replace(/\s+/g, ' ').trim();
+
+/** نسخة من السجل يُحسب فيها الرصد على الأعمدة المستحقة فقط */
+export function applyDue(p: FollowSheet, isDue: (key: string) => boolean): FollowSheet {
+  let gi = -1, dueCols = 0, filled = 0;
+  const columns = p.columns.map((c) => {
+    if (c.total) return c;
+    gi++;
+    const due = isDue(toolKey(c.label));
+    if (due) { dueCols++; filled += p.students.filter((s) => s.values[gi] !== null && s.values[gi] !== undefined).length; }
+    return { ...c, due };
+  });
+  return { ...p, columns, filled, cells: p.students.length * dueCols };
+}
+
+/** لكل أداة: عدد السجلات، والخلايا المرصودة من الكل (على السجلات الأصلية) */
+export function toolStats(sheets: FollowSheet[]): Map<string, { records: number; filled: number; cells: number }> {
+  const m = new Map<string, { records: number; filled: number; cells: number }>();
+  sheets.forEach((p) => p.columns.filter((c) => !c.total).forEach((c, i) => {
+    const k = toolKey(c.label); if (!k) return;
+    const g = m.get(k) || { records: 0, filled: 0, cells: 0 };
+    g.records++; g.cells += p.students.length;
+    g.filled += p.students.filter((s) => s.values[i] !== null && s.values[i] !== undefined).length;
+    m.set(k, g);
+  }));
+  return m;
 }
 
 // ---------------------------------------------------------------------

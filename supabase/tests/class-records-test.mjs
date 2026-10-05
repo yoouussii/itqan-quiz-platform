@@ -84,6 +84,14 @@ ok(rows(await req('GET', `/class_record_changes?file_key=eq.drv-h&select=id`, { 
 ok(rows(await req('GET', `/class_record_changes?file_key=eq.drv-h&select=id`, { token: T })).length === 0, 'المعلم العادي لا يرى سجل التعديلات');
 ok(SQL(`select x::text from itqan.grid_diff('[[1,""],[null]]', '[[1,null],[null,""]]') x`) === '(0,0,0)', 'الفراغ و null سواء في المقارنة');
 
+console.log('— أدوات التقويم المستحقة (046)');
+r = await rpc('itqan_records_set_tools', { p_tools: { 'اختبار الفترة 1': 'not_due', 'الواجبات': 'due', 'سيئ': 'maybe' } }, M);
+ok(r.status < 300 && r.json['اختبار الفترة 1'] === 'not_due' && r.json['الواجبات'] === 'due' && !('سيئ' in r.json), 'المسؤول يحفظ حالة الأدوات (والقيم غير الصحيحة تُهمل)');
+ok((await rpc('itqan_records_config', {}, V)).json.tools['اختبار الفترة 1'] === 'not_due', 'صاحب صلاحية العرض يقرأ حالة الأدوات');
+r = await rpc('itqan_records_set_tools', { p_tools: {} }, V);
+ok(r.status >= 400, 'صلاحية العرض لا تكفي لتغيير حالة الأدوات');
+await rpc('itqan_records_set_tools', { p_tools: {} }, M);
+
 console.log('— الحذف');
 await req('DELETE', `/class_record_sheets?file_key=eq.drv2`, { token: V });
 ok(SQL(`select count(*) from class_record_sheets where file_key='drv2'`) === '2', 'المشاهد لا يحذف');
