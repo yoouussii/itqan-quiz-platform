@@ -35,9 +35,12 @@ export const PERMISSION_DEFS: PermDef[] = [
 
   { key: 'can_view_attendance', label: 'عرض لوحة الحضور والغياب والتأخر', short: 'عرض الحضور', group: 'الحضور' },
   { key: 'can_manage_attendance', label: 'إدارة الحضور: استيراد سجل الغياب والتسجيل والربط مع Google Sheets', short: 'إدارة الحضور', group: 'الحضور' },
+  { key: 'can_note_attendance', label: 'تسجيل ملاحظات على الغياب والتأخر والاستئذان', short: 'ملاحظات الحضور', group: 'الحضور' },
 
   { key: 'can_view_behavior', label: 'عرض السلوك والمواظبة ودرجات الطلاب', short: 'عرض السلوك', group: 'السلوك والمواظبة' },
   { key: 'can_record_behavior', label: 'تسجيل المخالفات والسلوك الإيجابي للطلاب', short: 'تسجيل السلوك', group: 'السلوك والمواظبة' },
+
+  { key: 'can_academic_support', label: 'معلم دعم أكاديمي: يضيف الطلاب المحتاجين ويسجل مستواهم وملاحظاته (المشرف يرى الكل)', short: 'الدعم الأكاديمي', group: 'الدعم الأكاديمي' },
 
   { key: 'can_class_visits', label: 'تنفيذ الزيارات الصفية وتقييم المعلمين (مفعّلة للمشرف تلقائياً)', short: 'الزيارات الصفية', group: 'الإشراف والجودة' },
   { key: 'can_manage_surveys', label: 'إنشاء الاستبيانات وعرض نتائجها', short: 'الاستبيانات', group: 'الإشراف والجودة' },

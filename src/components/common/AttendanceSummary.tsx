@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { CalendarCheck } from 'lucide-react';
-import { AttRecord, fetchAttendance } from '../../services/attendanceService';
+import { AttNote, AttRecord, fetchAttendance, fetchAttendanceNotes, noteKey } from '../../services/attendanceService';
 import { t, dateLocale } from '../../i18n';
 
 const KINDS = [
@@ -12,9 +12,12 @@ const KINDS = [
 /** ملخص حضور طالب (للطالب نفسه ولولي أمره). لا يظهر إن لم تُفعَّل ميزة الحضور على الخادم */
 export const AttendanceSummary: React.FC<{ studentId: string; className?: string }> = ({ studentId, className = '' }) => {
   const [list, setList] = useState<AttRecord[] | null | undefined>(undefined);
+  const [notes, setNotes] = useState<Map<string, AttNote>>(new Map());
   useEffect(() => {
     setList(undefined);
     void fetchAttendance('2000-01-01', '2100-01-01', [studentId]).then(setList);
+    // الملاحظات التي سمح بها المسؤول لولي الأمر (RLS)
+    void fetchAttendanceNotes([studentId]).then((ns) => setNotes(new Map(ns.map((n) => [noteKey(n.day, n.kind), n]))));
   }, [studentId]);
   if (!list) return null; // جارٍ التحميل أو الميزة غير مفعّلة
   const counts: Record<string, number> = { absent: 0, late: 0, excused: 0 };
@@ -36,11 +39,15 @@ export const AttendanceSummary: React.FC<{ studentId: string; className?: string
         <ul className="mt-3 space-y-1.5">
           {list.slice(0, 4).map((r) => {
             const k = KINDS.find((x) => x.k === r.kind)!;
+            const n = notes.get(noteKey(r.day, r.kind));
             return (
-              <li key={r.id} className="flex items-center gap-2 text-sm text-slate-700 dark:text-slate-300">
-                <span className="w-2 h-2 rounded-full" style={{ background: k.color }} />
-                <span className="font-semibold">{t(k.label)}</span>
-                <span className="text-slate-500">{new Date(`${r.day}T12:00:00`).toLocaleDateString(dateLocale(), { weekday: 'long', day: 'numeric', month: 'short' })}</span>
+              <li key={r.id} className="text-sm text-slate-700 dark:text-slate-300">
+                <div className="flex items-center gap-2">
+                  <span className="w-2 h-2 rounded-full" style={{ background: k.color }} />
+                  <span className="font-semibold">{t(k.label)}</span>
+                  <span className="text-slate-500">{new Date(`${r.day}T12:00:00`).toLocaleDateString(dateLocale(), { weekday: 'long', day: 'numeric', month: 'short' })}</span>
+                </div>
+                {n && <p className="ms-4 mt-0.5 text-xs text-slate-600 dark:text-slate-300 bg-amber-50 dark:bg-amber-950/30 rounded-lg px-2 py-1" data-testid="att-parent-note">{n.note}</p>}
               </li>
             );
           })}

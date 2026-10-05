@@ -17,6 +17,7 @@ import { ConductSummary } from '../common/ConductSummary';
 import { SurveyPrompt } from '../common/SurveyPrompt';
 import { RemedialCard } from '../common/RemedialCard';
 import { HomeworkCard } from '../common/Homework';
+import { AcademicSupportCard } from '../common/AcademicSupport';
 import { StudentHomeData, fetchStudentHome } from '../../services/studentHomeService';
 
 interface StudentDashboardProps {
@@ -426,6 +427,7 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({ onStartQuiz,
             {me && <AttendanceSummary studentId={me} />}
             {me && <ConductSummary studentId={me} />}
             {me && <RemedialCard studentId={me} />}
+            {me && <AcademicSupportCard studentId={me} />}
           </div>
           {ResultsCard}
         </div>
@@ -437,6 +439,7 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({ onStartQuiz,
           {me && <AttendanceSummary studentId={me} />}
             {me && <ConductSummary studentId={me} />}
             {me && <RemedialCard studentId={me} />}
+            {me && <AcademicSupportCard studentId={me} />}
         </aside>
       </div>
 

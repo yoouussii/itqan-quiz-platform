@@ -17,6 +17,7 @@ import {
   FolderOpen,
   PenLine,
   NotebookPen,
+  HeartHandshake,
 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 import { Avatar } from './Avatar';
@@ -65,6 +66,7 @@ const staffGroups = (u: User, pendingApprovals: number, preparationsUrl: string,
   quizzes.push({ id: 'question_bank', label: t('بنك الأسئلة'), icon: Library });
   quizzes.push({ id: 'outcomes', label: t('نواتج التعلم'), icon: Target });
   quizzes.push({ id: 'homework', label: t('الواجبات'), icon: NotebookPen });
+  if (hasPerm(u, 'can_academic_support')) quizzes.push({ id: 'academic_support', label: t('الدعم الأكاديمي'), icon: HeartHandshake });
   quizzes.push({ id: 'remedial', label: t('الخطط العلاجية'), icon: LifeBuoy });
   quizzes.push({ id: 'calendar', label: t('جدول الاختبارات'), icon: CalendarDays });
   quizzes.push({ id: 'analytics', label: u.role === 'teacher' ? t('نتائج طلابي') : t('النتائج والتحليلات'), icon: BarChart2 });
@@ -77,7 +79,7 @@ const staffGroups = (u: User, pendingApprovals: number, preparationsUrl: string,
   if (isAdmin) school.push({ id: 'banners', label: t('الإعلانات والبانرات'), icon: Images });
   if (hasPerm(u, 'can_view_leaderboard')) school.push({ id: 'leaderboard', label: t('لوحة الشرف'), icon: Trophy });
   if (hasPerm(u, 'can_award_badges')) school.push({ id: 'certificates', label: t('الشهادات'), icon: Award });
-  if (hasPerm(u, 'can_view_attendance') || hasPerm(u, 'can_manage_attendance')) school.push({ id: 'attendance', label: t('الحضور والغياب'), icon: CalendarCheck });
+  if (hasPerm(u, 'can_view_attendance') || hasPerm(u, 'can_manage_attendance') || hasPerm(u, 'can_note_attendance')) school.push({ id: 'attendance', label: t('الحضور والغياب'), icon: CalendarCheck });
   if (hasPerm(u, 'can_view_behavior') || hasPerm(u, 'can_record_behavior')) school.push({ id: 'behavior', label: t('السلوك والمواظبة'), icon: ShieldCheck });
   school.push({ id: 'visits', label: t('الزيارات الصفية'), icon: EyeIcon });
   school.push({ id: 'portfolio', label: u.role === 'teacher' ? t('ملف إنجازي') : t('ملفات إنجاز المعلمين'), icon: FolderOpen });

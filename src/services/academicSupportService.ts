@@ -1,0 +1,59 @@
+import { supabase } from './supabase';
+import { safe } from './remote';
+
+export type AcsStatus = 'active' | 'done' | 'stopped';
+export interface AcsRecord {
+  id: string; student_id: string; teacher_id: string; teacher_name: string; subject_id: string | null;
+  start_level: number; target_level: number; current_level: number; plan: string; status: AcsStatus;
+  started_at: string; closed_at: string | null; created_at: string;
+}
+export type AcsRating = 'excellent' | 'very_good' | 'good' | 'needs_follow';
+/** قياس (level) أو ملاحظة/تقييم يومي (level = null) */
+export interface AcsProgress { id: number; support_id: string; level: number | null; rating: AcsRating | null; note: string; at: string; created_by: string; created_at: string }
+export const RATINGS: Array<{ k: AcsRating; label: string; tone: 'ok' | 'info' | 'warn' }> = [
+  { k: 'excellent', label: 'ممتاز', tone: 'ok' }, { k: 'very_good', label: 'جيد جداً', tone: 'ok' },
+  { k: 'good', label: 'جيد', tone: 'info' }, { k: 'needs_follow', label: 'يحتاج متابعة', tone: 'warn' },
+];
+
+export async function fetchSupport(studentIds?: string[]): Promise<{ ok: boolean; rows: AcsRecord[] }> {
+  const r = await safe<AcsRecord[]>(() => {
+    let q: any = supabase.from('academic_support').select('*');
+    if (studentIds?.length) q = q.in('student_id', studentIds);
+    return q.order('created_at', { ascending: false }).limit(2000);
+  });
+  return { ok: r.ok, rows: r.data || [] };
+}
+
+export async function fetchProgress(supportIds: string[]): Promise<AcsProgress[]> {
+  if (!supportIds.length) return [];
+  const r = await safe<AcsProgress[]>(() => supabase.from('academic_support_progress').select('*').in('support_id', supportIds).order('at').order('id').limit(10000) as any);
+  return r.data || [];
+}
+
+export async function addSupport(rows: Array<Pick<AcsRecord, 'student_id' | 'teacher_id' | 'teacher_name' | 'subject_id' | 'start_level' | 'target_level' | 'plan'> & { started_at?: string }>) {
+  const r = await safe<AcsRecord[]>(() => supabase.from('academic_support').insert(rows).select('*') as any);
+  return { ok: r.ok, rows: r.data || [], error: r.error };
+}
+
+export async function updateSupport(id: string, patch: Partial<Pick<AcsRecord, 'target_level' | 'plan' | 'status' | 'subject_id'>>) {
+  const r = await safe<AcsRecord[]>(() => supabase.from('academic_support').update(patch).eq('id', id).select('*') as any);
+  return r.data?.[0] || null;
+}
+
+export async function deleteSupport(id: string) {
+  const r = await safe<any[]>(() => supabase.from('academic_support').delete().eq('id', id).select('id') as any);
+  return r.ok && (r.data || []).length > 0;
+}
+
+export async function addProgress(p: Pick<AcsProgress, 'support_id' | 'level' | 'rating' | 'note' | 'at' | 'created_by'>) {
+  const r = await safe<AcsProgress[]>(() => supabase.from('academic_support_progress').insert(p).select('*') as any);
+  return r.data?.[0] || null;
+}
+
+export async function deleteProgress(id: number) {
+  const r = await safe<any[]>(() => supabase.from('academic_support_progress').delete().eq('id', id).select('id') as any);
+  return r.ok && (r.data || []).length > 0;
+}
+
+export const gain = (a: Pick<AcsRecord, 'start_level' | 'current_level'>) => a.current_level - a.start_level;
+export const reached = (a: Pick<AcsRecord, 'current_level' | 'target_level'>) => a.current_level >= a.target_level;

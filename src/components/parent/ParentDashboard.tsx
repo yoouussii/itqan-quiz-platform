@@ -4,6 +4,7 @@ import { ConductSummary } from '../common/ConductSummary';
 import { StudentGradebook } from '../common/StudentGradebook';
 import { RemedialCard } from '../common/RemedialCard';
 import { HomeworkCard } from '../common/Homework';
+import { AcademicSupportCard } from '../common/AcademicSupport';
 import { SurveyPrompt } from '../common/SurveyPrompt';
 import { BookOpen, CalendarClock, CheckCircle2, Users, FileText } from 'lucide-react';
 import { exportStudentReport, reportExtras } from '../../utils/studentReport';
@@ -211,6 +212,7 @@ export const ParentDashboard: React.FC<{ onViewReview: (submissionId: string) =>
 
       <HomeworkCard key={`hw-${child.id}`} student={child} />
       <StudentGradebook key={`gb-${child.id}`} student={child} />
+      <AcademicSupportCard key={`acs-${child.id}`} studentId={child.id} />
       <RemedialCard key={`rp-${child.id}`} studentId={child.id} />
       <AttendanceSummary key={`att-${child.id}`} studentId={child.id} />
       <ConductSummary key={`cond-${child.id}`} studentId={child.id} />

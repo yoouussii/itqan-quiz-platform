@@ -344,3 +344,7 @@ html[dir="ltr"] .dir-icon { transform: scaleX(-1); }
 @keyframes itq-ring { 0%, 100% { transform: rotate(-14deg); } 50% { transform: rotate(14deg); } }
 @keyframes itq-write { from { transform: rotate(-12deg); } to { transform: rotate(8deg); } }
 @media (prefers-reduced-motion: reduce) { .itq-prop-gear, .itq-prop-bell, .itq-prop-pencil { animation: none; } }
+
+/* ألوان رسم الدعم الأكاديمي (تحقق الوضوح وعمى الألوان: فاتح وداكن) */
+:root { --acs-start: #d97706; --acs-now: #4f46e5; }
+.dark { --acs-start: #c47a10; --acs-now: #6b6ef0; }
