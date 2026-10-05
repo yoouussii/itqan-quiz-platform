@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
-import { X, Search } from 'lucide-react';
+import { X, Search, FileSpreadsheet, FileDown } from 'lucide-react';
+import { exportSectionsPdf, exportSectionsXlsx } from '../../utils/tableExport';
 import { KpiSection } from '../../utils/kpiSections';
 import { uiDir, t } from '../../i18n';
 import { EmptyMascot } from './Mascot';
@@ -49,7 +50,7 @@ const SectionTable: React.FC<{ section: KpiSection }> = ({ section }) => {
               {shown.map((r, i) => (
                 <tr key={i} className="hover:bg-slate-50 dark:hover:bg-slate-800/40">
                   {r.map((c, j) => (
-                    <td key={j} className={`py-2 px-3 ${j === 0 ? 'font-bold text-slate-900 dark:text-white' : 'text-slate-600 dark:text-slate-300'}`}>
+                    <td key={j} className={`py-2 px-3 ${j < 2 ? 'whitespace-nowrap ' : ''}${j === 0 ? 'font-bold text-slate-900 dark:text-white' : 'text-slate-600 dark:text-slate-300'}`}>
                       {c}
                     </td>
                   ))}
@@ -80,7 +81,7 @@ export const KpiDetailModal: React.FC<{
 
   return (
     <div
-      className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4"
+      className="fixed inset-0 z-[60] bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4"
       onClick={onClose}
       dir={uiDir()}
     >
@@ -95,6 +96,11 @@ export const KpiDetailModal: React.FC<{
             <h3 className="font-black text-lg text-slate-900 dark:text-white font-cairo">{title}</h3>
             {subtitle && <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">{subtitle}</p>}
           </div>
+          <div className="flex items-center gap-1.5 shrink-0">
+          {sections.some((s) => s.rows.length > 0) && (<>
+            <button type="button" onClick={() => void exportSectionsXlsx(title, sections)} className="h-9 px-3 rounded-xl border border-slate-200 dark:border-slate-700 text-xs font-bold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 inline-flex items-center gap-1.5"><FileSpreadsheet className="w-4 h-4 text-emerald-600" />Excel</button>
+            <button type="button" onClick={() => void exportSectionsPdf(title, subtitle, sections)} className="h-9 px-3 rounded-xl border border-slate-200 dark:border-slate-700 text-xs font-bold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 inline-flex items-center gap-1.5"><FileDown className="w-4 h-4 text-rose-600" />PDF</button>
+          </>)}
           <button
             onClick={onClose}
             aria-label={t('إغلاق')}
@@ -102,6 +108,7 @@ export const KpiDetailModal: React.FC<{
           >
             <X className="w-5 h-5" />
           </button>
+          </div>
         </div>
         {sections.map((s) => (
           <SectionTable key={s.title} section={s} />
