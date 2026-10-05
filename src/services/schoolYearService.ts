@@ -56,6 +56,7 @@ export const BACKUP_TABLES: { table: string; label: string }[] = [
   { table: 'academic_support_progress', label: 'قياسات الدعم الأكاديمي' },
   { table: 'attendance_notes', label: 'ملاحظات الحضور' },
   { table: 'class_record_sheets', label: 'سجلات المتابعة' },
+  { table: 'class_record_changes', label: 'تعديلات سجلات المتابعة' },
   { table: 'class_visits', label: 'الزيارات الصفية' },
   { table: 'surveys', label: 'الاستبيانات' },
   { table: 'survey_responses', label: 'إجابات الاستبيانات' },

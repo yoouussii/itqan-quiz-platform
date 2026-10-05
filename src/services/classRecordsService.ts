@@ -23,6 +23,25 @@ export async function fetchRecordSheets(): Promise<{ ok: boolean; rows: RecordSh
   return { ok: true, rows };
 }
 
+export interface RecordChange {
+  id: number; kind: RecordKind; file_key: string; file_name: string; sheet_name: string; edited_by: string; edited_at: string;
+  cells_changed: number; cells_filled: number; cells_cleared: number; initial: boolean;
+}
+
+/** أحداث التعديل (الأحدث أولاً) خلال آخر days يوماً؛ قائمة فارغة إن لم يُشغَّل 044 بعد */
+export async function fetchRecordChanges(days = 400): Promise<RecordChange[]> {
+  const since = new Date(Date.now() - days * 864e5).toISOString();
+  const rows: RecordChange[] = [];
+  for (let page = 0; page < 10; page++) {
+    const r = await safe<RecordChange[]>(() => supabase.from('class_record_changes').select('id,kind,file_key,file_name,sheet_name,edited_by,edited_at,cells_changed,cells_filled,cells_cleared,initial')
+      .gte('edited_at', since).order('edited_at', { ascending: false }).order('id', { ascending: false }).range(page * 1000, page * 1000 + 999) as any);
+    if (!r.ok || !Array.isArray(r.data)) break;
+    rows.push(...r.data);
+    if (r.data.length < 1000) break;
+  }
+  return rows;
+}
+
 export async function fetchRecordsConfig(): Promise<RecordsConfig | null> {
   const r = await safe<RecordsConfig>(() => supabase.rpc('itqan_records_config') as any);
   return r.ok && r.data ? r.data : null;

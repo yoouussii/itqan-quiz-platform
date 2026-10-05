@@ -125,6 +125,50 @@ export function classLabel(sheet: string): string {
   return s;
 }
 
+// ---------------------------------------------------------------------
+// المادة والصف من اسم الورقة (أدق من عنوان السجل، فالقالب يُنسخ أحياناً دون تعديل عنوانه)
+// ---------------------------------------------------------------------
+const SUBJECTS: Array<[RegExp, string]> = [
+  [/رياضيات|math/i, 'الرياضيات'],
+  [/علوم|scien/i, 'العلوم'],
+  [/english|الإنجليزية|الانجليزية|انجليزي/i, 'اللغة الإنجليزية'],
+  [/لغتي|العربية|عربي/, 'اللغة العربية'],
+  [/قرآن|قرأن|قران/, 'القرآن الكريم'],
+  [/إسلامي|اسلامي|توحيد|فقه|حديث/, 'الدراسات الإسلامية'],
+  [/اجتماعي/, 'الدراسات الاجتماعية'],
+  [/حياتية|فنية|بدنية|أسرية|اسرية|المهارات/, 'المهارات الحياتية والفنية والبدنية'],
+  [/رقمية|حاسب|تقنية/, 'المهارات الرقمية'],
+];
+const ORD_WORDS: Array<[RegExp, number]> = [[/أول|اول/, 1], [/ثاني/, 2], [/ثالث/, 3], [/رابع/, 4], [/خامس/, 5], [/سادس/, 6]];
+const ORD = ['', 'الأول', 'الثاني', 'الثالث', 'الرابع', 'الخامس', 'السادس'];
+const toLatin = (s: string) => s.replace(/[٠-٩]/g, (d) => String('٠١٢٣٤٥٦٧٨٩'.indexOf(d)));
+
+export interface RecordMeta { subject: string; grade: number | null; track: string; classKey: string; classLabel: string }
+
+/** المادة والصف (رقم الصف + عام/تحفيظ) لسجل متابعة، من اسم الورقة ثم العنوان */
+export function recordMeta(sheet: string, title = ''): RecordMeta {
+  const s = toLatin(sheet.replace(/[ً-ْ]/g, '')), ti = toLatin(title);
+  const subject = (SUBJECTS.find(([re]) => re.test(s)) || SUBJECTS.find(([re]) => re.test(ti)))?.[1]
+    || (title.split('(')[0].trim() || sheet.trim());
+  const fromTitle = ti.match(/الصف\s+(\S+)\s*-\s*(عام|تحفيظ)/);
+  let grade: number | null = null, track = '';
+  const dm = s.match(/(\d)/);
+  if (dm) grade = +dm[1];
+  else { const w = ORD_WORDS.find(([re]) => re.test(s)); if (w) grade = w[1]; }
+  if (/تحفيظ/.test(s)) track = 'تحفيظ';
+  else if (/عام/.test(s)) track = 'عام';
+  else if (/مشترك/.test(s)) track = 'مشترك';
+  else if (/\d\s*ِ?B\b|\bB\s*\d|\d\s*B$/i.test(s)) track = 'تحفيظ';
+  else if (/\d\s*ِ?A\b|\bA\s*\d|\d\s*A$/i.test(s)) track = 'عام';
+  if (fromTitle) {
+    if (grade === null) { const w = ORD_WORDS.find(([re]) => re.test(fromTitle[1])); if (w) grade = w[1]; }
+    if (!track) track = fromTitle[2];
+  }
+  if (grade !== null && (grade < 1 || grade > 6)) grade = null;
+  const classKey = grade ? `${grade}|${track}` : '';
+  return { subject, grade, track, classKey, classLabel: grade ? `${ORD[grade]}${track ? ` ${track}` : ''}` : '' };
+}
+
 /** شبكة القيم من ورقة Excel (للرفع اليدوي) — نقص الصفوف الفارغة في النهاية */
 export function trimGrid(grid: Grid, maxRows = 300, maxCols = 60): Grid {
   let last = grid.length - 1;
