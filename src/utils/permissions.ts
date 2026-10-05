@@ -88,6 +88,7 @@ export const PAGE_DEFS: Array<{ id: string; label: string; tracks: Track[] }> = 
   { id: 'leaderboard', label: 'لوحة الشرف', tracks: ['nafes', 'school'] },
   { id: 'certificates', label: 'الشهادات', tracks: ['nafes', 'school'] },
   { id: 'points_store', label: 'متجر النقاط', tracks: ['nafes', 'school'] },
+  { id: 'indicators', label: 'مؤشرات المدرسة', tracks: ['school'] },
   { id: 'homework', label: 'الواجبات', tracks: ['school'] },
   { id: 'gradebook', label: 'كشف الدرجات', tracks: ['school'] },
   { id: 'attendance', label: 'الحضور والغياب', tracks: ['school'] },

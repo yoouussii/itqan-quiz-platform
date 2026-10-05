@@ -62,7 +62,7 @@ end $$;
 create or replace function public.itqan_morning_summary(p_day date default null)
 returns jsonb language plpgsql stable security definer set search_path = '' as $$
 begin
-  if not (itqan.is_admin() or itqan.my_role() = 'supervisor') then return null; end if;
+  if not coalesce(itqan.is_admin() or itqan.my_role() = 'supervisor', false) then return null; end if;
   return itqan.morning_summary_data(coalesce(p_day, (now() at time zone 'Asia/Riyadh')::date));
 end $$;
 

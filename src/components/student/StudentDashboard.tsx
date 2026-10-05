@@ -20,6 +20,7 @@ import { HomeworkCard } from '../common/Homework';
 import { AcademicSupportCard } from '../common/AcademicSupport';
 import { StudentHomeData, fetchStudentHome } from '../../services/studentHomeService';
 import { MascotHere } from '../common/Mascot';
+import { GoalsCard } from '../common/Goals';
 
 interface StudentDashboardProps {
   onStartQuiz: (quizId: string) => void;
@@ -416,6 +417,7 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({ onStartQuiz,
           {ChallengeCard}
           {AvailableCard}
           {currentUser && <HomeworkCard student={currentUser} canSubmit />}
+          {me && <GoalsCard studentId={me} editable />}
           {NextCard}
           {EmptyCard}
           <BannerStrip embedded />

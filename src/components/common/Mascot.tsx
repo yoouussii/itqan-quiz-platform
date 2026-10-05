@@ -51,7 +51,7 @@ const PROPS: Record<MascotProp, string[]> = {
 export function propFor(view?: string): MascotProp {
   const v = view || '';
   if (['take_quiz', 'create_quiz', 'quizzes', 'question_bank', 'approvals', 'grading', 'quiz_preview', 'quiz_review', 'outcomes'].includes(v)) return 'pencil';
-  if (['analytics', 'reports', 'gradebook', 'quiz_results', 'remedial', 'academic_support'].includes(v)) return 'chart';
+  if (['analytics', 'reports', 'indicators', 'gradebook', 'quiz_results', 'remedial', 'academic_support'].includes(v)) return 'chart';
   if (v === 'homework' || v === 'class_records' || v === 'portfolio') return 'notebook';
   if (v === 'points_store') return 'gift';
   if (['attendance', 'behavior', 'calendar', 'visits', 'surveys'].includes(v)) return 'calendar';

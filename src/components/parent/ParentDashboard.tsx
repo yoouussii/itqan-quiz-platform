@@ -24,6 +24,7 @@ import { minutesCount } from '../../i18n/count';
 import { SkillsCard } from '../analytics/OutcomesPage';
 import { DevicePushCard } from '../common/DevicePushCard';
 import { WeeklyReportCard } from '../common/WeeklyReportCard';
+import { GoalsCard } from '../common/Goals';
 import { MascotHere } from '../common/Mascot';
 
 /** موعد الانتهاء مختصراً: «ينتهي اليوم» أو «ينتهي 4 أكتوبر» */
@@ -213,6 +214,7 @@ export const ParentDashboard: React.FC<{ onViewReview: (submissionId: string) =>
       </div>
 
       <WeeklyReportCard key={`wr-${child.id}`} studentId={child.id} />
+      <GoalsCard key={`goal-${child.id}`} studentId={child.id} />
       <HomeworkCard key={`hw-${child.id}`} student={child} />
       <StudentGradebook key={`gb-${child.id}`} student={child} />
       <AcademicSupportCard key={`acs-${child.id}`} studentId={child.id} />
