@@ -61,14 +61,14 @@ export const gain = (a: Pick<AcsRecord, 'start_level' | 'current_level'>) => a.c
 export const reached = (a: Pick<AcsRecord, 'current_level' | 'target_level'>) => a.current_level >= a.target_level;
 
 // ---------------- مواد وفصول الدعم (047) ----------------
-export interface AcsSubject { id: string; name: string }
-export interface AcsClass { id: string; name: string; subject_id: string | null; teacher_id: string | null }
+export interface AcsSubject { id: string; name: string; created_by?: string | null }
+export interface AcsClass { id: string; name: string; subject_id: string | null; teacher_id: string | null; created_by?: string | null }
 
 /** قائمة مواد وفصول الدعم؛ فارغة إن لم يُشغَّل 047 بعد */
 export async function fetchAcsCatalog(): Promise<{ ok: boolean; subjects: AcsSubject[]; classes: AcsClass[] }> {
   const [s, c] = await Promise.all([
-    safe<AcsSubject[]>(() => supabase.from('acs_subjects').select('id,name').order('name') as any),
-    safe<AcsClass[]>(() => supabase.from('acs_classes').select('id,name,subject_id,teacher_id').order('name') as any),
+    safe<AcsSubject[]>(() => supabase.from('acs_subjects').select('id,name,created_by').order('name') as any),
+    safe<AcsClass[]>(() => supabase.from('acs_classes').select('id,name,subject_id,teacher_id,created_by').order('name') as any),
   ]);
   return { ok: s.ok && c.ok, subjects: s.data || [], classes: c.data || [] };
 }

@@ -2836,7 +2836,6 @@ export const EN: Record<string, string> = {
   'كل مواد الدعم': 'All support subjects',
   'فصل الطالب في المدرسة': 'Student\'s school class',
   'الاسم موجود من قبل': 'This name already exists',
-  'ليس لديك صلاحية — أو لم يُشغَّل التحديث 047 بعد': 'You don\'t have permission — or migration 047 hasn\'t been run yet',
   'اكتب اسم الفصل': 'Enter the class name',
   'حذف «{name}»؟ لن تُحذف سجلات الطلاب، فقط يُزال ارتباطها به.': 'Delete «{name}»? Student records stay; they\'re just unlinked from it.',
   'خاصة ببرنامج الدعم فقط، ولا تظهر في مواد المدرسة وفصولها.': 'Only for the support program; they don\'t appear among the school\'s subjects and classes.',
@@ -2851,4 +2850,6 @@ export const EN: Record<string, string> = {
   'إضافة فصل': 'Add class',
   'إدارة مواد وفصول الدعم: إنشاء مواد ومجموعات خاصة بالدعم وتعديلها وحذفها': 'Manage support subjects & classes: create, edit and delete support-only subjects and groups',
   'لا توجد فصول دعم بعد': 'No support classes yet',
+  'ليس لديك صلاحية — أو لم يُشغَّل التحديث 049 بعد': 'You don\'t have permission — or update 049 hasn\'t been run yet',
+  'الفصول التي تضيفها تُسند لك تلقائياً.': 'Classes you add are assigned to you automatically.',
 };
