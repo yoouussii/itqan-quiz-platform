@@ -32,6 +32,7 @@ export const PERMISSION_DEFS: PermDef[] = [
   { key: 'can_send_announcements', label: 'إرسال إعلانات وإشعارات للطلاب', short: 'إعلانات', group: 'التفاعل والتحفيز' },
   { key: 'can_view_leaderboard', label: 'لوحة المتصدرين ونقاط الطلاب', short: 'المتصدرون', group: 'التفاعل والتحفيز' },
   { key: 'can_award_badges', label: 'منح الأوسمة والجوائز للطلاب', short: 'منح جوائز', group: 'التفاعل والتحفيز' },
+  { key: 'can_manage_store', label: 'متجر النقاط: إضافة المكافآت واعتماد طلبات الاستبدال وتسليمها', short: 'متجر النقاط', group: 'التفاعل والتحفيز' },
 
   { key: 'can_view_attendance', label: 'عرض لوحة الحضور والغياب والتأخر', short: 'عرض الحضور', group: 'الحضور' },
   { key: 'can_manage_attendance', label: 'إدارة الحضور: استيراد سجل الغياب والتسجيل والربط مع Google Sheets', short: 'إدارة الحضور', group: 'الحضور' },
@@ -86,6 +87,7 @@ export const PAGE_DEFS: Array<{ id: string; label: string; tracks: Track[] }> = 
   { id: 'reports', label: 'التقارير الشاملة', tracks: ['nafes'] },
   { id: 'leaderboard', label: 'لوحة الشرف', tracks: ['nafes', 'school'] },
   { id: 'certificates', label: 'الشهادات', tracks: ['nafes', 'school'] },
+  { id: 'points_store', label: 'متجر النقاط', tracks: ['nafes', 'school'] },
   { id: 'homework', label: 'الواجبات', tracks: ['school'] },
   { id: 'gradebook', label: 'كشف الدرجات', tracks: ['school'] },
   { id: 'attendance', label: 'الحضور والغياب', tracks: ['school'] },

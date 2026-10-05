@@ -9,6 +9,7 @@ import { formatFullArabicDate } from '../../utils/dateUtils';
 import { timeAgo } from '../common/NotificationBell';
 import { uiDir, t, isEn } from '../../i18n';
 import { exportCertificates } from '../../utils/certificate';
+import { StudentStore } from '../common/PointsStore';
 
 /** صفحة "نقاطي" للطالب: النقاط، المستوى، الأوسمة، الجوائز، ولوحة الشرف */
 export const MyPoints: React.FC = () => {
@@ -90,6 +91,8 @@ export const MyPoints: React.FC = () => {
           </div>
         ))}
       </div>
+
+      <StudentStore />
 
       <section className="space-y-3">
         <h2 className="font-bold text-lg text-slate-900 dark:text-white flex items-center gap-2"><Medal className="w-5 h-5 text-amber-500" />{' '}{t('أوسمتي')}</h2>

@@ -50,6 +50,7 @@ const SIMPLE: Record<string, string> = {
   homework: '/homework',
   academic_support: '/academic-support',
   class_records: '/class-records',
+  points_store: '/points-store',
   portfolio: '/portfolio',
   grading: '/grading',
   privacy: '/privacy',
