@@ -1,0 +1,33 @@
+# الملخص الصباحي للمدير: إشعار كل صباح دراسي (الأحد–الخميس 6:45 بتوقيت السعودية) يصل للجوال
+# فيه: غياب أمس وأكثر الفصول غياباً، واختبارات اليوم، وما ينتظر الاعتماد، والواجبات، والسلوك، والسجلات المتأخرة.
+# يتطلب 050_morning_summary.sql والسر SUPABASE_DB_URL. الإيقاف أو إضافة المشرفين: من الصفحة الرئيسية للمدير.
+name: Morning summary
+
+on:
+  schedule:
+    - cron: '45 3 * * 0-4'
+  workflow_dispatch:
+    inputs:
+      db_secret:
+        description: 'اسم سر قاعدة البيانات (اتركه كما هو للمدرسة الأساسية)'
+        required: false
+        default: SUPABASE_DB_URL
+        type: string
+
+jobs:
+  send:
+    runs-on: ubuntu-latest
+    env:
+      DATABASE_URL: ${{ secrets[inputs.db_secret || 'SUPABASE_DB_URL'] }}
+    steps:
+      - name: Send
+        run: |
+          test -n "$DATABASE_URL" || { echo "::error::السر SUPABASE_DB_URL غير موجود."; exit 1; }
+          command -v psql >/dev/null || { sudo apt-get -qq update && sudo apt-get -qq install -y postgresql-client >/dev/null; }
+          R=$(psql "$DATABASE_URL" -tAc "select itqan.morning_digest_notify()" 2>&1) || { echo "::error::$R — هل شُغّل 050_morning_summary.sql؟"; exit 1; }
+          case "$R" in
+            sent) echo "✓ أُرسل الملخص الصباحي." ;;
+            weekend) echo "عطلة نهاية الأسبوع: لا ملخص." ;;
+            disabled) echo "الملخص الصباحي موقوف من إعدادات المنصة." ;;
+            *) echo "$R" ;;
+          esac

@@ -12,6 +12,7 @@ import { hasPerm } from '../../utils/permissions';
 import { Avatar } from '../common/Avatar';
 import { Button, Card, Chip, PageHeader, SectionTitle, StatTile, greeting, scoreTone, timeAgo, todayLabel } from '../common/ui';
 import { uiDir, t, isEn } from '../../i18n';
+import { MorningSummaryCard } from './MorningSummaryCard';
 
 const avgOf = (vals: number[]) => (vals.length ? Math.round(vals.reduce((a, b) => a + b, 0) / vals.length) : 0);
 
@@ -127,6 +128,8 @@ export const AdminDashboard: React.FC = () => {
           </>
         }
       />
+
+      <MorningSummaryCard />
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <StatTile label={t('الطلاب')} value={totalStudents} hint={isEn() ? `In ${classes.length} ${classes.length === 1 ? 'class' : 'classes'}` : `في ${classes.length} ${classes.length === 1 ? 'فصل' : 'فصول'}`} onClick={() => setKpiModal('students')} />

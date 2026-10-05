@@ -23,6 +23,7 @@ import { uiDir, t, dateLocale } from '../../i18n';
 import { minutesCount } from '../../i18n/count';
 import { SkillsCard } from '../analytics/OutcomesPage';
 import { DevicePushCard } from '../common/DevicePushCard';
+import { WeeklyReportCard } from '../common/WeeklyReportCard';
 
 /** موعد الانتهاء مختصراً: «ينتهي اليوم» أو «ينتهي 4 أكتوبر» */
 const shortEnd = (end?: string) => {
@@ -210,6 +211,7 @@ export const ParentDashboard: React.FC<{ onViewReview: (submissionId: string) =>
         </Card>
       </div>
 
+      <WeeklyReportCard key={`wr-${child.id}`} studentId={child.id} />
       <HomeworkCard key={`hw-${child.id}`} student={child} />
       <StudentGradebook key={`gb-${child.id}`} student={child} />
       <AcademicSupportCard key={`acs-${child.id}`} studentId={child.id} />

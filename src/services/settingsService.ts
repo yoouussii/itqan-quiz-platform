@@ -23,6 +23,10 @@ export interface AppSettings {
   cert_stamp: string;
   /** آخر نسخة احتياطية تلقائية على Drive (يكتبها سير عمل Daily backup to Drive) */
   auto_backup: { at: string; file: string; size: number; ok: boolean; encrypted?: boolean; keep?: number } | null;
+  /** الملخص الصباحي: إشعار يومي ومن يستلمه (050) */
+  morning_summary: { enabled?: boolean; roles?: string[] } | null;
+  /** التقرير الأسبوعي لأولياء الأمور كل خميس (051) */
+  weekly_report: { enabled?: boolean } | null;
   cert_style: { template?: string; primary?: string; accent?: string; qr?: boolean; stampPos?: string; stampSize?: number; sigSize?: number } | null;
   /** وضع الصيانة (019): لا يدخل إلا المدير */
   maintenance: { on?: boolean; message?: string; until?: string } | null;
@@ -55,6 +59,8 @@ export const DEFAULT_SETTINGS: AppSettings = {
   cert_principal_signature: '',
   cert_stamp: '',
   auto_backup: null,
+  morning_summary: null,
+  weekly_report: null,
   cert_style: null,
   maintenance: null,
   login_style: 'classic',

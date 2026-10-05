@@ -63,6 +63,9 @@ on:
           - supabase/migrations/046_class_record_tools.sql
           - supabase/migrations/047_academic_support_catalog.sql
           - supabase/migrations/049_acs_teacher_catalog.sql
+          - supabase/migrations/050_morning_summary.sql
+          - supabase/migrations/051_weekly_parent_report.sql
+          - supabase/migrations/052_points_store.sql
           - supabase/migrations/003_rollback.sql
       db_secret:
         description: 'اسم سر قاعدة البيانات (اتركه كما هو للمدرسة الأساسية، أو اكتب سر مدرسة أخرى مثل DB_URL_SCHOOL2)'
@@ -122,6 +125,10 @@ jobs:
           select 'class record changes (044): ' || (to_regclass('public.class_record_changes') is not null);
           select 'class record tools (046): ' || (to_regproc('public.itqan_records_set_tools') is not null);
           select 'academic support catalog (047): ' || (to_regclass('public.acs_classes') is not null);
+          select 'acs teacher catalog (049): ' || (to_regproc('itqan.acs_class_guard') is not null);
+          select 'morning summary (050): ' || (to_regproc('public.itqan_morning_summary') is not null);
+          select 'weekly parent report (051): ' || (to_regproc('public.itqan_weekly_report') is not null);
+          select 'points store (052): ' || (to_regclass('public.store_items') is not null);
           select 'owner key set: ' || coalesce((select key_hash is not null from itqan.owner_config where id = 1), false);
           select 'student home: daily challenge (021): ' || (to_regproc('public.itqan_daily_challenge') is not null);
           select 'maintenance mode (019): ' || (to_regproc('itqan.maintenance_on') is not null);

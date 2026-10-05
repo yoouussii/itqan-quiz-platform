@@ -1,0 +1,32 @@
+# التقرير الأسبوعي لأولياء الأمور: كل خميس 2:40 مساءً بتوقيت السعودية يصل كل ولي أمر إشعار (وعلى الجوال)
+# عن كل ابن: الحضور، الاختبارات ومعدلها والفائتة، الواجبات، السلوك، الدعم الأكاديمي، النقاط.
+# يتطلب 051_weekly_parent_report.sql والسر SUPABASE_DB_URL. الإيقاف: من الصفحة الرئيسية للمدير.
+name: Weekly parent report
+
+on:
+  schedule:
+    - cron: '40 11 * * 4'
+  workflow_dispatch:
+    inputs:
+      db_secret:
+        description: 'اسم سر قاعدة البيانات (اتركه كما هو للمدرسة الأساسية)'
+        required: false
+        default: SUPABASE_DB_URL
+        type: string
+
+jobs:
+  send:
+    runs-on: ubuntu-latest
+    env:
+      DATABASE_URL: ${{ secrets[inputs.db_secret || 'SUPABASE_DB_URL'] }}
+    steps:
+      - name: Send
+        run: |
+          test -n "$DATABASE_URL" || { echo "::error::السر SUPABASE_DB_URL غير موجود."; exit 1; }
+          command -v psql >/dev/null || { sudo apt-get -qq update && sudo apt-get -qq install -y postgresql-client >/dev/null; }
+          R=$(psql "$DATABASE_URL" -tAc "select itqan.weekly_parent_notify()" 2>&1) || { echo "::error::$R — هل شُغّل 051_weekly_parent_report.sql؟"; exit 1; }
+          case "$R" in
+            sent*) echo "✓ أُرسلت التقارير: ${R#sent }" ;;
+            disabled) echo "التقرير الأسبوعي موقوف من إعدادات المنصة." ;;
+            *) echo "$R" ;;
+          esac
