@@ -110,7 +110,9 @@ export const VBarChart: React.FC<{
   const [ref, W] = useWidth();
   const [hi, setHi] = useState<number | null>(null);
   const data = rtl && !isEn() ? [...raw].reverse() : raw;
-  const H = height, L = fixedMax === 100 ? 42 : 32, R = 8, T = 12, B = twoLine ? 38 : 26;
+  // أسماء كثيرة لا تتسع على سطرين تحت الأعمدة: تُكتب مائلة كاملة بدل أن تتداخل
+  const tilt = !!twoLine && (W - (fixedMax === 100 ? 42 : 32) - 8) / Math.max(1, raw.length) < 64;
+  const H = height + (tilt ? 52 : 0), L = fixedMax === 100 ? 42 : 32, R = 8, T = 12, B = tilt ? 90 : twoLine ? 38 : 26;
   const max = Math.max(1, ...data.map((d) => d.value));
   const step = fixedMax ? fixedMax / 4 : Math.max(1, Math.ceil(max / 4));
   const top = fixedMax || step * Math.ceil(max / step);
@@ -128,12 +130,14 @@ export const VBarChart: React.FC<{
         ))}
         {data.map((d, i) => {
           const dim = selected && selected !== d.key;
-          const [w1, w2] = twoLine ? words(d.short) : [d.short, ''];
+          const [w1, w2] = twoLine && !tilt ? words(d.short) : [d.short, ''];
+          const cx = x(i) + bw / 2, ly = H - B + 14;
           return (
             <g key={d.key} onMouseEnter={() => setHi(i)} onClick={() => onSelect?.(d.key)} className={onSelect ? 'cursor-pointer' : ''}>
               <rect x={L + i * slot} y={T} width={slot} height={H - T - B} fill="transparent" />
               {d.value > 0 && <path d={topRounded(x(i), y(d.value), bw, Math.max(1, y(0) - y(d.value)), 4)} className={selected === d.key ? 'fill-indigo-700 dark:fill-indigo-300' : dim ? 'fill-indigo-200 dark:fill-indigo-900' : hi === i ? 'fill-indigo-600 dark:fill-indigo-300' : 'fill-indigo-500 dark:fill-indigo-400'} />}
-              {i % every === 0 && <text x={x(i) + bw / 2} y={H - (twoLine ? 22 : 8)} textAnchor="middle" className="fill-slate-500 text-[10px]">{w1}{w2 && <tspan x={x(i) + bw / 2} dy={12}>{w2}</tspan>}</text>}
+              {tilt ? <text x={cx} y={ly} transform={`rotate(-45 ${cx} ${ly})`} textAnchor="end" className="fill-slate-500 text-[10px]">{d.short.length > 20 ? `${d.short.slice(0, 19)}…` : d.short}</text>
+                : i % every === 0 && <text x={x(i) + bw / 2} y={H - (twoLine ? 22 : 8)} textAnchor="middle" className="fill-slate-500 text-[10px]">{w1}{w2 && <tspan x={x(i) + bw / 2} dy={12}>{w2}</tspan>}</text>}
             </g>
           );
         })}
