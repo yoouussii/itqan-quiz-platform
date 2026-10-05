@@ -42,6 +42,9 @@ export const PERMISSION_DEFS: PermDef[] = [
 
   { key: 'can_academic_support', label: 'معلم دعم أكاديمي: يضيف الطلاب المحتاجين ويسجل مستواهم وملاحظاته (المشرف يرى الكل)', short: 'الدعم الأكاديمي', group: 'الدعم الأكاديمي' },
 
+  { key: 'can_view_class_records', label: 'عرض سجلات المتابعة الصفية وتتبع مستويات الطلاب (من Drive)', short: 'عرض السجلات', group: 'سجلات المتابعة' },
+  { key: 'can_manage_class_records', label: 'إدارة سجلات المتابعة: ربط مجلدات Drive ورفع الملفات وحذفها', short: 'إدارة السجلات', group: 'سجلات المتابعة' },
+
   { key: 'can_class_visits', label: 'تنفيذ الزيارات الصفية وتقييم المعلمين (مفعّلة للمشرف تلقائياً)', short: 'الزيارات الصفية', group: 'الإشراف والجودة' },
   { key: 'can_manage_surveys', label: 'إنشاء الاستبيانات وعرض نتائجها', short: 'الاستبيانات', group: 'الإشراف والجودة' },
 
@@ -87,6 +90,7 @@ export const PAGE_DEFS: Array<{ id: string; label: string; tracks: Track[] }> = 
   { id: 'attendance', label: 'الحضور والغياب', tracks: ['school'] },
   { id: 'behavior', label: 'السلوك والمواظبة', tracks: ['school'] },
   { id: 'visits', label: 'الزيارات الصفية', tracks: ['school'] },
+  { id: 'class_records', label: 'سجلات المتابعة', tracks: ['school'] },
   { id: 'surveys', label: 'الاستبيانات', tracks: ['school'] },
   { id: 'academic_support', label: 'الدعم الأكاديمي', tracks: ['support'] },
   { id: 'portfolio', label: 'ملف الإنجاز', tracks: ['nafes', 'school', 'support'] },

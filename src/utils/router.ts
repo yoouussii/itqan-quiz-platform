@@ -39,6 +39,7 @@ const SIMPLE: Record<string, string> = {
   remedial: '/remedial',
   homework: '/homework',
   academic_support: '/academic-support',
+  class_records: '/class-records',
   portfolio: '/portfolio',
   grading: '/grading',
   privacy: '/privacy',
