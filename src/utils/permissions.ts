@@ -52,8 +52,60 @@ export const PERMISSION_DEFS: PermDef[] = [
 export const PERM_KEYS: string[] = PERMISSION_DEFS.map((d) => d.key);
 export const PERM_GROUPS: string[] = Array.from(new Set(PERMISSION_DEFS.map((d) => d.group)));
 
-export const normalizePerms = (src: any): Record<string, boolean> =>
-  Object.fromEntries(PERM_KEYS.map((k) => [k, !!src?.[k]]));
+export const normalizePerms = (src: any): Record<string, boolean | string[]> => {
+  const out: Record<string, boolean | string[]> = Object.fromEntries(PERM_KEYS.map((k) => [k, !!src?.[k]]));
+  // الأقسام والصفحات الظاهرة تُحفظ مع الصلاحيات
+  if (Array.isArray(src?.tracks)) out.tracks = src.tracks.filter((x: unknown) => typeof x === 'string');
+  if (Array.isArray(src?.pages)) out.pages = src.pages.filter((x: unknown) => typeof x === 'string');
+  return out;
+};
+
+// ---------------------------------------------------------------------
+// أقسام المعلم والصفحات الظاهرة له
+// ---------------------------------------------------------------------
+export type Track = 'nafes' | 'school' | 'support';
+export const TRACKS: Array<{ k: Track; label: string; hint: string }> = [
+  { k: 'nafes', label: 'نافس', hint: 'الاختبارات وبنك الأسئلة والتصحيح ونواتج التعلم والنتائج' },
+  { k: 'school', label: 'المدرسة', hint: 'الواجبات وكشف الدرجات والحضور والسلوك والزيارات' },
+  { k: 'support', label: 'الدعم الأكاديمي', hint: 'طلاب الدعم وقياساتهم وتقاريرهم' },
+];
+/** صفحات القائمة التي يمكن إظهارها/إخفاؤها للمعلم، والأقسام التي تتبعها */
+export const PAGE_DEFS: Array<{ id: string; label: string; tracks: Track[] }> = [
+  { id: 'create_quiz', label: 'اختبار جديد', tracks: ['nafes'] },
+  { id: 'approvals', label: 'بانتظار الاعتماد', tracks: ['nafes'] },
+  { id: 'grading', label: 'التصحيح', tracks: ['nafes'] },
+  { id: 'question_bank', label: 'بنك الأسئلة', tracks: ['nafes'] },
+  { id: 'outcomes', label: 'نواتج التعلم', tracks: ['nafes'] },
+  { id: 'remedial', label: 'الخطط العلاجية', tracks: ['nafes', 'support'] },
+  { id: 'calendar', label: 'جدول الاختبارات', tracks: ['nafes', 'school'] },
+  { id: 'analytics', label: 'نتائج الطلاب', tracks: ['nafes', 'support'] },
+  { id: 'reports', label: 'التقارير الشاملة', tracks: ['nafes'] },
+  { id: 'leaderboard', label: 'لوحة الشرف', tracks: ['nafes', 'school'] },
+  { id: 'certificates', label: 'الشهادات', tracks: ['nafes', 'school'] },
+  { id: 'homework', label: 'الواجبات', tracks: ['school'] },
+  { id: 'gradebook', label: 'كشف الدرجات', tracks: ['school'] },
+  { id: 'attendance', label: 'الحضور والغياب', tracks: ['school'] },
+  { id: 'behavior', label: 'السلوك والمواظبة', tracks: ['school'] },
+  { id: 'visits', label: 'الزيارات الصفية', tracks: ['school'] },
+  { id: 'surveys', label: 'الاستبيانات', tracks: ['school'] },
+  { id: 'academic_support', label: 'الدعم الأكاديمي', tracks: ['support'] },
+  { id: 'portfolio', label: 'ملف الإنجاز', tracks: ['nafes', 'school', 'support'] },
+  { id: 'users_management', label: 'المستخدمون', tracks: ['school'] },
+  { id: 'subjects_classes', label: 'المواد والفصول', tracks: ['school'] },
+  { id: 'activity_log', label: 'سجل النشاط', tracks: ['school'] },
+  { id: 'preparations', label: 'متابعة تحضير مزن', tracks: ['school'] },
+];
+const PAGE_IDS = new Set(PAGE_DEFS.map((p) => p.id));
+/** صفحات القسم/الأقسام */
+export const pagesForTracks = (tracks: string[]) => PAGE_DEFS.filter((p) => p.tracks.some((t) => tracks.includes(t))).map((p) => p.id);
+
+/** هل تظهر الصفحة للمستخدم؟ (المدير وكل من بلا قائمة صفحات: نعم؛ والرئيسية والإشعارات دائماً) */
+export function pageAllowed(user: User | null | undefined, id: string): boolean {
+  if (!user || user.role === 'admin') return true;
+  const pages = (user.teacher_permissions as any)?.pages ?? (user as any).permissions?.pages;
+  if (!Array.isArray(pages) || !PAGE_IDS.has(id)) return true;
+  return pages.includes(id);
+}
 
 /** صلاحيات كان يملكها المعلم دائماً قبل نظام الصلاحيات (حفاظاً على السلوك القديم) */
 export const TEACHER_ALWAYS = new Set(['can_export_reports', 'can_manage_retakes']);

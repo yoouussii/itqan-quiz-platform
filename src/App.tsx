@@ -8,7 +8,7 @@ import { MaintenanceScreen } from './components/auth/MaintenanceScreen';
 import { LicenseBanner, LicenseBlocked, isBlocked, useLicense } from './components/common/LicenseGate';
 
 
-import { hasPerm } from './utils/permissions';
+import { hasPerm, pageAllowed } from './utils/permissions';
 import { ForcePasswordChange } from './components/common/ForcePasswordChange';
 import { BannerStrip } from './components/common/BannerStrip';
 import { PageHeader } from './components/common/ui';
@@ -164,7 +164,7 @@ const AppContent: React.FC = () => {
   };
   // ولي الأمر: الرئيسية (متابعة الأبناء) وأوراق إجاباتهم والإشعارات فقط
   const parentOk = currentUser.role !== 'parent' || ['dashboard', 'quiz_review', 'notifications', 'privacy', 'terms', 'calendar'].includes(currentView);
-  const viewAvailable = KNOWN_VIEWS.includes(currentView) && viewGuards[currentView] !== false && parentOk;
+  const viewAvailable = KNOWN_VIEWS.includes(currentView) && viewGuards[currentView] !== false && parentOk && pageAllowed(currentUser, currentView);
 
   // رابط مباشر لاختبار أو ورقة إجابة: ننتظر أول تحميل للبيانات بدل إظهار «غير موجود»
   const quizInView = ['take_quiz', 'quiz_preview', 'quiz_results'].includes(currentView) ? activeQuizId

@@ -13,7 +13,11 @@ export interface TeacherPermissions {
   can_export_reports?: boolean;
   /** للمشرف: منح الطلاب إعادة محاولة الاختبار */
   can_manage_retakes?: boolean;
-  [key: string]: boolean | undefined;
+  /** أقسام المعلم: نافس / المدرسة / الدعم الأكاديمي (اختيار متعدد) */
+  tracks?: string[];
+  /** الصفحات الظاهرة له في القائمة؛ غير محدد = كل الصفحات حسب الصلاحيات (كالسابق) */
+  pages?: string[];
+  [key: string]: boolean | string[] | undefined;
 }
 
 export interface User {
