@@ -6,6 +6,7 @@ import { StorageService } from '../../services/storage';
 import { RichText } from './RichText';
 import { uiDir, optionLetters, t } from '../../i18n';
 import { MascotHere } from './Mascot';
+import { NEW_TYPE_LABELS, describeNewAnswer, isNewType } from './QuestionTypes';
 
 /**
  * معاينة اختبار للقراءة فقط (زر "عرض" عند الآدمن والمعلم).
@@ -119,7 +120,11 @@ export const QuizPreview: React.FC = () => {
             <span className="text-[11px] font-bold text-slate-500 shrink-0">{q.marks}{' '}{t('درجة')}</span>
           </div>
 
-          {(q.options || []).length > 0 && (
+          {isNewType(q.type) && (() => { const d = describeNewAnswer(q.type, q as any, undefined, true); return (
+            <div className="rounded-xl border border-emerald-300 bg-emerald-50 dark:bg-emerald-950/30 p-3 text-xs text-emerald-900 dark:text-emerald-200">
+              <span className="font-bold me-1">{t(NEW_TYPE_LABELS[q.type].label)} · {t('الإجابة الصحيحة:')}</span>{d.correct || '—'}
+            </div>); })()}
+          {(q.options || []).length > 0 && !isNewType(q.type) && (
             <div className="space-y-2">
               {(q.options || []).map((opt, idx) => {
                 const correct = q.correct_option_index === idx;

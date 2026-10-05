@@ -113,9 +113,10 @@ export interface Quiz {
   student_questions?: Record<string, string[]> | null;
 }
 
-export type QuestionType = 'mcq' | 'true_false' | 'essay' | 'fill_blank' | 'matching' | 'passage';
+export type QuestionType = 'mcq' | 'true_false' | 'essay' | 'fill_blank' | 'matching' | 'passage' | 'multi_select' | 'numeric' | 'ordering';
 
 export interface MatchingPair {
+  id?: string;
   left: string;
   right: string;
 }
@@ -151,6 +152,14 @@ export interface Question {
   explanation?: string;
   blankAnswer?: string;
   pairs?: MatchingPair[];
+  /** الأنواع الجديدة (059): مفاتيحها تُحذف قبل إرسال السؤال للطالب */
+  correct_indexes?: number[];
+  accepted_answers?: string[];
+  correct_number?: number | null;
+  tolerance?: number | null;
+  items?: Array<{ id: string; text: string }>;
+  match_left?: Array<{ id: string; text: string }>;
+  match_right?: Array<{ id: string; text: string }>;
 
   // الأسئلة الفرعية (خاصة بأسئلة القطعة)
   sub_questions?: SubQuestion[];
@@ -192,6 +201,12 @@ export interface AnswerItem {
   is_correct: boolean;
   marks_awarded: number;
   sub_answers?: SubAnswerItem[]; // يحوي إجابات الأسئلة الفرعية للقطعة
+  /** الأنواع الجديدة (059) */
+  selected_options?: number[];
+  order?: string[];
+  matches?: Record<string, string>;
+  parts_correct?: number;
+  parts_total?: number;
   /** صحّحه المعلم يدوياً (أسئلة المقالي) */
   graded?: boolean;
   /** ملاحظة المعلم على الإجابة المقالية (يراها الطالب وولي الأمر) */

@@ -5,6 +5,8 @@ import type { RecordChange, RecordSheet } from '../../services/classRecordsServi
 import { FollowSheet, RecordMeta, ToolMode, applyDue, parseFollowup, recordMeta, toolKey, toolStats } from '../../utils/classRecords';
 import { t, dateLocale, isEn } from '../../i18n';
 import { EmptyMascot } from '../common/Mascot';
+import { KpiDetailModal } from '../common/KpiDetailModal';
+import type { KpiSection } from '../../utils/kpiSections';
 
 // ---------------------------------------------------------------------
 // أدوات مشتركة: التاريخ باليوم، ومدة منذ التعديل، وحداثة السجل
@@ -258,6 +260,7 @@ export const RecordsDashboard: React.FC<{ items: RecItem[]; tools: ToolInfo[]; c
   const [cls, setCls] = useState('');
   const [subject, setSubject] = useState('');
   const [period, setPeriod] = useState<Period>(30);
+  const [kpi, setKpi] = useState<number | null>(null);
   const [day, setDay] = useState('');
   const [sort, setSort] = useState<'stale' | 'low' | 'teacher' | 'class'>('stale');
 
@@ -380,6 +383,24 @@ export const RecordsDashboard: React.FC<{ items: RecItem[]; tools: ToolInfo[]; c
   })();
 
   const filtersOn = teacher || cls || subject || day;
+  const when = (iso: string | null) => (iso ? `${weekdayName(new Date(iso), false)} ${new Date(iso).toLocaleDateString(dateLocale(), { day: 'numeric', month: 'short' })} ${fmtTime(iso)}` : '—');
+  const recHeaders = [t('المعلم'), t('المادة'), t('الفصل'), t('الورقة'), t('الطلاب'), t('اكتمال الرصد %'), t('آخر تعديل'), t('منذ (أيام)')];
+  const recRow = (x: RecItem) => [x.r.file_name, x.meta.subject, x.meta.classLabel, x.r.sheet_name, x.p.students.length, x.done, when(x.r.last_edit_at), x.r.last_edit_at ? daysSince(x.r.last_edit_at) : '—'];
+  const kpiSections = (i: number): KpiSection[] => {
+    if (i === 0) return [{ title: t('السجلات حسب اكتمال الرصد (الأقل أولاً)'), headers: recHeaders, rows: [...scoped].sort((a, b) => a.done - b.done).map(recRow) }];
+    if (i === 1) return [{ title: t('التعديلات'), headers: [t('الوقت'), t('المعلم'), t('الورقة'), t('المادة'), t('الفصل'), t('بواسطة'), t('رصد جديد'), t('خلايا معدّلة'), t('خلايا ممسوحة')],
+      rows: [...scopedChanges].sort((a, b) => b.edited_at.localeCompare(a.edited_at)).map((c) => { const m = metaOf(c); return [when(c.edited_at), c.file_name, c.sheet_name, m.subject, m.classLabel, c.edited_by, c.cells_filled, c.cells_changed, c.cells_cleared]; }) }];
+    if (i === 2) {
+      const all = teachers.filter(([k]) => scoped.some((x) => x.r.file_key === k));
+      const row = ([k, n]: [string, string]) => { const at = teacherLast.get(k) || null; const n7 = scopedChanges.filter((c) => c.file_key === k && daysSince(c.edited_at) <= 7).length; return [n, n7, when(at), at ? daysSince(at) : '—']; };
+      const hdr = [t('المعلم'), t('تعديلات آخر 7 أيام'), t('آخر تعديل'), t('منذ (أيام)')];
+      return [
+        { title: t('عدّلوا خلال 7 أيام'), headers: hdr, rows: all.filter(([k]) => teacherLast.get(k) && daysSince(teacherLast.get(k)!) <= 7).map(row) },
+        { title: t('لم يعدّلوا خلال 7 أيام'), headers: hdr, rows: all.filter(([k]) => !teacherLast.get(k) || daysSince(teacherLast.get(k)!) > 7).map(row) },
+      ];
+    }
+    return [{ title: t('سجلات لم تُعدَّل منذ 10 أيام'), headers: recHeaders, rows: scoped.filter((x) => !x.r.last_edit_at || daysSince(x.r.last_edit_at) > 10).sort((a, b) => (a.r.last_edit_at || '').localeCompare(b.r.last_edit_at || '')).map(recRow) }];
+  };
   const KPIS: Array<[React.ElementType, string, string, string]> = [
     [CheckCircle2, t('متوسط اكتمال الرصد'), `${pct(filled, cells)}%`, t('{n} سجل', { n: scoped.length })],
     [Activity, t('تعديلات آخر {n} يوم', { n: period }), String(scopedChanges.length), t('{n} خلية', { n: cellsEdited })],
@@ -401,12 +422,14 @@ export const RecordsDashboard: React.FC<{ items: RecItem[]; tools: ToolInfo[]; c
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
         {KPIS.map(([Icon, l, v, sub], i) => (
-          <Card key={i} className="p-4">
+          <button key={i} type="button" onClick={() => setKpi(i)} data-testid={`cr-kpi-${i}`}
+            className="text-start bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 hover:border-indigo-300 dark:hover:border-indigo-700 hover:shadow-sm transition">
             <div className="text-xs text-slate-500 flex items-center gap-1.5"><Icon className="w-3.5 h-3.5" />{l}</div>
             <div className="text-2xl font-extrabold text-slate-900 dark:text-white tabular-nums mt-1">{v}</div>
             <div className="text-[11px] text-slate-500 mt-0.5">{sub}</div>
-          </Card>
+          </button>
         ))}
+        {kpi !== null && <KpiDetailModal title={KPIS[kpi][1]} subtitle={filtersOn ? t('حسب التصفية الحالية') : t('كل السجلات')} sections={kpiSections(kpi)} onClose={() => setKpi(null)} />}
       </div>
 
       <div className="grid lg:grid-cols-3 gap-5">

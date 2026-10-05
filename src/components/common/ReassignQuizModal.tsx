@@ -1,8 +1,7 @@
 import React, { useState } from 'react';
 import { X, UserCheck, ArrowRightLeft, BookOpen, AlertCircle } from 'lucide-react';
-import { QuizWithDetails, User } from '../../types';
+import { QuizWithDetails } from '../../types';
 import { useApp } from '../../context/AppContext';
-import { Avatar } from './Avatar';
 import { uiDir, t } from '../../i18n';
 
 interface ReassignQuizModalProps {

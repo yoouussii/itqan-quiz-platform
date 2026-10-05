@@ -50,5 +50,22 @@ const sumAbs = Number(last.absent) + (new Date().getDate() <= 2 ? Number(prev.ab
 ok(sumAbs >= 2, 'الغياب يظهر في شهره');
 ok((await ind(A, { p_months: 99 })).months.length === 24, 'حد أقصى 24 شهراً');
 
+console.log('— 058: من بداية الدراسة والتجميع والتفاصيل');
+SQL(`update itqan.attendance_config set start_date = current_date - 20 where id = 1`);
+SQL(`insert into attendance_records (student_id, day, kind) values ('in-s1', current_date - 40, 'absent') on conflict do nothing`);
+const w = (await req('POST', '/rpc/itqan_indicators', { token: A, body: { p_gran: 'week' } })).json;
+ok(w && w.from === SQL(`select (current_date - 20)::text`) && w.gran === 'week', 'تبدأ من بداية الدراسة');
+ok(w.totals.absent >= 2 && w.classes.find((x) => x.id === 'in-c')?.absent === 2, 'الغياب قبل بداية الدراسة لا يُحسب');
+const early = (await req('POST', '/rpc/itqan_indicators', { token: A, body: { p_from: '2020-01-01', p_gran: 'month' } })).json;
+ok(early.from === w.from, 'لا يمكن البدء قبل بداية الدراسة');
+const dd = (await req('POST', '/rpc/itqan_indicators', { token: A, body: { p_gran: 'day' } })).json;
+ok(dd.series.length === 21 && dd.series.every((x) => x.key), 'التجميع اليومي: نقطة لكل يوم');
+ok(w.series.length >= 3 && w.series.length <= 5, 'التجميع الأسبوعي');
+const stu = (await req('POST', '/rpc/itqan_indicator_students', { token: A, body: { p_class: 'in-c' } })).json;
+const s1 = stu?.find((x) => x.id === 'in-s1');
+ok(stu?.length === 2 && s1.absent === 1 && s1.late === 1 && s1.violations === 1, 'تفاصيل الطلاب للفصل');
+ok((await req('POST', '/rpc/itqan_indicator_students', { token: S, body: {} })).json === null, 'تفاصيل الطلاب: الطالب لا يراها');
+ok((await req('POST', '/rpc/itqan_indicators', { body: {} })).json === null, 'بلا دخول: لا شيء');
+
 console.log(`\n${pass} نجح، ${fail} فشل`);
 process.exit(fail ? 1 : 0);

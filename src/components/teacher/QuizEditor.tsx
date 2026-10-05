@@ -6,9 +6,6 @@ import {
   ArrowRight,
   Clock,
   Award,
-  HelpCircle,
-  FileText,
-  CheckCircle,
   ArrowUp,
   ArrowDown,
   Copy,
@@ -29,9 +26,10 @@ import { loadBankCache, syncBank, newBankItem, saveBankItems, sameQuestion, toQu
 import { toLocalInputValue, toInputValue, inputToIso, defaultEndInput } from '../../utils/quizWindow';
 import { stripHtml } from '../common/RichText';
 import { uiDir, optionLetters, t, isEn } from '../../i18n';
+import { NEW_TYPES, NEW_TYPE_LABELS, NewType, NewTypeEditor, OrderItem, PairItem, initNewType, isNewType, validateNewType } from '../common/QuestionTypes';
 import { questionsCount, marksCount } from '../../i18n/count';
 
-export type QuestionType = 'mcq' | 'true_false' | 'essay' | 'passage';
+export type QuestionType = 'mcq' | 'true_false' | 'essay' | 'passage' | NewType;
 
 export interface SubQuestion {
   id?: string;
@@ -56,6 +54,13 @@ export interface QuestionItem {
   sub_questions?: SubQuestion[];
   /** ناتج التعلم أو المهارة (لتحليل نواتج التعلم) */
   outcome?: string;
+  /** حقول الأنواع الجديدة (اختيار متعدد الإجابات، فراغ، رقمي، ترتيب، توصيل) */
+  correct_indexes?: number[];
+  accepted_answers?: string[];
+  correct_number?: number | null;
+  tolerance?: number | null;
+  items?: OrderItem[];
+  pairs?: PairItem[];
 }
 
 /** عدد الأسئلة بصيغة عربية صحيحة */
@@ -74,6 +79,7 @@ export function blankQuestion(type: QuestionType = 'mcq'): QuestionItem {
       sub_questions: [{ id: `sub_${Date.now()}`, question_text: '', type: 'mcq', options: ['', '', '', ''], correct_option_index: 0, marks: 1, explanation: '' }],
     };
   }
+  if (isNewType(type)) return { ...base, type, correct_option_index: -1, ...initNewType(type), options: initNewType(type).options || [] };
   return { ...base, type: 'mcq', options: ['', '', '', ''], correct_option_index: 0, marks: 1 };
 }
 
@@ -82,6 +88,7 @@ export const QUESTION_TYPES: Array<{ type: QuestionType; label: string; short: s
   { type: 'true_false', label: 'صح أو خطأ', short: 'صح/خطأ' },
   { type: 'essay', label: 'سؤال مقالي', short: 'مقالي' },
   { type: 'passage', label: 'قطعة وأسئلة فرعية', short: 'قطعة' },
+  ...NEW_TYPES.map((type) => ({ type, label: NEW_TYPE_LABELS[type].label, short: NEW_TYPE_LABELS[type].short })),
 ];
 
 export const QuizEditor: React.FC = () => {
@@ -247,6 +254,8 @@ export const QuizEditor: React.FC = () => {
           marks: q.marks,
           explanation: q.explanation || '',
           outcome: q.outcome || '',
+          ...(isNewType(q.type) ? { correct_indexes: q.correct_indexes ? [...q.correct_indexes] : undefined, accepted_answers: q.accepted_answers ? [...q.accepted_answers] : undefined,
+            correct_number: q.correct_number ?? null, tolerance: q.tolerance ?? 0, items: q.items ? q.items.map((x: any) => ({ ...x })) : undefined, pairs: q.pairs ? q.pairs.map((x: any) => ({ ...x })) : undefined } : {}),
           sub_questions: q.sub_questions
             ? q.sub_questions.map((sq: any) => ({
                 id: asCopy ? `sq-${Math.random().toString(36).slice(2, 8)}` : sq.id,
@@ -403,6 +412,11 @@ export const QuizEditor: React.FC = () => {
     } else if (type === 'essay') {
       updated[idx].options = [];
       updated[idx].correct_option_index = -1;
+    } else if (isNewType(type)) {
+      const init = initNewType(type);
+      // يحتفظ بالخيارات المكتوبة عند التحويل بين «اختيار من متعدد» و«متعدد الإجابات»
+      const keepOpts = type === 'multi_select' && updated[idx].options.length >= 2 && updated[idx].options.some((o) => stripHtml(o).trim());
+      updated[idx] = { ...updated[idx], ...init, options: keepOpts ? updated[idx].options : init.options || [], correct_option_index: -1 };
     }
 
     setQuestions(updated);
@@ -575,6 +589,10 @@ export const QuizEditor: React.FC = () => {
           focusQuestion(i, t('الخيار {o} في السؤال رقم {n} فارغ: اكتبه أو احذفه', { o: emptyAt + 1, n: i + 1 }));
           return;
         }
+      }
+      if (isNewType(q.type)) {
+        const err = validateNewType(q.type, q);
+        if (err) { focusQuestion(i, t('السؤال رقم {n}: {e}', { n: i + 1, e: err })); return; }
       }
       if (q.type === 'passage') {
         if (!q.sub_questions || q.sub_questions.length === 0) {
@@ -1277,6 +1295,10 @@ export const QuizEditor: React.FC = () => {
                       })}
                     </div>
                   </div>
+                )}
+
+                {isNewType(q.type) && (
+                  <NewTypeEditor type={q.type} q={q} onChange={(patch) => setQuestions((prev) => prev.map((x, i) => (i === qIdx ? { ...x, ...patch } : x)))} />
                 )}
 
                 {/* Essay Note */}

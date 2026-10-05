@@ -8,6 +8,7 @@ export type AnswerStatus = 'correct' | 'partial' | 'wrong' | 'pending';
 /** حالة إجابة السؤال للعرض: صحيحة / جزئية (قطعة) / خاطئة / بانتظار التصحيح اليدوي (مقالي) */
 export function answerStatus(question: Question, ans?: AnswerItem): AnswerStatus {
   if (ans?.is_correct) return 'correct';
+  if (question.type === 'matching' && (ans?.marks_awarded || 0) > 0) return 'partial';
   if (question.type === 'essay') {
     if (!ans?.graded) return 'pending';
     return (ans.marks_awarded || 0) > 0 ? 'partial' : 'wrong';

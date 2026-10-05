@@ -8,6 +8,7 @@ import { StorageService } from '../../services/storage';
 import { RichText } from '../common/RichText';
 import { formatQuizDateTime } from '../../utils/quizWindow';
 import { AnswerExtras, answerStatus, STATUS_LABEL } from '../common/AnswerExtras';
+import { NewAnswerReview, isNewType } from '../common/QuestionTypes';
 import { uiDir, t, optionLetters, isEn } from '../../i18n';
 
 interface QuizReviewProps {
@@ -44,10 +45,10 @@ export const QuizReview: React.FC<QuizReviewProps> = ({ submissionId, onBack }) 
   const answersHidden =
     questions.length > 0 &&
     questions.every((q) =>
-      q.type === 'essay' ||
-      (q.type === 'passage'
+      q.type === 'essay' || (isNewType(q.type) && !!(q as any).answers_hidden) ||
+      (!isNewType(q.type) && q.type === 'passage'
         ? (q.sub_questions || []).every((sq) => sq.type === 'essay' || sq.correct_option_index === undefined)
-        : q.correct_option_index === undefined)
+        : !isNewType(q.type) && q.correct_option_index === undefined)
     ) &&
     questions.some((q) => q.type !== 'essay');
 
@@ -191,9 +192,10 @@ export const QuizReview: React.FC<QuizReviewProps> = ({ submissionId, onBack }) 
                 </div>
               </div>
 
+              {isNewType(question.type) && <div className="mb-4"><NewAnswerReview type={question.type} q={question as any} a={studentAns} reveal={!(question as any).answers_hidden} /></div>}
               {/* Options */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 mb-4">
-                {(question.options || []).map((opt, optIdx) => {
+                {(isNewType(question.type) ? [] : question.options || []).map((opt, optIdx) => {
                   const isCorrectOption = optIdx === question.correct_option_index;
                   const isUserSelection = selectedIdx === optIdx;
 

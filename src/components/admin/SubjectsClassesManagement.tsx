@@ -1,6 +1,5 @@
 import React, { useState, useMemo } from 'react';
 import {
-  Layers,
   BookOpen,
   School,
   Plus,
@@ -8,8 +7,6 @@ import {
   Trash2,
   X,
   Check,
-  Tag,
-  Palette,
   UserCheck,
   Users,
   Building2,
