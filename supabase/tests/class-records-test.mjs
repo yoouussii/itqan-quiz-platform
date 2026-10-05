@@ -71,6 +71,19 @@ const cfg = (await rpc('itqan_records_config', {}, M)).json;
 ok(cfg.has_token && cfg.folders[0].id === 'FOLDER123456' && cfg.log.length >= 3, 'الإعداد وسجل المزامنة للمسؤول');
 ok((await rpc('itqan_records_config', {}, V)).json.log.length === 0, 'سجل المزامنة مخفي عن المشاهد');
 
+console.log('— سجل التعديلات (044)');
+SQL(`delete from class_record_changes where file_key='drv-h'`);
+const g2 = grid.map((row) => [...row]); g2[4] = ['طالب ب', 7, 6, 13]; g2[3] = ['طالب أ', 9, 9, 18];
+await rpc('itqan_records_import', { p_token: TOKEN, p_payload: { kind: 'followup', file_key: 'drv-h', file_name: 'أ. هالة', last_edit_by: 'Hala', last_edit_at: '2026-09-20T07:00:00Z', full: true, sheets: [{ sheet: 'علوم 1', grid }] } });
+ok(SQL(`select initial||'|'||edited_by||'|'||cells_filled from class_record_changes where file_key='drv-h'`) === 'true|Hala|15', 'أول مزامنة تُسجَّل بوقتها ومعدِّلها وعدد الخلايا المرصودة');
+await rpc('itqan_records_import', { p_token: TOKEN, p_payload: { kind: 'followup', file_key: 'drv-h', file_name: 'أ. هالة', last_edit_by: 'Hala', last_edit_at: '2026-09-22T09:15:00Z', full: true, sheets: [{ sheet: 'علوم 1', grid }] } });
+ok(SQL(`select count(*) from class_record_changes where file_key='drv-h'`) === '1', 'إعادة إرسال نفس البيانات لا تُنشئ حدثاً');
+await rpc('itqan_records_import', { p_token: TOKEN, p_payload: { kind: 'followup', file_key: 'drv-h', file_name: 'أ. هالة', last_edit_by: 'Hala', last_edit_at: '2026-09-23T10:00:00Z', full: true, sheets: [{ sheet: 'علوم 1', grid: g2 }] } });
+ok(SQL(`select cells_changed||'|'||cells_filled||'|'||cells_cleared||'|'||to_char(edited_at at time zone 'UTC','YYYY-MM-DD HH24:MI') from class_record_changes where file_key='drv-h' and not initial`) === '3|1|0|2026-09-23 10:00', 'التعديل: 3 خلايا معدّلة، 1 رصد جديد، بتاريخ ووقت التعديل');
+ok(rows(await req('GET', `/class_record_changes?file_key=eq.drv-h&select=id`, { token: V })).length === 2, 'صاحب صلاحية العرض يرى سجل التعديلات');
+ok(rows(await req('GET', `/class_record_changes?file_key=eq.drv-h&select=id`, { token: T })).length === 0, 'المعلم العادي لا يرى سجل التعديلات');
+ok(SQL(`select x::text from itqan.grid_diff('[[1,""],[null]]', '[[1,null],[null,""]]') x`) === '(0,0,0)', 'الفراغ و null سواء في المقارنة');
+
 console.log('— الحذف');
 await req('DELETE', `/class_record_sheets?file_key=eq.drv2`, { token: V });
 ok(SQL(`select count(*) from class_record_sheets where file_key='drv2'`) === '2', 'المشاهد لا يحذف');

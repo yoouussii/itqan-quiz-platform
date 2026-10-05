@@ -1,42 +1,38 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { FolderSync, ClipboardList, TrendingUp, Upload, Copy, KeyRound, X, FileDown, Trash2, Search, RefreshCw, Clock, Users, CheckCircle2, AlertTriangle } from 'lucide-react';
+import { FolderSync, ClipboardList, TrendingUp, Upload, Copy, KeyRound, X, FileDown, Trash2, Search, RefreshCw, Users, CheckCircle2, AlertTriangle, LayoutDashboard, History } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 import { PageHeader, Card, Button, Chip, timeAgo } from '../common/ui';
-import { RecordKind, RecordSheet, RecordsConfig, deleteRecordFile, fetchRecordSheets, fetchRecordsConfig, folderIdFrom, importRecordFile, setupRecords } from '../../services/classRecordsService';
-import { FollowSheet, LevelSheet, classLabel, lastOf, meanOf, parseFollowup, parseLevels, recordsAppsScript, trimGrid } from '../../utils/classRecords';
+import { RecordChange, RecordKind, RecordSheet, RecordsConfig, deleteRecordFile, fetchRecordChanges, fetchRecordSheets, fetchRecordsConfig, folderIdFrom, importRecordFile, setupRecords } from '../../services/classRecordsService';
+import { FollowSheet, LevelSheet, classLabel, lastOf, meanOf, parseLevels, recordMeta, recordsAppsScript, trimGrid } from '../../utils/classRecords';
+import { ChangesTimeline, Freshness, RecItem, RecordsDashboard, buildItems, fmtFull } from './ClassRecordsDashboard';
 import { supabaseUrl, supabaseAnonKey } from '../../services/supabase';
 import { hasPerm } from '../../utils/permissions';
 import { exportElementToPdf } from '../../utils/exportPdf';
 import { uiDir, t, dateLocale } from '../../i18n';
 
-type Tab = 'followup' | 'levels' | 'sync';
+type Tab = 'dash' | 'followup' | 'levels' | 'sync';
 const inp = 'h-10 px-3 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm';
 const pct = (a: number, b: number) => (b ? Math.round((a / b) * 100) : 0);
 const escH = (v: unknown) => String(v ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 const SUB = (i: number) => `var(--sub-${(i % 6) + 1})`;
 const fmtAt = (iso: string | null) => (iso ? new Date(iso).toLocaleString(dateLocale(), { weekday: 'short', day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' }) : '—');
 
-/** حداثة آخر تعديل: أخضر ≤ 3 أيام، برتقالي ≤ 10، أحمر أقدم (مع نص، لا لون فقط) */
-const Freshness: React.FC<{ at: string | null }> = ({ at }) => {
-  if (!at) return <Chip tone="muted">—</Chip>;
-  const days = (Date.now() - new Date(at).getTime()) / 864e5;
-  const tone = days <= 3 ? 'ok' : days <= 10 ? 'warn' : 'bad';
-  return <Chip tone={tone}>{days <= 3 ? <CheckCircle2 className="w-3.5 h-3.5" /> : days <= 10 ? <Clock className="w-3.5 h-3.5" /> : <AlertTriangle className="w-3.5 h-3.5" />}{timeAgo(at)}</Chip>;
-};
-
 /** سجلات المتابعة الصفية وتتبع مستويات الطلاب — من مجلدات Drive أو رفع Excel */
 export const ClassRecordsPage: React.FC = () => {
   const { currentUser } = useApp();
   const canManage = hasPerm(currentUser, 'can_manage_class_records');
-  const [tab, setTab] = useState<Tab>('followup');
+  const [tab, setTab] = useState<Tab>('dash');
   const [rows, setRows] = useState<RecordSheet[] | null>(null);
+  const [changes, setChanges] = useState<RecordChange[]>([]);
   const [cfg, setCfg] = useState<RecordsConfig | null>(null);
+  const [openFile, setOpenFile] = useState<string | null>(null);
   // لا نُفرغ البيانات عند التحديث كي لا يُعاد تركيب التبويب (ويضيع كود الربط الظاهر)
-  const load = () => { void fetchRecordSheets().then((r) => setRows(r.rows)); void fetchRecordsConfig().then(setCfg); };
+  const load = () => { void fetchRecordSheets().then((r) => setRows(r.rows)); void fetchRecordChanges().then(setChanges); void fetchRecordsConfig().then(setCfg); };
   useEffect(load, []);
-  const follow = useMemo(() => (rows || []).filter((r) => r.kind === 'followup'), [rows]);
+  const items = useMemo(() => buildItems(rows || []), [rows]);
   const levels = useMemo(() => (rows || []).filter((r) => r.kind === 'levels'), [rows]);
-  const TABS: Array<[Tab, string, React.ElementType]> = [['followup', t('سجلات المتابعة الصفية'), ClipboardList], ['levels', t('تتبع مستويات الطلاب'), TrendingUp], ...(canManage ? [['sync', t('الربط والاستيراد'), FolderSync] as [Tab, string, React.ElementType]] : [])];
+  const toSync = () => canManage && setTab('sync');
+  const TABS: Array<[Tab, string, React.ElementType]> = [['dash', t('لوحة المتابعة'), LayoutDashboard], ['followup', t('سجلات المتابعة الصفية'), ClipboardList], ['levels', t('تتبع مستويات الطلاب'), TrendingUp], ...(canManage ? [['sync', t('الربط والاستيراد'), FolderSync] as [Tab, string, React.ElementType]] : [])];
   return (
     <div className="space-y-5">
       <PageHeader title={t('سجلات المتابعة')} subtitle={t('سجلات المعلمين ومستويات الطلاب من Google Drive، مع آخر تعديل لكل ملف')}
@@ -47,7 +43,8 @@ export const ClassRecordsPage: React.FC = () => {
         ))}
         {cfg?.last_sync && <span className="ms-auto self-center text-xs text-slate-500">{t('آخر مزامنة: {d}', { d: timeAgo(cfg.last_sync) })}</span>}
       </div>
-      {rows === null ? null : tab === 'followup' ? <FollowupTab rows={follow} onEmpty={() => canManage && setTab('sync')} />
+      {rows === null ? null : tab === 'dash' ? (items.length ? <RecordsDashboard items={items} changes={changes} onOpenTeacher={(k) => { setTab('followup'); setOpenFile(k); }} /> : <EmptyFollow onEmpty={toSync} />)
+        : tab === 'followup' ? <FollowupTab items={items} changes={changes} openFile={openFile} setOpenFile={setOpenFile} onEmpty={toSync} />
         : tab === 'levels' ? <LevelsTab rows={levels} />
         : <SyncTab cfg={cfg} rows={rows} onChanged={load} />}
     </div>
@@ -57,12 +54,16 @@ export const ClassRecordsPage: React.FC = () => {
 // ---------------------------------------------------------------------
 // سجلات المتابعة: لوحة المعلمين (اكتمال الرصد وآخر تعديل) ← سجلات كل معلم ← عرض السجل
 // ---------------------------------------------------------------------
-const FollowupTab: React.FC<{ rows: RecordSheet[]; onEmpty: () => void }> = ({ rows, onEmpty }) => {
+const EmptyFollow: React.FC<{ onEmpty: () => void }> = ({ onEmpty }) => (
+  <Card className="p-10 text-center text-slate-500 space-y-3"><ClipboardList className="w-10 h-10 mx-auto text-slate-300" /><p>{t('لم تصل سجلات المتابعة بعد. اربط مجلد Drive أو ارفع ملفات Excel من «الربط والاستيراد».')}</p><Button size="sm" variant="secondary" onClick={onEmpty}>{t('الربط والاستيراد')}</Button></Card>
+);
+
+const FollowupTab: React.FC<{ items: RecItem[]; changes: RecordChange[]; openFile: string | null; setOpenFile: (k: string | null) => void; onEmpty: () => void }> = ({ items: parsed, changes, openFile, setOpenFile, onEmpty }) => {
   const [q, setQ] = useState('');
   const [sort, setSort] = useState<'name' | 'stale' | 'low'>('stale');
-  const [openFile, setOpenFile] = useState<string | null>(null);
+  const [drawerTab, setDrawerTab] = useState<'sheets' | 'history'>('sheets');
   const [view, setView] = useState<{ row: RecordSheet; p: FollowSheet } | null>(null);
-  const parsed = useMemo(() => rows.map((r) => ({ r, p: parseFollowup(r.grid) })).filter((x): x is { r: RecordSheet; p: FollowSheet } => !!x.p && x.p.students.length > 0), [rows]);
+  useEffect(() => setDrawerTab('sheets'), [openFile]);
   const files = useMemo(() => {
     const m = new Map<string, { key: string; name: string; path: string; sheets: typeof parsed; at: string | null; by: string }>();
     parsed.forEach((x) => {
@@ -78,10 +79,12 @@ const FollowupTab: React.FC<{ rows: RecordSheet[]; onEmpty: () => void }> = ({ r
   }, [parsed]);
   const shown = files.filter((f) => !q.trim() || f.name.includes(q.trim()))
     .sort((a, b) => sort === 'name' ? a.name.localeCompare(b.name, 'ar') : sort === 'low' ? a.done - b.done : (a.at || '').localeCompare(b.at || ''));
-  if (!files.length) return <Card className="p-10 text-center text-slate-500 space-y-3"><ClipboardList className="w-10 h-10 mx-auto text-slate-300" /><p>{t('لم تصل سجلات المتابعة بعد. اربط مجلد Drive أو ارفع ملفات Excel من «الربط والاستيراد».')}</p><Button size="sm" variant="secondary" onClick={onEmpty}>{t('الربط والاستيراد')}</Button></Card>;
+  if (!files.length) return <EmptyFollow onEmpty={onEmpty} />;
   const stale = files.filter((f) => !f.at || Date.now() - new Date(f.at).getTime() > 7 * 864e5).length;
   const avgDone = Math.round(files.reduce((a, f) => a + f.done, 0) / files.length);
   const file = files.find((f) => f.key === openFile);
+  const fileChanges = changes.filter((c) => c.kind === 'followup' && c.file_key === openFile);
+  const metaByKey = new Map((file?.sheets || []).map((x) => [x.r.sheet_name, x.meta]));
   return (
     <div className="space-y-5">
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3" data-testid="cr-kpis">
@@ -110,7 +113,7 @@ const FollowupTab: React.FC<{ rows: RecordSheet[]; onEmpty: () => void }> = ({ r
                   <span className="text-sm font-bold tabular-nums w-12 text-end">{f.done}%</span>
                 </div>
                 <div className="flex flex-wrap items-center gap-2 text-xs text-slate-600 dark:text-slate-300 md:justify-end">
-                  <span>{t('آخر تعديل:')} <b>{f.by || '—'}</b></span><Freshness at={f.at} />
+                  <span className="text-end">{t('آخر تعديل:')} <b>{f.by || '—'}</b><span className="block text-[11px] text-slate-500">{fmtFull(f.at)}</span></span><Freshness at={f.at} />
                 </div>
               </button>
             </li>
@@ -123,10 +126,16 @@ const FollowupTab: React.FC<{ rows: RecordSheet[]; onEmpty: () => void }> = ({ r
             <div className="flex items-start gap-3 p-5 border-b border-slate-100 dark:border-slate-800">
               <div className="flex-1 min-w-0">
                 <h2 className="text-lg font-extrabold text-slate-900 dark:text-white">{file.name}</h2>
-                <p className="text-sm text-slate-500">{t('آخر تعديل: {by} — {at}', { by: file.by || '—', at: fmtAt(file.at) })}</p>
+                <p className="text-sm text-slate-500">{t('آخر تعديل: {by} — {at}', { by: file.by || '—', at: fmtFull(file.at) })}</p>
+                <div className="flex gap-1.5 mt-3" role="tablist">
+                  {([['sheets', t('السجلات ({n})', { n: file.sheets.length }), ClipboardList], ['history', t('سجل التعديلات ({n})', { n: fileChanges.length }), History]] as const).map(([k, l, Icon]) => (
+                    <button key={k} type="button" role="tab" aria-selected={drawerTab === k} onClick={() => setDrawerTab(k)} className={`h-9 px-3 rounded-xl text-sm font-semibold inline-flex items-center gap-1.5 border ${drawerTab === k ? 'border-indigo-500 bg-indigo-50 dark:bg-indigo-950/50 text-indigo-700 dark:text-indigo-300' : 'border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300'}`}><Icon className="w-4 h-4" />{l}</button>
+                  ))}
+                </div>
               </div>
               <button type="button" onClick={() => setOpenFile(null)} aria-label={t('إغلاق')} className="w-9 h-9 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 flex items-center justify-center"><X className="w-5 h-5" /></button>
             </div>
+            {drawerTab === 'history' ? <div className="flex-1 overflow-y-auto p-5"><ChangesTimeline changes={fileChanges} metaOf={(c) => metaByKey.get(c.sheet_name) || recordMeta(c.sheet_name)} showFile={false} /></div> : (
             <div className="flex-1 overflow-y-auto p-5 grid sm:grid-cols-2 gap-3 content-start">
               {file.sheets.map(({ r, p }) => {
                 const done = pct(p.filled, p.cells);
@@ -141,7 +150,7 @@ const FollowupTab: React.FC<{ rows: RecordSheet[]; onEmpty: () => void }> = ({ r
                   </button>
                 );
               })}
-            </div>
+            </div>)}
           </div>
         </div>
       )}
@@ -160,7 +169,7 @@ const SheetViewer: React.FC<{ row: RecordSheet; p: FollowSheet; onClose: () => v
   const exportPdf = async () => {
     const head = `<tr><th>#</th><th>${escH(t('الطالب'))}</th>${gradeCols.map((c) => `<th>${escH(c.label)}<br/><small>${c.max ?? ''}</small></th>`).join('')}<th>${escH(t('المجموع'))}${totalCol?.max ? `<br/><small>${totalCol.max}</small>` : ''}</th></tr>`;
     const body = p.students.map((s, i) => `<tr><td>${i + 1}</td><td>${escH(s.name)}</td>${s.values.map((v) => `<td>${v ?? ''}</td>`).join('')}<td><b>${s.total ?? ''}</b></td></tr>`).join('');
-    try { await exportElementToPdf({ bodyHtml: `<table class="pdf-table"><thead>${head}</thead><tbody>${body}</tbody></table>`, orientation: 'landscape', title: `${row.file_name} — ${row.sheet_name}`, subtitle: `${p.title} · ${t('آخر تعديل: {by} — {at}', { by: row.last_edit_by || '—', at: fmtAt(row.last_edit_at) })}` }); }
+    try { await exportElementToPdf({ bodyHtml: `<table class="pdf-table"><thead>${head}</thead><tbody>${body}</tbody></table>`, orientation: 'landscape', title: `${row.file_name} — ${row.sheet_name}`, subtitle: `${p.title} · ${t('آخر تعديل: {by} — {at}', { by: row.last_edit_by || '—', at: fmtFull(row.last_edit_at) })}` }); }
     catch (e: any) { showToast(e?.message || t('تعذر تصدير PDF'), 'error'); }
   };
   return (
@@ -169,7 +178,7 @@ const SheetViewer: React.FC<{ row: RecordSheet; p: FollowSheet; onClose: () => v
         <div className="flex items-start gap-3 p-5 border-b border-slate-100 dark:border-slate-800">
           <div className="flex-1 min-w-0">
             <h2 className="font-extrabold text-lg text-slate-900 dark:text-white">{row.file_name} — {row.sheet_name}</h2>
-            <p className="text-sm text-slate-500">{p.title} · {t('اكتمال الرصد {n}%', { n: pct(p.filled, p.cells) })} · {t('آخر تعديل: {by} — {at}', { by: row.last_edit_by || '—', at: fmtAt(row.last_edit_at) })}</p>
+            <p className="text-sm text-slate-500">{p.title} · {t('اكتمال الرصد {n}%', { n: pct(p.filled, p.cells) })} · {t('آخر تعديل: {by} — {at}', { by: row.last_edit_by || '—', at: fmtFull(row.last_edit_at) })}</p>
           </div>
           <Button size="sm" variant="secondary" icon={FileDown} onClick={() => void exportPdf()}>{t('تقرير PDF')}</Button>
           <button type="button" onClick={onClose} aria-label={t('إغلاق')} className="w-9 h-9 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 flex items-center justify-center"><X className="w-5 h-5" /></button>
@@ -220,6 +229,7 @@ const LevelsTab: React.FC<{ rows: RecordSheet[] }> = ({ rows }) => {
   const fileRow = sheets[0]?.r;
   return (
     <div className="space-y-5">
+      <LevelsAll parsed={parsed} />
       <div className="flex flex-wrap items-center gap-2">
         <select value={file} onChange={(e) => setFile(e.target.value)} className={inp} aria-label={t('المرحلة')}>{files.map(([k, n]) => <option key={k} value={k}>{n}</option>)}</select>
         <div className="flex flex-wrap gap-1.5" role="tablist" aria-label={t('الفصل')}>
@@ -310,6 +320,47 @@ const LevelsClass: React.FC<{ p: LevelSheet; title: string }> = ({ p, title }) =
 };
 
 /** نظرة على كل فصول المرحلة: متوسط آخر قياس لكل مادة */
+/** ملخص كل المراحل: متوسط آخر قياس لكل مادة، وعدد الطلاب دون نصف الدرجة */
+const LevelsAll: React.FC<{ parsed: Array<{ r: RecordSheet; p: LevelSheet }> }> = ({ parsed }) => {
+  const stages = [...new Map(parsed.map((x) => [x.r.file_key, x.r.file_name])).entries()];
+  const subjects = [...new Set(parsed.flatMap((x) => x.p.subjects.map((s) => s.name)))];
+  if (stages.length < 2) return null;
+  const rowsOf = (fk: string) => {
+    const sh = parsed.filter((x) => x.r.file_key === fk);
+    const students = sh.reduce((a, x) => a + x.p.students.length, 0);
+    let below = 0, scored = 0;
+    const per = subjects.map((name) => {
+      const vals: number[] = [];
+      sh.forEach(({ p }) => { const si = p.subjects.findIndex((s) => s.name === name); if (si < 0) return; p.students.forEach((st) => { const v = lastOf(st.scores[si]); if (v !== null) { vals.push(v / p.max); scored++; if (v < p.max / 2) below++; } }); });
+      return vals.length ? vals.reduce((a, b) => a + b, 0) / vals.length : null;
+    });
+    return { classes: sh.length, students, per, below, scored };
+  };
+  return (
+    <Card className="p-5 overflow-x-auto" data-testid="cr-levels-all">
+      <h2 className="font-bold text-slate-900 dark:text-white mb-1">{t('ملخص كل المراحل')}</h2>
+      <p className="text-xs text-slate-500 mb-3">{t('متوسط آخر قياس لكل مادة كنسبة من الدرجة، وعدد الدرجات دون النصف.')}</p>
+      <table className="w-full text-sm min-w-[620px]">
+        <thead className="text-xs text-slate-600 dark:text-slate-300 bg-slate-50 dark:bg-slate-800/60"><tr><th className="px-3 py-2 text-start">{t('المرحلة')}</th><th className="px-3 py-2 text-center">{t('الفصول')}</th><th className="px-3 py-2 text-center">{t('الطلاب')}</th>{subjects.map((s, i) => <th key={s} className="px-3 py-2 text-center"><span className="inline-flex items-center gap-1.5"><span className="w-2 h-2 rounded-full" style={{ background: SUB(i) }} />{s}</span></th>)}<th className="px-3 py-2 text-center">{t('دون النصف')}</th></tr></thead>
+        <tbody>
+          {stages.map(([fk, name]) => {
+            const r = rowsOf(fk);
+            return (
+              <tr key={fk} className="border-t border-slate-100 dark:border-slate-800">
+                <td className="px-3 py-2 font-semibold">{name}</td>
+                <td className="px-3 py-2 text-center tabular-nums">{r.classes}</td>
+                <td className="px-3 py-2 text-center tabular-nums">{r.students}</td>
+                {r.per.map((v, i) => <td key={i} className="px-3 py-2 text-center tabular-nums"><span className={v === null ? 'text-slate-300' : v >= 0.8 ? 'text-emerald-700 dark:text-emerald-400 font-bold' : v < 0.5 ? 'text-rose-700 dark:text-rose-400 font-bold' : ''}>{v === null ? '—' : `${Math.round(v * 100)}%`}</span></td>)}
+                <td className="px-3 py-2 text-center tabular-nums">{r.below} <span className="text-xs text-slate-500">({r.scored ? Math.round((r.below / r.scored) * 100) : 0}%)</span></td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+    </Card>
+  );
+};
+
 const LevelsOverview: React.FC<{ sheets: Array<{ r: RecordSheet; p: LevelSheet }> }> = ({ sheets }) => {
   const subjects = [...new Set(sheets.flatMap((x) => x.p.subjects.map((s) => s.name)))];
   if (sheets.length < 2) return null;
