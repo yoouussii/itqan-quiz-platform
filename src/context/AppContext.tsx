@@ -48,7 +48,7 @@ import { StudentAward } from '../utils/points';
 import { describeQuizTarget } from '../utils/quizTarget';
 import { targetStudents } from '../utils/quizAudience';
 import { loadAttempt } from '../utils/activeAttempt';
-import { RouteState, parsePath, pathFor, replaceNextNavigation, takeReplaceFlag, PUBLIC_PATHS } from '../utils/router';
+import { RouteState, parsePath, pathFor, replaceNextNavigation, takeReplaceFlag, PUBLIC_PATHS, setSurveyLink } from '../utils/router';
 import { formatQuizDateTime } from '../utils/quizWindow';
 import {
   supabase,
@@ -393,6 +393,8 @@ function routeForUser(u: User | null, path: string): RouteState {
     r = u.role === 'parent' ? home : { ...r, view: 'quiz_preview' };
   }
   if (r.view === 'users' && u.role !== 'admin') r = { view: 'users_management' };
+  // رابط استبيان: متاح لكل مستخدم مسجّل، والصفحة تتحقق هل هو موجّه له (أو هل يملك صلاحية النتائج)
+  if (r.view === 'surveys') { setSurveyLink(r.surveyId ? { id: r.surveyId, mode: r.surveyMode || 'answer' } : null); return { view: 'surveys' }; }
   return allowedViews(u).includes(r.view) ? r : home;
 }
 
