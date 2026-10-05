@@ -4,7 +4,7 @@ import { useApp } from '../../context/AppContext';
 import { PageHeader, Card, Button, Chip, timeAgo } from '../common/ui';
 import { RecordChange, RecordKind, RecordSheet, RecordsConfig, deleteRecordFile, fetchRecordChanges, fetchRecordSheets, fetchRecordsConfig, folderIdFrom, importRecordFile, setupRecords } from '../../services/classRecordsService';
 import { FollowSheet, LevelSheet, classLabel, lastOf, meanOf, parseLevels, recordMeta, recordsAppsScript, trimGrid } from '../../utils/classRecords';
-import { ChangesTimeline, Freshness, RecItem, RecordsDashboard, buildItems, fmtFull } from './ClassRecordsDashboard';
+import { ChangesTimeline, Freshness, RecItem, RecordsDashboard, VBarChart, buildItems, dayKey, fmtDay, fmtFull, sheetShort } from './ClassRecordsDashboard';
 import { supabaseUrl, supabaseAnonKey } from '../../services/supabase';
 import { hasPerm } from '../../utils/permissions';
 import { exportElementToPdf } from '../../utils/exportPdf';
@@ -85,6 +85,11 @@ const FollowupTab: React.FC<{ items: RecItem[]; changes: RecordChange[]; openFil
   const file = files.find((f) => f.key === openFile);
   const fileChanges = changes.filter((c) => c.kind === 'followup' && c.file_key === openFile);
   const metaByKey = new Map((file?.sheets || []).map((x) => [x.r.sheet_name, x.meta]));
+  const teacherDaily = Array.from({ length: 30 }, (_, i) => {
+    const d = new Date(); d.setHours(0, 0, 0, 0); d.setDate(d.getDate() - (29 - i));
+    const k = dayKey(d.toISOString()), list = fileChanges.filter((c) => dayKey(c.edited_at) === k);
+    return { key: k, short: `${d.getDate()}/${d.getMonth() + 1}`, title: fmtDay(d), value: list.length, sub: list.length ? t('{n} خلية', { n: list.reduce((a, c) => a + c.cells_changed + c.cells_filled + c.cells_cleared, 0) }) : undefined };
+  });
   return (
     <div className="space-y-5">
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3" data-testid="cr-kpis">
@@ -135,8 +140,22 @@ const FollowupTab: React.FC<{ items: RecItem[]; changes: RecordChange[]; openFil
               </div>
               <button type="button" onClick={() => setOpenFile(null)} aria-label={t('إغلاق')} className="w-9 h-9 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 flex items-center justify-center"><X className="w-5 h-5" /></button>
             </div>
-            {drawerTab === 'history' ? <div className="flex-1 overflow-y-auto p-5"><ChangesTimeline changes={fileChanges} metaOf={(c) => metaByKey.get(c.sheet_name) || recordMeta(c.sheet_name)} showFile={false} /></div> : (
+            {drawerTab === 'history' ? (
+              <div className="flex-1 overflow-y-auto p-5 space-y-4">
+                <Card className="p-4 space-y-1" data-testid="cr-teacher-activity">
+                  <h3 className="font-bold text-sm text-slate-900 dark:text-white">{t('نشاط المعلم: التعديلات في آخر 30 يوماً')}</h3>
+                  <VBarChart data={teacherDaily} label={t('نشاط المعلم: التعديلات في آخر 30 يوماً')} height={150} />
+                </Card>
+                <ChangesTimeline changes={fileChanges} metaOf={(c) => metaByKey.get(c.sheet_name) || recordMeta(c.sheet_name)} showFile={false} />
+              </div>
+            ) : (
             <div className="flex-1 overflow-y-auto p-5 grid sm:grid-cols-2 gap-3 content-start">
+              <Card className="p-4 space-y-1 sm:col-span-2" data-testid="cr-teacher-chart">
+                <h3 className="font-bold text-sm text-slate-900 dark:text-white">{t('اكتمال الرصد في كل سجل')}</h3>
+                <VBarChart data={file.sheets.map((x) => ({ key: String(x.r.id), short: sheetShort(x.r.sheet_name, x.meta), title: `${x.r.sheet_name} — ${x.meta.subject}${x.meta.classLabel ? ` · ${x.meta.classLabel}` : ''}`, value: x.done, sub: t('{n} طالب', { n: x.p.students.length }) }))}
+                  label={t('اكتمال الرصد في كل سجل')} fixedMax={100} twoLine rtl height={190} fmt={(v) => t('الرصد {n}%', { n: v })}
+                  avg={{ value: file.done, label: t('المتوسط') }} onSelect={(k) => { const x = file.sheets.find((y) => String(y.r.id) === k); if (x) setView({ row: x.r, p: x.p }); }} />
+              </Card>
               {file.sheets.map(({ r, p }) => {
                 const done = pct(p.filled, p.cells);
                 const max = p.columns.find((c) => c.total)?.max || p.columns.filter((c) => !c.total).reduce((a, c) => a + (c.max || 0), 0);

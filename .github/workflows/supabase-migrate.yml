@@ -59,6 +59,7 @@ on:
           - supabase/migrations/042_academic_support.sql
           - supabase/migrations/043_class_records.sql
           - supabase/migrations/044_class_record_changes.sql
+          - supabase/migrations/045_class_record_changes_backfill.sql
           - supabase/migrations/003_rollback.sql
       db_secret:
         description: 'اسم سر قاعدة البيانات (اتركه كما هو للمدرسة الأساسية، أو اكتب سر مدرسة أخرى مثل DB_URL_SCHOOL2)'
