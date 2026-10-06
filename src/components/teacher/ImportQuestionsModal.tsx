@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useLayoutEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { FileUp, X, Trash2, AlertTriangle, CheckCircle2, ClipboardPaste, Copy, Sparkles, ExternalLink } from 'lucide-react';
 import { AI_SITES, GenType, QuestionsPromptInput, copyText, questionsPrompt } from '../../utils/aiPrompt';
@@ -9,6 +9,7 @@ import { uiDir, t, optionLetters } from '../../i18n';
 import { marksCount } from '../../i18n/count';
 import { parseQuestionsText } from '../../utils/questionImport';
 import { extractFileText } from '../../utils/fileText';
+import { cleanArabicText } from '../../utils/arabicText';
 import { QUESTION_TYPES, QuestionItem } from './QuizEditor';
 
 const EXAMPLE = `1. ما ناتج 5 + 3؟ (2 درجة)
@@ -31,6 +32,22 @@ const EXAMPLE = `1. ما ناتج 5 + 3؟ (2 درجة)
 const typeLabel = (type: string) => t(QUESTION_TYPES.find((x) => x.type === type)?.label || '');
 
 /** استيراد أسئلة من ملف Word أو PDF أو نص ملصوق، مع معاينة وتصحيح قبل الإضافة */
+/** خانة نص تتمدد بطول السؤال كاملاً (بلا تمرير داخلي) */
+const AutoTextarea: React.FC<{ value: string; onChange: (v: string) => void; label: string }> = ({ value, onChange, label }) => {
+  const ref = useRef<HTMLTextAreaElement>(null);
+  useLayoutEffect(() => {
+    const el = ref.current; if (!el) return;
+    const fit = () => { el.style.height = 'auto'; el.style.height = `${el.scrollHeight + 2}px`; };
+    fit();
+    const ro = new ResizeObserver(fit); ro.observe(el.parentElement || el);
+    return () => ro.disconnect();
+  }, [value]);
+  return (
+    <textarea ref={ref} value={value} onChange={(e) => onChange(e.target.value)} rows={1} aria-label={label} dir="auto"
+      className="flex-1 min-w-0 min-h-[36px] px-2 py-1.5 rounded-lg border border-transparent hover:border-slate-200 focus:border-indigo-400 dark:hover:border-slate-700 bg-transparent text-sm leading-relaxed font-semibold text-slate-900 dark:text-white resize-none overflow-hidden whitespace-pre-wrap" />
+  );
+};
+
 export const ImportQuestionsModal: React.FC<{ onClose: () => void; onAdd: (qs: QuestionItem[]) => void; mode?: 'file' | 'ai'; subjectName?: string }> = ({ onClose, onAdd, mode = 'file', subjectName = '' }) => {
   const { showToast } = useApp();
   const [items, setItems] = useState<QuestionItem[] | null>(null);
@@ -50,7 +67,7 @@ export const ImportQuestionsModal: React.FC<{ onClose: () => void; onAdd: (qs: Q
   };
 
   const parse = (text: string) => {
-    const r = parseQuestionsText(text);
+    const r = parseQuestionsText(cleanArabicText(text));
     if (!r.questions.length) {
       showToast(t('لم يُعثر على أسئلة. تأكد أن كل سؤال يبدأ برقم (1. أو 1-) وأن الخيارات تبدأ بحرف (أ) ب)...).'), 'info');
       return;
@@ -87,7 +104,7 @@ export const ImportQuestionsModal: React.FC<{ onClose: () => void; onAdd: (qs: Q
 
   return createPortal(
     <div className="fixed inset-0 z-50 bg-slate-900/60 flex items-center justify-center p-3 sm:p-6" dir={uiDir()} role="dialog" aria-modal="true" aria-labelledby="imp-q-title">
-      <Card className="w-full max-w-3xl max-h-[92vh] flex flex-col">
+      <Card className="w-full max-w-5xl max-h-[94vh] flex flex-col">
         <div className="flex items-center justify-between p-4 border-b border-slate-200 dark:border-slate-800">
           <h3 id="imp-q-title" className="text-lg font-bold text-slate-900 dark:text-white inline-flex items-center gap-2">
             {mode === 'ai' ? <><Sparkles className="w-5 h-5 text-violet-600" />{t('توليد أسئلة بالذكاء الاصطناعي (مجاناً)')}</> : <><FileUp className="w-5 h-5 text-indigo-600" />{t('استيراد أسئلة من ملف')}</>}
@@ -182,9 +199,8 @@ export const ImportQuestionsModal: React.FC<{ onClose: () => void; onAdd: (qs: Q
                   <li key={q.uid || i} className={`rounded-2xl border p-3.5 space-y-2 ${review.includes(i) ? 'border-amber-400 bg-amber-50/50 dark:bg-amber-950/20' : 'border-slate-200 dark:border-slate-800'}`}>
                     <div className="flex items-start gap-2">
                       <span className="w-7 h-7 rounded-lg bg-indigo-600 text-white text-xs font-bold flex items-center justify-center shrink-0">{i + 1}</span>
-                      <textarea value={stripHtml(q.question_text)} onChange={(e) => update(i, { question_text: `<p>${e.target.value.replace(/&/g, '&amp;').replace(/</g, '&lt;')}</p>` })}
-                        rows={1} aria-label={t('نص السؤال {n}', { n: i + 1 })} dir="auto"
-                        className="flex-1 min-h-[36px] px-2 py-1.5 rounded-lg border border-transparent hover:border-slate-200 focus:border-indigo-400 dark:hover:border-slate-700 bg-transparent text-sm font-semibold text-slate-900 dark:text-white resize-y" />
+                      <AutoTextarea value={stripHtml(q.question_text)} onChange={(v) => update(i, { question_text: `<p>${v.replace(/&/g, '&amp;').replace(/</g, '&lt;')}</p>` })}
+                        label={t('نص السؤال {n}', { n: i + 1 })} />
                       <Chip>{typeLabel(q.type)}</Chip>
                       <Chip>{marksCount(q.marks)}</Chip>
                       <button type="button" onClick={() => remove(i)} aria-label={t('حذف السؤال')} className="w-8 h-8 rounded-lg flex items-center justify-center text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 shrink-0"><Trash2 className="w-4 h-4" /></button>

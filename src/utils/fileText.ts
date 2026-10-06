@@ -3,10 +3,15 @@
  * المكتبات تُحمَّل فقط عند الاستخدام حتى لا تثقل الموقع.
  */
 import { wordHtmlToText } from './questionImport';
+import { cleanArabicText, joinPdfRow, PdfItem } from './arabicText';
 
 const ARABIC = /[؀-ۿ]/;
 
 export async function extractFileText(file: File): Promise<string> {
+  return cleanArabicText(await rawFileText(file));
+}
+
+async function rawFileText(file: File): Promise<string> {
   const name = file.name.toLowerCase();
   if (name.endsWith('.docx')) {
     const mammoth = await import('mammoth');
@@ -43,30 +48,21 @@ async function pdfText(file: File): Promise<string> {
     const page = await doc.getPage(p);
     const content = await page.getTextContent();
     // تجميع القطع النصية في أسطر حسب الموضع الرأسي، ثم ترتيبها أفقياً (من اليمين للعربية)
-    const rows: { y: number; items: { x: number; w: number; s: string }[] }[] = [];
-    for (const it of content.items as Array<{ str: string; transform: number[]; width: number }>) {
+    const rows: { y: number; items: PdfItem[] }[] = [];
+    for (const it of content.items as Array<{ str: string; transform: number[]; width: number; height?: number }>) {
       if (!it.str) continue;
       const y = it.transform[5];
-      const item = { x: it.transform[4], w: it.width || 0, s: it.str };
-      const row = rows.find((r) => Math.abs(r.y - y) < 3);
+      const size = Math.hypot(it.transform[2], it.transform[3]) || it.height || 10;
+      const item: PdfItem = { x: it.transform[4], w: it.width || 0, s: it.str, size };
+      // الحركات قد تُرسم أعلى السطر قليلاً: تسامح نسبي مع حجم الخط
+      const row = rows.find((r) => Math.abs(r.y - y) < Math.max(3, size * 0.45));
       if (row) row.items.push(item);
       else rows.push({ y, items: [item] });
     }
     rows.sort((a, b) => b.y - a.y);
     for (const r of rows) {
       const rtl = r.items.some((i) => ARABIC.test(i.s.normalize('NFKC')));
-      r.items.sort((a, b) => (rtl ? b.x - a.x : a.x - b.x));
-      // القطع متجاورة (المسافات قطع مستقلة)، والحروف العربية بأشكال العرض (ﻣ ﺎ) تُعاد لأصلها
-      // مسافة عند وجود فراغ ظاهر بين قطعتين (بعض ملفات PDF لا تخزّن المسافات)
-      let line = '';
-      r.items.forEach((it, k) => {
-        const prev = r.items[k - 1];
-        if (prev && !/\s$/.test(line) && !/^\s/.test(it.s)) {
-          const gap = rtl ? prev.x - (it.x + it.w) : it.x - (prev.x + prev.w);
-          if (gap > 1.5) line += ' ';
-        }
-        line += it.s;
-      });
+      let line = joinPdfRow(r.items, rtl);
       line = line.normalize('NFKC');
       // في السطر العربي تُخزَّن الأقواس معكوسة الشكل: «أ)» تصل «أ(»
       if (rtl) line = line.replace(/[()[\]]/g, (c) => ({ '(': ')', ')': '(', '[': ']', ']': '[' })[c] as string);
