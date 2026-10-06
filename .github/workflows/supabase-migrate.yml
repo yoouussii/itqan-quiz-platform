@@ -73,6 +73,7 @@ on:
           - supabase/migrations/057_school_indicators.sql
           - supabase/migrations/058_indicators_detail.sql
           - supabase/migrations/059_question_types.sql
+          - supabase/migrations/060_quiz_media.sql
           - supabase/migrations/003_rollback.sql
       db_secret:
         description: 'اسم سر قاعدة البيانات (اتركه كما هو للمدرسة الأساسية، أو اكتب سر مدرسة أخرى مثل DB_URL_SCHOOL2)'

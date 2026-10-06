@@ -66,6 +66,9 @@ export interface QuestionItem {
 /** عدد الأسئلة بصيغة عربية صحيحة */
 const questionsLabel = (n: number) => (isEn() ? questionsCount(n) : n === 1 ? 'سؤال واحد' : n === 2 ? 'سؤالان' : n <= 10 ? `${n} أسئلة` : `${n} سؤالاً`);
 
+/** نص أو صورة (الخيار المصوّر ليس فارغاً) */
+const hasContent = (h: string) => !!stripHtml(h).trim() || /<img\s/i.test(h || '');
+
 const newUid = () => `u-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`;
 
 /** سؤال جديد فارغ حسب النوع */
@@ -579,12 +582,12 @@ export const QuizEditor: React.FC = () => {
     };
     for (let i = 0; i < questions.length; i++) {
       const q = questions[i];
-      if (!stripHtml(q.question_text).trim()) {
+      if (!hasContent(q.question_text)) {
         focusQuestion(i, t('يرجى كتابة نص السؤال رقم {n}', { n: i + 1 }));
         return;
       }
       if (q.type === 'mcq') {
-        const emptyAt = q.options.findIndex((o) => !stripHtml(o).trim());
+        const emptyAt = q.options.findIndex((o) => !hasContent(o));
         if (emptyAt >= 0) {
           focusQuestion(i, t('الخيار {o} في السؤال رقم {n} فارغ: اكتبه أو احذفه', { o: emptyAt + 1, n: i + 1 }));
           return;
@@ -600,7 +603,7 @@ export const QuizEditor: React.FC = () => {
           return;
         }
         for (let j = 0; j < q.sub_questions.length; j++) {
-          if (!stripHtml(q.sub_questions[j].question_text).trim()) {
+          if (!hasContent(q.sub_questions[j].question_text)) {
             alert(t('يرجى كتابة نص السؤال الفرعي رقم {s} للقطعة رقم {n}', { s: j + 1, n: i + 1 }));
             return;
           }

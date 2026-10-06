@@ -4,6 +4,7 @@
  */
 import type { Question, Quiz } from '../types';
 import { sanitizeHtml, looksLikeHtml } from '../components/common/RichText';
+import { loadMedia } from './quizMedia';
 import { printHtmlDocument, getPrintBrand } from './exportPdf';
 import { certBrand } from './certificate';
 import { optionLetters, isEn, t } from '../i18n';
@@ -100,6 +101,7 @@ export function buildQuizPaper(quiz: Quiz & { subject?: { name: string } }, ques
 body { margin: 0; font-family: 'IBM Plex Sans Arabic', 'Cairo', sans-serif; color: #111827; font-size: 13.5px; line-height: 1.7; }
 header { display: grid; grid-template-columns: 30mm 1fr 30mm; align-items: center; gap: 4mm; border-bottom: 2px solid #111827; padding-bottom: 3mm; }
 header img { max-height: 22mm; max-width: 30mm; object-fit: contain; }
+.q-img { display: block; max-width: 100%; max-height: 70mm; margin: 2mm 0; object-fit: contain; }
 header .c { text-align: center; }
 header .school { font-family: 'Cairo', sans-serif; font-weight: 800; font-size: 15px; }
 header h1 { font-family: 'Cairo', sans-serif; margin: 1mm 0 0; font-size: 19px; }
@@ -152,5 +154,17 @@ ${body}
 </body></html>`;
 }
 
-export const printQuizPaper = (quiz: Quiz & { subject?: { name: string } }, questions: Question[], answerKey: boolean) =>
-  printHtmlDocument(buildQuizPaper(quiz, questions, { answerKey }));
+export const printQuizPaper = async (quiz: Quiz & { subject?: { name: string } }, questions: Question[], answerKey: boolean) => {
+  // صور الأسئلة المحفوظة في الخادم تُضمَّن قبل الطباعة
+  const html = buildQuizPaper(quiz, questions, { answerKey });
+  return printHtmlDocument(html.includes('data-media') ? await inlineMediaRefs(html) : html);
+};
+
+/** صور «data-media» (بعد التنقية) ← صور كاملة */
+async function inlineMediaRefs(html: string): Promise<string> {
+  const ids = Array.from(new Set(Array.from(html.matchAll(/data-media="(qm-[0-9a-f]{18})"/g)).map((m) => m[1])));
+  const urls = await Promise.all(ids.map((id) => loadMedia(id)));
+  let out = html;
+  ids.forEach((id, i) => { if (urls[i]) out = out.split(`data-media="${id}"`).join(`src="${urls[i]}"`); });
+  return out;
+}

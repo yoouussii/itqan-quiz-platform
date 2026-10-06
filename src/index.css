@@ -143,6 +143,11 @@
 .dark .rich-editor .ql-snow .ql-picker { color: #cbd5e1; }
 
 .rich-text p { margin: 0 0 0.35rem; }
+/* صور الأسئلة: بعرض المساحة المتاحة بحد أقصى، بخلفية بيضاء حتى في الوضع الليلي (الرسوم غالباً بخلفية بيضاء) */
+.q-img, .rich-editor .ql-editor img { display: inline-block; max-width: min(100%, 520px); max-height: 420px; height: auto; object-fit: contain; border-radius: 0.6rem; background: #fff; margin: 0.35rem 0; vertical-align: middle; }
+/* صور الخيارات (عرض داخل سطر) أصغر */
+span.rich-text .q-img { max-height: 130px; max-width: min(100%, 220px); margin: 0.15rem 0; }
+.q-img:not([src]) { min-width: 120px; min-height: 80px; background: #f1f5f9; }
 .rich-text p:last-child { margin-bottom: 0; }
 .rich-text ol { list-style: decimal; padding-inline-start: 1.5rem; margin: 0.25rem 0; }
 .rich-text ul { list-style: disc; padding-inline-start: 1.5rem; margin: 0.25rem 0; }

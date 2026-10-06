@@ -3,6 +3,7 @@
  * وبنفس طريقة البانرات: قائمة خفيفة (المعرّف ووقت التعديل) ثم الأسئلة التي تغيّرت فقط.
  */
 import { supabase } from './supabase';
+import { externalizeQuestions } from '../utils/quizMedia';
 import { safe, readJson, writeJson, newId } from './remote';
 import type { QuestionItem } from '../components/teacher/QuizEditor';
 import { stripHtml } from '../components/common/RichText';
@@ -112,7 +113,9 @@ export async function syncBank(): Promise<{ ok: boolean; error?: string }> {
 
 export async function saveBankItems(items: BankItem[]): Promise<{ ok: boolean; error?: string }> {
   if (!items.length) return { ok: true };
-  const rows = items.map((b) => ({ ...b, updated_at: new Date().toISOString() }));
+  // صور الأسئلة تُرفع وتُستبدل بروابط قصيرة
+  const qs = (await externalizeQuestions(items.map((b) => b.question))).questions;
+  const rows = items.map((b, i) => ({ ...b, question: qs[i], updated_at: new Date().toISOString() }));
   const res = await safe(() => supabase.from('question_bank').upsert(rows, { onConflict: 'id' }) as any);
   if (res.ok) {
     const ids = new Set(rows.map((r) => r.id));
