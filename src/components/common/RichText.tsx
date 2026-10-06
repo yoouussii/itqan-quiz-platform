@@ -1,4 +1,5 @@
-import React, { useMemo } from 'react';
+import React, { useEffect, useMemo, useRef } from 'react';
+import { DATA_IMG_RE, MEDIA_ID_RE, hydrateMediaIn } from '../../utils/quizMedia';
 
 /**
  * عرض النصوص المنسّقة (من محرر Quill) بشكل آمن للطلاب والمعلم والآدمن.
@@ -9,11 +10,11 @@ import React, { useMemo } from 'react';
 
 const ALLOWED_TAGS = new Set([
   'P', 'BR', 'STRONG', 'B', 'EM', 'I', 'U', 'S', 'SPAN', 'OL', 'UL', 'LI',
-  'H1', 'H2', 'H3', 'H4', 'BLOCKQUOTE', 'A', 'SUB', 'SUP', 'DIV',
+  'H1', 'H2', 'H3', 'H4', 'BLOCKQUOTE', 'A', 'SUB', 'SUP', 'DIV', 'IMG',
 ]);
 const DROP_WITH_CONTENT = new Set([
   'SCRIPT', 'STYLE', 'IFRAME', 'OBJECT', 'EMBED', 'LINK', 'META', 'FORM',
-  'INPUT', 'BUTTON', 'TEXTAREA', 'SELECT', 'SVG', 'MATH', 'IMG', 'VIDEO', 'AUDIO',
+  'INPUT', 'BUTTON', 'TEXTAREA', 'SELECT', 'SVG', 'MATH', 'VIDEO', 'AUDIO',
 ]);
 const BLOCK_TAGS = new Set(['P', 'DIV', 'H1', 'H2', 'H3', 'H4', 'BLOCKQUOTE']);
 
@@ -66,6 +67,20 @@ export function sanitizeHtml(html: string, inline = false): string {
 
       if (DROP_WITH_CONTENT.has(tag)) {
         el.remove();
+        return;
+      }
+
+      // الصور: صورة مضمّنة (data:image) أو صورة محفوظة في الخادم (itqan-media:) فقط
+      if (tag === 'IMG') {
+        const src = (el.getAttribute('src') || '').trim();
+        const media = src.match(MEDIA_ID_RE);
+        Array.from(el.attributes).forEach((a) => el.removeAttribute(a.name));
+        if (media) el.setAttribute('data-media', media[1]);
+        else if (DATA_IMG_RE.test(src) && src.length <= 1_500_000) el.setAttribute('src', src);
+        else { el.remove(); return; }
+        el.setAttribute('alt', '');
+        el.setAttribute('loading', 'lazy');
+        el.setAttribute('class', 'q-img');
         return;
       }
 
@@ -132,6 +147,8 @@ export const RichText: React.FC<RichTextProps> = ({ html, className = '', inline
   const text = html ?? '';
   const isHtml = looksLikeHtml(text);
   const safe = useMemo(() => (isHtml ? sanitizeHtml(text, inline) : ''), [text, isHtml, inline]);
+  const ref = useRef<HTMLElement>(null);
+  useEffect(() => { if (safe.includes('data-media')) hydrateMediaIn(ref.current); }, [safe]);
 
   if (!text) return null;
 
@@ -144,9 +161,9 @@ export const RichText: React.FC<RichTextProps> = ({ html, className = '', inline
   }
 
   return inline ? (
-    <span dir="auto" className={`rich-text ${className}`} dangerouslySetInnerHTML={{ __html: safe }} />
+    <span ref={ref as React.RefObject<HTMLSpanElement>} dir="auto" className={`rich-text ${className}`} dangerouslySetInnerHTML={{ __html: safe }} />
   ) : (
-    <div dir="auto" className={`rich-text ${className}`} dangerouslySetInnerHTML={{ __html: safe }} />
+    <div ref={ref as React.RefObject<HTMLDivElement>} dir="auto" className={`rich-text ${className}`} dangerouslySetInnerHTML={{ __html: safe }} />
   );
 };
 

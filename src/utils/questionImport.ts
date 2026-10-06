@@ -66,7 +66,12 @@ export interface ImportMeta {
   bank?: string[];
   /** ملاحظة للمعلم عن السؤال */
   note?: string;
+  /** لسؤال القطعة: أي الأسئلة الفرعية تحتاج تحديد الإجابة */
+  subReview?: boolean[];
 }
+
+/** علامة صورة في النص المستخرج: «[[IMG:3]]» تشير إلى الصورة رقم 3 في قائمة صور الملف */
+export const IMG_TOKEN_RE = /\[\[IMG:(\d+)\]\]/g;
 
 interface Draft {
   text: string[];
@@ -80,6 +85,14 @@ interface Draft {
   bank?: string[];
   /** عناصر العمود الثاني في قسم التوصيل */
   right?: string[];
+  /** نص القطعة أو المسألة الذي يسبق السؤال */
+  context?: string[];
+  /** سؤال مسبوق بحرف «(أ) …» */
+  lettered?: boolean;
+  /** صور السؤال (روابط) */
+  images?: string[];
+  /** القطعة/المسألة التي يتبعها السؤال (لتجميع أسئلتها في سؤال «قطعة») */
+  passage?: object;
 }
 
 const clean = (s: string) => s.replace(new RegExp(EMPHASIS_MARK, 'g'), '').replace(/\s+/g, ' ').trim();
@@ -87,7 +100,7 @@ const esc = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replac
 const rid = (p: string) => `${p}${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}`;
 
 // ── تمييز أنواع الأقسام والأسئلة ──
-const ORDINALS = 'الأول|الاول|أول|اول|الثاني|ثاني|الثالث|ثالث|الرابع|رابع|الخامس|خامس|السادس|سادس|السابع|سابع|الثامن|ثامن|التاسع|تاسع|العاشر|عاشر';
+const ORDINALS = 'الأولى|الاولى|الثانية|الثالثة|الرابعة|الخامسة|السادسة|السابعة|الثامنة|التاسعة|العاشرة|الأول|الاول|أول|اول|الثاني|ثاني|الثالث|ثالث|الرابع|رابع|الخامس|خامس|السادس|سادس|السابع|سابع|الثامن|ثامن|التاسع|تاسع|العاشر|عاشر';
 const SECTION_RE = new RegExp(`^\\s*(?:(?:السؤال|سؤال)\\s*(?:${ORDINALS}|[0-9٠-٩]{1,2})|س\\s*[0-9٠-٩]{1,2}|(?:الجزء|القسم)\\s*(?:${ORDINALS}|[0-9٠-٩]{1,2}))(?=\\s|[:：\\-.)/]|$)\\s*[:：\\-.)/]?\\s*(.*)$`);
 const KIND_HINTS: [SectionKind, RegExp][] = [
   ['matching', /(?:^|\s)(?:صل|صلي|وصل|وصّل|طابق|طابقي|اربط|اربطي)(?:\s|$)|العمود\s*\(?\s*[أاب]|من\s+العمود|بما\s+يناسبها|بما\s+يناسبه/],
@@ -98,7 +111,10 @@ const KIND_HINTS: [SectionKind, RegExp][] = [
 ];
 const kindOf = (s: string): SectionKind => KIND_HINTS.find(([, re]) => re.test(s))?.[0] || '';
 // سطر تعليمات بلا رقم: يبدأ بفعل أمر ويتكلم عن «ما يلي/الآتية…» أو ينتهي بنقطتين
-const INSTRUCTION_RE = /^\s*(?:أجب|اجب|اختر|اختاري|ضع|ضعي|أكمل|اكمل|املأ|صل|وصل|طابق|اربط|علل|اشرح|عرف|عرّف|وضح|قارن|اذكر|ظلل|choose|answer|fill|match)(?:\s|$)/i;
+const INSTRUCTION_RE = /^\s*(?:أجب|اجب|اختر|اختاري|ضع|ضعي|أكمل|اكمل|املأ|صل|وصل|طابق|اربط|علل|اشرح|عرف|عرّف|وضح|قارن|اذكر|ظلل|اقرأ|اقرا|رتب|صنف|حل|أوجد|اوجد|احسب|choose|answer|fill|match|read|solve)(?:\s|$)/i;
+// عناوين المواد والمسائل: «أولاً: اللغة العربية (25 درجة)»، «المسألة الأولى (…)»
+const ORD_HEAD_RE = new RegExp(`^\\s*(?:(?:أولا|اولا|ثانيا|ثالثا|رابعا|خامسا|سادسا|سابعا|ثامنا|تاسعا|عاشرا)ً?\\s*[:：\\-.)]|(?:المسألة|المسالة|التمرين|النشاط)\\s+(?:${ORDINALS}|[0-9٠-٩]{1,2}))`);
+const ESSAY_HEAD_RE = /^\s*(?:المسألة|المسالة|التمرين)/;
 const instructionLike = (s: string) => INSTRUCTION_RE.test(s) && (/[:：]\s*(?:\(.*\))?\s*$/.test(s) || /فيما\s+يلي|مما\s+يلي|ما\s+يلي|الآتية|الاتية|التالية|الآتي|المناسبة|العبارات|الأسئلة/.test(s));
 
 // أسطر لا تخص الأسئلة: ترويسة الورقة وجدول الدرجات والتوقيعات
@@ -151,6 +167,12 @@ function splitMergedQuestions(line: string, next: number): string[] {
   return out;
 }
 
+/** صور الملف أثناء التحليل (لعرض الخيارات المصوّرة) */
+let fileImages: string[] = [];
+const IMG_SRC = (n: string) => fileImages[Number(n)] || '';
+/** نص خيار قد يحوي علامات صور ← HTML */
+const optHtml = (text: string) => `<p>${esc(text).replace(/\[\[IMG:(\d+)\]\]/g, (_m, n) => (IMG_SRC(n) ? `<img src="${IMG_SRC(n)}" alt="">` : ''))}</p>`;
+
 function toQuestion(d: Draft): { q: QuestionItem; review: boolean; note?: string } {
   let text = clean(d.text.join(' '));
   let marks = d.marks;
@@ -161,9 +183,20 @@ function toQuestion(d: Draft): { q: QuestionItem; review: boolean; note?: string
   }
   const answer = d.answer ? clean(d.answer).replace(CORRECT_RE, '').trim() : '';
   let opts = d.options.map((o) => ({ ...o, text: clean(o.text) }));
+  // خيارات بين قوسين في آخر السؤال: «جمع كتاب هو: (كتب - كتابات - كاتبون)»
+  if (!opts.length && d.kind === 'mcq') {
+    const pm = text.match(/[([]([^()[\]]+?)[)\]]\s*[.؟?]?\s*$/);
+    const parts = pm ? pm[1].split(/\s*[–—\-،,/|]\s*|\s+أو\s+/).map((x) => x.trim()).filter(Boolean) : [];
+    if (pm && parts.length >= 2 && parts.length <= 6) {
+      opts = parts.map((x) => ({ text: x, correct: CORRECT_RE.test(x), emphasis: false }));
+      text = text.slice(0, pm.index).trim();
+    }
+  }
+  const ctx = (d.context || []).map(clean).filter(Boolean);
+  const imgs = (d.images || []).map((src) => `<p><img src="${esc(src)}" alt=""></p>`).join('');
   const mk = (rest: Partial<QuestionItem> & { type: QuestionItem['type'] }, t2 = text): QuestionItem => ({
     uid: `u-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`,
-    question_text: `<p>${esc(t2)}</p>`, explanation: d.explanation ? `<p>${esc(d.explanation)}</p>` : '',
+    question_text: ctx.map((c) => `<p>${esc(c)}</p>`).join('') + `<p>${esc(t2)}</p>` + imgs, explanation: d.explanation ? `<p>${esc(d.explanation)}</p>` : '',
     options: [], correct_option_index: -1, marks: marks || 1, ...rest,
   });
   const tf = (correctTrue: boolean | null, t2 = text) => ({ q: mk({ type: 'true_false', options: ['صح', 'خطأ'], correct_option_index: correctTrue === false ? 1 : 0 }, t2), review: correctTrue === null });
@@ -198,7 +231,7 @@ function toQuestion(d: Draft): { q: QuestionItem; review: boolean; note?: string
       if (emph.length === 1) correct = emph[0];
     }
     opts = opts.slice(0, 6);
-    return { q: mk({ type: 'mcq', options: opts.map((o) => `<p>${esc(o.text)}</p>`), correct_option_index: Math.max(0, Math.min(correct, opts.length - 1)) }), review: correct < 0 };
+    return { q: mk({ type: 'mcq', options: opts.map((o) => optHtml(o.text)), correct_option_index: Math.max(0, Math.min(correct, opts.length - 1)) }), review: correct < 0 };
   }
 
   // صح/خطأ: «( )» في آخر العبارة، أو قسم «ضع علامة ✓ أو ✗»، أو «الإجابة: صح»
@@ -223,7 +256,8 @@ function toQuestion(d: Draft): { q: QuestionItem; review: boolean; note?: string
   return { q, review: false };
 }
 
-export function parseQuestionsText(raw: string): ImportResult {
+export function parseQuestionsText(raw: string, images: string[] = []): ImportResult {
+  fileImages = images;
   // ردود الشات (ChatGPT وغيره) تضيف تنسيق Markdown: **عريض** و### عناوين و- نقاط
   const lines = raw.replace(/\r/g, '').split('\n').map((l) => l.replace(/ /g, ' ').replace(/\*\*(.+?)\*\*/g, '$1').replace(/__(.+?)__/g, '$1').replace(/^\s*#{1,6}\s+/, '').replace(/^\s*[-•]\s+(?=\S)/, '').trimEnd());
   const drafts: Draft[] = [];
@@ -233,7 +267,8 @@ export function parseQuestionsText(raw: string): ImportResult {
   let inKey = false;
   let stopped = false;
   let numbered = 0;
-  type Section = { title: string; kind: SectionKind; bank?: string[] };
+  type Section = { title: string; kind: SectionKind; bank?: string[]; context?: string[]; ctxUsed?: boolean };
+  let pendingImgs: string[] = [];
   let section = null as Section | null;
   let matchQ: Draft | null = null;
 
@@ -247,8 +282,21 @@ export function parseQuestionsText(raw: string): ImportResult {
     const words = m[1].split(/\s*[–—\-،,/|]\s*|\s{2,}/).map((w) => w.trim()).filter(Boolean);
     return words.length >= 2 ? words : undefined;
   };
+  // سؤال جديد يرث نوع قسمه، ونص القطعة/المسألة يُلحق بأول سؤال بعدها، والصور المعلّقة تُلحق به
+  const newDraft = (extra: Partial<Draft>): Draft => {
+    const sct = section as Section | null;
+    const d: Draft = { text: [], options: [], kind: sct?.kind || '', section: sct?.title, bank: sct?.bank, ...extra };
+    if (sct?.context?.length) {
+      d.passage = sct;
+      if (!sct.ctxUsed) { d.context = sct.context; sct.ctxUsed = true; }
+    }
+    if (pendingImgs.length) { d.images = pendingImgs; pendingImgs = []; }
+    return d;
+  };
   const startSection = (title: string, rest: string) => {
     push();
+    // صور قبل أول قسم (شعار المدرسة والوزارة) لا تخص سؤالاً
+    if (pendingImgs.length) { ignored.push(...pendingImgs.map((src) => `[[IMG:${images.indexOf(src)}]]`)); pendingImgs = []; }
     matchQ = null;
     const kind = kindOf(rest || title);
     section = { title: clean(title), kind, bank: kind === 'fill_blank' ? bankOf(rest) : undefined };
@@ -295,6 +343,32 @@ export function parseQuestionsText(raw: string): ImportResult {
     if (sec && (!/^\s*س\s*[0-9٠-٩]/.test(line) || !clean(sec[1]) || instructionLike(sec[1]))) { startSection(line, sec[1]); continue; }
     if (!QUESTION_RE.test(line) && (instructionLike(line) || (kindOf(line) && clean(line).split(' ').length <= 5 && !cur?.options.length && !BLANK_RE.test(line) && /^\s*(?:أسئلة|اسئلة|القسم|الجزء|أجب|اجب|اختر|أكمل|اكمل|صل|وصل|طابق|ضع|صح|علل|املأ)/.test(line)))) { startSection(line, line); continue; }
 
+    // صورة من الملف: تُلحق بالسؤال الحالي، أو بالسؤال التالي إن جاءت بعد عنوان قسم
+    const imgOnly = line.match(/^\s*(?:\[\[IMG:\d+\]\]\s*)+$/);
+    const optWithImg = !imgOnly && cur && OPTION_RE.test(line.replace(IMG_TOKEN_RE, 'صورة'));
+    if (/\[\[IMG:\d+\]\]/.test(line) && !optWithImg) {
+      const srcs = Array.from(line.matchAll(IMG_TOKEN_RE)).map((m) => images[Number(m[1])]).filter(Boolean);
+      const c = cur as Draft | null;
+      line = line.replace(IMG_TOKEN_RE, ' ').trim();
+      // صورة في سطر سؤال جديد تتبعه هو، وإلا تتبع السؤال الحالي
+      if (c && !QUESTION_RE.test(line)) c.images = [...(c.images || []), ...srcs];
+      else pendingImgs.push(...srcs);
+      if (imgOnly || !line) continue;
+    }
+    // رقم الصفحة أو رقم وحيد في سطر
+    if (/^[0-9٠-٩]{1,3}$/.test(line)) { ignored.push(line); continue; }
+    if (ORD_HEAD_RE.test(line)) {
+      startSection(line, line);
+      if (ESSAY_HEAD_RE.test(line) && section) (section as Section).kind = (section as Section).kind || 'essay';
+      continue;
+    }
+    // عنوان قسم فرعي بحرف: «أ) أكمل الفراغات التالية…:»، «ب) صل بين العمود (أ) …:»
+    const subHead = line.match(OPTION_RE);
+    if (subHead && instructionLike(subHead[2]) && !/[؟?]\s*$/.test(subHead[2]) && !(cur && (cur as Draft).options.length === 0 && !(cur as Draft).lettered && letterIndex(subHead[1]) === 0 && !kindOf(subHead[2]))) {
+      startSection(line, subHead[2]);
+      continue;
+    }
+
     const ans = line.match(ANSWER_RE);
     if (ans && cur) {
       cur.answer = ans[1];
@@ -309,6 +383,9 @@ export function parseQuestionsText(raw: string): ImportResult {
     // قسم التوصيل: المرقم عمود أول، والمسبوق بحرف عمود ثانٍ
     if (matchQ) {
       const mq = matchQ as Draft;
+      if (/^\s*العمود\s*\(?\s*[أاب1]/.test(line)) continue;
+      const row = line.match(/^(.+?)\s*[([]\s*[)\]]\s*(?:[أاإبجدهوزحطي]|[a-hA-H])\s*[.)\-/]\s*(.+)$/);
+      if (row) { mq.text.push(row[1].replace(QUESTION_RE, '$2')); mq.right!.push(clean(row[2])); continue; }
       const inl = splitInlineOptions(line);
       const qm = (inl ? inl.head : line).match(QUESTION_RE);
       if (qm) {
@@ -339,6 +416,15 @@ export function parseQuestionsText(raw: string): ImportResult {
       });
       continue;
     }
+    // سؤال مسبوق بحرف: «(أ) استخرج…»، «(ب) علل…» بعد قطعة أو عنوان قسم
+    const lt = line.match(OPTION_RE);
+    const c0 = cur as Draft | null;
+    if (lt && !inline && (!c0 || (c0.lettered && !c0.options.length) || (c0.kind === 'matching'))) {
+      push();
+      cur = newDraft({ lettered: true });
+      (cur as Draft).text.push(lt[2]);
+      continue;
+    }
     const opt = line.match(OPTION_RE);
     if (opt && cur && !inline && (cur.options.length > 0 || letterIndex(opt[1]) === 0)) {
       let text = opt[2];
@@ -358,8 +444,7 @@ export function parseQuestionsText(raw: string): ImportResult {
         if (!pm) continue;
         push();
         numbered = Number(toLatinDigits(pm[1]));
-        const sct = section as Section | null;
-        cur = { text: [], options: [], num: numbered, kind: sct?.kind || '', section: sct?.title, bank: sct?.bank };
+        cur = newDraft({ num: numbered });
         const inl = splitInlineOptions(pm[2]);
         if (inl && inl.head) {
           cur.text.push(inl.head);
@@ -380,6 +465,8 @@ export function parseQuestionsText(raw: string): ImportResult {
         const words = line.replace(/^[([]|[)\]]$/g, '').split(/\s*[–—\-،,/|]\s*|\s{2,}/).map((w) => w.trim()).filter(Boolean);
         if (words.length >= 2 && words.every((w) => w.length <= 25)) { sct.bank = words; continue; }
       }
+      // نص قطعة أو مسألة تحت عنوان القسم: يصبح مقدمة أول سؤال بعده
+      if (sct && clean(line).length >= 15) { sct.context = [...(sct.context || []), line]; sct.ctxUsed = false; continue; }
       ignored.push(line);
     }
   }
@@ -388,21 +475,50 @@ export function parseQuestionsText(raw: string): ImportResult {
   const needsReview: number[] = [];
   const meta: ImportMeta[] = [];
   const questions: QuestionItem[] = [];
-  drafts.forEach((d) => {
-    if (d.kind === 'matching' && d.text.length <= 1) return;
+  for (let i = 0; i < drafts.length; i++) {
+    const d = drafts[i];
+    if (d.kind === 'matching' && d.text.length <= 1) continue;
     const num = d.num ?? questions.length + 1;
     if (!d.answer && !d.options.some((o) => o.correct) && key.has(num)) d.answer = key.get(num);
+    // قطعة أو مسألة يتبعها سؤالان فأكثر: سؤال «قطعة» واحد بأسئلته الفرعية
+    let j = i;
+    while (d.context && j + 1 < drafts.length && drafts[j + 1].passage === d.passage && !drafts[j + 1].context) j++;
+    if (j > i) {
+      const group = drafts.slice(i, j + 1);
+      const subs = group.map((g, k) => toQuestion({ ...g, context: k === 0 ? undefined : g.context }));
+      if (subs.every((x) => ['mcq', 'true_false', 'essay'].includes(x.q.type))) {
+        const passage = (d.context || []).map(clean).filter(Boolean);
+        questions.push({
+          uid: `u-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`,
+          type: 'passage', question_text: passage.map((c) => `<p>${esc(c)}</p>`).join(''), options: [], correct_option_index: -1, explanation: '',
+          marks: subs.reduce((n, x) => n + (x.q.marks || 0), 0),
+          sub_questions: subs.map((x) => ({ question_text: x.q.question_text, type: x.q.type as 'mcq' | 'true_false' | 'essay', options: x.q.options, correct_option_index: x.q.correct_option_index, marks: x.q.marks, explanation: x.q.explanation })),
+        });
+        if (subs.some((x) => x.review)) needsReview.push(questions.length);
+        meta.push({ section: d.section, subReview: subs.map((x) => x.review) });
+        i = j;
+        continue;
+      }
+    }
     const { q, review, note } = toQuestion(d);
     questions.push(q);
     if (review) needsReview.push(questions.length);
     meta.push({ section: d.section, bank: d.bank, note });
-  });
+  }
   return { questions, needsReview, meta, ignored };
 }
 
 /** تحويل HTML من Word (mammoth) إلى أسطر: القوائم المرقّمة تصبح «1.» و«أ)» حتى يفهمها المحلل */
-export function wordHtmlToText(html: string): string {
+export function wordHtmlToText(html: string, images?: string[]): string {
   const doc = new DOMParser().parseFromString(html, 'text/html');
+  // الصور تصبح علامة «[[IMG:n]]» في موضعها
+  doc.querySelectorAll('img').forEach((img) => {
+    const src = img.getAttribute('src') || '';
+    if (images && /^data:image\//.test(src)) {
+      images.push(src);
+      img.replaceWith(doc.createTextNode(` [[IMG:${images.length - 1}]] `));
+    } else img.remove();
+  });
   const out: string[] = [];
   const emphasized = (el: Element) => {
     const text = (el.textContent || '').trim();

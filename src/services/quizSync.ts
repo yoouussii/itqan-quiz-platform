@@ -6,6 +6,7 @@
  * الآن Supabase هو المصدر الرئيسي، و localStorage مجرد نسخة سريعة (كاش).
  */
 import { supabase, isSupabaseConfigured, getSessionToken, isMissingRpc } from './supabase';
+import { externalizeQuestions } from '../utils/quizMedia';
 import { canonSubjectId } from '../utils/subjectAliases';
 import { StorageService, extractMissingColumn } from './storage';
 import {
@@ -181,6 +182,12 @@ export async function pushQuiz(quizId: string): Promise<SyncResult> {
   if (!bundle) return { ok: false, error: 'الاختبار غير موجود محلياً' };
 
   try {
+    // صور الأسئلة تُرفع وتُستبدل بروابط قصيرة، فيبقى الاختبار خفيفاً في التحميل
+    const media = await externalizeQuestions(bundle.questions);
+    if (media.changed) {
+      bundle.questions = media.questions;
+      StorageService.saveQuizBundleFromRemote(bundle.quiz, bundle.questions, bundle.assignments);
+    }
     const res = await upsertRow(
       'quizzes',
       quizToRow(bundle.quiz, bundle.questions, bundle.assignments)
