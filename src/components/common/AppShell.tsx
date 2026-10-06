@@ -73,6 +73,7 @@ const staffGroups = (u: User, pendingApprovals: number, preparationsUrl: string,
   quizzes.push({ id: 'outcomes', label: t('نواتج التعلم'), icon: Target });
   quizzes.push({ id: 'homework', label: t('الواجبات'), icon: NotebookPen });
   if (hasPerm(u, 'can_academic_support')) quizzes.push({ id: 'academic_support', label: t('الدعم الأكاديمي'), icon: HeartHandshake });
+  if (u.role === 'supervisor' || hasPerm(u, 'can_nafes')) quizzes.push({ id: 'nafes', label: t('نافس'), icon: Target });
   quizzes.push({ id: 'remedial', label: t('الخطط العلاجية'), icon: LifeBuoy });
   quizzes.push({ id: 'calendar', label: t('جدول الاختبارات'), icon: CalendarDays });
   quizzes.push({ id: 'analytics', label: u.role === 'teacher' ? t('نتائج طلابي') : t('النتائج والتحليلات'), icon: BarChart2 });

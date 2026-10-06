@@ -11,6 +11,9 @@ import { ImportReview, Row, rowPending } from './ImportReview';
 import { cleanArabicText } from '../../utils/arabicText';
 import { QUESTION_TYPES, QuestionItem } from './QuizEditor';
 import { structurePrompt } from '../../utils/aiPrompt';
+import type { QuizPaper } from '../../types';
+import type { LinePos } from '../../utils/fileText';
+import { paperFromPdf } from './PaperSetup';
 
 const EXAMPLE = `1. ما ناتج 5 + 3؟ (2 درجة)
 أ) 7
@@ -32,7 +35,7 @@ const EXAMPLE = `1. ما ناتج 5 + 3؟ (2 درجة)
 const typeLabel = (type: string) => t(QUESTION_TYPES.find((x) => x.type === type)?.label || '');
 
 
-export const ImportQuestionsModal: React.FC<{ onClose: () => void; onAdd: (qs: QuestionItem[]) => void; mode?: 'file' | 'ai'; subjectName?: string }> = ({ onClose, onAdd, mode = 'file', subjectName = '' }) => {
+export const ImportQuestionsModal: React.FC<{ onClose: () => void; onAdd: (qs: QuestionItem[], extra?: { paper?: QuizPaper | null }) => void; mode?: 'file' | 'ai'; subjectName?: string }> = ({ onClose, onAdd, mode = 'file', subjectName = '' }) => {
   const { showToast } = useApp();
   const [rows, setRows] = useState<Row[] | null>(null);
   const [ignored, setIgnored] = useState<string[]>([]);
@@ -41,6 +44,11 @@ export const ImportQuestionsModal: React.FC<{ onClose: () => void; onAdd: (qs: Q
   const [rawText, setRawText] = useState('');
   const [aiFix, setAiFix] = useState(false);
   const [aiReply, setAiReply] = useState('');
+  // ملف PDF: إرفاقه كورقة أصلية يحل الطالب عليها، ومواضع أسطره لتحديد مكان كل سؤال
+  const [pdfFile, setPdfFile] = useState<File | null>(null);
+  const [positions, setPositions] = useState<LinePos[]>([]);
+  const [attachPaper, setAttachPaper] = useState(true);
+  const [adding, setAdding] = useState(false);
   const [paste, setPaste] = useState('');
   const [busy, setBusy] = useState(false);
   const [showExample, setShowExample] = useState(false);
@@ -72,6 +80,8 @@ export const ImportQuestionsModal: React.FC<{ onClose: () => void; onAdd: (qs: Q
     try {
       const c = await extractFileContent(file);
       setRawText(c.text);
+      setPdfFile(file.name.toLowerCase().endsWith('.pdf') ? file : null);
+      setPositions(c.positions || []);
       parse(c.text, c.images);
     } catch (e: any) {
       const msg = e?.message === 'doc'
@@ -93,6 +103,33 @@ export const ImportQuestionsModal: React.FC<{ onClose: () => void; onAdd: (qs: Q
     showToast(ok ? t('تم نسخ الطلب. الصقه في الشات ثم الصق الرد هنا.') : t('تعذر النسخ'), ok ? 'success' : 'error');
   };
   const counts = rows ? (['mcq', 'true_false', 'fill_blank', 'matching', 'passage', 'essay'] as const).map((ty) => [ty, rows.filter((r) => r.q.type === ty).length] as const).filter(([, n]) => n > 0) : [];
+
+  const doAdd = async () => {
+    if (!rows) return;
+    let qs = rows.map((r) => r.q);
+    let paper: QuizPaper | null = null;
+    if (pdfFile && attachPaper) {
+      setAdding(true);
+      try {
+        paper = await paperFromPdf(pdfFile);
+        // مكان كل سؤال على الورقة من موضع سطره في الملف (بجانب رقمه)
+        // سؤالان في سطر واحد: كلٌّ عند رقمه في عموده
+        const seen = new Map<number, number>();
+        qs = rows.map((r) => {
+          const pos = r.meta.line != null ? positions[r.meta.line] : undefined;
+          if (!pos) return r.q;
+          const k = seen.get(r.meta.line!) || 0;
+          seen.set(r.meta.line!, k + 1);
+          const x = pos.qx?.[k] ?? pos.x;
+          return { ...r.q, pin: { page: pos.page, x: Math.min(0.985, x + 0.025), y: pos.y + 0.008 } };
+        });
+      } catch { showToast(t('تعذر تجهيز الورقة الأصلية، أُضيفت الأسئلة فقط'), 'info'); }
+      setAdding(false);
+    }
+    onAdd(qs, paper ? { paper } : undefined);
+    showToast(t('أُضيف {n} سؤالاً للاختبار', { n: qs.length }), 'success');
+    onClose();
+  };
 
   return createPortal(
     <div className="fixed inset-0 z-50 bg-slate-900/60 flex items-center justify-center p-3 sm:p-6" dir={uiDir()} role="dialog" aria-modal="true" aria-labelledby="imp-q-title">
@@ -220,12 +257,18 @@ export const ImportQuestionsModal: React.FC<{ onClose: () => void; onAdd: (qs: Q
         </div>
 
         <div className="p-4 border-t border-slate-200 dark:border-slate-800 flex flex-wrap justify-end gap-2">
+          {items && pdfFile && (
+            <label className="me-auto inline-flex items-center gap-2 text-xs font-semibold text-slate-700 dark:text-slate-200 cursor-pointer" data-testid="attach-paper">
+              <input type="checkbox" checked={attachPaper} onChange={(e) => setAttachPaper(e.target.checked)} className="w-4 h-4 accent-indigo-600" />
+              {t('أرفق الورقة الأصلية: يحل الطالب على ملفك بشكله نفسه')}
+            </label>
+          )}
           {items && <Button variant="secondary" onClick={() => { setRows(null); setIgnored([]); setImages([]); setRawText(''); setAiReply(''); }}>{t('ملف آخر')}</Button>}
           <Button variant="secondary" onClick={onClose}>{t('إلغاء')}</Button>
           {items && (
-            <Button icon={CheckCircle2} disabled={!items.length || pending > 0} onClick={() => { onAdd(items); showToast(t('أُضيف {n} سؤالاً للاختبار', { n: items.length }), 'success'); onClose(); }}
+            <Button icon={CheckCircle2} disabled={!items.length || pending > 0 || adding} onClick={() => void doAdd()}
               title={pending ? t('حدد الإجابة الصحيحة للأسئلة المعلّمة أولاً') : undefined}>
-              {t('إضافة {n} سؤال للاختبار', { n: items.length })}
+              {adding ? t('جارٍ تجهيز الورقة...') : t('إضافة {n} سؤال للاختبار', { n: items.length })}
             </Button>
           )}
         </div>

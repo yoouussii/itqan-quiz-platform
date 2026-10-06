@@ -44,6 +44,8 @@ export const PERMISSION_DEFS: PermDef[] = [
   { key: 'can_academic_support', label: 'معلم دعم أكاديمي: يضيف الطلاب المحتاجين ويسجل مستواهم وملاحظاته (المشرف يرى الكل)', short: 'الدعم الأكاديمي', group: 'الدعم الأكاديمي' },
   { key: 'can_manage_acs_catalog', label: 'إدارة مواد وفصول الدعم: إنشاء مواد ومجموعات خاصة بالدعم وتعديلها وحذفها', short: 'مواد وفصول الدعم', group: 'الدعم الأكاديمي' },
 
+  { key: 'can_nafes', label: 'معلم نافس: قسم نافس (طلابه ومستوياتهم، والاختبارات التجريبية، وبنك نافس، والتقارير)', short: 'نافس', group: 'نافس' },
+
   { key: 'can_view_class_records', label: 'عرض سجلات المتابعة الصفية وتتبع مستويات الطلاب (من Drive)', short: 'عرض السجلات', group: 'سجلات المتابعة' },
   { key: 'can_manage_class_records', label: 'إدارة سجلات المتابعة: ربط مجلدات Drive ورفع الملفات وحذفها', short: 'إدارة السجلات', group: 'سجلات المتابعة' },
 
@@ -97,6 +99,7 @@ export const PAGE_DEFS: Array<{ id: string; label: string; tracks: Track[] }> = 
   { id: 'class_records', label: 'سجلات المتابعة', tracks: ['school'] },
   { id: 'surveys', label: 'الاستبيانات', tracks: ['school'] },
   { id: 'academic_support', label: 'الدعم الأكاديمي', tracks: ['support'] },
+  { id: 'nafes', label: 'نافس', tracks: ['nafes'] },
   { id: 'portfolio', label: 'ملف الإنجاز', tracks: ['nafes', 'school', 'support'] },
   { id: 'users_management', label: 'المستخدمون', tracks: ['school'] },
   { id: 'subjects_classes', label: 'المواد والفصول', tracks: ['school'] },

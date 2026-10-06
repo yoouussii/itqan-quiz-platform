@@ -10,6 +10,8 @@ import { NewTypeAnswer, NewTypeAnswerInput, hasNewAnswer, isNewType } from '../c
 import { startAttemptRemote, servedQuestionIds } from '../../services/quizSync';
 import { uiDir, t, optionLetters, isEn } from '../../i18n';
 import { questionsCount, marksCount, minutesCount } from '../../i18n/count';
+import { PaperView, PaperPinItem } from '../common/PaperView';
+import { FileText, PenLine } from 'lucide-react';
 
 const subKey = (questionId: string, subId: string) => `${questionId}::${subId}`;
 
@@ -58,6 +60,9 @@ export const QuizTaker: React.FC<QuizTakerProps> = ({ quizId, onFinish, onCancel
     saved ? secondsLeft(saved) : (quiz?.duration_minutes || 20) * 60
   );
   const [showConfirmModal, setShowConfirmModal] = useState(false);
+  // الورقة الأصلية: تبويب الجوال (الورقة/الإجابة)، ونافذة الإجابة على الورقة
+  const [paperTab, setPaperTab] = useState<'paper' | 'answer'>('paper');
+  const [popOpen, setPopOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const startTime = timing?.startedAt ? timing.startedAt - timing.offset : Date.now();
   const submittedRef = useRef(false);
@@ -443,41 +448,37 @@ export const QuizTaker: React.FC<QuizTakerProps> = ({ quizId, onFinish, onCancel
     }
   };
 
-  return (
-    <div className="min-h-screen flex flex-col" dir={uiDir()}>
-      {/* الشريط العلوي: خروج، العنوان، المؤقت، والتقدم */}
-      <header className="sticky top-0 z-30 bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800">
-        <div className="max-w-3xl mx-auto px-4 pt-2.5 pb-3 space-y-2.5">
-          <div className="flex items-center justify-between gap-3">
-            <button type="button" onClick={exitQuiz} aria-label={t('الخروج من الاختبار')} className="w-11 h-11 -ms-2 flex items-center justify-center rounded-xl text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800">
-              <X className="w-6 h-6" />
-            </button>
-            <div className="text-center min-w-0">
-              <div className="font-bold text-[15.5px] text-slate-900 dark:text-white truncate">{quiz.title}</div>
-              <div className="text-[12.5px] text-slate-500 dark:text-slate-400">{t('إجاباتك تُحفظ تلقائياً')}</div>
-            </div>
-            <div
-              role="timer"
-              aria-label={t('الوقت المتبقي')}
-              className={`h-9 px-3 rounded-xl flex items-center gap-1.5 font-bold text-base tabular-nums shrink-0 ${
-                isLowTime ? 'bg-rose-50 text-rose-700 dark:bg-rose-950/60 dark:text-rose-300 animate-pulse' : 'bg-amber-50 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300'
-              }`}
-              dir="ltr"
-            >
-              <Clock className="w-4 h-4" />{formatTimer(secondsRemaining)}
-            </div>
+  const renderAnswer = (q: Question, compactView = false) => (
+    q.type === 'passage' ? (
+          <div className="space-y-4">
+            {(q.sub_questions || []).map((sq, sqIdx) => {
+              const key = subKey(q.id, sq.id);
+              return (
+                <div key={sq.id} className="p-4 rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900">
+                  <div className="flex items-start justify-between gap-3 mb-3">
+                    <div className="flex items-start gap-2 text-base font-bold text-slate-900 dark:text-slate-100">
+                      <span className="text-indigo-700 dark:text-indigo-400">{sqIdx + 1}.</span>
+                      <RichText html={sq.question_text} />
+                    </div>
+                    <span className="shrink-0 text-[13px] font-semibold text-slate-500">{marksLabel(Number(sq.marks) || 0)}</span>
+                  </div>
+                  {sq.type === 'essay' ? renderEssay(key, true) : renderOptions(key, sq.options || [], true, sq.type)}
+                </div>
+              );
+            })}
           </div>
-          <div className="flex items-center gap-2.5">
-            <div className="flex-1 h-1.5 rounded-full bg-slate-100 dark:bg-slate-800">
-              <div className="h-1.5 rounded-full bg-indigo-600 transition-all duration-300" style={{ width: `${((currentQuestionIndex + 1) / questions.length) * 100}%` }} />
-            </div>
-            <span className="text-[13px] font-semibold text-slate-500 dark:text-slate-400 tabular-nums">{t('{a} من {m}', { a: currentQuestionIndex + 1, m: questions.length })}</span>
-          </div>
-        </div>
-      </header>
-
-      <main className="flex-1 w-full max-w-3xl mx-auto px-4 py-6 space-y-5">
-        <div className="flex items-center justify-between gap-3">
+        ) : isNewType(q.type) ? (
+          <NewTypeAnswerInput type={q.type} q={q as any} value={extraAnswers[q.id]} studentView={currentUser?.role === 'student'}
+            onChange={(v) => setExtraAnswers((prev) => ({ ...prev, [q.id]: v }))} />
+        ) : q.type === 'essay' ? (
+          renderEssay(q.id, compactView)
+        ) : (
+          renderOptions(q.id, q.options || [], compactView, q.type)
+        )
+  );
+  const questionPanel = (
+    <>
+      <div className="flex items-center justify-between gap-3">
           <span className="text-sm font-bold text-indigo-700 dark:text-indigo-400">{t('السؤال {n}', { n: currentQuestionIndex + 1 })} · {marksLabel(Number(currentQ.marks) || 0)}</span>
           <button
             type="button"
@@ -496,34 +497,11 @@ export const QuizTaker: React.FC<QuizTakerProps> = ({ quizId, onFinish, onCancel
           <RichText html={currentQ.question_text} />
         </div>
 
-        {currentQ.type === 'passage' ? (
-          <div className="space-y-4">
-            {(currentQ.sub_questions || []).map((sq, sqIdx) => {
-              const key = subKey(currentQ.id, sq.id);
-              return (
-                <div key={sq.id} className="p-4 rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900">
-                  <div className="flex items-start justify-between gap-3 mb-3">
-                    <div className="flex items-start gap-2 text-base font-bold text-slate-900 dark:text-slate-100">
-                      <span className="text-indigo-700 dark:text-indigo-400">{sqIdx + 1}.</span>
-                      <RichText html={sq.question_text} />
-                    </div>
-                    <span className="shrink-0 text-[13px] font-semibold text-slate-500">{marksLabel(Number(sq.marks) || 0)}</span>
-                  </div>
-                  {sq.type === 'essay' ? renderEssay(key, true) : renderOptions(key, sq.options || [], true, sq.type)}
-                </div>
-              );
-            })}
-          </div>
-        ) : isNewType(currentQ.type) ? (
-          <NewTypeAnswerInput type={currentQ.type} q={currentQ as any} value={extraAnswers[currentQ.id]} studentView={currentUser?.role === 'student'}
-            onChange={(v) => setExtraAnswers((prev) => ({ ...prev, [currentQ.id]: v }))} />
-        ) : currentQ.type === 'essay' ? (
-          renderEssay(currentQ.id)
-        ) : (
-          renderOptions(currentQ.id, currentQ.options || [], false, currentQ.type)
-        )}
-
-        {/* خريطة الأسئلة */}
+      {renderAnswer(currentQ)}
+    </>
+  );
+  // خريطة الأسئلة
+  const navMap = (
         <nav aria-label={t('خريطة الأسئلة')} className="pt-3">
           <div className="flex flex-wrap justify-center gap-1.5">
             {questions.map((q, idx) => {
@@ -552,11 +530,103 @@ export const QuizTaker: React.FC<QuizTakerProps> = ({ quizId, onFinish, onCancel
             <span className="inline-flex items-center gap-1.5"><span className="w-3 h-3 rounded bg-slate-200 dark:bg-slate-700" />{t('لم يُجب')}</span>
           </div>
         </nav>
-      </main>
+  );
+  // علامات الأسئلة على الورقة الأصلية
+  const paper = quiz.paper && quiz.paper.pages?.length ? quiz.paper : null;
+  const paperPins: PaperPinItem[] = questions.map((q, idx) => (q.pin ? {
+    idx, pin: q.pin, label: String(idx + 1),
+    state: idx === currentQuestionIndex ? 'current' as const : flaggedQuestions[q.id] ? 'flagged' as const : isQuestionAnswered(q) ? 'answered' as const : 'empty' as const,
+  } : null)).filter(Boolean) as PaperPinItem[];
+
+  return (
+    <div className="min-h-screen flex flex-col" dir={uiDir()}>
+      {/* الشريط العلوي: خروج، العنوان، المؤقت، والتقدم */}
+      <header className="sticky top-0 z-30 bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800">
+        <div className={`${paper ? (paper.mode === 'side' ? 'max-w-7xl' : 'max-w-4xl') : 'max-w-3xl'} mx-auto px-4 pt-2.5 pb-3 space-y-2.5`}>
+          <div className="flex items-center justify-between gap-3">
+            <button type="button" onClick={exitQuiz} aria-label={t('الخروج من الاختبار')} className="w-11 h-11 -ms-2 flex items-center justify-center rounded-xl text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800">
+              <X className="w-6 h-6" />
+            </button>
+            <div className="text-center min-w-0">
+              <div className="font-bold text-[15.5px] text-slate-900 dark:text-white truncate">{quiz.title}</div>
+              <div className="text-[12.5px] text-slate-500 dark:text-slate-400">{t('إجاباتك تُحفظ تلقائياً')}</div>
+            </div>
+            <div
+              role="timer"
+              aria-label={t('الوقت المتبقي')}
+              className={`h-9 px-3 rounded-xl flex items-center gap-1.5 font-bold text-base tabular-nums shrink-0 ${
+                isLowTime ? 'bg-rose-50 text-rose-700 dark:bg-rose-950/60 dark:text-rose-300 animate-pulse' : 'bg-amber-50 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300'
+              }`}
+              dir="ltr"
+            >
+              <Clock className="w-4 h-4" />{formatTimer(secondsRemaining)}
+            </div>
+          </div>
+          <div className="flex items-center gap-2.5">
+            <div className="flex-1 h-1.5 rounded-full bg-slate-100 dark:bg-slate-800">
+              <div className="h-1.5 rounded-full bg-indigo-600 transition-all duration-300" style={{ width: `${((currentQuestionIndex + 1) / questions.length) * 100}%` }} />
+            </div>
+            <span className="text-[13px] font-semibold text-slate-500 dark:text-slate-400 tabular-nums">{t('{a} من {m}', { a: currentQuestionIndex + 1, m: questions.length })}</span>
+          </div>
+        </div>
+      </header>
+
+      {!paper ? (
+        <main className="flex-1 w-full max-w-3xl mx-auto px-4 py-6 space-y-5">
+          {questionPanel}
+          {navMap}
+        </main>
+      ) : paper.mode === 'side' ? (
+        <main className="flex-1 w-full max-w-7xl mx-auto px-3 sm:px-4 py-4">
+          {/* على الجوال: تبويبان للورقة والإجابة */}
+          <div className="lg:hidden grid grid-cols-2 gap-1 p-1 mb-3 rounded-2xl bg-slate-100 dark:bg-slate-800" role="tablist">
+            {([['paper', FileText, t('الورقة')], ['answer', PenLine, t('الإجابة')]] as const).map(([k, Icon, label]) => (
+              <button key={k} type="button" role="tab" aria-selected={paperTab === k} onClick={() => setPaperTab(k)}
+                className={`h-10 rounded-xl text-sm font-bold inline-flex items-center justify-center gap-1.5 ${paperTab === k ? 'bg-white dark:bg-slate-900 text-indigo-700 dark:text-indigo-300 shadow-sm' : 'text-slate-600 dark:text-slate-300'}`}>
+                <Icon className="w-4 h-4" />{label}
+              </button>
+            ))}
+          </div>
+          <div className="grid lg:grid-cols-[minmax(0,1fr)_minmax(360px,440px)] gap-5 items-start">
+            <div className={paperTab === 'paper' ? '' : 'hidden lg:block'} data-testid="paper-side">
+              <PaperView paper={paper} pins={paperPins} focusIdx={currentQuestionIndex} onPin={(i) => { setCurrentQuestionIndex(i); setPaperTab('answer'); }} />
+            </div>
+            <div className={`space-y-5 lg:sticky lg:top-28 lg:max-h-[calc(100vh-8rem)] lg:overflow-y-auto lg:pe-1 ${paperTab === 'answer' ? '' : 'hidden lg:block'}`}>
+              {questionPanel}
+              {navMap}
+            </div>
+          </div>
+        </main>
+      ) : (
+        <main className="flex-1 w-full max-w-4xl mx-auto px-3 sm:px-4 py-4 space-y-5">
+          <p className="text-sm text-slate-600 dark:text-slate-300 bg-indigo-50 dark:bg-indigo-950/40 rounded-xl p-3">{t('اضغط علامة السؤال على الورقة لتجيب عنه في مكانه.')}</p>
+          <PaperView paper={paper} pins={paperPins} focusIdx={currentQuestionIndex}
+            onPin={(i) => { setCurrentQuestionIndex(i); setPopOpen(true); }}
+            popover={popOpen && currentQ.pin ? {
+              idx: currentQuestionIndex,
+              title: <span>{t('السؤال {n}', { n: currentQuestionIndex + 1 })} · {marksLabel(Number(currentQ.marks) || 0)}</span>,
+              content: <div className="space-y-3"><div className="text-sm font-semibold text-slate-800 dark:text-slate-100 leading-relaxed"><RichText html={currentQ.question_text} /></div>{renderAnswer(currentQ, true)}</div>,
+              onClose: () => setPopOpen(false),
+            } : null} />
+          {/* أسئلة بلا مكان على الورقة تظهر كاملة هنا */}
+          {questions.some((q) => !q.pin) && (
+            <div className="space-y-4">
+              {questions.map((q, idx) => (q.pin ? null : (
+                <div key={q.id} className="rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-4 space-y-3" onFocus={() => setCurrentQuestionIndex(idx)}>
+                  <div className="text-sm font-bold text-indigo-700 dark:text-indigo-400">{t('السؤال {n}', { n: idx + 1 })} · {marksLabel(Number(q.marks) || 0)}</div>
+                  <div className="font-semibold text-slate-900 dark:text-white"><RichText html={q.question_text} /></div>
+                  {renderAnswer(q, true)}
+                </div>
+              )))}
+            </div>
+          )}
+          {navMap}
+        </main>
+      )}
 
       {/* أزرار التنقل ثابتة أسفل الشاشة */}
       <footer className="sticky bottom-0 z-30 bg-white dark:bg-slate-900 border-t border-slate-200 dark:border-slate-800">
-        <div className="max-w-3xl mx-auto px-4 pt-3 pb-[max(1rem,env(safe-area-inset-bottom))] flex gap-2.5">
+        <div className={`${paper ? (paper.mode === 'side' ? 'max-w-7xl' : 'max-w-4xl') : 'max-w-3xl'} mx-auto px-4 pt-3 pb-[max(1rem,env(safe-area-inset-bottom))] flex gap-2.5`}>
           <button
             type="button"
             onClick={() => setCurrentQuestionIndex((prev) => Math.max(0, prev - 1))}

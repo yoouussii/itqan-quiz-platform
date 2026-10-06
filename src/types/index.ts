@@ -111,7 +111,24 @@ export interface Quiz {
   questions_per_student?: number | null;
   /** اختبار علاجي فردي: أسئلة محددة لكل طالب (معرّف الطالب ← معرّفات الأسئلة) */
   student_questions?: Record<string, string[]> | null;
+  /** ورقة الاختبار الأصلية (صفحات الملف كصور): يحل الطالب بجانبها أو عليها */
+  paper?: QuizPaper | null;
+  /** اختبار تجريبي بنمط نافس (062): المادة والصف */
+  nafes?: { subject: 'math' | 'science' | 'reading'; grade: '3' | '6' | '9' } | null;
 }
+
+/** ورقة الاختبار الأصلية */
+export interface QuizPaper {
+  /** صور الصفحات: «itqan-media:…» بعد الحفظ، أو data URL قبله */
+  pages: string[];
+  /** نسبة الارتفاع إلى العرض لكل صفحة (لحجز المكان قبل تحميل الصورة) */
+  ratios: number[];
+  /** side: ورقة الإجابة بجانب الورقة • overlay: الإجابة على الورقة نفسها عند علامة كل سؤال */
+  mode: 'side' | 'overlay';
+}
+
+/** مكان السؤال على الورقة (نسب من 0 إلى 1 من عرض الصفحة وارتفاعها) */
+export interface PaperPin { page: number; x: number; y: number }
 
 export type QuestionType = 'mcq' | 'true_false' | 'essay' | 'fill_blank' | 'matching' | 'passage' | 'multi_select' | 'numeric' | 'ordering';
 
@@ -163,6 +180,8 @@ export interface Question {
 
   // الأسئلة الفرعية (خاصة بأسئلة القطعة)
   sub_questions?: SubQuestion[];
+  /** مكانه على ورقة الاختبار الأصلية */
+  pin?: PaperPin;
 
   /** ناتج التعلم أو المهارة التي يقيسها السؤال (أسئلة القطعة الفرعية ترثه) */
   outcome?: string;

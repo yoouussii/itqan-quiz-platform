@@ -22,6 +22,8 @@ export function cleanArabicText(raw: string): string {
   let s = String(raw || '');
   s = s.replace(/[ﹰ-ﹿﱞ-ﱣ]/g, (c) => ISOLATED_MARKS[c] ?? c);
   s = s.normalize('NFKC');
+  // بعض الخطوط تخزّن الحروف بأشكالها الفارسية: ی ← ي، ک ← ك، ھ/ہ/ە ← ه
+  s = s.replace(/[یۍې]/g, 'ي').replace(/ک/g, 'ك').replace(/[ھہەۀ]/g, (c) => (c === 'ۀ' ? 'ة' : 'ه'));
   s = s
     .replace(/[​-‏‪-‮⁦-⁩﻿­]/g, '') // رموز اتجاه ومسافات خفية
     .replace(/ـ/g, '') // التطويل
@@ -95,4 +97,31 @@ export function joinPdfRow(items: PdfItem[], rtl: boolean): string {
     line += s;
   });
   return line;
+}
+
+/**
+ * تقسيم قطع سطر PDF إلى خلايا حسب الفراغات الأفقية الكبيرة (أعمدة الجداول، سؤالان متجاوران،
+ * خيارات بلا حروف في خلايا). الخلايا مرتبة من اليمين لليسار لأن الورقة عربية.
+ */
+export function splitPdfCells(items: PdfItem[], size: number): PdfItem[][] {
+  const sorted = [...items].filter((i) => i.s.trim()).sort((a, b) => b.x + b.w - (a.x + a.w));
+  if (sorted.length < 2) return [items];
+  // فراغ أكبر بوضوح من المسافة بين الكلمات (خلايا الجداول لها هوامش)
+  const gapMin = Math.max(7, size * 0.75);
+  const cells: PdfItem[][] = [[sorted[0]]];
+  let left = sorted[0].x;
+  for (const it of sorted.slice(1)) {
+    const right = it.x + it.w;
+    if (left - right > gapMin) cells.push([it]);
+    else cells[cells.length - 1].push(it);
+    left = Math.min(left, it.x);
+  }
+  // إعادة القطع الفارغة (مسافات) إلى خليتها حسب الموضع
+  if (cells.length === 1) return [items];
+  const spaces = items.filter((i) => !i.s.trim());
+  for (const sp of spaces) {
+    const c = cells.find((cell) => cell.some((i) => sp.x >= i.x - 2 && sp.x <= i.x + i.w + 2));
+    (c || cells[0]).push(sp);
+  }
+  return cells;
 }

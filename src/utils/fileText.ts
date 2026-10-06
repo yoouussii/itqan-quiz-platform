@@ -4,12 +4,14 @@
  * - الصور تُمثَّل في النص بعلامة «[[IMG:n]]» في موضعها، فيلحقها المحلل بسؤالها.
  */
 import { wordHtmlToText } from './questionImport';
-import { cleanArabicText, joinPdfRow, PdfItem } from './arabicText';
+import { cleanArabicText, joinPdfRow, splitPdfCells, PdfItem } from './arabicText';
 import { compressImage } from './quizMedia';
 
 const ARABIC = /[؀-ۿ]/;
 
-export interface FileContent { text: string; images: string[] }
+/** موضع سطر في ملف PDF: الصفحة (من 0)، وطرفه الأيمن وأعلاه كنسب من الصفحة */
+export interface LinePos { page: number; x: number; y: number; /** طرف كل خلية تبدأ برقم سؤال (سؤالان متجاوران في سطر) */ qx?: number[] }
+export interface FileContent { text: string; images: string[]; positions?: LinePos[] }
 
 export async function extractFileText(file: File): Promise<string> {
   return (await extractFileContent(file)).text;
@@ -62,6 +64,7 @@ async function pageFigures(page: any, pdfjs: any, pageBox: Box): Promise<Box[]> 
   const stack: number[][] = [];
   const images: Box[] = [];
   const drawn: Box[] = [];
+  const dots: Box[] = [];
   const straight: Box[] = [];
   for (let i = 0; i < list.fnArray.length; i++) {
     const fn = list.fnArray[i];
@@ -80,7 +83,9 @@ async function pageFigures(page: any, pdfjs: any, pageBox: Box): Promise<Box[]> 
       for (const op of ops) {
         if (op === OPS.rectangle) {
           const [x, y, w, h] = coords.slice(j, j + 4); j += 4;
-          pts.push(apply(ctm, x, y), apply(ctm, x + w, y + h));
+          pts.push(apply(ctm, x, y), apply(ctm, x + w, y), apply(ctm, x, y + h), apply(ctm, x + w, y + h));
+          // مستطيل مائل أو مدوّر (أوجه المجسمات ثلاثية الأبعاد) = رسم
+          if (Math.abs(ctm[1]) > 0.01 * Math.abs(ctm[0] || 1) || Math.abs(ctm[2]) > 0.01 * Math.abs(ctm[3] || 1)) figure = true;
         } else if (op === OPS.moveTo || op === OPS.lineTo) {
           const x = coords[j++], y = coords[j++];
           // خط مائل = رسم (الجداول أفقية ورأسية فقط)
@@ -92,22 +97,37 @@ async function pageFigures(page: any, pdfjs: any, pageBox: Box): Promise<Box[]> 
           figure = true; pts.push(apply(ctm, coords[j], coords[j + 1]), apply(ctm, coords[j + 2], coords[j + 3])); cx = coords[j + 2]; cy = coords[j + 3]; j += 4;
         }
       }
-      if (pts.length) (figure ? drawn : straight).push(boxOf(pts));
+      if (pts.length) {
+        const b = boxOf(pts);
+        // رسم بنقاط صغيرة متجاورة (بعض المحوّلات ترسم الخطوط المائلة نقطةً نقطة)
+        const dot = ops.length === 1 && ops[0] === OPS.rectangle && b.x2 - b.x1 < 3 && b.y2 - b.y1 < 3;
+        (dot ? dots : figure ? drawn : straight).push(b);
+      }
     }
   }
   const pageArea = area(pageBox);
+  const pageW = pageBox.x2 - pageBox.x1, pageH = pageBox.y2 - pageBox.y1;
+  // الإطارات المستديرة حول الأقسام والخطوط المنقطة الطويلة ليست رسوماً
+  const isFrame = (b: Box) => b.x2 - b.x1 > pageW * 0.5 || b.y2 - b.y1 > pageH * 0.5;
+  drawn.splice(0, drawn.length, ...drawn.filter((b) => !isFrame(b)));
   // تجميع الرسوم المتقاربة في شكل واحد، مع الخطوط المستقيمة الواقعة داخله (محاور، أضلاع)
-  const groups: Box[] = [];
-  for (const b of drawn) {
-    let g = b;
-    for (let k = groups.length - 1; k >= 0; k--) if (near(groups[k], g, 14)) { g = union(groups[k], g); groups.splice(k, 1); }
-    groups.push(g);
-  }
+  const cluster = (list: Box[], pad: number) => {
+    const out: Box[] = [];
+    for (const b of list) {
+      let g = b;
+      for (let k = out.length - 1; k >= 0; k--) if (near(out[k], g, pad)) { g = union(out[k], g); out.splice(k, 1); }
+      out.push(g);
+    }
+    return out;
+  };
+  // النقاط: الخطوط المنقطة (فراغات الإكمال والفواصل) تُستبعد، ويبقى ما شكّل رسماً له طول وعرض
+  const dotShapes = cluster(dots, 3).filter((g) => g.x2 - g.x1 >= 20 && g.y2 - g.y1 >= 20);
+  const groups = cluster([...drawn, ...dotShapes], 10);
   const figures = groups.map((g) => {
     let out = g;
-    for (const s of straight) if (near(g, s, 24) && area(s) < area(g) * 3 + 2000) out = union(out, s);
+    for (const s of straight) if (!isFrame(s) && near(g, s, 24) && area(s) < area(g) * 3 + 2000) out = union(out, s);
     return out;
-  });
+  }).filter((b) => !isFrame(b));
   return [...images, ...figures]
     .filter((b) => b.x2 - b.x1 >= 20 && b.y2 - b.y1 >= 20 && area(b) < pageArea * 0.8)
     .reduce<Box[]>((acc, b) => {
@@ -117,7 +137,7 @@ async function pageFigures(page: any, pdfjs: any, pageBox: Box): Promise<Box[]> 
     }, []);
 }
 
-async function pdfContent(file: File): Promise<FileContent> {
+async function loadPdf(file: File): Promise<{ pdfjs: any; doc: any }> {
   // pdf.js يحتاج Promise.withResolvers (غير موجودة في المتصفحات الأقدم)
   const P = Promise as unknown as { withResolvers?: unknown };
   if (!P.withResolvers) {
@@ -132,7 +152,32 @@ async function pdfContent(file: File): Promise<FileContent> {
   const worker = await import('pdfjs-dist/build/pdf.worker.min.mjs?url');
   pdfjs.GlobalWorkerOptions.workerSrc = worker.default;
   const doc = await pdfjs.getDocument({ data: new Uint8Array(await file.arrayBuffer()) }).promise;
+  return { pdfjs, doc };
+}
+
+/** صفحات ملف PDF كصور (لورقة الاختبار التفاعلية) */
+export async function renderPdfPages(file: File, width = 1150): Promise<{ pages: string[]; ratios: number[] }> {
+  const { doc } = await loadPdf(file);
+  const pages: string[] = [], ratios: number[] = [];
+  for (let p = 1; p <= Math.min(doc.numPages, 20); p++) {
+    const page = await doc.getPage(p);
+    const base = page.getViewport({ scale: 1 });
+    const viewport = page.getViewport({ scale: width / base.width });
+    const canvas = document.createElement('canvas');
+    canvas.width = Math.ceil(viewport.width); canvas.height = Math.ceil(viewport.height);
+    const ctx = canvas.getContext('2d')!;
+    ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, canvas.width, canvas.height);
+    await page.render({ canvasContext: ctx, viewport }).promise;
+    pages.push(canvas.toDataURL('image/jpeg', 0.8));
+    ratios.push(+(canvas.height / canvas.width).toFixed(4));
+  }
+  return { pages, ratios };
+}
+
+async function pdfContent(file: File): Promise<FileContent> {
+  const { pdfjs, doc } = await loadPdf(file);
   const out: string[] = [];
+  const positions: LinePos[] = [];
   const images: string[] = [];
   for (let p = 1; p <= doc.numPages; p++) {
     const page = await doc.getPage(p);
@@ -157,6 +202,17 @@ async function pdfContent(file: File): Promise<FileContent> {
       const row = rows.find((r) => r.img === undefined && Math.abs(r.y - y) < Math.max(3, size * 0.45));
       if (row) row.items.push(item);
       else rows.push({ y, items: [item] });
+    }
+    // الأسس والأرقام الصغيرة المرفوعة (2³، سم²) تُلحق بسطرها
+    for (let k = rows.length - 1; k >= 0; k--) {
+      const r = rows[k];
+      if (r.items.length > 3 || !r.items.every((i) => /^[0-9\s]+$/.test(i.s))) continue;
+      const sz = Math.max(...r.items.map((i) => i.size || 10));
+      const host = rows.find((o) => o !== r && o.img === undefined && r.y > o.y && r.y - o.y < sz * 1.3 && o.items.some((i) => (i.size || 10) > sz * 1.2));
+      if (!host) continue;
+      const SUP = '⁰¹²³⁴⁵⁶⁷⁸⁹';
+      host.items.push(...r.items.map((i) => ({ ...i, s: i.s.replace(/[0-9]/g, (d) => SUP[Number(d)]) })));
+      rows.splice(k, 1);
     }
 
     // قص الصور والرسوم من نسخة مرسومة للصفحة
@@ -185,15 +241,30 @@ async function pdfContent(file: File): Promise<FileContent> {
     }
 
     rows.sort((a, b) => b.y - a.y);
+    const pw = vx2 - vx1 || 1, ph = vy2 - vy1 || 1;
     for (const r of rows) {
+      const right = r.items.length ? Math.max(...r.items.map((i) => i.x + i.w)) : vx2 - 40;
+      positions.push({ page: p - 1, x: Math.min(0.97, (right - vx1) / pw), y: Math.max(0, Math.min(1, (vy2 - r.y) / ph - 0.012)) });
       if (r.img !== undefined) { out.push(`[[IMG:${r.img}]]`); continue; }
-      const rtl = r.items.some((i) => ARABIC.test(i.s.normalize('NFKC')));
-      let line = joinPdfRow(r.items, rtl);
-      line = line.normalize('NFKC');
-      // في السطر العربي تُخزَّن الأقواس معكوسة الشكل: «أ)» تصل «أ(»
-      if (rtl) line = line.replace(/[()[\]]/g, (c) => ({ '(': ')', ')': '(', '[': ']', ']': '[' })[c] as string);
-      out.push(line.replace(/\s+/g, ' ').trim());
+      // الخلايا المتباعدة (سؤالان متجاوران، خيارات في خلايا جدول) يفصلها «\t»
+      const size = r.items.find((i) => i.size)?.size || 10;
+      const rowRtl = r.items.some((i) => ARABIC.test(i.s.normalize('NFKC')));
+      const groups = splitPdfCells(r.items, size);
+      const cells = groups.map((cell) => {
+        // خلية رموز فقط (مثل «(» أو «)») في سطر عربي تُعامل كعربية
+        const rtl = cell.some((i) => ARABIC.test(i.s.normalize('NFKC'))) || (rowRtl && !cell.some((i) => /[A-Za-z0-9٠-٩]/.test(i.s)));
+        let line = joinPdfRow(cell, rtl).normalize('NFKC');
+        // في السطر العربي تُخزَّن الأقواس وعلامات التنصيص معكوسة الشكل: «أ)» تصل «أ(»
+        if (rtl) line = line.replace(/[()[\]«»]/g, (c) => ({ '(': ')', ')': '(', '[': ']', ']': '[', '«': '»', '»': '«' })[c] as string);
+        // في السطر العربي يُرتَّب الأس قبل أساسه: «³2» ← «2³»
+        if (rtl) line = line.replace(/([⁰¹²³⁴⁵⁶⁷⁸⁹]+)\s?([0-9]+)/g, '$2$1');
+        return line.replace(/\s+/g, ' ').trim();
+      });
+      // مواضع بدايات الأسئلة داخل السطر (لعلامة كل سؤال على الورقة)
+      const qx = cells.map((c, k) => (/^\s*[0-9٠-٩]{1,3}\s*[.\-)]/.test(c) ? Math.min(0.97, (Math.max(...groups[k].map((i) => i.x + i.w)) - vx1) / pw) : -1)).filter((x) => x >= 0);
+      if (qx.length > 1) positions[positions.length - 1].qx = qx;
+      out.push(cells.filter(Boolean).join('\t'));
     }
   }
-  return { text: cleanArabicText(out.join('\n')), images };
+  return { text: cleanArabicText(out.join('\n')), images, positions };
 }

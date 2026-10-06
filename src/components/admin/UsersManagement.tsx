@@ -274,7 +274,7 @@ export const UsersManagement: React.FC = () => {
     else pagesForTracks([k]).forEach((id) => pages.add(id));
     if (!list.length) pages = new Set();
     // قسم الدعم يمنح صلاحية معلم الدعم تلقائياً
-    return { ...prev, tracks: list, pages: list.length ? [...pages] : undefined, ...(k === 'support' ? { can_academic_support: !had } : {}) };
+    return { ...prev, tracks: list, pages: list.length ? [...pages] : undefined, ...(k === 'support' ? { can_academic_support: !had } : {}), ...(k === 'nafes' ? { can_nafes: !had } : {}) };
   });
   const togglePage = (id: string) => patchPerms((prev) => {
     const pages = new Set(prev.pages || PAGE_DEFS.map((p) => p.id));

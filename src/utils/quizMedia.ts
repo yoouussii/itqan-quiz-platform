@@ -104,7 +104,8 @@ export async function inlineMediaHtml(html: string): Promise<string> {
 // ── الرفع عند الحفظ ──
 let serverReady: boolean | null = null;
 
-async function upload(dataUrl: string): Promise<string | null> {
+/** رفع صورة واحدة ← «itqan-media:…» أو null إن لم يكن الخادم جاهزاً */
+export async function uploadImage(dataUrl: string): Promise<string | null> {
   const known = uploaded.get(dataUrl);
   if (known) return known;
   if (serverReady === false || !isSupabaseConfigured()) return null;
@@ -128,7 +129,7 @@ export async function externalizeHtml(html: string): Promise<string> {
   const srcs = Array.from(new Set(Array.from(html.matchAll(/src="(data:image\/[^"]+)"/g)).map((m) => m[1])));
   let out = html;
   for (const s of srcs) {
-    const ref = await upload(s);
+    const ref = await uploadImage(s);
     if (ref) out = out.split(`src="${s}"`).join(`src="${ref}"`);
   }
   return out;

@@ -25,6 +25,8 @@ export interface BankItem {
   used_count: number;
   created_at: string;
   updated_at: string;
+  /** 'nafes' = بنك نافس (062)، وفارغ = بنك المدرسة */
+  track?: string;
 }
 
 export const DIFFICULTIES: Record<Difficulty, string> = { easy: 'سهل', medium: 'متوسط', hard: 'صعب' };
@@ -64,7 +66,7 @@ const textOf = (q: QuestionItem) =>
 export const questionMarks = (q: QuestionItem) =>
   q.type === 'passage' ? (q.sub_questions || []).reduce((s, x) => s + (Number(x.marks) || 0), 0) : Number(q.marks) || 0;
 
-export function newBankItem(q: QuestionItem, meta: { subject_id: string | null; unit?: string; difficulty?: Difficulty; shared?: boolean; created_by: string }): BankItem {
+export function newBankItem(q: QuestionItem, meta: { subject_id: string | null; unit?: string; difficulty?: Difficulty; shared?: boolean; created_by: string; track?: string }): BankItem {
   const now = new Date().toISOString();
   const question = cleanQuestion(q);
   return {
@@ -82,6 +84,8 @@ export function newBankItem(q: QuestionItem, meta: { subject_id: string | null; 
     used_count: 0,
     created_at: now,
     updated_at: now,
+    // يُرسل فقط لأسئلة نافس، فلا يتعطل الحفظ قبل تشغيل 062
+    ...(meta.track ? { track: meta.track } : {}),
   };
 }
 
