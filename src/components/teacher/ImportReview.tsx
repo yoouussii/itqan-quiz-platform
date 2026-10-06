@@ -60,7 +60,7 @@ export const AutoTextarea: React.FC<{ value: string; onChange: (v: string) => vo
   }, [value]);
   return (
     <textarea ref={ref} value={value} onChange={(e) => onChange(e.target.value)} rows={1} aria-label={label} dir="auto"
-      className={`flex-1 min-w-0 min-h-[36px] px-2 py-1.5 rounded-lg border border-transparent hover:border-slate-200 focus:border-indigo-400 dark:hover:border-slate-700 bg-transparent text-sm leading-relaxed ${weight === 'bold' ? 'font-semibold' : ''} text-slate-900 dark:text-white resize-none overflow-hidden whitespace-pre-wrap`} />
+      className={`flex-1 w-full min-w-0 min-h-[36px] px-2 py-1.5 rounded-lg border border-transparent hover:border-slate-200 focus:border-indigo-400 dark:hover:border-slate-700 bg-transparent text-sm leading-relaxed ${weight === 'bold' ? 'font-semibold' : ''} text-slate-900 dark:text-white resize-none overflow-hidden whitespace-pre-wrap`} />
   );
 };
 

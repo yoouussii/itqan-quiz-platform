@@ -91,6 +91,8 @@ interface Draft {
   lettered?: boolean;
   /** صور السؤال (روابط) */
   images?: string[];
+  /** صور نص القطعة/المسألة */
+  ctxImages?: string[];
   /** القطعة/المسألة التي يتبعها السؤال (لتجميع أسئلتها في سؤال «قطعة») */
   passage?: object;
 }
@@ -109,17 +111,27 @@ const KIND_HINTS: [SectionKind, RegExp][] = [
   ['mcq', /(?:^|\s)(?:اختر|اختاري|اختار|ضع\s+دائرة|ضعي\s+دائرة|ظلل|ظللي)(?:\s|$)|الإجابة\s+الصحيحة\s+(?:مما|من\s+بين|فيما)|اختيار\s+من\s+متعدد|الاختيار\s+من\s+متعدد|choose|circle|multiple\s+choice/i],
   ['essay', /(?:^|\s)(?:أجب|اجب|أجيبي|اجيبي|علل|عللي|اشرح|اشرحي|عرف|عرّف|عرفي|وضح|وضّح|وضحي|قارن|قارني|اذكر|اذكري|بم\s+تفسر|فسر|فسري|اكتب|اكتبي|أجب\s+عن)(?:\s|$)|answer\s+the/i],
 ];
-const kindOf = (s: string): SectionKind => KIND_HINTS.find(([, re]) => re.test(s))?.[0] || '';
+/** بدون تشكيل (للمقارنة بالكلمات المفتاحية: «صِل» = «صل») */
+const bare = (s: string) => s.replace(/[\u064B-\u065F\u0670]/g, '');
+const kindOf = (s: string): SectionKind => {
+  const b = bare(s);
+  // «أكمل … بما يناسبها» إكمال وليس توصيلاً، ما لم يُذكر «صل»
+  if (/(?:^|\s|\))(?:أكمل|اكمل|أكملي|اكملي|املأ)(?:\s|$)/.test(b) && !/(?:^|\s|\))(?:صل|وصل|صلي)(?:\s|$)/.test(b)) return 'fill_blank';
+  return KIND_HINTS.find(([, re]) => re.test(b))?.[0] || '';
+};
 // سطر تعليمات بلا رقم: يبدأ بفعل أمر ويتكلم عن «ما يلي/الآتية…» أو ينتهي بنقطتين
 const INSTRUCTION_RE = /^\s*(?:أجب|اجب|اختر|اختاري|ضع|ضعي|أكمل|اكمل|املأ|صل|وصل|طابق|اربط|علل|اشرح|عرف|عرّف|وضح|قارن|اذكر|ظلل|اقرأ|اقرا|رتب|صنف|حل|أوجد|اوجد|احسب|choose|answer|fill|match|read|solve)(?:\s|$)/i;
 // عناوين المواد والمسائل: «أولاً: اللغة العربية (25 درجة)»، «المسألة الأولى (…)»
 const ORD_HEAD_RE = new RegExp(`^\\s*(?:(?:أولا|اولا|ثانيا|ثالثا|رابعا|خامسا|سادسا|سابعا|ثامنا|تاسعا|عاشرا)ً?\\s*[:：\\-.)]|(?:المسألة|المسالة|التمرين|النشاط)\\s+(?:${ORDINALS}|[0-9٠-٩]{1,2}))`);
 const ESSAY_HEAD_RE = /^\s*(?:المسألة|المسالة|التمرين)/;
-const instructionLike = (s: string) => INSTRUCTION_RE.test(s) && (/[:：]\s*(?:\(.*\))?\s*$/.test(s) || /فيما\s+يلي|مما\s+يلي|ما\s+يلي|الآتية|الاتية|التالية|الآتي|المناسبة|العبارات|الأسئلة/.test(s));
+const instructionLike = (s0: string) => { const s = bare(s0); return INSTRUCTION_RE.test(s) && (/[:：]\s*(?:\(.*\))?\s*$/.test(s) || /فيما\s+يلي|مما\s+يلي|ما\s+يلي|الآتية|الاتية|التالية|الآتي|المناسبة|العبارات|الأسئلة/.test(s)); };
 
 // أسطر لا تخص الأسئلة: ترويسة الورقة وجدول الدرجات والتوقيعات
 const JUNK_LINE_RE = /^\s*(?:المملكة\s+العربية|وزارة\s+التعليم|الإدارة\s+العامة|إدارة\s+(?:التعليم|تعليم)|مكتب\s+التعليم|مدرسة|مدارس|اسم\s+الطالب|اسم\s+الطالبة|الاسم\s*[:：]|الصف\s*[:：]|الفصل\s*[:：]|الشعبة|رقم\s+الجلوس|الزمن|المادة\s*[:：]|التاريخ|الدرجة\s*[:：]|الدرجة\s+النهائية|المصحح|المراجع|المدقق|توقيع|اسم\s+المعلم|معلم\s+المادة|انتهت\s+الأسئلة|مع\s+تمنياتي|مع\s+أطيب|بالتوفيق|وفقكم|وفقك|تمنياتي|المجموع|جدول\s+(?:درجات|الدرجات)|الفصل\s+الدراسي|العام\s+الدراسي|اختبار\s+(?:مادة|نهاية|منتصف|الفترة)|الاختبار\s+(?:النهائي|الشهري)|تابع\s+الأسئلة|انظر\s+خلف|اقلب\s+الورقة|يتبع|بسم\s+الله)/;
 const JUNK_CUT_RE = /\s(?:جدول\s+(?:درجات|الدرجات)|توقيع\s+(?:المعلم|المعلمة|المصحح)|انتهت\s+الأسئلة|مع\s+تمنياتي|اسم\s+الطالب|المجموع\s+الكلي|انظر\s+خلف|اقلب\s+الورقة)[\s\S]*$/;
+const PAGE_FOOTER_RE = /صفحة\s*[0-9٠-٩]+\s*من\s*[0-9٠-٩]+|page\s*\d+\s*of\s*\d+/i;
+// سؤال فرعي بصيغة سؤال (لا خيار): «(أ) علل…»، «(ب) احسب…»، أو ينتهي بعلامة استفهام
+const QUESTION_LIKE_RE = /[؟?]\s*$|^\s*(?:علل|حدد|اذكر|احسب|أوجد|اوجد|ما|ماذا|لماذا|كيف|اشرح|وضح|وضّح|قارن|استخرج|أعرب|اعرب|بين|بيّن|فسر|صف|ارسم|اكتب|استنتج|صنف|رتب|عرف|عرّف|متى|أين|هل|اقترح|ناقش)(?:\s|:|$)/;
 const STOP_RE = /^\s*(?:انتهت\s+الأسئلة|جدول\s+(?:درجات|الدرجات)\s+الاختبار)/;
 
 // صح/خطأ في آخر العبارة: «( )» أو «(✓)» أو «(صح)»
@@ -167,6 +179,14 @@ function splitMergedQuestions(line: string, next: number): string[] {
   return out;
 }
 
+/** أسطر النص المكسورة بعرض الصفحة تُضم في فقرة، والفقرة الجديدة بعد نهاية جملة أو نقطتين أو بند «•» */
+const mergeLines = (lines: string[]) => lines.map(clean).filter(Boolean).reduce<string[]>((acc, l) => {
+  const prev = acc[acc.length - 1];
+  if (prev && !/[.:؟?!»"]$/.test(prev) && !/^[•\-–]/.test(l)) acc[acc.length - 1] = `${prev} ${l}`;
+  else acc.push(l);
+  return acc;
+}, []);
+
 /** صور الملف أثناء التحليل (لعرض الخيارات المصوّرة) */
 let fileImages: string[] = [];
 const IMG_SRC = (n: string) => fileImages[Number(n)] || '';
@@ -192,8 +212,8 @@ function toQuestion(d: Draft): { q: QuestionItem; review: boolean; note?: string
       text = text.slice(0, pm.index).trim();
     }
   }
-  const ctx = (d.context || []).map(clean).filter(Boolean);
-  const imgs = (d.images || []).map((src) => `<p><img src="${esc(src)}" alt=""></p>`).join('');
+  const ctx = mergeLines(d.context || []);
+  const imgs = [...(d.ctxImages || []), ...(d.images || [])].map((src) => `<p><img src="${esc(src)}" alt=""></p>`).join('');
   const mk = (rest: Partial<QuestionItem> & { type: QuestionItem['type'] }, t2 = text): QuestionItem => ({
     uid: `u-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`,
     question_text: ctx.map((c) => `<p>${esc(c)}</p>`).join('') + `<p>${esc(t2)}</p>` + imgs, explanation: d.explanation ? `<p>${esc(d.explanation)}</p>` : '',
@@ -267,8 +287,12 @@ export function parseQuestionsText(raw: string, images: string[] = []): ImportRe
   let inKey = false;
   let stopped = false;
   let numbered = 0;
-  type Section = { title: string; kind: SectionKind; bank?: string[]; context?: string[]; ctxUsed?: boolean };
+  type Section = { title: string; kind: SectionKind; bank?: string[]; context?: string[]; ctxUsed?: boolean; ctxImgs?: string[] };
   let pendingImgs: string[] = [];
+  // أسئلة السطر الأخير التي تنتظر خياراتها (سؤالان متجاوران تحتهما خياراتهما في خلايا)
+  let awaiting: Draft[] = [];
+  // سؤال مرقّم تحوّل إلى نص «قطعة» لأسئلة فرعية بالحروف بعده
+  let activePassage: object | null = null;
   let section = null as Section | null;
   let matchQ: Draft | null = null;
 
@@ -286,15 +310,17 @@ export function parseQuestionsText(raw: string, images: string[] = []): ImportRe
   const newDraft = (extra: Partial<Draft>): Draft => {
     const sct = section as Section | null;
     const d: Draft = { text: [], options: [], kind: sct?.kind || '', section: sct?.title, bank: sct?.bank, ...extra };
-    if (sct?.context?.length) {
+    if (activePassage) d.passage = activePassage;
+    else if (sct?.context?.length) {
       d.passage = sct;
-      if (!sct.ctxUsed) { d.context = sct.context; sct.ctxUsed = true; }
+      if (!sct.ctxUsed) { d.context = sct.context; d.ctxImages = sct.ctxImgs; sct.ctxUsed = true; }
     }
     if (pendingImgs.length) { d.images = pendingImgs; pendingImgs = []; }
     return d;
   };
   const startSection = (title: string, rest: string) => {
     push();
+    awaiting = []; activePassage = null;
     // صور قبل أول قسم (شعار المدرسة والوزارة) لا تخص سؤالاً
     if (pendingImgs.length) { ignored.push(...pendingImgs.map((src) => `[[IMG:${images.indexOf(src)}]]`)); pendingImgs = []; }
     matchQ = null;
@@ -307,7 +333,10 @@ export function parseQuestionsText(raw: string, images: string[] = []): ImportRe
     }
   };
 
-  for (const line0 of lines) {
+  for (const raw0 of lines) {
+    // «\t» يفصل خلايا PDF المتباعدة: تُستخدم لتمييز الخيارات والفراغات، وتُعامل كمسافة فيما عدا ذلك
+    const cells = raw0.split('\t').map((c) => c.trim()).filter(Boolean);
+    const line0 = raw0.replace(/\t+/g, ' ');
     let line = line0.trim();
     if (!line) continue;
     if (stopped) { ignored.push(line); continue; }
@@ -333,6 +362,7 @@ export function parseQuestionsText(raw: string, images: string[] = []): ImportRe
 
     // ترويسة الورقة والتوقيعات وجدول الدرجات لا تُقرأ كأسئلة
     if (STOP_RE.test(line)) { push(); stopped = true; ignored.push(line); continue; }
+    if (PAGE_FOOTER_RE.test(line)) { ignored.push(line); continue; }
     if (JUNK_LINE_RE.test(line) && !QUESTION_RE.test(line)) { ignored.push(line); continue; }
     const cut = line.replace(JUNK_CUT_RE, '');
     if (cut !== line) { ignored.push(line.slice(cut.length).trim()); line = cut.trim(); if (!line) continue; }
@@ -351,7 +381,10 @@ export function parseQuestionsText(raw: string, images: string[] = []): ImportRe
       const c = cur as Draft | null;
       line = line.replace(IMG_TOKEN_RE, ' ').trim();
       // صورة في سطر سؤال جديد تتبعه هو، وإلا تتبع السؤال الحالي
+      const sc = section as Section | null;
       if (c && !QUESTION_RE.test(line)) c.images = [...(c.images || []), ...srcs];
+      // صورة بعد نص قطعة/مسألة وقبل أسئلتها: تتبع النص
+      else if (!c && sc?.context?.length && !sc.ctxUsed) sc.ctxImgs = [...(sc.ctxImgs || []), ...srcs];
       else pendingImgs.push(...srcs);
       if (imgOnly || !line) continue;
     }
@@ -383,7 +416,7 @@ export function parseQuestionsText(raw: string, images: string[] = []): ImportRe
     // قسم التوصيل: المرقم عمود أول، والمسبوق بحرف عمود ثانٍ
     if (matchQ) {
       const mq = matchQ as Draft;
-      if (/^\s*العمود\s*\(?\s*[أاب1]/.test(line)) continue;
+      if (/^\s*العمود\s*\(?\s*[أاب1]/.test(line) || (/\(\s*[أا]\s*\)/.test(line) && /\(\s*ب\s*\)/.test(line) && !/\[/.test(line) && !QUESTION_RE.test(line))) continue;
       const row = line.match(/^(.+?)\s*[([]\s*[)\]]\s*(?:[أاإبجدهوزحطي]|[a-hA-H])\s*[.)\-/]\s*(.+)$/);
       if (row) { mq.text.push(row[1].replace(QUESTION_RE, '$2')); mq.right!.push(clean(row[2])); continue; }
       const inl = splitInlineOptions(line);
@@ -407,6 +440,17 @@ export function parseQuestionsText(raw: string, images: string[] = []): ImportRe
       continue;
     }
 
+    // صف خيارات بلا حروف في خلايا تحت سؤال أو سؤالين متجاورين: تُوزّع بالتساوي
+    if (awaiting.length && cells.length >= 2 && !QUESTION_RE.test(line) && !OPTION_RE.test(line) && awaiting.every((d) => !d.options.length)
+      && (awaiting.length > 1 || awaiting[0].kind === 'mcq') && cells.length % awaiting.length === 0) {
+      const per = cells.length / awaiting.length;
+      if (per >= 2 && per <= 6) {
+        awaiting.forEach((d, k) => cells.slice(k * per, (k + 1) * per).forEach((c) => d.options.push({ text: c.replace(CORRECT_RE, ' '), correct: CORRECT_RE.test(c), emphasis: c.includes(EMPHASIS_MARK) })));
+        awaiting = [];
+        continue;
+      }
+    }
+
     // الخيارات في سطر واحد
     const inline = splitInlineOptions(line);
     if (inline && cur && !inline.head && !QUESTION_RE.test(line)) {
@@ -419,9 +463,18 @@ export function parseQuestionsText(raw: string, images: string[] = []): ImportRe
     // سؤال مسبوق بحرف: «(أ) استخرج…»، «(ب) علل…» بعد قطعة أو عنوان قسم
     const lt = line.match(OPTION_RE);
     const c0 = cur as Draft | null;
-    if (lt && !inline && (!c0 || (c0.lettered && !c0.options.length) || (c0.kind === 'matching'))) {
-      push();
+    // سؤال مرقّم بعده أسئلة بالحروف: يصبح نصه «قطعة» وتصبح أسئلته فرعية
+    const toPassage = !!(lt && c0 && !c0.lettered && !c0.options.length && c0.kind !== 'mcq' && QUESTION_LIKE_RE.test(bare(lt[2])));
+    if (lt && !inline && (!c0 || (c0.lettered && !c0.options.length) || (c0.kind === 'matching') || toPassage)) {
+      let ctx: string[] | undefined, imgs0: string[] | undefined;
+      if (toPassage) {
+        ctx = c0!.text; imgs0 = c0!.images;
+        cur = null;
+        activePassage = {};
+      } else push();
+      awaiting = [];
       cur = newDraft({ lettered: true });
+      if (ctx) { (cur as Draft).context = ctx; if (imgs0?.length) (cur as Draft).images = [...imgs0, ...((cur as Draft).images || [])]; }
       (cur as Draft).text.push(lt[2]);
       continue;
     }
@@ -439,6 +492,8 @@ export function parseQuestionsText(raw: string, images: string[] = []): ImportRe
     if (q && clean(q[2])) {
       // أسئلة ملتصقة في سطر واحد تُفصل، وخيارات السطر نفسه تُلحق بسؤالها
       const parts = splitMergedQuestions(line, Number(toLatinDigits(q[1])) + 1);
+      activePassage = null;
+      awaiting = [];
       for (const part of parts) {
         const pm = part.match(QUESTION_RE);
         if (!pm) continue;
@@ -450,6 +505,12 @@ export function parseQuestionsText(raw: string, images: string[] = []): ImportRe
           cur.text.push(inl.head);
           inl.opts.forEach((o) => (cur as Draft).options.push({ text: o.replace(CORRECT_RE, ' '), correct: CORRECT_RE.test(o), emphasis: o.includes(EMPHASIS_MARK) }));
         } else cur.text.push(pm[2]);
+        awaiting.push(cur as Draft);
+      }
+      // فراغ «أكمل» المرسوم خطاً يظهر فراغاً بين خليتين
+      if (parts.length === 1 && cur && (cur as Draft).kind === 'fill_blank' && cells.length > 1 && !BLANK_RE.test(line)) {
+        const qc = raw0.replace(QUESTION_RE, '$2').split('\t').map((c) => c.trim()).filter(Boolean);
+        (cur as Draft).text = [qc.join(' ........ ')];
       }
       continue;
     }
@@ -466,7 +527,7 @@ export function parseQuestionsText(raw: string, images: string[] = []): ImportRe
         if (words.length >= 2 && words.every((w) => w.length <= 25)) { sct.bank = words; continue; }
       }
       // نص قطعة أو مسألة تحت عنوان القسم: يصبح مقدمة أول سؤال بعده
-      if (sct && clean(line).length >= 15) { sct.context = [...(sct.context || []), line]; sct.ctxUsed = false; continue; }
+      if (sct && (clean(line).length >= 15 || (sct.context?.length && clean(line).length >= 4))) { sct.context = [...(sct.context || []), line]; sct.ctxUsed = false; continue; }
       ignored.push(line);
     }
   }
@@ -485,12 +546,12 @@ export function parseQuestionsText(raw: string, images: string[] = []): ImportRe
     while (d.context && j + 1 < drafts.length && drafts[j + 1].passage === d.passage && !drafts[j + 1].context) j++;
     if (j > i) {
       const group = drafts.slice(i, j + 1);
-      const subs = group.map((g, k) => toQuestion({ ...g, context: k === 0 ? undefined : g.context }));
+      const subs = group.map((g, k) => toQuestion({ ...g, context: k === 0 ? undefined : g.context, ctxImages: k === 0 ? undefined : g.ctxImages }));
       if (subs.every((x) => ['mcq', 'true_false', 'essay'].includes(x.q.type))) {
-        const passage = (d.context || []).map(clean).filter(Boolean);
+        const passage = mergeLines(d.context || []);
         questions.push({
           uid: `u-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`,
-          type: 'passage', question_text: passage.map((c) => `<p>${esc(c)}</p>`).join(''), options: [], correct_option_index: -1, explanation: '',
+          type: 'passage', question_text: passage.map((c) => `<p>${esc(c)}</p>`).join('') + (d.ctxImages || []).map((src) => `<p><img src="${esc(src)}" alt=""></p>`).join(''), options: [], correct_option_index: -1, explanation: '',
           marks: subs.reduce((n, x) => n + (x.q.marks || 0), 0),
           sub_questions: subs.map((x) => ({ question_text: x.q.question_text, type: x.q.type as 'mcq' | 'true_false' | 'essay', options: x.q.options, correct_option_index: x.q.correct_option_index, marks: x.q.marks, explanation: x.q.explanation })),
         });
