@@ -16,7 +16,7 @@ import {
   FileUp,
   Sparkles,
 } from 'lucide-react';
-import { TargetType } from '../../types';
+import { TargetType, PaperPin, QuizPaper } from '../../types';
 import { useApp } from '../../context/AppContext';
 import { StorageService } from '../../services/storage';
 import { RichTextEditor } from '../common/RichTextEditor';
@@ -28,6 +28,7 @@ import { stripHtml } from '../common/RichText';
 import { uiDir, optionLetters, t, isEn } from '../../i18n';
 import { NEW_TYPES, NEW_TYPE_LABELS, NewType, NewTypeEditor, OrderItem, PairItem, initNewType, isNewType, validateNewType } from '../common/QuestionTypes';
 import { questionsCount, marksCount } from '../../i18n/count';
+import { PaperSetup } from './PaperSetup';
 
 export type QuestionType = 'mcq' | 'true_false' | 'essay' | 'passage' | NewType;
 
@@ -61,6 +62,8 @@ export interface QuestionItem {
   tolerance?: number | null;
   items?: OrderItem[];
   pairs?: PairItem[];
+  /** مكانه على ورقة الاختبار الأصلية */
+  pin?: PaperPin;
 }
 
 /** عدد الأسئلة بصيغة عربية صحيحة */
@@ -171,13 +174,19 @@ export const QuizEditor: React.FC = () => {
 
   // Questions State
   const [questions, setQuestions] = useState<QuestionItem[]>(() => [blankQuestion('mcq')]);
+  // ورقة الاختبار الأصلية (يحل الطالب عليها)
+  const [paper, setPaper] = useState<QuizPaper | null>(null);
 
   // بنك الأسئلة
   const [bankOpen, setBankOpen] = useState(false);
   const [importOpen, setImportOpen] = useState<false | 'file' | 'ai'>(false);
   const canUseBank = currentUser?.role === 'admin' || currentUser?.role === 'teacher';
   /** إضافة أسئلة (من البنك) مع استبدال السؤال الفارغ الوحيد إن وُجد */
-  const appendQuestions = (qs: QuestionItem[]) =>
+  const appendQuestions = (qs: QuestionItem[], extra?: { paper?: QuizPaper | null }) => {
+    if (extra?.paper) setPaper(extra.paper);
+    appendList(qs);
+  };
+  const appendList = (qs: QuestionItem[]) =>
     setQuestions((prev) => {
       const onlyBlank = prev.length === 1 && !stripHtml(prev[0].question_text).trim();
       return onlyBlank ? qs : [...prev, ...qs];
@@ -231,6 +240,7 @@ export const QuizEditor: React.FC = () => {
     setShuffleOptions(!!quiz.shuffle_options);
     setRequireFullscreen(!!quiz.require_fullscreen);
     setPerStudent(quiz.questions_per_student || '');
+    setPaper(quiz.paper || null);
     if (asCopy) {
       setStartDate(toLocalInputValue(new Date()));
       setEndDate(defaultEndInput());
@@ -257,6 +267,7 @@ export const QuizEditor: React.FC = () => {
           marks: q.marks,
           explanation: q.explanation || '',
           outcome: q.outcome || '',
+          ...(q.pin ? { pin: { ...q.pin } } : {}),
           ...(isNewType(q.type) ? { correct_indexes: q.correct_indexes ? [...q.correct_indexes] : undefined, accepted_answers: q.accepted_answers ? [...q.accepted_answers] : undefined,
             correct_number: q.correct_number ?? null, tolerance: q.tolerance ?? 0, items: q.items ? q.items.map((x: any) => ({ ...x })) : undefined, pairs: q.pairs ? q.pairs.map((x: any) => ({ ...x })) : undefined } : {}),
           sub_questions: q.sub_questions
@@ -679,10 +690,11 @@ export const QuizEditor: React.FC = () => {
             start_date: inputToIso(startDate),
             end_date: inputToIso(endDate),
             is_active: isActive,
-            shuffle_questions: shuffleQuestions,
             shuffle_options: shuffleOptions,
             require_fullscreen: requireFullscreen,
-            questions_per_student: perStudent && perStudent < questions.length ? Number(perStudent) : null,
+            questions_per_student: !paper && perStudent && perStudent < questions.length ? Number(perStudent) : null,
+            shuffle_questions: paper ? false : shuffleQuestions,
+            paper: paper || null,
           },
           formattedQuestions as any,
           assignments as any
@@ -704,10 +716,11 @@ export const QuizEditor: React.FC = () => {
             start_date: inputToIso(startDate),
             end_date: inputToIso(endDate),
             is_active: isActive,
-            shuffle_questions: shuffleQuestions,
             shuffle_options: shuffleOptions,
             require_fullscreen: requireFullscreen,
-            questions_per_student: perStudent && perStudent < questions.length ? Number(perStudent) : null,
+            questions_per_student: !paper && perStudent && perStudent < questions.length ? Number(perStudent) : null,
+            shuffle_questions: paper ? false : shuffleQuestions,
+            ...(paper ? { paper } : {}),
           },
           formattedQuestions as any,
           assignments as any
@@ -1442,6 +1455,7 @@ export const QuizEditor: React.FC = () => {
               <FileUp className="w-4 h-4" />{t('استيراد من ملف Word أو PDF')}
             </button>
           </div>
+          <PaperSetup paper={paper} setPaper={setPaper} questions={questions} setQuestions={setQuestions} />
           <datalist id="known-outcomes">{knownOutcomes.map((o) => <option key={o} value={o} />)}</datalist>
           {importOpen && <ImportQuestionsModal mode={importOpen} subjectName={subjects.find((s) => s.id === subjectId)?.name || ''} onClose={() => setImportOpen(false)} onAdd={appendQuestions} />}
           {bankOpen && <BankPickerModal subjectId={subjectId} onClose={() => setBankOpen(false)} onAdd={appendQuestions} />}

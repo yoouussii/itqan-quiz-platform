@@ -6,7 +6,7 @@
  * الآن Supabase هو المصدر الرئيسي، و localStorage مجرد نسخة سريعة (كاش).
  */
 import { supabase, isSupabaseConfigured, getSessionToken, isMissingRpc } from './supabase';
-import { externalizeQuestions } from '../utils/quizMedia';
+import { externalizeQuestions, uploadImage } from '../utils/quizMedia';
 import { canonSubjectId } from '../utils/subjectAliases';
 import { StorageService, extractMissingColumn } from './storage';
 import {
@@ -87,6 +87,8 @@ function quizToRow(
     questions_per_student: quiz.questions_per_student || null,
     // يُرسل فقط عند وجوده، فلا يتعطل الحفظ قبل تشغيل 055
     ...(quiz.student_questions ? { student_questions: quiz.student_questions } : {}),
+    // الورقة الأصلية تُرسل عند وجودها فقط (حتى لا يتعطل الحفظ قبل تشغيل 061)، وتُحذف بـ null صراحةً
+    ...(quiz.paper !== undefined ? { paper: quiz.paper } : {}),
     target_type: targetType,
     class_id: targetType === 'class' ? primary?.target_id ?? null : null,
     student_ids:
@@ -168,6 +170,7 @@ function rowToBundle(row: any): {
     require_fullscreen: !!row.require_fullscreen,
     questions_per_student: Number(row.questions_per_student) > 0 ? Number(row.questions_per_student) : null,
     student_questions: row.student_questions && typeof row.student_questions === 'object' ? row.student_questions : null,
+    paper: row.paper && Array.isArray(row.paper.pages) && row.paper.pages.length ? row.paper : null,
   };
 
   return { quiz, questions, assignments };
@@ -184,6 +187,12 @@ export async function pushQuiz(quizId: string): Promise<SyncResult> {
   try {
     // صور الأسئلة تُرفع وتُستبدل بروابط قصيرة، فيبقى الاختبار خفيفاً في التحميل
     const media = await externalizeQuestions(bundle.questions);
+    // صفحات الورقة الأصلية كذلك
+    if (bundle.quiz.paper?.pages?.some((p) => p.startsWith('data:'))) {
+      const pages = await Promise.all(bundle.quiz.paper.pages.map((p) => (p.startsWith('data:') ? uploadImage(p).then((r) => r || p) : p)));
+      bundle.quiz = { ...bundle.quiz, paper: { ...bundle.quiz.paper, pages } };
+      media.changed = true;
+    }
     if (media.changed) {
       bundle.questions = media.questions;
       StorageService.saveQuizBundleFromRemote(bundle.quiz, bundle.questions, bundle.assignments);

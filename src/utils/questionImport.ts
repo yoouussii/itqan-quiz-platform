@@ -68,6 +68,8 @@ export interface ImportMeta {
   note?: string;
   /** لسؤال القطعة: أي الأسئلة الفرعية تحتاج تحديد الإجابة */
   subReview?: boolean[];
+  /** رقم السطر الذي يبدأ عنده السؤال في النص المستخرج (لتحديد مكانه على الورقة) */
+  line?: number;
 }
 
 /** علامة صورة في النص المستخرج: «[[IMG:3]]» تشير إلى الصورة رقم 3 في قائمة صور الملف */
@@ -95,6 +97,8 @@ interface Draft {
   ctxImages?: string[];
   /** القطعة/المسألة التي يتبعها السؤال (لتجميع أسئلتها في سؤال «قطعة») */
   passage?: object;
+  /** سطر بداية السؤال (أو بداية نص القطعة) */
+  line?: number;
 }
 
 const clean = (s: string) => s.replace(new RegExp(EMPHASIS_MARK, 'g'), '').replace(/\s+/g, ' ').trim();
@@ -287,7 +291,7 @@ export function parseQuestionsText(raw: string, images: string[] = []): ImportRe
   let inKey = false;
   let stopped = false;
   let numbered = 0;
-  type Section = { title: string; kind: SectionKind; bank?: string[]; context?: string[]; ctxUsed?: boolean; ctxImgs?: string[] };
+  type Section = { title: string; kind: SectionKind; bank?: string[]; context?: string[]; ctxUsed?: boolean; ctxImgs?: string[]; ctxLine?: number };
   let pendingImgs: string[] = [];
   // أسئلة السطر الأخير التي تنتظر خياراتها (سؤالان متجاوران تحتهما خياراتهما في خلايا)
   let awaiting: Draft[] = [];
@@ -309,11 +313,11 @@ export function parseQuestionsText(raw: string, images: string[] = []): ImportRe
   // سؤال جديد يرث نوع قسمه، ونص القطعة/المسألة يُلحق بأول سؤال بعدها، والصور المعلّقة تُلحق به
   const newDraft = (extra: Partial<Draft>): Draft => {
     const sct = section as Section | null;
-    const d: Draft = { text: [], options: [], kind: sct?.kind || '', section: sct?.title, bank: sct?.bank, ...extra };
+    const d: Draft = { text: [], options: [], kind: sct?.kind || '', section: sct?.title, bank: sct?.bank, line: lineNo, ...extra };
     if (activePassage) d.passage = activePassage;
     else if (sct?.context?.length) {
       d.passage = sct;
-      if (!sct.ctxUsed) { d.context = sct.context; d.ctxImages = sct.ctxImgs; sct.ctxUsed = true; }
+      if (!sct.ctxUsed) { d.context = sct.context; d.ctxImages = sct.ctxImgs; d.line = sct.ctxLine ?? d.line; sct.ctxUsed = true; }
     }
     if (pendingImgs.length) { d.images = pendingImgs; pendingImgs = []; }
     return d;
@@ -328,12 +332,14 @@ export function parseQuestionsText(raw: string, images: string[] = []): ImportRe
     section = { title: clean(title), kind, bank: kind === 'fill_blank' ? bankOf(rest) : undefined };
     numbered = 0;
     if (kind === 'matching') {
-      matchQ = { text: [clean(rest) || 'صل كل عنصر بما يناسبه'], options: [], kind, section: section.title, right: [] };
+      matchQ = { text: [clean(rest) || 'صل كل عنصر بما يناسبه'], options: [], kind, section: section.title, right: [], line: lineNo };
       drafts.push(matchQ);
     }
   };
 
+  let lineNo = -1;
   for (const raw0 of lines) {
+    lineNo++;
     // «\t» يفصل خلايا PDF المتباعدة: تُستخدم لتمييز الخيارات والفراغات، وتُعامل كمسافة فيما عدا ذلك
     const cells = raw0.split('\t').map((c) => c.trim()).filter(Boolean);
     const line0 = raw0.replace(/\t+/g, ' ');
@@ -467,6 +473,7 @@ export function parseQuestionsText(raw: string, images: string[] = []): ImportRe
     const toPassage = !!(lt && c0 && !c0.lettered && !c0.options.length && c0.kind !== 'mcq' && QUESTION_LIKE_RE.test(bare(lt[2])));
     if (lt && !inline && (!c0 || (c0.lettered && !c0.options.length) || (c0.kind === 'matching') || toPassage)) {
       let ctx: string[] | undefined, imgs0: string[] | undefined;
+      const line0 = c0?.line;
       if (toPassage) {
         ctx = c0!.text; imgs0 = c0!.images;
         cur = null;
@@ -474,7 +481,7 @@ export function parseQuestionsText(raw: string, images: string[] = []): ImportRe
       } else push();
       awaiting = [];
       cur = newDraft({ lettered: true });
-      if (ctx) { (cur as Draft).context = ctx; if (imgs0?.length) (cur as Draft).images = [...imgs0, ...((cur as Draft).images || [])]; }
+      if (ctx) { (cur as Draft).context = ctx; (cur as Draft).line = line0; if (imgs0?.length) (cur as Draft).images = [...imgs0, ...((cur as Draft).images || [])]; }
       (cur as Draft).text.push(lt[2]);
       continue;
     }
@@ -527,7 +534,7 @@ export function parseQuestionsText(raw: string, images: string[] = []): ImportRe
         if (words.length >= 2 && words.every((w) => w.length <= 25)) { sct.bank = words; continue; }
       }
       // نص قطعة أو مسألة تحت عنوان القسم: يصبح مقدمة أول سؤال بعده
-      if (sct && (clean(line).length >= 15 || (sct.context?.length && clean(line).length >= 4))) { sct.context = [...(sct.context || []), line]; sct.ctxUsed = false; continue; }
+      if (sct && (clean(line).length >= 15 || (sct.context?.length && clean(line).length >= 4))) { if (!sct.context?.length) sct.ctxLine = lineNo; sct.context = [...(sct.context || []), line]; sct.ctxUsed = false; continue; }
       ignored.push(line);
     }
   }
@@ -556,7 +563,7 @@ export function parseQuestionsText(raw: string, images: string[] = []): ImportRe
           sub_questions: subs.map((x) => ({ question_text: x.q.question_text, type: x.q.type as 'mcq' | 'true_false' | 'essay', options: x.q.options, correct_option_index: x.q.correct_option_index, marks: x.q.marks, explanation: x.q.explanation })),
         });
         if (subs.some((x) => x.review)) needsReview.push(questions.length);
-        meta.push({ section: d.section, subReview: subs.map((x) => x.review) });
+        meta.push({ section: d.section, subReview: subs.map((x) => x.review), line: d.line });
         i = j;
         continue;
       }
@@ -564,7 +571,7 @@ export function parseQuestionsText(raw: string, images: string[] = []): ImportRe
     const { q, review, note } = toQuestion(d);
     questions.push(q);
     if (review) needsReview.push(questions.length);
-    meta.push({ section: d.section, bank: d.bank, note });
+    meta.push({ section: d.section, bank: d.bank, note, line: d.line });
   }
   return { questions, needsReview, meta, ignored };
 }
