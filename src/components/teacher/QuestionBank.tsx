@@ -21,18 +21,21 @@ const typeLabel = (type: string) => t(QUESTION_TYPES.find((x) => x.type === type
 const inputCls = 'h-10 px-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500';
 
 /** تحميل البنك ومزامنته مع الخادم عند الفتح */
-function useBank() {
-  const [items, setItems] = useState<BankItem[]>(loadBankCache);
+/** أسئلة البنك المطلوب: بنك نافس منفصل عن بنك المدرسة */
+const ofTrack = (list: BankItem[], track = '') => list.filter((b) => (b.track || '') === track);
+function useBank(track = '') {
+  const load = () => ofTrack(loadBankCache(), track);
+  const [items, setItems] = useState<BankItem[]>(load);
   const [state, setState] = useState<'loading' | 'ready' | 'error'>('loading');
   const reload = async () => {
     const r = await syncBank();
-    setItems(loadBankCache());
+    setItems(load());
     setState(r.ok ? 'ready' : 'error');
   };
   useEffect(() => {
     void reload();
   }, []);
-  return { items, setItems: () => setItems(loadBankCache()), state, reload };
+  return { items, setItems: () => setItems(load()), state, reload };
 }
 
 interface Filters {
@@ -284,7 +287,7 @@ const MetaModal: React.FC<{ items: BankItem[]; units: string[]; outcomes: string
 };
 
 /** إضافة أسئلة اختبارات موجودة إلى البنك */
-const ImportModal: React.FC<{ existing: BankItem[]; onClose: () => void; onDone: () => void }> = ({ existing, onClose, onDone }) => {
+const ImportModal: React.FC<{ existing: BankItem[]; onClose: () => void; onDone: () => void; track?: string }> = ({ existing, onClose, onDone, track = '' }) => {
   const { quizzes, currentUser, showToast } = useApp();
   const me = currentUser?.id || '';
   const mineOnly = currentUser?.role !== 'admin';
@@ -299,7 +302,7 @@ const ImportModal: React.FC<{ existing: BankItem[]; onClose: () => void; onDone:
       for (const raw of quiz.questions || []) {
         const q = raw as unknown as QuestionItem;
         if ([...existing, ...items].some((b) => sameQuestion(b.question, q))) { skipped++; continue; }
-        items.push(newBankItem({ ...q, options: q.options || [], explanation: q.explanation || '' }, { subject_id: quiz.subject_id || null, created_by: me }));
+        items.push(newBankItem({ ...q, options: q.options || [], explanation: q.explanation || '' }, { subject_id: quiz.subject_id || null, created_by: me, track }));
       }
     }
     const r = await saveBankItems(items);
@@ -338,9 +341,9 @@ const ImportModal: React.FC<{ existing: BankItem[]; onClose: () => void; onDone:
 };
 
 /** صفحة بنك الأسئلة */
-export const QuestionBankPage: React.FC = () => {
+export const QuestionBankPage: React.FC<{ track?: string; embedded?: boolean }> = ({ track = '', embedded = false }) => {
   const { currentUser, showToast, setCurrentView, setEditingQuizId } = useApp();
-  const { items, setItems, state, reload } = useBank();
+  const { items, setItems, state, reload } = useBank(track);
   const me = currentUser?.id || '';
   const canAdd = currentUser?.role === 'admin' || currentUser?.role === 'teacher';
   const [filters, setFilters] = useState<Filters>(() => emptyFilters());
@@ -362,16 +365,16 @@ export const QuestionBankPage: React.FC = () => {
 
   const newQuiz = () => {
     try {
-      sessionStorage.setItem(BANK_TO_EDITOR_KEY, JSON.stringify({ ids: selected, subject_id: selItems[0]?.subject_id || '' }));
+      sessionStorage.setItem(BANK_TO_EDITOR_KEY, JSON.stringify({ ids: selected, subject_id: selItems[0]?.subject_id || '', track }));
     } catch { /* ignore */ }
     setEditingQuizId(null);
     setCurrentView('create_quiz');
   };
 
   return (
-    <div className="max-w-6xl mx-auto py-8 px-4 sm:px-6 space-y-5" dir={uiDir()}>
+    <div className={embedded ? 'space-y-5' : 'max-w-6xl mx-auto py-8 px-4 sm:px-6 space-y-5'} dir={uiDir()}>
       <PageHeader
-        title={<span className="inline-flex items-center gap-2"><Library className="w-7 h-7 text-indigo-600" />{t('بنك الأسئلة')}</span>}
+        title={<span className="inline-flex items-center gap-2"><Library className="w-7 h-7 text-indigo-600" />{track === 'nafes' ? t('بنك أسئلة نافس') : t('بنك الأسئلة')}</span>}
         subtitle={t('{n} سؤال · احفظ أسئلتك مرة واحدة وابنِ منها اختبارات جديدة بضغطة', { n: items.length })}
         actions={canAdd ? <Button variant="secondary" icon={Download} onClick={() => setImporting(true)}>{t('من اختبارات سابقة')}</Button> : undefined}
       />
@@ -407,15 +410,15 @@ export const QuestionBankPage: React.FC = () => {
       )}
 
       {metaFor && <MetaModal items={metaFor} units={units} outcomes={outcomes} onClose={() => setMetaFor(null)} onSaved={() => { setMetaFor(null); setItems(); }} />}
-      {importing && <ImportModal existing={items} onClose={() => setImporting(false)} onDone={() => { setImporting(false); void reload(); }} />}
+      {importing && <ImportModal existing={items} track={track} onClose={() => setImporting(false)} onDone={() => { setImporting(false); void reload(); }} />}
     </div>
   );
 };
 
 /** نافذة «إضافة من بنك الأسئلة» داخل محرر الاختبار */
-export const BankPickerModal: React.FC<{ subjectId: string; onClose: () => void; onAdd: (qs: QuestionItem[]) => void }> = ({ subjectId, onClose, onAdd }) => {
+export const BankPickerModal: React.FC<{ subjectId: string; onClose: () => void; onAdd: (qs: QuestionItem[]) => void; track?: string }> = ({ subjectId, onClose, onAdd, track = '' }) => {
   const { currentUser, showToast } = useApp();
-  const { items, state } = useBank();
+  const { items, state } = useBank(track);
   const [filters, setFilters] = useState<Filters>(() => emptyFilters(subjectId));
   const [selected, setSelected] = useState<string[]>([]);
   const [count, setCount] = useState(5);

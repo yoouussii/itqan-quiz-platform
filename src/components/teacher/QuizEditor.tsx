@@ -29,6 +29,7 @@ import { uiDir, optionLetters, t, isEn } from '../../i18n';
 import { NEW_TYPES, NEW_TYPE_LABELS, NewType, NewTypeEditor, OrderItem, PairItem, initNewType, isNewType, validateNewType } from '../common/QuestionTypes';
 import { questionsCount, marksCount } from '../../i18n/count';
 import { PaperSetup } from './PaperSetup';
+import { NAFES_SUBJECTS, NAFES_GRADES, NAFES_NEW_QUIZ_KEY, NafesSkill, fetchNafesSkills } from '../../services/nafesService';
 
 export type QuestionType = 'mcq' | 'true_false' | 'essay' | 'passage' | NewType;
 
@@ -176,6 +177,15 @@ export const QuizEditor: React.FC = () => {
   const [questions, setQuestions] = useState<QuestionItem[]>(() => [blankQuestion('mcq')]);
   // ورقة الاختبار الأصلية (يحل الطالب عليها)
   const [paper, setPaper] = useState<QuizPaper | null>(null);
+  // اختبار تجريبي بنمط نافس: ناتج تعلم كل سؤال = مهارة نافس
+  const [nafes, setNafes] = useState<{ subject: 'math' | 'science' | 'reading'; grade: '3' | '6' | '9' } | null>(() => {
+    // يُقرأ هنا ويُحذف بعد التركيب (قد يُعاد أول رندر عند تحميل مكوّنات كسولة)
+    try { const v = sessionStorage.getItem(NAFES_NEW_QUIZ_KEY); if (v) return JSON.parse(v); } catch { /* ignore */ }
+    return null;
+  });
+  useEffect(() => { try { sessionStorage.removeItem(NAFES_NEW_QUIZ_KEY); } catch { /* ignore */ } }, []);
+  const [nafesSkills, setNafesSkills] = useState<NafesSkill[]>([]);
+  useEffect(() => { if (nafes && !nafesSkills.length) void fetchNafesSkills().then(setNafesSkills); }, [nafes, nafesSkills.length]);
 
   // بنك الأسئلة
   const [bankOpen, setBankOpen] = useState(false);
@@ -194,7 +204,7 @@ export const QuizEditor: React.FC = () => {
   // «اختبار جديد من المحدد» في صفحة البنك
   useEffect(() => {
     if (editingQuizId) return;
-    let req: { ids: string[]; subject_id?: string } | null = null;
+    let req: { ids: string[]; subject_id?: string; track?: string } | null = null;
     try {
       req = JSON.parse(sessionStorage.getItem(BANK_TO_EDITOR_KEY) || 'null');
       sessionStorage.removeItem(BANK_TO_EDITOR_KEY);
@@ -203,6 +213,7 @@ export const QuizEditor: React.FC = () => {
     const picked = loadBankCache().filter((b) => req!.ids.includes(b.id));
     if (!picked.length) return;
     if (req.subject_id) setSubjectId(req.subject_id);
+    if (req.track === 'nafes' && !nafes) setNafes({ subject: 'math', grade: '6' });
     appendQuestions(picked.map(toQuizQuestion));
     markBankUsed(picked.map((b) => b.id));
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -213,7 +224,7 @@ export const QuizEditor: React.FC = () => {
     const synced = await syncBank();
     if (!synced.ok) return showToast(t('تعذر الوصول لبنك الأسئلة. إذا كانت هذه أول مرة، شغّل تحديث قاعدة البيانات 015.'), 'error');
     if (loadBankCache().some((b) => sameQuestion(b.question, q))) return showToast(t('هذا السؤال موجود في البنك'), 'info');
-    const r = await saveBankItems([newBankItem(q, { subject_id: subjectId || null, created_by: currentUser?.id || '' })]);
+    const r = await saveBankItems([newBankItem(q, { subject_id: subjectId || null, created_by: currentUser?.id || '', track: nafes ? 'nafes' : '' })]);
     showToast(r.ok ? t('حُفظ السؤال في البنك. صنّفه بالوحدة والصعوبة من صفحة «بنك الأسئلة».') : t('تعذر الحفظ: {error}', { error: r.error || '' }), r.ok ? 'success' : 'error');
   };
 
@@ -241,6 +252,7 @@ export const QuizEditor: React.FC = () => {
     setRequireFullscreen(!!quiz.require_fullscreen);
     setPerStudent(quiz.questions_per_student || '');
     setPaper(quiz.paper || null);
+    setNafes(quiz.nafes || null);
     if (asCopy) {
       setStartDate(toLocalInputValue(new Date()));
       setEndDate(defaultEndInput());
@@ -470,6 +482,7 @@ export const QuizEditor: React.FC = () => {
         ...quizzes.filter((qz) => qz.subject_id === subjectId).flatMap((qz) => (qz.questions || []).map((x) => x.outcome || '')),
         ...loadBankCache().filter((b) => b.subject_id === subjectId).map((b) => b.outcome || b.question.outcome || ''),
         ...questions.map((x) => x.outcome || ''),
+        ...(nafes ? nafesSkills.filter((s) => s.subject === nafes.subject && s.grade === nafes.grade).map((s) => s.name) : []),
       ].map((x) => x.trim()).filter(Boolean)
     )
   ).sort();
@@ -695,6 +708,7 @@ export const QuizEditor: React.FC = () => {
             questions_per_student: !paper && perStudent && perStudent < questions.length ? Number(perStudent) : null,
             shuffle_questions: paper ? false : shuffleQuestions,
             paper: paper || null,
+            nafes: nafes || null,
           },
           formattedQuestions as any,
           assignments as any
@@ -721,6 +735,7 @@ export const QuizEditor: React.FC = () => {
             questions_per_student: !paper && perStudent && perStudent < questions.length ? Number(perStudent) : null,
             shuffle_questions: paper ? false : shuffleQuestions,
             ...(paper ? { paper } : {}),
+            ...(nafes ? { nafes } : {}),
           },
           formattedQuestions as any,
           assignments as any
@@ -965,6 +980,26 @@ export const QuizEditor: React.FC = () => {
                 {t('في كل الاختبارات: يُسجَّل عدد مرات خروج الطالب من صفحة الاختبار ومدته، ويظهر لك في النتائج.')}
               </p>
             </fieldset>
+
+            <div className={`md:col-span-2 p-4 rounded-2xl border ${nafes ? 'border-emerald-300 bg-emerald-50/50 dark:border-emerald-800 dark:bg-emerald-950/20' : 'border-slate-200 dark:border-slate-700'} space-y-2.5`} data-testid="nafes-toggle">
+              <label className="flex items-start gap-2.5 cursor-pointer">
+                <input type="checkbox" checked={!!nafes} onChange={(e) => setNafes(e.target.checked ? { subject: 'math', grade: '6' } : null)} className="mt-0.5 w-4 h-4 accent-emerald-600 shrink-0" />
+                <span>
+                  <span className="block text-xs font-bold text-slate-800 dark:text-slate-200">{t('اختبار تجريبي بنمط نافس')}</span>
+                  <span className="block text-[11px] text-slate-500 dark:text-slate-400 leading-relaxed">{t('يظهر في قسم نافس، وتُحلَّل نتائجه بمهارات نافس: اختر لكل سؤال «ناتج التعلم» من قائمة المهارات.')}</span>
+                </span>
+              </label>
+              {nafes && (
+                <div className="flex flex-wrap gap-2 ps-6">
+                  <select value={nafes.subject} onChange={(e) => setNafes({ ...nafes, subject: e.target.value as any })} aria-label={t('مادة نافس')} className="h-9 px-3 text-xs rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white">
+                    {NAFES_SUBJECTS.map((s) => <option key={s.k} value={s.k}>{t(s.label)}</option>)}
+                  </select>
+                  <select value={nafes.grade} onChange={(e) => setNafes({ ...nafes, grade: e.target.value as any })} aria-label={t('صف نافس')} className="h-9 px-3 text-xs rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white">
+                    {NAFES_GRADES.map((g) => <option key={g.k} value={g.k}>{t(g.label)}</option>)}
+                  </select>
+                </div>
+              )}
+            </div>
 
             <div className="md:col-span-2">
               <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5">
@@ -1458,7 +1493,7 @@ export const QuizEditor: React.FC = () => {
           <PaperSetup paper={paper} setPaper={setPaper} questions={questions} setQuestions={setQuestions} />
           <datalist id="known-outcomes">{knownOutcomes.map((o) => <option key={o} value={o} />)}</datalist>
           {importOpen && <ImportQuestionsModal mode={importOpen} subjectName={subjects.find((s) => s.id === subjectId)?.name || ''} onClose={() => setImportOpen(false)} onAdd={appendQuestions} />}
-          {bankOpen && <BankPickerModal subjectId={subjectId} onClose={() => setBankOpen(false)} onAdd={appendQuestions} />}
+          {bankOpen && <BankPickerModal subjectId={subjectId} track={nafes ? 'nafes' : ''} onClose={() => setBankOpen(false)} onAdd={appendQuestions} />}
         </div>
 
         {/* Footer Actions: شريط ثابت أسفل الشاشة */}

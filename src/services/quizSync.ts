@@ -89,6 +89,7 @@ function quizToRow(
     ...(quiz.student_questions ? { student_questions: quiz.student_questions } : {}),
     // الورقة الأصلية تُرسل عند وجودها فقط (حتى لا يتعطل الحفظ قبل تشغيل 061)، وتُحذف بـ null صراحةً
     ...(quiz.paper !== undefined ? { paper: quiz.paper } : {}),
+    ...(quiz.nafes !== undefined ? { nafes: quiz.nafes } : {}),
     target_type: targetType,
     class_id: targetType === 'class' ? primary?.target_id ?? null : null,
     student_ids:
@@ -171,6 +172,7 @@ function rowToBundle(row: any): {
     questions_per_student: Number(row.questions_per_student) > 0 ? Number(row.questions_per_student) : null,
     student_questions: row.student_questions && typeof row.student_questions === 'object' ? row.student_questions : null,
     paper: row.paper && Array.isArray(row.paper.pages) && row.paper.pages.length ? row.paper : null,
+    nafes: row.nafes && row.nafes.subject ? row.nafes : null,
   };
 
   return { quiz, questions, assignments };

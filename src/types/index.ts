@@ -113,6 +113,8 @@ export interface Quiz {
   student_questions?: Record<string, string[]> | null;
   /** ورقة الاختبار الأصلية (صفحات الملف كصور): يحل الطالب بجانبها أو عليها */
   paper?: QuizPaper | null;
+  /** اختبار تجريبي بنمط نافس (062): المادة والصف */
+  nafes?: { subject: 'math' | 'science' | 'reading'; grade: '3' | '6' | '9' } | null;
 }
 
 /** ورقة الاختبار الأصلية */
