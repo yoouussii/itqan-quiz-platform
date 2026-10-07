@@ -54,6 +54,7 @@ export const PERMISSION_DEFS: PermDef[] = [
 
   { key: 'can_view_activity_log', label: 'عرض سجل النشاط', short: 'سجل النشاط', group: 'النظام' },
   { key: 'can_access_preparations', label: 'رابط متابعة تحضير مزن', short: 'تحضير مزن', group: 'النظام' },
+  { key: 'can_access_skills_mastery', label: 'رابط التمكن المهاري', short: 'التمكن المهاري', group: 'النظام' },
 ];
 
 export const PERM_KEYS: string[] = PERMISSION_DEFS.map((d) => d.key);
@@ -105,6 +106,7 @@ export const PAGE_DEFS: Array<{ id: string; label: string; tracks: Track[] }> = 
   { id: 'subjects_classes', label: 'المواد والفصول', tracks: ['school'] },
   { id: 'activity_log', label: 'سجل النشاط', tracks: ['school'] },
   { id: 'preparations', label: 'متابعة تحضير مزن', tracks: ['school'] },
+  { id: 'skills_mastery', label: 'التمكن المهاري', tracks: ['school'] },
 ];
 const PAGE_IDS = new Set(PAGE_DEFS.map((p) => p.id));
 /** صفحات القسم/الأقسام */
@@ -121,7 +123,7 @@ export function pageAllowed(user: User | null | undefined, id: string): boolean 
 /** صلاحيات كان يملكها المعلم دائماً قبل نظام الصلاحيات (حفاظاً على السلوك القديم) */
 export const TEACHER_ALWAYS = new Set(['can_export_reports', 'can_manage_retakes']);
 /** صلاحيات يملكها المشرف افتراضياً */
-const SUPERVISOR_DEFAULT = new Set(['can_access_preparations', 'can_class_visits']);
+const SUPERVISOR_DEFAULT = new Set(['can_access_preparations', 'can_access_skills_mastery', 'can_class_visits']);
 
 export function hasPerm(user: User | null | undefined, key: string): boolean {
   if (!user) return false;

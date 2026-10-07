@@ -1,6 +1,9 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Target, ChevronDown, Download, Sparkles, AlertTriangle, LifeBuoy } from 'lucide-react';
 import { RemedialPlanModal } from '../common/RemedialPlanModal';
+import { RemedialPage } from '../staff/RemedialPage';
+import { RemedialPlan, fetchPlans } from '../../services/remedialService';
+import { pageAllowed } from '../../utils/permissions';
 import { useApp } from '../../context/AppContext';
 import { PageHeader, Card, Chip, StatTile, Button } from '../common/ui';
 import { uiDir, t } from '../../i18n';
@@ -47,10 +50,29 @@ export const SkillsCard: React.FC<{ studentId: string; quizzes: QuizWithDetails[
   );
 };
 
-/** صفحة تحليل نواتج التعلم للطاقم */
-export const OutcomesPage: React.FC = () => {
+/** صفحة نواتج التعلم للطاقم: تحليل إتقان المهارات، والخطط العلاجية المرتبطة بها في القسم نفسه */
+export const OutcomesPage: React.FC<{ initialTab?: 'outcomes' | 'plans' }> = ({ initialTab = 'outcomes' }) => {
   const [planFor, setPlanFor] = useState<null | { s: OutcomeStat; needs: { id: string; p: number }[] }>(null);
   const { currentUser, quizzes, submissions, subjects, classes, users, setCurrentView, setEditingQuizId, showToast } = useApp();
+  // من يرى الخطط العلاجية فقط (قسم الدعم) لا يرى تبويب التحليل
+  const canOutcomes = pageAllowed(currentUser, 'outcomes');
+  const [tab, setTab] = useState<'outcomes' | 'plans'>(canOutcomes ? initialTab : 'plans');
+  useEffect(() => { setTab(canOutcomes ? initialTab : 'plans'); }, [initialTab, canOutcomes]);
+  const [plans, setPlans] = useState<RemedialPlan[] | null>(null);
+  const [planOutcome, setPlanOutcome] = useState('');
+  const reloadPlans = () => void fetchPlans().then((r) => setPlans(r.rows));
+  useEffect(reloadPlans, []);
+  // الخطط الجارية لكل مهارة (مادة:ناتج) ولكل طالب فيها
+  const activeByOutcome = useMemo(() => {
+    const m = new Map<string, Set<string>>();
+    (plans || []).filter((p) => p.status === 'active').forEach((p) => {
+      const k = `${p.subject_id || ''}:${p.outcome}`;
+      m.set(k, (m.get(k) || new Set()).add(p.student_id));
+    });
+    return m;
+  }, [plans]);
+  const activePlans = (plans || []).filter((p) => p.status === 'active').length;
+  const showPlans = (outcome: string) => { setPlanOutcome(outcome); setTab('plans'); };
   const [subjectId, setSubjectId] = useState('');
   const [classId, setClassId] = useState('');
   const [quizId, setQuizId] = useState('');
@@ -101,10 +123,25 @@ export const OutcomesPage: React.FC = () => {
   return (
     <div className="max-w-6xl mx-auto py-8 px-4 sm:px-6 space-y-5" dir={uiDir()}>
       <PageHeader
-        title={<span className="inline-flex items-center gap-2"><Target className="w-7 h-7 text-indigo-600" />{t('نواتج التعلم')}</span>}
-        subtitle={t('مستوى إتقان الطلاب لكل مهارة، من الأسئلة الموسومة بها في الاختبارات')}
-        actions={stats.length ? <Button variant="secondary" icon={Download} onClick={exportCsv}>{t('تصدير CSV')}</Button> : undefined}
+        title={<span className="inline-flex items-center gap-2"><Target className="w-7 h-7 text-indigo-600" />{t('نواتج التعلم والخطط العلاجية')}</span>}
+        subtitle={t('مستوى إتقان الطلاب لكل مهارة، ومنها تُفتح الخطط العلاجية لمن يحتاج وتُتابع في التبويب نفسه')}
+        actions={tab === 'outcomes' && stats.length ? <Button variant="secondary" icon={Download} onClick={exportCsv}>{t('تصدير CSV')}</Button> : undefined}
       />
+
+      {canOutcomes && (
+        <div className="inline-flex p-1 rounded-2xl bg-slate-100 dark:bg-slate-800" role="tablist" aria-label={t('نواتج التعلم والخطط العلاجية')}>
+          {([['outcomes', 'نواتج التعلم', Target, null], ['plans', 'الخطط العلاجية', LifeBuoy, activePlans]] as const).map(([k, l, Icon, n]) => (
+            <button key={k} type="button" role="tab" aria-selected={tab === k} onClick={() => { setTab(k); if (k === 'outcomes') setPlanOutcome(''); }} data-testid={`otab-${k}`}
+              className={`h-10 px-4 rounded-xl text-sm font-bold inline-flex items-center gap-2 transition ${tab === k ? 'bg-white dark:bg-slate-900 shadow-sm text-indigo-700 dark:text-indigo-300' : 'text-slate-600 dark:text-slate-300'}`}>
+              <Icon className="w-4 h-4" />{t(l)}{n ? <span className="min-w-[20px] h-5 px-1.5 rounded-full bg-indigo-600 text-white text-[11px] flex items-center justify-center tabular-nums">{n}</span> : null}
+            </button>
+          ))}
+        </div>
+      )}
+
+      {tab === 'plans' ? (
+        <RemedialPage embedded plans={plans} setPlans={setPlans} outcome={planOutcome} setOutcome={setPlanOutcome} />
+      ) : (<>
 
       <div className="flex flex-wrap gap-2">
         <select aria-label={t('المادة')} value={subjectId} onChange={(e) => { setSubjectId(e.target.value); setQuizId(''); }} className={selectCls}>
@@ -124,7 +161,7 @@ export const OutcomesPage: React.FC = () => {
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
         <StatTile label={t('المهارات المقيسة')} value={stats.length} />
         <StatTile label={t('متوسط الإتقان')} value={`${avg}%`} />
-        <StatTile label={t('مهارات تحتاج علاجاً')} value={weak} hint={t('إتقان أقل من 50%')} />
+        <StatTile label={t('مهارات تحتاج علاجاً')} value={weak} hint={activePlans ? t('{n} خطة علاجية جارية', { n: activePlans }) : t('إتقان أقل من 50%')} />
         <StatTile label={t('أسئلة موسومة بمهارة')} value={`${taggedPct}%`} hint={t('{a} من {m} سؤال', { a: tagged, m: tagged + untagged })} />
       </div>
 
@@ -149,6 +186,8 @@ export const OutcomesPage: React.FC = () => {
             const lvl = masteryLevel(p);
             const isOpen = open === key;
             const needs = Array.from(s.students.entries()).map(([id, m]) => ({ id, p: pct(m) })).filter((x) => x.p < 50).sort((a, b) => a.p - b.p);
+            const inPlan = activeByOutcome.get(`${s.subject_id || ''}:${s.outcome}`) || new Set<string>();
+            const noPlan = needs.filter((n) => !inPlan.has(n.id));
             const byClass = Array.from(s.classes.entries()).map(([id, m]) => ({ id, p: pct(m) })).sort((a, b) => a.p - b.p);
             return (
               <li key={key}>
@@ -160,7 +199,8 @@ export const OutcomesPage: React.FC = () => {
                         <span className="text-xs text-slate-500 dark:text-slate-400 ms-2">{subjectName(s.subject_id)} · {t('{n} سؤال', { n: s.questionIds.size })} · {t('{n} طالب', { n: s.students.size })}</span>
                       </span>
                       <span className="inline-flex items-center gap-2">
-                        {needs.length > 0 && <Chip tone="bad"><AlertTriangle className="w-3 h-3" />{t('{n} يحتاجون علاجاً', { n: needs.length })}</Chip>}
+                        {inPlan.size > 0 && <Chip tone="info"><LifeBuoy className="w-3 h-3" />{t('{n} في خطة علاجية', { n: inPlan.size })}</Chip>}
+                        {noPlan.length > 0 && <Chip tone="bad"><AlertTriangle className="w-3 h-3" />{t('{n} يحتاجون علاجاً', { n: noPlan.length })}</Chip>}
                         <Chip tone={lvl}>{t(MASTERY_LABEL[lvl])}</Chip>
                         <span className="font-extrabold text-lg tabular-nums w-14 text-end">{p}%</span>
                         <ChevronDown className={`w-4 h-4 text-slate-400 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
@@ -186,15 +226,14 @@ export const OutcomesPage: React.FC = () => {
                           <p className="text-xs text-emerald-700 dark:text-emerald-400 font-semibold">{t('لا أحد، كل الطلاب فوق 50% في هذه المهارة.')}</p>
                         ) : (
                           <ul className="flex flex-wrap gap-1.5">
-                            {needs.map((n) => <li key={n.id}><Chip tone="bad">{userName(n.id)} · {n.p}%</Chip></li>)}
+                            {needs.map((n) => <li key={n.id}><Chip tone={inPlan.has(n.id) ? 'info' : 'bad'}>{inPlan.has(n.id) && <LifeBuoy className="w-3 h-3" aria-label={t('في خطة علاجية')} />}{userName(n.id)} · {n.p}%</Chip></li>)}
                           </ul>
                         )}
-                        {canCreate && (
-                          <div className="flex flex-wrap gap-2 mt-2">
-                            {needs.length > 0 && <Button size="sm" icon={LifeBuoy} onClick={() => setPlanFor({ s, needs })}>{t('خطة علاجية للطلاب ({n})', { n: needs.length })}</Button>}
-                            <Button size="sm" variant="secondary" icon={Sparkles} onClick={() => void remedial(s)}>{t('اختبار علاجي من بنك الأسئلة')}</Button>
-                          </div>
-                        )}
+                        <div className="flex flex-wrap gap-2 mt-2">
+                          {canCreate && noPlan.length > 0 && <Button size="sm" icon={LifeBuoy} onClick={() => setPlanFor({ s, needs: noPlan })}>{t('خطة علاجية للطلاب ({n})', { n: noPlan.length })}</Button>}
+                          {(plans || []).some((p) => p.outcome === s.outcome) && <Button size="sm" variant="secondary" icon={LifeBuoy} onClick={() => showPlans(s.outcome)}>{t('عرض خطط هذه المهارة')}</Button>}
+                          {canCreate && <Button size="sm" variant="secondary" icon={Sparkles} onClick={() => void remedial(s)}>{t('اختبار علاجي من بنك الأسئلة')}</Button>}
+                        </div>
                       </div>
                     </div>
                   )}
@@ -204,9 +243,10 @@ export const OutcomesPage: React.FC = () => {
           })}
         </ul>
       )}
+      </>)}
       {planFor && (
         <RemedialPlanModal outcome={planFor.s.outcome} subjectId={planFor.s.subject_id || null} subjectName={subjectName(planFor.s.subject_id)}
-          students={planFor.needs.map((n) => ({ id: n.id, name: userName(n.id), p: n.p }))} onClose={() => setPlanFor(null)} />
+          students={planFor.needs.map((n) => ({ id: n.id, name: userName(n.id), p: n.p }))} onClose={() => setPlanFor(null)} onCreated={reloadPlans} />
       )}
     </div>
   );

@@ -13,15 +13,27 @@ const esc = (v: unknown) => String(v ?? '').replace(/&/g, '&amp;').replace(/</g,
 const fmt = (d?: string | null) => (d ? new Date(d.length <= 10 ? `${d}T12:00:00` : d).toLocaleDateString(dateLocale(), { day: 'numeric', month: 'short', year: 'numeric' }) : '—');
 const STATUS: Record<PlanStatus, { l: string; tone: 'info' | 'ok' | 'muted' }> = { active: { l: 'جارية', tone: 'info' }, done: { l: 'تحقق الهدف', tone: 'ok' }, cancelled: { l: 'ملغاة', tone: 'muted' } };
 
-/** الخطط العلاجية: متابعة خطط الطلاب في المهارات الضعيفة */
-export const RemedialPage: React.FC = () => {
+/** الخطط العلاجية: متابعة خطط الطلاب في المهارات الضعيفة.
+ *  تُعرض داخل «نواتج التعلم» (embedded) وتأخذ الخطط والتصفية بالمهارة من الصفحة الأم. */
+export const RemedialPage: React.FC<{
+  embedded?: boolean;
+  plans?: RemedialPlan[] | null;
+  setPlans?: React.Dispatch<React.SetStateAction<RemedialPlan[] | null>>;
+  outcome?: string;
+  setOutcome?: (o: string) => void;
+}> = ({ embedded, plans: extPlans, setPlans: extSetPlans, outcome: extOutcome, setOutcome: extSetOutcome }) => {
   const { currentUser, users, classes, subjects, quizzes, submissions } = useApp();
   const me = currentUser!;
-  const [plans, setPlans] = useState<RemedialPlan[] | null>(null);
+  const [ownPlans, setOwnPlans] = useState<RemedialPlan[] | null>(null);
+  const plans = extSetPlans ? extPlans ?? null : ownPlans;
+  const setPlans = extSetPlans || setOwnPlans;
+  const [ownOutcome, setOwnOutcome] = useState('');
+  const outcome = extSetOutcome ? extOutcome || '' : ownOutcome;
+  const setOutcome = extSetOutcome || setOwnOutcome;
   const [status, setStatus] = useState<PlanStatus | ''>('active');
   const [mineOnly, setMineOnly] = useState(me.role === 'teacher');
   const [open, setOpen] = useState<RemedialPlan | null>(null);
-  useEffect(() => { void fetchPlans().then((r) => setPlans(r.rows)); }, []);
+  useEffect(() => { if (!extSetPlans) void fetchPlans().then((r) => setOwnPlans(r.rows)); }, [extSetPlans]);
 
   const userOf = (id: string) => (users as User[]).find((u) => u.id === id);
   const subjectOf = (id: string | null) => subjects.find((s) => s.id === id)?.name || '';
@@ -32,8 +44,9 @@ export const RemedialPage: React.FC = () => {
     return m;
   }, [plans, quizzes, submissions]);
 
-  const list = (plans || []).filter((p) => (!status || p.status === status) && (!mineOnly || p.teacher_id === me.id));
-  const all = plans || [];
+  const outcomes = useMemo(() => Array.from(new Set((plans || []).map((p) => p.outcome))).sort((a, b) => a.localeCompare(b, 'ar')), [plans]);
+  const list = (plans || []).filter((p) => (!status || p.status === status) && (!mineOnly || p.teacher_id === me.id) && (!outcome || p.outcome === outcome));
+  const all = (plans || []).filter((p) => !outcome || p.outcome === outcome);
   const kpi = {
     active: all.filter((p) => p.status === 'active').length,
     done: all.filter((p) => p.status === 'done').length,
@@ -43,9 +56,9 @@ export const RemedialPage: React.FC = () => {
   const replace = (p: RemedialPlan) => { setPlans((ps) => (ps || []).map((x) => (x.id === p.id ? p : x))); setOpen(p); };
 
   return (
-    <div className="max-w-6xl mx-auto py-6 sm:py-8 px-4 sm:px-6 space-y-5" dir={uiDir()}>
-      <PageHeader title={<span className="inline-flex items-center gap-2"><LifeBuoy className="w-7 h-7 text-indigo-600" />{t('الخطط العلاجية')}</span>}
-        subtitle={t('خطط للطلاب الذين يحتاجون علاجاً في مهارة، مع متابعة تقدمهم تلقائياً من نتائج الاختبارات. تُفتح من صفحة «نواتج التعلم».')} />
+    <div className={embedded ? 'space-y-5' : 'max-w-6xl mx-auto py-6 sm:py-8 px-4 sm:px-6 space-y-5'} dir={uiDir()}>
+      {!embedded && <PageHeader title={<span className="inline-flex items-center gap-2"><LifeBuoy className="w-7 h-7 text-indigo-600" />{t('الخطط العلاجية')}</span>}
+        subtitle={t('خطط للطلاب الذين يحتاجون علاجاً في مهارة، مع متابعة تقدمهم تلقائياً من نتائج الاختبارات. تُفتح من صفحة «نواتج التعلم».')} />}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
         {([['خطط جارية', kpi.active], ['بلغوا الهدف (جارية)', kpi.reached], ['تجاوزت موعد المتابعة', kpi.overdue], ['خطط مكتملة', kpi.done]] as const).map(([l, v]) => (
           <Card key={l} className="p-4"><div className="text-xs font-semibold text-slate-500">{t(l)}</div><div className="text-3xl font-extrabold tabular-nums text-slate-900 dark:text-white">{v}</div></Card>
@@ -56,6 +69,12 @@ export const RemedialPage: React.FC = () => {
           {([['active', 'جارية'], ['done', 'مكتملة'], ['cancelled', 'ملغاة'], ['', 'الكل']] as const).map(([k, l]) => (
             <button key={k || 'all'} type="button" onClick={() => setStatus(k)} className={`h-9 px-3 rounded-xl text-sm font-bold ${status === k ? 'bg-indigo-600 text-white' : 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200'}`}>{t(l)}</button>
           ))}
+          {outcomes.length > 0 && (
+            <select aria-label={t('ناتج التعلم')} value={outcome} onChange={(e) => setOutcome(e.target.value)} className="h-9 max-w-[260px] px-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm" data-testid="plan-outcome">
+              <option value="">{t('كل نواتج التعلم')}</option>
+              {outcomes.map((o) => <option key={o} value={o}>{o}</option>)}
+            </select>
+          )}
           {me.role !== 'parent' && <label className="ms-auto flex items-center gap-2 text-sm text-slate-700 dark:text-slate-200"><input type="checkbox" checked={mineOnly} onChange={(e) => setMineOnly(e.target.checked)} />{t('خططي فقط')}</label>}
         </div>
         {plans === null ? <ListSkeleton /> : list.length === 0 ? (

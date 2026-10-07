@@ -5,8 +5,18 @@ import { safe } from './remote';
 // الزيارات الصفية
 // ---------------------------------------------------------------------
 export interface VisitItem { title: string; max: number; score?: number }
+/** نوع الزيارة (063): مدير المدرسة، الوكيل، المشرف التعليمي (من مكتب التعليم)، زيارة تبادلية بين المعلمين، أخرى */
+export type VisitType = 'principal' | 'vice' | 'supervisor' | 'peer' | 'other';
+export const VISIT_TYPES: Array<{ k: VisitType; label: string }> = [
+  { k: 'principal', label: 'زيارة مدير المدرسة' },
+  { k: 'vice', label: 'زيارة الوكيل' },
+  { k: 'supervisor', label: 'زيارة المشرف التعليمي' },
+  { k: 'peer', label: 'زيارة تبادلية' },
+  { k: 'other', label: 'أخرى' },
+];
+export const visitTypeLabel = (k?: string | null) => VISIT_TYPES.find((v) => v.k === k)?.label || VISIT_TYPES[0].label;
 export interface ClassVisit {
-  id: string; teacher_id: string; visitor_id: string; visitor_name: string; day: string;
+  id: string; teacher_id: string; visitor_id: string; visitor_name: string; day: string; visit_type?: VisitType;
   class_id: string | null; subject_id: string | null; lesson: string; items: VisitItem[];
   strengths: string; recommendations: string; teacher_ack_at: string | null; teacher_note: string; created_at: string;
 }
@@ -35,7 +45,12 @@ export async function fetchVisits(): Promise<{ ok: boolean; rows: ClassVisit[] }
   return { ok: r.ok, rows: r.data || [] };
 }
 export async function addVisit(v: Omit<ClassVisit, 'id' | 'created_at' | 'teacher_ack_at' | 'teacher_note'>) {
-  const r = await safe<ClassVisit[]>(() => supabase.from('class_visits').insert(v).select('*') as any);
+  let r = await safe<ClassVisit[]>(() => supabase.from('class_visits').insert(v).select('*') as any);
+  // قبل تشغيل 063 لا يوجد عمود نوع الزيارة: نحفظ بدونه
+  if (!r.ok && v.visit_type && /visit_type/.test(String(r.error || ''))) {
+    const { visit_type: _t, ...rest } = v;
+    r = await safe<ClassVisit[]>(() => supabase.from('class_visits').insert(rest).select('*') as any);
+  }
   return r.data?.[0] || null;
 }
 export async function deleteVisit(id: string) {

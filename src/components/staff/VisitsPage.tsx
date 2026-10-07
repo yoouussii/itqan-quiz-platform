@@ -3,7 +3,7 @@ import { Eye, Plus, X, FileDown, Trash2, CheckCircle2, Save, ListChecks } from '
 import { useApp } from '../../context/AppContext';
 import { PageHeader, Card, Button, Chip, ListSkeleton } from '../common/ui';
 import { hasPerm } from '../../utils/permissions';
-import { ClassVisit, VisitItem, ackVisit, addVisit, deleteVisit, fetchVisitConfig, fetchVisits, saveVisitConfig, visitTotals } from '../../services/visitsSurveysService';
+import { ClassVisit, VisitItem, VisitType, VISIT_TYPES, visitTypeLabel, ackVisit, addVisit, deleteVisit, fetchVisitConfig, fetchVisits, saveVisitConfig, visitTotals } from '../../services/visitsSurveysService';
 import { exportElementToPdf } from '../../utils/exportPdf';
 import { uiDir, t, dateLocale } from '../../i18n';
 import type { User } from '../../types';
@@ -14,6 +14,8 @@ const fmtDay = (d: string) => new Date(`${d}T12:00:00`).toLocaleDateString(dateL
 const tone = (p: number) => (p >= 85 ? 'ok' : p >= 70 ? 'info' : p >= 55 ? 'warn' : 'bad') as 'ok' | 'info' | 'warn' | 'bad';
 const rating = (p: number) => (p >= 90 ? 'ممتاز' : p >= 80 ? 'جيد جداً' : p >= 65 ? 'جيد' : p >= 50 ? 'مقبول' : 'يحتاج إلى تحسين');
 const today = () => new Date().toISOString().slice(0, 10);
+const TYPE_TONE: Record<VisitType, 'info' | 'ok' | 'warn' | 'bad' | 'muted'> = { principal: 'info', vice: 'ok', supervisor: 'warn', peer: 'muted', other: 'muted' };
+const typeOf = (v: ClassVisit): VisitType => v.visit_type || 'principal';
 
 /** الزيارات الصفية: المشرف/المدير يقيّم حصص المعلمين، والمعلم يطّلع على زياراته */
 export const VisitsPage: React.FC = () => {
@@ -25,6 +27,7 @@ export const VisitsPage: React.FC = () => {
   const [visits, setVisits] = useState<ClassVisit[] | null>(null);
   const [items, setItems] = useState<VisitItem[]>([]);
   const [teacherFilter, setTeacherFilter] = useState('');
+  const [typeFilter, setTypeFilter] = useState<VisitType | ''>('');
   const [open, setOpen] = useState<ClassVisit | null>(null);
   const [form, setForm] = useState(false);
 
@@ -36,18 +39,21 @@ export const VisitsPage: React.FC = () => {
   const classOf = (id: string | null) => classes.find((c) => c.id === id)?.name || '';
   const subjectOf = (id: string | null) => subjects.find((s) => s.id === id)?.name || '';
 
-  const list = (visits || []).filter((v) => (canVisit || isAdmin ? !teacherFilter || v.teacher_id === teacherFilter : v.teacher_id === me.id));
+  const ofType = (visits || []).filter((v) => !typeFilter || typeOf(v) === typeFilter);
+  const list = ofType.filter((v) => (canVisit || isAdmin ? !teacherFilter || v.teacher_id === teacherFilter : v.teacher_id === me.id));
+  const typeCount = (k: VisitType) => (visits || []).filter((v) => typeOf(v) === k && (canVisit || isAdmin || v.teacher_id === me.id)).length;
   const byTeacher = useMemo(() => {
     const m = new Map<string, ClassVisit[]>();
-    (visits || []).forEach((v) => m.set(v.teacher_id, [...(m.get(v.teacher_id) || []), v]));
+    ofType.forEach((v) => m.set(v.teacher_id, [...(m.get(v.teacher_id) || []), v]));
     return [...m.entries()].map(([id, vs]) => ({ id, n: vs.length, avg: vs.reduce((a, v) => a + visitTotals(v).pct, 0) / vs.length, last: vs[0].day, pending: vs.filter((v) => !v.teacher_ack_at).length }))
       .sort((a, b) => nameOf(a.id).localeCompare(nameOf(b.id), 'ar'));
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [visits, users]);
+  }, [visits, users, typeFilter]);
 
   const exportVisitPdf = async (v: ClassVisit) => {
     const tt = visitTotals(v);
     const body = `<table class="pdf-table" style="margin-bottom:14px"><tbody>
+        <tr><th>${esc(t('نوع الزيارة'))}</th><td>${esc(t(visitTypeLabel(typeOf(v))))}</td><th>${esc(t('الزائر'))}</th><td>${esc(v.visitor_name)}</td></tr>
         <tr><th>${esc(t('المعلم'))}</th><td>${esc(nameOf(v.teacher_id))}</td><th>${esc(t('التاريخ'))}</th><td>${esc(fmtDay(v.day))}</td></tr>
         <tr><th>${esc(t('الفصل'))}</th><td>${esc(classOf(v.class_id))}</td><th>${esc(t('المادة'))}</th><td>${esc(subjectOf(v.subject_id))}</td></tr>
         <tr><th>${esc(t('عنوان الدرس'))}</th><td colspan="3">${esc(v.lesson)}</td></tr></tbody></table>
@@ -58,7 +64,7 @@ export const VisitsPage: React.FC = () => {
       <h3 style="margin:16px 0 6px">${esc(t('التوصيات'))}</h3><p style="white-space:pre-wrap">${esc(v.recommendations || '—')}</p>
       ${v.teacher_note ? `<h3 style="margin:16px 0 6px">${esc(t('ملاحظة المعلم'))}</h3><p style="white-space:pre-wrap">${esc(v.teacher_note)}</p>` : ''}
       <div style="display:flex;justify-content:space-between;margin-top:40px;font-size:12px"><span>${esc(t('الزائر'))}: ${esc(v.visitor_name)}</span><span>${esc(t('المعلم'))}: ${esc(nameOf(v.teacher_id))} ${v.teacher_ack_at ? `(${esc(t('اطّلع'))})` : '....................'}</span><span>${esc(t('مدير المدرسة'))}: ....................</span></div>`;
-    await exportElementToPdf({ bodyHtml: body, orientation: 'portrait', title: t('نموذج زيارة صفية'), subtitle: nameOf(v.teacher_id) });
+    await exportElementToPdf({ bodyHtml: body, orientation: 'portrait', title: t('نموذج زيارة صفية'), subtitle: `${t(visitTypeLabel(typeOf(v)))} · ${nameOf(v.teacher_id)}` });
   };
 
   return (
@@ -77,6 +83,15 @@ export const VisitsPage: React.FC = () => {
 
       {tab === 'items' && isAdmin ? <ItemsEditor items={items} onSaved={setItems} /> : (
         <>
+          {/* أنواع الزيارات: مدير المدرسة، الوكيل، المشرف التعليمي… */}
+          <div className="flex flex-wrap gap-1.5" role="group" aria-label={t('نوع الزيارة')}>
+            {([['', 'كل الزيارات', (visits || []).filter((v) => canVisit || isAdmin || v.teacher_id === me.id).length] as [VisitType | '', string, number], ...VISIT_TYPES.map((x) => [x.k, x.label, typeCount(x.k)] as [VisitType | '', string, number])]).map(([k, l, n]) => (
+              <button key={k || 'all'} type="button" aria-pressed={typeFilter === k} onClick={() => setTypeFilter(k)}
+                className={`h-9 px-3 rounded-xl text-sm font-bold inline-flex items-center gap-1.5 ${typeFilter === k ? 'bg-indigo-600 text-white' : 'bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200'}`}>
+                {t(l)}<span className={`text-xs tabular-nums ${typeFilter === k ? 'text-indigo-100' : 'text-slate-400'}`}>{n}</span>
+              </button>
+            ))}
+          </div>
           {(canVisit || isAdmin) && byTeacher.length > 0 && (
             <Card className="p-0 overflow-hidden">
               <div className="px-5 pt-4 pb-2 font-bold text-slate-900 dark:text-white">{t('ملخص المعلمين')}</div>
@@ -120,6 +135,7 @@ export const VisitsPage: React.FC = () => {
                     <div className="font-semibold text-slate-900 dark:text-white">{canVisit || isAdmin ? nameOf(v.teacher_id) : v.lesson || subjectOf(v.subject_id)}</div>
                     <div className="text-xs text-slate-500">{[fmtDay(v.day), classOf(v.class_id), subjectOf(v.subject_id), v.lesson, t('الزائر: {n}', { n: v.visitor_name })].filter(Boolean).join(' · ')}</div>
                   </div>
+                  <Chip tone={TYPE_TONE[typeOf(v)]}>{t(visitTypeLabel(typeOf(v)))}</Chip>
                   <Chip tone={tone(tt.pct)}>{tt.pct}% · {t(rating(tt.pct))}</Chip>
                   {v.teacher_ack_at ? <span className="text-xs font-semibold text-emerald-600 inline-flex items-center gap-1"><CheckCircle2 className="w-4 h-4" />{t('اطّلع')}</span> : <span className="text-xs font-semibold text-amber-600">{t('بانتظار الاطلاع')}</span>}
                 </button>
@@ -144,6 +160,8 @@ export const VisitsPage: React.FC = () => {
 const VisitForm: React.FC<{ items: VisitItem[]; teachers: User[]; onClose: () => void; onSaved: (v: ClassVisit) => void }> = ({ items, teachers, onClose, onSaved }) => {
   const { currentUser, classes, subjects, showToast } = useApp();
   const [teacherId, setTeacherId] = useState('');
+  const [vType, setVType] = useState<VisitType>(() => (currentUser?.role === 'admin' ? 'principal' : currentUser?.role === 'supervisor' ? 'vice' : 'peer'));
+  const [visitor, setVisitor] = useState(currentUser?.name || '');
   const [classId, setClassId] = useState('');
   const [subjectId, setSubjectId] = useState('');
   const [day, setDay] = useState(today());
@@ -161,9 +179,10 @@ const VisitForm: React.FC<{ items: VisitItem[]; teachers: User[]; onClose: () =>
   const save = async () => {
     if (!teacherId) return showToast(t('اختر المعلم'), 'error');
     if (!filled) return showToast(t('قيّم جميع البنود'), 'error');
+    if (!visitor.trim()) return showToast(t('اكتب اسم الزائر'), 'error');
     setBusy(true);
     const v = await addVisit({
-      teacher_id: teacherId, visitor_id: currentUser!.id, visitor_name: currentUser!.name, day, class_id: classId || null, subject_id: subjectId || null,
+      teacher_id: teacherId, visitor_id: currentUser!.id, visitor_name: visitor.trim().slice(0, 120), visit_type: vType, day, class_id: classId || null, subject_id: subjectId || null,
       lesson: lesson.trim(), items: items.map((it, i) => ({ ...it, score: scores[i] })), strengths: strengths.trim(), recommendations: recs.trim(),
     });
     setBusy(false);
@@ -179,7 +198,20 @@ const VisitForm: React.FC<{ items: VisitItem[]; teachers: User[]; onClose: () =>
           <button type="button" aria-label={t('إغلاق')} onClick={onClose} className="w-9 h-9 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 flex items-center justify-center"><X className="w-5 h-5" /></button>
         </div>
         <div className="flex-1 overflow-y-auto p-5 space-y-4">
+          <div>
+            <div className="text-sm text-slate-600 dark:text-slate-300 mb-1.5">{t('نوع الزيارة')}</div>
+            <div className="flex flex-wrap gap-2" role="radiogroup" aria-label={t('نوع الزيارة')}>
+              {VISIT_TYPES.map((x) => (
+                <button key={x.k} type="button" role="radio" aria-checked={vType === x.k}
+                  onClick={() => { setVType(x.k); if (x.k === 'supervisor' && visitor === currentUser?.name) setVisitor(''); if (x.k !== 'supervisor' && !visitor) setVisitor(currentUser?.name || ''); }}
+                  className={`h-9 px-3 rounded-xl text-sm font-bold border ${vType === x.k ? 'border-indigo-600 bg-indigo-600 text-white' : 'border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 hover:border-indigo-300'}`}>{t(x.label)}</button>
+              ))}
+            </div>
+          </div>
           <div className="grid sm:grid-cols-2 gap-3">
+            <label className="text-sm text-slate-600 dark:text-slate-300 space-y-1 block sm:col-span-2">{vType === 'supervisor' ? t('اسم المشرف التعليمي') : t('اسم الزائر')}
+              <input value={visitor} onChange={(e) => setVisitor(e.target.value)} maxLength={120} placeholder={vType === 'supervisor' ? t('مثال: أ. محمد — مشرف الرياضيات') : ''} className={inp} />
+            </label>
             <label className="text-sm text-slate-600 dark:text-slate-300 space-y-1 block">{t('المعلم')}
               <select value={teacherId} onChange={(e) => setTeacherId(e.target.value)} className={inp}><option value="">{t('اختر المعلم')}</option>{teachers.map((u) => <option key={u.id} value={u.id}>{u.name}</option>)}</select>
             </label>
@@ -241,6 +273,7 @@ const VisitDetail: React.FC<{ v: ClassVisit; teacherName: string; className: str
           <div className="flex-1">
             <h2 className="font-bold text-lg text-slate-900 dark:text-white">{teacherName}</h2>
             <p className="text-sm text-slate-500">{[fmtDay(v.day), className, subjectName, v.lesson].filter(Boolean).join(' · ')}</p>
+            <div className="mt-1"><Chip tone={TYPE_TONE[typeOf(v)]}>{t(visitTypeLabel(typeOf(v)))}</Chip></div>
           </div>
           <Button size="sm" variant="secondary" icon={FileDown} onClick={onPdf}>{t('PDF')}</Button>
           <button type="button" aria-label={t('إغلاق')} onClick={onClose} className="w-9 h-9 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 flex items-center justify-center"><X className="w-5 h-5" /></button>

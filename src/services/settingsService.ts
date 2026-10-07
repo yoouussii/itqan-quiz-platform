@@ -6,6 +6,8 @@ export const DEFAULT_PREPARATIONS_URL = 'https://www.tinyurl.com/moznedu1';
 export interface AppSettings {
   require_quiz_approval: boolean;
   preparations_url: string;
+  /** رابط منصة «التمكن المهاري» (مثل رابط مزن): يظهر في القائمة لمن يملك الصلاحية إن ضُبط */
+  skills_url: string;
   /** هوية المدرسة: الاسم والشعار (data:image/png) ولون الواجهة (معرّف من BRAND_PRESETS) */
   school_name: string;
   school_logo: string;
@@ -47,6 +49,7 @@ export interface AppSettings {
 export const DEFAULT_SETTINGS: AppSettings = {
   require_quiz_approval: true,
   preparations_url: DEFAULT_PREPARATIONS_URL,
+  skills_url: '',
   school_name: '',
   school_logo: '',
   brand_color: 'indigo',
