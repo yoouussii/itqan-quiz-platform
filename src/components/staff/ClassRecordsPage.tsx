@@ -3,7 +3,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { FolderSync, ClipboardList, TrendingUp, Upload, Copy, KeyRound, X, FileDown, Trash2, Search, RefreshCw, Users, CheckCircle2, AlertTriangle, LayoutDashboard, History } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 import { PageHeader, Card, Button, Chip, timeAgo } from '../common/ui';
-import { RecordChange, RecordKind, RecordSheet, RecordsConfig, deleteRecordFile, fetchRecordChanges, setRecordTools, fetchRecordSheets, fetchRecordsConfig, folderIdFrom, importRecordFile, setupRecords } from '../../services/classRecordsService';
+import { RecordChange, RecordKind, RecordSheet, RecordsConfig, deleteRecordFile, fetchRecordChanges, setRecordTools, fetchRecordSheets, fetchRecordsConfig, folderIdFrom, importRecordFile, requestRecordsSync, setRecordsInterval, setupRecords } from '../../services/classRecordsService';
 import { FollowSheet, LevelSheet, ToolMode, classLabel, lastOf, meanOf, parseLevels, recordMeta, recordsAppsScript, trimGrid } from '../../utils/classRecords';
 import { ChangesTimeline, Freshness, RecItem, RecordsDashboard, VBarChart, buildItems, dayKey, fmtDay, fmtFull, sheetShort } from './ClassRecordsDashboard';
 import { supabaseUrl, supabaseAnonKey } from '../../services/supabase';
@@ -31,6 +31,41 @@ export const ClassRecordsPage: React.FC = () => {
   // لا نُفرغ البيانات عند التحديث كي لا يُعاد تركيب التبويب (ويضيع كود الربط الظاهر)
   const load = () => { void fetchRecordSheets().then((r) => setRows(r.rows)); void fetchRecordChanges().then(setChanges); void fetchRecordsConfig().then(setCfg); };
   useEffect(load, []);
+  // كود Drive يعمل كل دقيقة؟ (064: آخر اتصال منه خلال 3 دقائق)
+  const live = !!cfg?.last_poll && Date.now() - new Date(cfg.last_poll).getTime() < 3 * 60 * 1000;
+  const driveLinked = !!cfg?.has_token && (cfg?.folders?.length || 0) > 0;
+  // أثناء فتح الصفحة: نتحقق كل دقيقة، ونعيد التحميل إن وصلت مزامنة جديدة
+  const lastSyncRef = useRef<string | null>(null);
+  useEffect(() => { lastSyncRef.current = cfg?.last_sync || null; }, [cfg?.last_sync]);
+  useEffect(() => {
+    const id = window.setInterval(() => {
+      if (document.hidden) return;
+      void fetchRecordsConfig().then((c) => {
+        if (!c) return;
+        if (c.last_sync && c.last_sync !== lastSyncRef.current) load(); else setCfg(c);
+      });
+    }, 60 * 1000);
+    return () => window.clearInterval(id);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  // «تحديث الآن»: يطلب من كود Drive فحص المجلدات فوراً، وننتظر انتهاء الفحص ثم نعيد التحميل
+  const [syncing, setSyncing] = useState(false);
+  const refresh = async () => {
+    load();
+    if (!driveLinked || syncing) return;
+    const r = await requestRecordsSync();
+    if (!r.ok || !r.at) return;
+    setSyncing(true);
+    const asked = new Date(r.at).getTime();
+    for (let i = 0; i < 36; i++) {
+      await new Promise((res) => setTimeout(res, 5000));
+      const c = await fetchRecordsConfig();
+      if (c?.last_scan && new Date(c.last_scan).getTime() >= asked - 1000) {
+        setSyncing(false); load(); showToast(t('تمت المزامنة مع Drive'), 'success'); return;
+      }
+    }
+    setSyncing(false); load();
+    showToast(t('لم يكتمل فحص Drive بعد. إن تكرر ذلك أنشئ كود ربط جديداً من «الربط والاستيراد» وشغّل setup.'), 'info');
+  };
   const { items, tools } = useMemo(() => buildItems(rows || [], (cfg?.tools || {}) as Record<string, ToolMode>), [rows, cfg?.tools]);
   const setTool = async (key: string, mode: 'auto' | ToolMode) => {
     const next = { ...(cfg?.tools || {}) } as Record<string, ToolMode>;
@@ -45,8 +80,11 @@ export const ClassRecordsPage: React.FC = () => {
     <div className="max-w-7xl mx-auto py-6 sm:py-8 px-4 sm:px-6 space-y-5" dir={uiDir()}>
       <PageHeader title={t('سجلات المتابعة')} subtitle={t('سجلات المعلمين ومستويات الطلاب من Google Drive، مع آخر تعديل لكل ملف')}
         actions={<div className="flex items-center gap-3">
-          {cfg?.last_sync && <span className="text-xs text-slate-500 inline-flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-emerald-500" aria-hidden="true" />{t('آخر مزامنة: {d}', { d: timeAgo(cfg.last_sync) })}</span>}
-          <Button size="sm" variant="secondary" icon={RefreshCw} onClick={load}>{t('تحديث')}</Button>
+          {cfg?.last_sync && <span className="text-xs text-slate-500 inline-flex items-center gap-1.5" title={driveLinked ? (live ? t('كود Drive يعمل ويتحقق كل دقيقة') : t('كود Drive لا يتصل كل دقيقة: أنشئ كوداً جديداً من «الربط والاستيراد»')) : undefined}>
+            <span className={`w-2 h-2 rounded-full ${!driveLinked || live ? 'bg-emerald-500' : 'bg-amber-500'}`} aria-hidden="true" />{t('آخر مزامنة: {d}', { d: timeAgo(cfg.last_sync) })}</span>}
+          <Button size="sm" variant="secondary" icon={RefreshCw} disabled={syncing} onClick={() => void refresh()} data-testid="records-refresh" className={syncing ? '[&>svg]:animate-spin' : ''}>
+            {syncing ? t('جارٍ المزامنة من Drive…') : driveLinked ? t('تحديث الآن') : t('تحديث')}
+          </Button>
         </div>} />
       <div className="flex flex-wrap gap-2">
         {TABS.map(([k, l, Icon]) => (
@@ -56,7 +94,7 @@ export const ClassRecordsPage: React.FC = () => {
       {rows === null ? null : tab === 'dash' ? (items.length ? <RecordsDashboard items={items} tools={tools} changes={changes} canManage={canManage} onSetTool={(k, m) => void setTool(k, m)} onOpenTeacher={(k) => { setTab('followup'); setOpenFile(k); }} /> : <EmptyFollow onEmpty={toSync} />)
         : tab === 'followup' ? <FollowupTab items={items} changes={changes} openFile={openFile} setOpenFile={setOpenFile} onEmpty={toSync} />
         : tab === 'levels' ? <LevelsTab rows={levels} />
-        : <SyncTab cfg={cfg} rows={rows} onChanged={load} />}
+        : <SyncTab cfg={cfg} rows={rows} live={live} onChanged={load} onCfg={setCfg} />}
     </div>
   );
 };
@@ -419,7 +457,7 @@ const LevelsOverview: React.FC<{ sheets: Array<{ r: RecordSheet; p: LevelSheet }
 // ---------------------------------------------------------------------
 // الربط: مجلدات Drive + كود Apps Script المركزي، ورفع Excel يدوياً، وسجل المزامنة
 // ---------------------------------------------------------------------
-const SyncTab: React.FC<{ cfg: RecordsConfig | null; rows: RecordSheet[]; onChanged: () => void }> = ({ cfg, rows, onChanged }) => {
+const SyncTab: React.FC<{ cfg: RecordsConfig | null; rows: RecordSheet[]; live: boolean; onChanged: () => void; onCfg: (c: RecordsConfig) => void }> = ({ cfg, rows, live, onChanged, onCfg }) => {
   const { showToast } = useApp();
   const [fu, setFu] = useState(cfg?.folders.find((f) => f.kind === 'followup')?.url || '');
   const [lv, setLv] = useState(cfg?.folders.find((f) => f.kind === 'levels')?.url || '');
@@ -465,7 +503,23 @@ const SyncTab: React.FC<{ cfg: RecordsConfig | null; rows: RecordSheet[]; onChan
     <div className="space-y-5">
       <Card className="p-5 space-y-3">
         <h2 className="font-bold text-slate-900 dark:text-white flex items-center gap-2"><FolderSync className="w-5 h-5 text-indigo-600" />{t('الربط مع مجلدات Google Drive')}</h2>
-        <p className="text-sm text-slate-600 dark:text-slate-300">{t('كود واحد يقرأ كل ملفات المجلدين (وما بداخلهما) كل 10 دقائق، ويرسل الملفات التي تغيّرت فقط مع اسم آخر من عدّلها ووقته. لا يحتاج كل معلم لأي إعداد.')}</p>
+        <p className="text-sm text-slate-600 dark:text-slate-300">{t('كود واحد يتصل بالمنصة كل دقيقة: يقرأ ملفات المجلدين (وما بداخلهما) عند الضغط على «تحديث الآن» أو حين يحين موعد الفحص، ويرسل الملفات التي تغيّرت فقط مع اسم آخر من عدّلها ووقته. لا يحتاج كل معلم لأي إعداد.')}</p>
+        {cfg?.has_token && (
+          <div className="flex flex-wrap items-center gap-3 rounded-xl bg-slate-50 dark:bg-slate-800/60 p-3 text-sm">
+            <span className={`inline-flex items-center gap-1.5 font-semibold ${live ? 'text-emerald-700 dark:text-emerald-400' : 'text-amber-700 dark:text-amber-400'}`}>
+              <span className={`w-2 h-2 rounded-full ${live ? 'bg-emerald-500' : 'bg-amber-500'}`} aria-hidden="true" />
+              {live ? t('الكود يعمل · آخر اتصال {d}', { d: timeAgo(cfg.last_poll || undefined) }) : t('الكود لا يتصل كل دقيقة: أنشئ كوداً جديداً بالأسفل والصقه وشغّل setup')}
+            </span>
+            {cfg.last_scan && <span className="text-slate-500">{t('آخر فحص للمجلدات: {d}', { d: timeAgo(cfg.last_scan) })}</span>}
+            <label className="ms-auto inline-flex items-center gap-2 text-slate-700 dark:text-slate-200">{t('فحص Drive تلقائياً كل')}
+              <select value={cfg.sync_interval || 10} aria-label={t('فحص Drive تلقائياً كل')} className="h-9 px-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm"
+                onChange={(e) => { const m = Number(e.target.value); void setRecordsInterval(m).then((ok) => { if (ok) { onCfg({ ...cfg, sync_interval: m }); showToast(t('تم الحفظ'), 'success'); } else showToast(t('تعذر الحفظ — تأكد من تشغيل التحديث 064'), 'error'); }); }}>
+                {[1, 5, 10, 15, 30].map((m) => <option key={m} value={m}>{m === 1 ? t('دقيقة') : t('{n} دقائق', { n: m })}</option>)}
+              </select>
+            </label>
+            {(cfg.sync_interval || 10) === 1 && <p className="w-full text-xs text-amber-700 dark:text-amber-400">{t('الفحص كل دقيقة يستهلك حصة Google اليومية لتشغيل الأكواد إن كانت الملفات كثيرة. «تحديث الآن» يكفي غالباً مع فحص كل 10 دقائق.')}</p>}
+          </div>
+        )}
         <div className="grid md:grid-cols-2 gap-3">
           <label className="text-sm text-slate-600 dark:text-slate-300 flex flex-col gap-1">{t('مجلد سجلات المتابعة الصفية')}<input value={fu} onChange={(e) => setFu(e.target.value)} placeholder="https://drive.google.com/drive/folders/…" dir="ltr" className={inp} /></label>
           <label className="text-sm text-slate-600 dark:text-slate-300 flex flex-col gap-1">{t('مجلد تتبع مستويات الطلاب')}<input value={lv} onChange={(e) => setLv(e.target.value)} placeholder="https://drive.google.com/drive/folders/…" dir="ltr" className={inp} /></label>
