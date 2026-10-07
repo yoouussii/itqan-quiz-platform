@@ -3,8 +3,8 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { FolderSync, ClipboardList, TrendingUp, Upload, Copy, KeyRound, X, FileDown, Trash2, Search, RefreshCw, Users, CheckCircle2, AlertTriangle, LayoutDashboard, History } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 import { PageHeader, Card, Button, Chip, timeAgo } from '../common/ui';
-import { RecordChange, RecordKind, RecordSheet, RecordsConfig, deleteRecordFile, fetchRecordChanges, setRecordTools, fetchRecordSheets, fetchRecordsConfig, folderIdFrom, importRecordFile, requestRecordsSync, setRecordsInterval, setupRecords } from '../../services/classRecordsService';
-import { FollowSheet, LevelSheet, ToolMode, classLabel, lastOf, meanOf, parseLevels, recordMeta, recordsAppsScript, trimGrid } from '../../utils/classRecords';
+import { RecordChange, RecordKind, RecordSheet, RecordsConfig, deleteRecordFile, fetchRecordChanges, setRecordTools, fetchRecordSheets, fetchRecordsConfig, folderIdFrom, importRecordFile, requestRecordsSync, setLevelsCfg, setRecordsInterval, setupRecords } from '../../services/classRecordsService';
+import { FollowSheet, LevelSheet, LevelsCfg, ToolMode, autoRounds, classLabel, lastOf, meanOf, parseFollowup, parseLevels, prepLevels, recordMeta, recordsAppsScript, trimGrid } from '../../utils/classRecords';
 import { ChangesTimeline, Freshness, RecItem, RecordsDashboard, VBarChart, buildItems, dayKey, fmtDay, fmtFull, sheetShort } from './ClassRecordsDashboard';
 import { supabaseUrl, supabaseAnonKey } from '../../services/supabase';
 import { hasPerm } from '../../utils/permissions';
@@ -93,7 +93,8 @@ export const ClassRecordsPage: React.FC = () => {
       </div>
       {rows === null ? null : tab === 'dash' ? (items.length ? <RecordsDashboard items={items} tools={tools} changes={changes} canManage={canManage} onSetTool={(k, m) => void setTool(k, m)} onOpenTeacher={(k) => { setTab('followup'); setOpenFile(k); }} /> : <EmptyFollow onEmpty={toSync} />)
         : tab === 'followup' ? <FollowupTab items={items} changes={changes} openFile={openFile} setOpenFile={setOpenFile} onEmpty={toSync} />
-        : tab === 'levels' ? <LevelsTab rows={levels} />
+        : tab === 'levels' ? <LevelsTab rows={levels} cfg={cfg?.levels_cfg || {}} canManage={canManage}
+            onCfg={async (c) => { if (await setLevelsCfg(c)) { if (cfg) setCfg({ ...cfg, levels_cfg: c }); } else showToast(t('تعذر الحفظ — تأكد من تشغيل التحديث 064'), 'error'); }} />
         : <SyncTab cfg={cfg} rows={rows} live={live} onChanged={load} onCfg={setCfg} />}
     </div>
   );
@@ -282,8 +283,13 @@ const SheetViewer: React.FC<{ row: RecordSheet; p: FollowSheet; onClose: () => v
 // ---------------------------------------------------------------------
 // تتبع المستويات: اختيار المرحلة والفصل ← متوسط الفصل لكل مادة عبر القياسات + جدول الطلاب
 // ---------------------------------------------------------------------
-const LevelsTab: React.FC<{ rows: RecordSheet[] }> = ({ rows }) => {
-  const parsed = useMemo(() => rows.map((r) => ({ r, p: parseLevels(r.grid) })).filter((x): x is { r: RecordSheet; p: LevelSheet } => !!x.p && x.p.students.length > 0), [rows]);
+const LevelsTab: React.FC<{ rows: RecordSheet[]; cfg: LevelsCfg; canManage: boolean; onCfg: (c: LevelsCfg) => void }> = ({ rows, cfg, canManage, onCfg }) => {
+  const raw = useMemo(() => rows.map((r) => ({ r, p: parseLevels(r.grid) })).filter((x): x is { r: RecordSheet; p: LevelSheet } => !!x.p && x.p.students.length > 0), [rows]);
+  // القياسات المحسوبة (ما حان وقته) والمواد التي لا تُدرس في المرحلة لا تدخل في المتوسطات والنسب
+  const auto = useMemo(() => autoRounds(raw.map((x) => x.p)), [raw]);
+  const maxRounds = useMemo(() => Math.max(1, ...raw.flatMap((x) => x.p.subjects.map((s) => s.cols.length))), [raw]);
+  const rounds = Math.min(cfg.rounds || auto, maxRounds);
+  const parsed = useMemo(() => raw.map((x) => ({ r: x.r, p: prepLevels(x.p, rounds, cfg.off?.[x.r.file_key] || []) })), [raw, rounds, cfg.off]);
   const files = useMemo(() => [...new Map(parsed.map((x) => [x.r.file_key, x.r.file_name])).entries()], [parsed]);
   const [file, setFile] = useState('');
   const [sheetId, setSheetId] = useState<number | null>(null);
@@ -293,8 +299,45 @@ const LevelsTab: React.FC<{ rows: RecordSheet[] }> = ({ rows }) => {
   const cur = sheets.find((x) => x.r.id === sheetId);
   if (!parsed.length) return <Card className="p-10 text-center text-slate-500"><MascotHere className="mx-auto mb-1" />{t('لم تصل ملفات تتبع المستويات بعد.')}</Card>;
   const fileRow = sheets[0]?.r;
+  // كل مواد المرحلة المختارة، وما لا يُحسب منها (يدوياً أو لأنه بلا درجات)
+  const stageSubjects = [...new Set(raw.filter((x) => x.r.file_key === file).flatMap((x) => x.p.subjects.map((s) => s.name)))];
+  const offList = cfg.off?.[file] || [];
+  const autoHidden = stageSubjects.filter((n) => !offList.includes(n) && sheets.every((x) => x.p.hidden.includes(n)));
+  const toggleOff = (name: string) => {
+    const next = offList.includes(name) ? offList.filter((x) => x !== name) : [...offList, name];
+    onCfg({ ...cfg, off: { ...(cfg.off || {}), [file]: next } });
+  };
   return (
     <div className="space-y-5">
+      <Card className="p-4 space-y-3" data-testid="levels-cfg">
+        <div className="flex flex-wrap items-center gap-3">
+          <h2 className="font-bold text-slate-900 dark:text-white text-sm me-auto">{t('ما يُحسب في المتوسطات والنسب')}</h2>
+          <label className="inline-flex items-center gap-2 text-sm text-slate-700 dark:text-slate-200">{t('القياسات المحسوبة')}
+            <select value={cfg.rounds || 0} disabled={!canManage} aria-label={t('القياسات المحسوبة')} onChange={(e) => onCfg({ ...cfg, rounds: Number(e.target.value) || null })}
+              className="h-9 px-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm disabled:opacity-70">
+              <option value={0}>{t('تلقائي (حتى القياس {n})', { n: auto })}</option>
+              {Array.from({ length: maxRounds }, (_, i) => i + 1).map((n) => <option key={n} value={n}>{n === 1 ? t('القياس الأول فقط') : t('حتى القياس {n}', { n })}</option>)}
+            </select>
+          </label>
+        </div>
+        <p className="text-xs text-slate-500">{t('القياسات التي لم يحن موعدها لا تُحسب. تلقائياً: حتى آخر قياس فيه درجات.')}</p>
+        {stageSubjects.length > 0 && (
+          <div className="space-y-1.5">
+            <div className="text-xs font-semibold text-slate-600 dark:text-slate-300">{t('مواد {s}: اضغط على المادة التي لا تُدرس في هذه المرحلة لاستبعادها من النسب', { s: files.find(([k]) => k === file)?.[1] || '' })}</div>
+            <div className="flex flex-wrap gap-1.5">
+              {stageSubjects.map((n) => {
+                const off = offList.includes(n), autoOff = autoHidden.includes(n);
+                return (
+                  <button key={n} type="button" disabled={!canManage} aria-pressed={!off} onClick={() => toggleOff(n)} title={autoOff ? t('لا توجد درجات لهذه المادة في القياسات المحسوبة، فلا تُحسب') : undefined}
+                    className={`h-8 px-3 rounded-lg text-xs font-bold border inline-flex items-center gap-1.5 disabled:cursor-default ${off ? 'border-slate-200 dark:border-slate-700 text-slate-400 line-through' : autoOff ? 'border-amber-300 bg-amber-50 dark:bg-amber-950/40 text-amber-800 dark:text-amber-300' : 'border-indigo-300 bg-indigo-50 dark:bg-indigo-950/50 text-indigo-700 dark:text-indigo-300'}`}>
+                    {off ? <X className="w-3 h-3" /> : <CheckCircle2 className="w-3 h-3" />}{n}{autoOff && !off ? ` · ${t('بلا درجات')}` : ''}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        )}
+      </Card>
       <LevelsAll parsed={parsed} />
       <div className="flex flex-wrap items-center gap-2">
         <select value={file} onChange={(e) => setFile(e.target.value)} className={inp} aria-label={t('المرحلة')}>{files.map(([k, n]) => <option key={k} value={k}>{n}</option>)}</select>
@@ -304,6 +347,7 @@ const LevelsTab: React.FC<{ rows: RecordSheet[] }> = ({ rows }) => {
         {fileRow && <span className="ms-auto text-xs text-slate-600 dark:text-slate-300 flex items-center gap-2">{t('آخر تعديل:')} <b>{fileRow.last_edit_by || '—'}</b><Freshness at={fileRow.last_edit_at} /></span>}
       </div>
       {cur && <LevelsClass p={cur.p} title={`${cur.r.file_name} — ${classLabel(cur.r.sheet_name)}`} />}
+      {cur && cur.p.hidden.length > 0 && <p className="text-xs text-slate-500 -mt-3">{t('لا تُحسب في هذا الفصل: {s}', { s: cur.p.hidden.join('، ') })}</p>}
       <LevelsOverview sheets={sheets} />
     </div>
   );
@@ -499,6 +543,15 @@ const SyncTab: React.FC<{ cfg: RecordsConfig | null; rows: RecordSheet[]; live: 
     if (n) { showToast(t('رُفع {n} ملف', { n }), 'success'); onChanged(); }
   };
   const files = [...new Map(rows.map((r) => [`${r.kind}|${r.file_key}`, r])).values()].sort((a, b) => a.kind.localeCompare(b.kind) || a.file_name.localeCompare(b.file_name, 'ar'));
+  // أوراق لم تُقرأ (لم يُعثر فيها على عمود «اسم الطالب» / Student Name وصف الدرجات العظمى)
+  const unread = useMemo(() => {
+    const m = new Map<string, string[]>();
+    rows.forEach((r) => {
+      const ok = r.kind === 'followup' ? !!parseFollowup(r.grid)?.students.length : !!parseLevels(r.grid)?.students.length;
+      if (!ok) { const k = `${r.kind}|${r.file_key}`; m.set(k, [...(m.get(k) || []), r.sheet_name]); }
+    });
+    return m;
+  }, [rows]);
   return (
     <div className="space-y-5">
       <Card className="p-5 space-y-3">
@@ -556,6 +609,7 @@ const SyncTab: React.FC<{ cfg: RecordsConfig | null; rows: RecordSheet[]; live: 
               <Chip tone={r.kind === 'followup' ? 'info' : 'ok'}>{r.kind === 'followup' ? t('متابعة') : t('مستويات')}</Chip>
               <b className="text-slate-900 dark:text-white">{r.file_name}</b>
               <span className="text-xs text-slate-500">{r.source === 'drive' ? 'Drive' : t('رفع يدوي')} · {r.last_edit_by || '—'} · {fmtAt(r.last_edit_at)}</span>
+              {unread.has(`${r.kind}|${r.file_key}`) && <span title={unread.get(`${r.kind}|${r.file_key}`)!.join('، ')}><Chip tone="warn"><AlertTriangle className="w-3 h-3" />{t('أوراق لم تُقرأ: {s}', { s: unread.get(`${r.kind}|${r.file_key}`)!.slice(0, 3).join('، ') })}</Chip></span>}
               <button type="button" aria-label={t('حذف')} onClick={() => { if (window.confirm(t('حذف «{name}» من المنصة؟', { name: r.file_name }))) void deleteRecordFile(r.kind, r.file_key).then(onChanged); }} className="ms-auto w-8 h-8 rounded-lg text-slate-400 hover:text-rose-600 flex items-center justify-center"><Trash2 className="w-4 h-4" /></button>
             </li>
           ))}

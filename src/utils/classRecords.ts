@@ -5,6 +5,13 @@ export type Cell = string | number | boolean | null;
 export type Grid = Cell[][];
 
 const norm = (v: unknown) => String(v ?? '').replace(/\s+/g, ' ').trim();
+/** عنوان عمود الأسماء: «اسم الطالب» أو ما يعادله، ومنه سجلات Math و Science المكتوبة بالإنجليزية */
+const isNameHead = (v: unknown) => {
+  const s = norm(v).toLowerCase().replace(/[’'`]/g, '').replace(/[:：]$/, '');
+  return s === 'اسم الطالب' || s === 'اسم الطالبة' || s === 'الاسم' || s === 'اسم الطالب/ة'
+    || s === 'student name' || s === 'students name' || s === 'name' || s === 'student' || s === 'full name' || s === 'student full name';
+};
+const isTotalHead = (v: string) => v.includes('المجموع') || /\btotal\b/i.test(v);
 const toNum = (v: unknown): number | null => {
   if (typeof v === 'number' && Number.isFinite(v)) return v;
   const s = norm(v).replace(/[٠-٩]/g, (c) => String(c.charCodeAt(0) - 0x0660));
@@ -24,7 +31,7 @@ export function parseFollowup(grid: Grid): FollowSheet | null {
   let h = -1, nameCol = -1;
   for (let r = 0; r < Math.min(grid.length, 40) && h < 0; r++) {
     const row = grid[r] || [];
-    for (let c = 0; c < row.length; c++) if (norm(row[c]) === 'اسم الطالب') { h = r; nameCol = c; break; }
+    for (let c = 0; c < row.length; c++) if (isNameHead(row[c])) { h = r; nameCol = c; break; }
   }
   if (h < 0) return null;
   // صف الدرجات العظمى: أول صف بعد العناوين بلا اسم وفيه رقمان على الأقل
@@ -36,14 +43,20 @@ export function parseFollowup(grid: Grid): FollowSheet | null {
     if (maxRow >= 0 && norm((grid[r + 1] || [])[nameCol])) break;
   }
   if (maxRow < 0) return null;
-  const title = norm((grid[h] || []).find((v, c) => c !== nameCol && norm(v)) ?? '');
+  // صف العناوين نفسه: في القالب العربي فيه عنوان السجل فقط، وفي سجلات Math/Science فيه أسماء الأعمدة
+  const topCells = (grid[h] || []).map((v, c) => (c === nameCol ? '' : norm(v)));
+  // (أسماء الأعمدة في صف العناوين فقط حين لا توجد صفوف عناوين تحته، فلا يتغير القالب العربي)
+  const subHeads = grid.slice(h + 1, maxRow).some((row) => (row || []).some((v, c) => c !== nameCol && norm(v) && toNum(v) === null));
+  const topLabels = !subHeads && topCells.filter(Boolean).length >= 2;
+  const title = topLabels ? norm((grid.slice(0, h).flat().find((v) => norm(v)) ?? '')) : norm(topCells.find(Boolean) ?? '');
   const width = Math.max(...grid.slice(h, maxRow + 1).map((r) => (r || []).length));
   const columns: FollowColumn[] = [];
   for (let c = 0; c < width; c++) {
     if (c === nameCol) continue;
     const heads: string[] = [];
+    if (topLabels && topCells[c] && toNum(topCells[c]) === null) heads.push(topCells[c]);
     for (let r = h + 1; r < maxRow; r++) { const v = norm((grid[r] || [])[c]); if (v && toNum(v) === null) heads.push(v); }
-    const total = heads.some((x) => x.includes('المجموع'));
+    const total = heads.some(isTotalHead);
     const max = toNum((grid[maxRow] || [])[c]);
     if (max === null && !total) continue;
     columns.push({ col: c, label: heads[heads.length - 1] || heads[0] || `عمود ${c + 1}`, max, total });
@@ -76,7 +89,7 @@ export function parseLevels(grid: Grid): LevelSheet | null {
   let h = -1, nameCol = -1;
   for (let r = 0; r < Math.min(grid.length, 10) && h < 0; r++) {
     const row = grid[r] || [];
-    for (let c = 0; c < row.length; c++) if (norm(row[c]) === 'اسم الطالب') { h = r; nameCol = c; break; }
+    for (let c = 0; c < row.length; c++) if (isNameHead(row[c])) { h = r; nameCol = c; break; }
   }
   if (h < 0) return null;
   const head = grid[h] || [];
@@ -105,6 +118,33 @@ export function parseLevels(grid: Grid): LevelSheet | null {
     students.push({ name, scores });
   }
   return { subjects, students, max };
+}
+
+// ---------------------------------------------------------------------
+// إعداد تتبع المستويات: القياسات المحسوبة، والمواد التي لا تُدرس في المرحلة
+// ---------------------------------------------------------------------
+export interface LevelsCfg { rounds?: number | null; off?: Record<string, string[]> }
+
+/** القياسات التي حان وقتها تلقائياً: حتى آخر قياس فيه درجة (أكبر من صفر) في أي فصل */
+export function autoRounds(sheets: LevelSheet[]): number {
+  let n = 0;
+  sheets.forEach((p) => p.students.forEach((st) => st.scores.forEach((sc) => sc.forEach((v, k) => { if (v !== null && v > 0 && k + 1 > n) n = k + 1; }))));
+  return Math.max(1, n);
+}
+
+/** نسخة من ورقة المستويات للحساب: القياسات المستحقة فقط، وبلا المواد غير المدرّسة
+ *  (المستبعدة يدوياً للمرحلة، أو التي لا درجة فيها أكبر من صفر في هذا الفصل) */
+export function prepLevels(p: LevelSheet, rounds: number, off: string[] = []): LevelSheet & { hidden: string[] } {
+  const keep: number[] = [], hidden: string[] = [];
+  p.subjects.forEach((s, si) => {
+    const taught = !off.includes(s.name) && p.students.some((st) => st.scores[si].slice(0, rounds).some((v) => v !== null && v > 0));
+    if (taught) keep.push(si); else hidden.push(s.name);
+  });
+  return {
+    max: p.max, hidden,
+    subjects: keep.map((si) => ({ ...p.subjects[si], cols: p.subjects[si].cols.slice(0, rounds) })),
+    students: p.students.map((st) => ({ ...st, scores: keep.map((si) => st.scores[si].slice(0, rounds)) })),
+  };
 }
 
 /** متوسط القيم غير الفارغة */
@@ -161,8 +201,8 @@ export function toolStats(sheets: FollowSheet[]): Map<string, { records: number;
 // المادة والصف من اسم الورقة (أدق من عنوان السجل، فالقالب يُنسخ أحياناً دون تعديل عنوانه)
 // ---------------------------------------------------------------------
 const SUBJECTS: Array<[RegExp, string]> = [
-  [/رياضيات|math/i, 'الرياضيات'],
-  [/علوم|scien/i, 'العلوم'],
+  [/رياضيات|ماث|math/i, 'الرياضيات'],
+  [/علوم|ساينس|scien/i, 'العلوم'],
   [/english|الإنجليزية|الانجليزية|انجليزي/i, 'اللغة الإنجليزية'],
   [/لغتي|العربية|عربي/, 'اللغة العربية'],
   [/قرآن|قرأن|قران/, 'القرآن الكريم'],
