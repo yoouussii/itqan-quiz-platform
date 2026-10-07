@@ -9,6 +9,8 @@ export interface RecordSheet {
 }
 export interface RecordsConfig {
   has_token: boolean; tools?: Record<string, 'due' | 'not_due'>; folders: Array<{ id: string; kind: RecordKind; url?: string }>; last_sync: string | null;
+  /** 064: طلب «تحديث الآن»، وكل كم دقيقة يُفحص Drive، وآخر اتصال من الكود، وآخر فحص كامل */
+  sync_requested_at?: string | null; sync_interval?: number; last_poll?: string | null; last_scan?: string | null;
   log: Array<{ at: string; kind: RecordKind; file: string; sheets: number; source: 'drive' | 'upload' }>;
 }
 
@@ -45,6 +47,17 @@ export async function fetchRecordChanges(days = 400): Promise<RecordChange[]> {
 export async function fetchRecordsConfig(): Promise<RecordsConfig | null> {
   const r = await safe<RecordsConfig>(() => supabase.rpc('itqan_records_config') as any);
   return r.ok && r.data ? r.data : null;
+}
+
+/** «تحديث الآن»: يطلب من كود Drive فحص المجلدات خلال دقيقة */
+export async function requestRecordsSync() {
+  const r = await safe<string>(() => supabase.rpc('itqan_records_request_sync') as any);
+  return { ok: r.ok, at: r.data || null };
+}
+
+export async function setRecordsInterval(minutes: number) {
+  const r = await safe<number>(() => supabase.rpc('itqan_records_set_interval', { p_minutes: minutes }) as any);
+  return r.ok;
 }
 
 export async function setRecordTools(tools: Record<string, 'due' | 'not_due'>) {

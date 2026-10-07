@@ -77,6 +77,7 @@ on:
           - supabase/migrations/061_quiz_paper.sql
           - supabase/migrations/062_nafes.sql
           - supabase/migrations/063_exam_schedule_visit_types.sql
+          - supabase/migrations/064_records_live_sync.sql
           - supabase/migrations/003_rollback.sql
       db_secret:
         description: 'اسم سر قاعدة البيانات (اتركه كما هو للمدرسة الأساسية، أو اكتب سر مدرسة أخرى مثل DB_URL_SCHOOL2)'

@@ -213,12 +213,13 @@ export function trimGrid(grid: Grid, maxRows = 300, maxCols = 60): Grid {
   });
 }
 
-/** كود Google Apps Script المركزي: يقرأ ملفات مجلدات Drive ويرسل ما تغيّر كل 10 دقائق */
+/** كود Google Apps Script المركزي: يسأل المنصة كل دقيقة، ويفحص مجلدات Drive عند الطلب («تحديث الآن») أو حين يحين موعد الفحص، ويرسل ما تغيّر */
 export function recordsAppsScript(url: string, anonKey: string, token: string, folders: Array<{ id: string; kind: 'followup' | 'levels' }>): string {
   return `// ===== ربط سجلات المتابعة وتتبع المستويات بمنصة إتقان =====
 // 1) افتح script.google.com بحساب المدرسة ← مشروع جديد، احذف أي كود والصق هذا الكود واحفظ.
 // 2) اختر الدالة setup من الأعلى واضغط «تشغيل» مرة واحدة، ووافق على الأذونات.
-// بعدها يقرأ المجلدات كل 10 دقائق ويرسل الملفات التي تغيّرت فقط، مع اسم آخر من عدّل ووقته.
+// بعدها يسأل المنصة كل دقيقة: إن ضُغط «تحديث الآن» أو حان موعد الفحص (يُضبط من المنصة)
+// يقرأ المجلدات ويرسل الملفات التي تغيّرت فقط، مع اسم آخر من عدّل ووقته.
 var ITQAN_URL = ${JSON.stringify(url.replace(/\/$/, '') + '/rest/v1/rpc/')};
 var ITQAN_KEY = ${JSON.stringify(anonKey)};
 var ITQAN_TOKEN = ${JSON.stringify(token)};
@@ -226,9 +227,9 @@ var FOLDERS = ${JSON.stringify(folders)};
 
 function setup() {
   ScriptApp.getProjectTriggers().forEach(function (t) { ScriptApp.deleteTrigger(t); });
-  ScriptApp.newTrigger('syncAll').timeBased().everyMinutes(10).create();
+  ScriptApp.newTrigger('tick').timeBased().everyMinutes(1).create();
   PropertiesService.getScriptProperties().deleteAllProperties();
-  syncAll();
+  scan();
 }
 
 function call(fn, body) {
@@ -237,6 +238,27 @@ function call(fn, body) {
     headers: { apikey: ITQAN_KEY, Authorization: 'Bearer ' + ITQAN_KEY }, payload: JSON.stringify(body)
   });
   if (res.getResponseCode() >= 300) throw new Error('إتقان: ' + res.getContentText());
+  var txt = res.getContentText();
+  return txt ? JSON.parse(txt) : null;
+}
+
+// كل دقيقة: سؤال خفيف للمنصة، والفحص الكامل فقط عند الطلب أو حين يحين موعده
+function tick() {
+  var st = call('itqan_records_poll', { p_token: ITQAN_TOKEN }) || {};
+  var last = st.last_scan ? Date.parse(st.last_scan) : 0;
+  var asked = st.requested_at && Date.parse(st.requested_at) > last;
+  var due = !last || Date.now() - last >= (st.interval || 10) * 60 * 1000 - 20 * 1000;
+  if (asked || due) scan();
+}
+
+// فحص كامل (لا يعمل فحصان معاً)
+function scan() {
+  var lock = LockService.getScriptLock();
+  if (!lock.tryLock(1000)) return;
+  try {
+    var started = new Date().toISOString();
+    if (syncAll()) call('itqan_records_scanned', { p_token: ITQAN_TOKEN, p_started: started });
+  } finally { lock.releaseLock(); }
 }
 
 // آخر من عدّل الملف ووقته (من Drive)
@@ -292,14 +314,15 @@ function readExcel(id) {
   try { return readSheets(tmp.id); } finally { try { drive('delete', 'files/' + tmp.id + '?supportsAllDrives=true'); } catch (e) { DriveApp.getFileById(tmp.id).setTrashed(true); } }
 }
 
+// يُرجع true إن اكتمل فحص كل الملفات (وإلا يُكمل الباقي في الدقيقة التالية)
 function syncAll() {
-  var props = PropertiesService.getScriptProperties(), started = Date.now();
+  var props = PropertiesService.getScriptProperties(), started = Date.now(), complete = true;
   FOLDERS.forEach(function (fo) {
     var list = [];
     collect(DriveApp.getFolderById(fo.id), '', list);
     var keys = list.map(function (it) { return it.file.getId(); });
     list.forEach(function (it) {
-      if (Date.now() - started > 4.5 * 60 * 1000) return; // حد وقت التشغيل: الباقي في المرة القادمة
+      if (Date.now() - started > 4.5 * 60 * 1000) { complete = false; return; } // حد وقت التشغيل: الباقي في المرة القادمة
       var id = it.file.getId();
       var stamp = String(it.file.getLastUpdated().getTime());
       if (props.getProperty(id) === stamp) return; // لم يتغير
@@ -312,6 +335,7 @@ function syncAll() {
     });
     if (keys.length) call('itqan_records_prune', { p_kind: fo.kind, p_keys: keys, p_token: ITQAN_TOKEN });
   });
+  return complete;
 }
 `;
 }
