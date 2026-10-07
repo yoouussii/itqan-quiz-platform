@@ -49,6 +49,7 @@ export function notifAction(
   if (n.type === 'quiz_pending') return { label: 'مراجعة الاختبار', view: 'approvals' };
   if (n.ref_type === 'survey') return { label: 'الإجابة على الاستبيان', view: 'surveys' };
   if (n.ref_type === 'visit') return { label: 'عرض الزيارة', view: 'visits' };
+  if (n.ref_type === 'exam_schedule') return { label: 'جدول الاختبارات', view: 'calendar' };
 
   if (me.role === 'parent') return { label: 'متابعة أبنائي', view: 'dashboard' };
 

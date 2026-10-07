@@ -134,6 +134,8 @@ export const AttendancePage: React.FC = () => {
     const top = Array.from(per.entries()).map(([id, v]) => ({ id, ...v, total: v.absent + v.late + v.excused }))
       .sort((a, b) => b.absent - a.absent || b.total - a.total);
     const flagged = top.filter((x) => x.absent >= threshold);
+    // عدد الطلاب الغائبين (يوماً واحداً على الأقل في الفترة)
+    const absentStudents = top.filter((x) => x.absent > 0).length;
     const byClass = classes.map((c) => {
       const ids = students.filter((s) => s.class_id === c.id).map((s) => s.id);
       if (!ids.length) return null;
@@ -154,7 +156,7 @@ export const AttendancePage: React.FC = () => {
     }
     const weekSeries = Array.from(byWeek.entries()).sort(([a], [b]) => a - b).map(([w, v]) => ({ label: t('الأسبوع {n}', { n: w }), ...v }));
     const dowNames = [0, 1, 2, 3, 4].map((i) => new Date(2026, 0, 4 + i).toLocaleDateString(dateLocale(), { weekday: 'long' }));
-    return { days, count, rate, per, series, weekSeries, top, flagged, byClass: byClass.sort((a, b) => a.rate - b.rate), byDow: byDow.map((v, i) => ({ label: dowNames[i], ...v })), threshold };
+    return { days, count, absentStudents, rate, per, series, weekSeries, top, flagged, byClass: byClass.sort((a, b) => a.rate - b.rate), byDow: byDow.map((v, i) => ({ label: dowNames[i], ...v })), threshold };
   }, [recs, students, classes, cfg, range]);
 
   // ---------- اتجاه الحضور: يومي / أسبوعي / شهري (أيام الدراسة بلا حركات تظهر صفراً) ----------
@@ -244,7 +246,7 @@ export const AttendancePage: React.FC = () => {
     }).join('');
     const bodyHtml = `
       <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:14px">
-        ${pdfBox(t('الطلاب'), String(list.length))}${pdfBox(t('نسبة الحضور'), pct(stats.rate))}${pdfBox(t('أيام الغياب'), String(stats.count.absent), KINDS[0].color)}${pdfBox(t('مرات التأخر'), String(stats.count.late), KINDS[1].color)}${pdfBox(t('الاستئذان'), String(stats.count.excused), KINDS[2].color)}${pdfBox(t('تجاوزوا حد الغياب'), String(stats.flagged.filter((x) => list.some((s) => s.id === x.id)).length))}
+        ${pdfBox(t('الطلاب'), String(list.length))}${pdfBox(t('نسبة الحضور'), pct(stats.rate))}${pdfBox(t('الطلاب الغائبون'), `${stats.absentStudents} (${t('{n} يوم غياب', { n: stats.count.absent })})`, KINDS[0].color)}${pdfBox(t('مرات التأخر'), String(stats.count.late), KINDS[1].color)}${pdfBox(t('الاستئذان'), String(stats.count.excused), KINDS[2].color)}${pdfBox(t('تجاوزوا حد الغياب'), String(stats.flagged.filter((x) => list.some((s) => s.id === x.id)).length))}
       </div>
       <table class="pdf-table"><thead><tr><th>#</th><th>${escH(t('الطالب'))}</th><th>${escH(t('الفصل'))}</th><th>${escH(t('غياب'))}</th><th>${escH(t('تأخر'))}</th><th>${escH(t('استئذان'))}</th><th>${escH(t('المجموع'))}</th><th>${escH(t('نسبة الحضور'))}</th></tr></thead><tbody>${rows}</tbody></table>
       <p style="font-size:11px;opacity:.7;margin-top:8px">${escH(t('نسبة الحضور = 1 − (أيام الغياب ÷ أيام الدراسة {n})', { n: stats.days }))} · ${escH(t('المظلل: تجاوز حد الغياب ({n} أيام)', { n: stats.threshold }))}</p>
@@ -288,7 +290,7 @@ export const AttendancePage: React.FC = () => {
       )}
       <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
         <Kpi label={t('نسبة الحضور')} value={loading ? '…' : <span dir="ltr">{Math.round(stats.rate * 1000) / 10}%</span>} hint={t('{n} يوم دراسي', { n: stats.days })} open="rate" />
-        <Kpi label={t('أيام الغياب')} value={stats.count.absent} color={KINDS[0].color} open="absent" />
+        <Kpi label={t('الطلاب الغائبون')} value={stats.absentStudents} hint={t('{n} يوم غياب', { n: stats.count.absent })} color={KINDS[0].color} open="absent" />
         <Kpi label={t('مرات التأخر')} value={stats.count.late} color={KINDS[1].color} open="late" />
         <Kpi label={t('الاستئذان')} value={stats.count.excused} color={KINDS[2].color} open="excused" />
         <Kpi label={t('تجاوزوا حد الغياب')} value={stats.flagged.length} hint={t('{n} أيام غياب فأكثر', { n: stats.threshold })} open="flagged" />
@@ -617,7 +619,7 @@ export const AttendancePage: React.FC = () => {
 // ---------------------------------------------------------------------
 // تفاصيل بطاقات اللوحة: من غاب/تأخر/استأذن ومتى، المتجاوزون، ونسب الحضور
 // ---------------------------------------------------------------------
-const DETAIL_TITLE: Record<Detail, string> = { absent: 'أيام الغياب', late: 'مرات التأخر', excused: 'الاستئذان', flagged: 'تجاوزوا حد الغياب', rate: 'نسبة الحضور' };
+const DETAIL_TITLE: Record<Detail, string> = { absent: 'الطلاب الغائبون', late: 'مرات التأخر', excused: 'الاستئذان', flagged: 'تجاوزوا حد الغياب', rate: 'نسبة الحضور' };
 const KpiDetails: React.FC<{
   kind: Detail; recs: AttRecord[]; students: User[]; per: Map<string, Record<AttKind, number>>;
   byClass: Array<{ id: string; name: string; students: number; absent: number; late: number; excused: number; rate: number }>;

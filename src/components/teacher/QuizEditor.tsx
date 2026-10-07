@@ -15,6 +15,7 @@ import {
   Target,
   FileUp,
   Sparkles,
+  Search,
 } from 'lucide-react';
 import { TargetType, PaperPin, QuizPaper } from '../../types';
 import { useApp } from '../../context/AppContext';
@@ -25,6 +26,7 @@ import { ImportQuestionsModal } from './ImportQuestionsModal';
 import { loadBankCache, syncBank, newBankItem, saveBankItems, sameQuestion, toQuizQuestion, markBankUsed } from '../../services/bankService';
 import { toLocalInputValue, toInputValue, inputToIso, defaultEndInput } from '../../utils/quizWindow';
 import { stripHtml } from '../common/RichText';
+import { normalizeArabic as normalizeName } from '../../utils/arabicSearch';
 import { uiDir, optionLetters, t, isEn } from '../../i18n';
 import { NEW_TYPES, NEW_TYPE_LABELS, NewType, NewTypeEditor, OrderItem, PairItem, initNewType, isNewType, validateNewType } from '../common/QuestionTypes';
 import { questionsCount, marksCount } from '../../i18n/count';
@@ -172,6 +174,8 @@ export const QuizEditor: React.FC = () => {
     .filter((id) => !availableClasses.some((c) => c.id === id))
     .map((id) => classes.find((c) => c.id === id)?.name || t('صف غير متاح'));
   const [selectedStudentIds, setSelectedStudentIds] = useState<string[]>([]);
+  const [stuSearch, setStuSearch] = useState('');
+  const [stuClass, setStuClass] = useState('');
 
   // Questions State
   const [questions, setQuestions] = useState<QuestionItem[]>(() => [blankQuestion('mcq')]);
@@ -1142,25 +1146,72 @@ export const QuizEditor: React.FC = () => {
 
           {targetType === 'specific_students' && (
             <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700">
-              <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-2">
-                {t('اختر الطلاب المحددين (')}{selectedStudentIds.length}{' '}{t('محددين):')}
-              </label>
-              <div className="max-h-48 overflow-y-auto grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2 p-2 bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-700">
-                {students.map((st) => (
-                  <label
-                    key={st.id}
-                    className="flex items-center gap-2 p-2 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800 cursor-pointer text-xs"
-                  >
-                    <input
-                      type="checkbox"
-                      checked={selectedStudentIds.includes(st.id)}
-                      onChange={() => toggleStudentSelection(st.id)}
-                      className="rounded accent-indigo-600"
-                    />
-                    <span className="font-bold text-slate-800 dark:text-slate-200">{st.name}</span>
-                  </label>
-                ))}
+              <div className="flex items-center justify-between mb-2 gap-3">
+                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300">
+                  {t('اختر الطلاب المحددين (')}{selectedStudentIds.length}{' '}{t('محددين):')}
+                </label>
+                {selectedStudentIds.length > 0 && (
+                  <button type="button" onClick={() => setSelectedStudentIds([])} className="text-[11px] font-bold text-rose-600 dark:text-rose-400 hover:underline">
+                    {t('إلغاء تحديد الكل')}
+                  </button>
+                )}
               </div>
+              {/* البحث بالاسم أو رقم الهوية، والتصفية بالفصل */}
+              <div className="flex flex-col sm:flex-row gap-2 mb-2">
+                <div className="relative flex-1">
+                  <Search className="w-4 h-4 text-slate-400 absolute top-1/2 -translate-y-1/2 start-3 pointer-events-none" />
+                  <input type="search" value={stuSearch} onChange={(e) => setStuSearch(e.target.value)}
+                    placeholder={t('ابحث باسم الطالب أو رقم الهوية…')} aria-label={t('ابحث باسم الطالب أو رقم الهوية…')} data-testid="student-search"
+                    className="w-full ps-9 pe-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-sm text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-indigo-500/40" />
+                </div>
+                <select value={stuClass} onChange={(e) => setStuClass(e.target.value)} aria-label={t('الفصل')}
+                  className="sm:w-48 px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-sm text-slate-800 dark:text-slate-100">
+                  <option value="">{t('كل الفصول')}</option>
+                  {availableClasses.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+                </select>
+              </div>
+              {(() => {
+                const q = normalizeName(stuSearch);
+                const shown = students.filter((st) =>
+                  (!stuClass || st.class_id === stuClass) &&
+                  (!q || normalizeName(st.name).includes(q) || (st.national_id || '').includes(stuSearch.trim())));
+                const allShown = shown.length > 0 && shown.every((st) => selectedStudentIds.includes(st.id));
+                return (
+                  <>
+                    <div className="flex items-center justify-between mb-1.5 text-[11px] text-slate-500 dark:text-slate-400">
+                      <span>{t('{n} طالب', { n: shown.length })}</span>
+                      {shown.length > 0 && (
+                        <button type="button" className="font-bold text-indigo-600 dark:text-indigo-400 hover:underline"
+                          onClick={() => setSelectedStudentIds(allShown
+                            ? selectedStudentIds.filter((id) => !shown.some((st) => st.id === id))
+                            : Array.from(new Set([...selectedStudentIds, ...shown.map((st) => st.id)])))}>
+                          {allShown ? t('إلغاء تحديد الظاهرين') : t('تحديد الظاهرين')}
+                        </button>
+                      )}
+                    </div>
+                    <div className="max-h-64 overflow-y-auto grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2 p-2 bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-700">
+                      {shown.map((st) => (
+                        <label
+                          key={st.id}
+                          className={`flex items-center gap-2 p-2 rounded-lg cursor-pointer text-xs ${selectedStudentIds.includes(st.id) ? 'bg-indigo-50 dark:bg-indigo-950/60' : 'hover:bg-slate-50 dark:hover:bg-slate-800'}`}
+                        >
+                          <input
+                            type="checkbox"
+                            checked={selectedStudentIds.includes(st.id)}
+                            onChange={() => toggleStudentSelection(st.id)}
+                            className="rounded accent-indigo-600"
+                          />
+                          <span className="min-w-0">
+                            <span className="block font-bold text-slate-800 dark:text-slate-200 truncate">{st.name}</span>
+                            {st.class_id && <span className="block text-[10px] text-slate-400 truncate">{classes.find((c) => c.id === st.class_id)?.name}</span>}
+                          </span>
+                        </label>
+                      ))}
+                      {shown.length === 0 && <p className="col-span-full text-center text-xs text-slate-400 py-4">{t('لا يوجد طلاب مطابقون للبحث')}</p>}
+                    </div>
+                  </>
+                );
+              })()}
             </div>
           )}
         </div>

@@ -58,7 +58,8 @@ const perms = (u: User): Record<string, boolean | undefined> =>
   (u.teacher_permissions || (u as any).permissions || {}) as Record<string, boolean | undefined>;
 
 /** أقسام القائمة الجانبية للطاقم حسب الدور والصلاحيات (كل الأقسام ظاهرة، بلا «المزيد») */
-const staffGroups = (u: User, pendingApprovals: number, preparationsUrl: string, pendingGrading = 0): NavGroup[] => {
+const staffGroups = (u: User, pendingApprovals: number, links: { prep: string; skills: string }, pendingGrading = 0): NavGroup[] => {
+  const preparationsUrl = links.prep;
   const p = perms(u);
   const isAdmin = u.role === 'admin';
   const quizzes: NavItem[] = [];
@@ -70,11 +71,12 @@ const staffGroups = (u: User, pendingApprovals: number, preparationsUrl: string,
   if (hasPerm(u, 'can_approve_quizzes')) quizzes.push({ id: 'approvals', label: t('بانتظار الاعتماد'), icon: ClipboardCheck, badge: pendingApprovals });
   if (isAdmin || u.role === 'teacher' || hasPerm(u, 'can_grade_essays')) quizzes.push({ id: 'grading', label: t('التصحيح'), icon: PenLine, badge: pendingGrading });
   quizzes.push({ id: 'question_bank', label: t('بنك الأسئلة'), icon: Library });
-  quizzes.push({ id: 'outcomes', label: t('نواتج التعلم'), icon: Target });
+  // الخطط العلاجية تبويب داخل «نواتج التعلم» (القسم نفسه)، وتظهر وحدها لمن لا يرى نواتج التعلم
+  quizzes.push({ id: 'outcomes', label: t('نواتج التعلم والعلاج'), icon: Target });
   quizzes.push({ id: 'homework', label: t('الواجبات'), icon: NotebookPen });
   if (hasPerm(u, 'can_academic_support')) quizzes.push({ id: 'academic_support', label: t('الدعم الأكاديمي'), icon: HeartHandshake });
   if (u.role === 'supervisor' || hasPerm(u, 'can_nafes')) quizzes.push({ id: 'nafes', label: t('نافس'), icon: Target });
-  quizzes.push({ id: 'remedial', label: t('الخطط العلاجية'), icon: LifeBuoy });
+  if (!pageAllowed(u, 'outcomes')) quizzes.push({ id: 'remedial', label: t('الخطط العلاجية'), icon: LifeBuoy });
   quizzes.push({ id: 'calendar', label: t('جدول الاختبارات'), icon: CalendarDays });
   quizzes.push({ id: 'analytics', label: u.role === 'teacher' ? t('نتائج طلابي') : t('النتائج والتحليلات'), icon: BarChart2 });
   quizzes.push({ id: 'gradebook', label: t('كشف الدرجات'), icon: BookOpenCheck });
@@ -100,6 +102,7 @@ const staffGroups = (u: User, pendingApprovals: number, preparationsUrl: string,
   if (isAdmin) system.push({ id: 'school_year', label: t('إدارة العام الدراسي'), icon: CalendarRange });
   if (isAdmin) system.push({ id: 'settings', label: t('الإعدادات'), icon: SettingsIcon });
   if (hasPerm(u, 'can_access_preparations') && preparationsUrl) system.push({ id: 'preparations', label: t('متابعة تحضير مزن'), icon: ExternalLink, href: preparationsUrl });
+  if (hasPerm(u, 'can_access_skills_mastery') && links.skills) system.push({ id: 'skills_mastery', label: t('التمكن المهاري'), icon: ExternalLink, href: links.skills });
 
   const home: NavItem = { id: 'dashboard', label: u.role === 'teacher' ? t('اختباراتي') : t('الرئيسية'), icon: u.role === 'teacher' ? FileQuestion : Home };
   // الصفحات التي حددها المدير للمعلم (الأقسام)
@@ -187,7 +190,7 @@ const SidebarBody: React.FC<{ onNavigate?: () => void; onProfile: () => void }> 
   const [favs, setFavs] = useState<string[]>(() => lsGet(`itqan_nav_favs_${uid}`, []));
   const [folded, setFolded] = useState<string[]>(() => lsGet(`itqan_nav_folded_${uid}`, []));
   if (!currentUser) return null;
-  const groups = staffGroups(currentUser, pendingApprovalsCount, settings.preparations_url, pendingGrading);
+  const groups = staffGroups(currentUser, pendingApprovalsCount, { prep: settings.preparations_url, skills: settings.skills_url }, pendingGrading);
   const go = (id: string) => { setCurrentView(id); onNavigate?.(); };
   const activeId = currentView === 'students_management' ? 'users_management' : currentView;
   const all = groups.flatMap((g) => g.items);
@@ -248,7 +251,7 @@ const StaffBottomNav: React.FC<{ onMore: () => void }> = ({ onMore }) => {
   const { currentUser, currentView, setCurrentView, pendingApprovalsCount, settings, setEditingQuizId, setDuplicateQuizId } = useApp();
   const pendingGrading = usePendingGrading();
   if (!currentUser) return null;
-  const all = staffGroups(currentUser, pendingApprovalsCount, settings.preparations_url, pendingGrading).flatMap((g) => g.items);
+  const all = staffGroups(currentUser, pendingApprovalsCount, { prep: settings.preparations_url, skills: settings.skills_url }, pendingGrading).flatMap((g) => g.items);
   const has = (id: string) => all.find((i) => i.id === id);
   const role = currentUser.role;
   const wanted = role === 'teacher' ? ['dashboard', 'grading', '+', 'analytics']
@@ -297,7 +300,7 @@ const StaffShell: React.FC<{ children: React.ReactNode; banner?: React.ReactNode
   const [profile, setProfile] = useState(false);
   const { currentView, currentUser, pendingApprovalsCount, settings } = useApp();
   useEffect(() => setDrawer(false), [currentView]);
-  const searchPages = React.useMemo(() => (currentUser ? staffGroups(currentUser, pendingApprovalsCount, settings.preparations_url).flatMap((g) => g.items).map((i) => ({ id: i.id, label: i.label, href: i.href })) : []), [currentUser, pendingApprovalsCount, settings.preparations_url]);
+  const searchPages = React.useMemo(() => (currentUser ? staffGroups(currentUser, pendingApprovalsCount, { prep: settings.preparations_url, skills: settings.skills_url }).flatMap((g) => g.items).map((i) => ({ id: i.id, label: i.label, href: i.href })) : []), [currentUser, pendingApprovalsCount, settings.preparations_url, settings.skills_url]);
   const searchSlot = <GlobalSearch pages={searchPages} />;
   return (
     <div className="min-h-screen lg:ps-64">

@@ -49,7 +49,6 @@ const NafesPage = React.lazy(() => import('./components/staff/NafesPage').then((
 const AcademicSupportPage = React.lazy(() => import('./components/staff/AcademicSupportPage').then((m) => ({ default: m.AcademicSupportPage })));
 const HomeworkPage = React.lazy(() => import('./components/staff/HomeworkPage').then((m) => ({ default: m.HomeworkPage })));
 const HomeworkStudentPage = React.lazy(() => import('./components/student/HomeworkStudentPage').then((m) => ({ default: m.HomeworkStudentPage })));
-const RemedialPage = React.lazy(() => import('./components/staff/RemedialPage').then((m) => ({ default: m.RemedialPage })));
 const PortfolioPage = React.lazy(() => import('./components/staff/PortfolioPage').then((m) => ({ default: m.PortfolioPage })));
 const VisitsPage = React.lazy(() => import('./components/staff/VisitsPage').then((m) => ({ default: m.VisitsPage })));
 const SurveysPage = React.lazy(() => import('./components/staff/SurveysPage').then((m) => ({ default: m.SurveysPage })));
@@ -277,7 +276,7 @@ const AppContent: React.FC = () => {
         {currentView === 'gradebook' && <GradebookPage />}
         {currentView === 'visits' && isStaff && <VisitsPage />}
         {currentView === 'surveys' && <SurveysPage />}
-        {currentView === 'remedial' && isStaff && <RemedialPage />}
+        {currentView === 'remedial' && isStaff && <OutcomesPage initialTab="plans" />}
         {currentView === 'homework' && isStaff && <HomeworkPage />}
         {currentView === 'academic_support' && isStaff && <AcademicSupportPage />}
         {currentView === 'nafes' && isStaff && <NafesPage />}

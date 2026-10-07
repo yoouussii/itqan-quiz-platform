@@ -11,6 +11,7 @@ export const SettingsPage: React.FC = () => {
   const [tab, setTab] = useState<'brand' | 'login' | 'home' | 'quizzes' | 'maint'>('brand');
   const [approval, setApproval] = useState(settings.require_quiz_approval);
   const [url, setUrl] = useState(settings.preparations_url);
+  const [skillsUrl, setSkillsUrl] = useState(settings.skills_url || '');
   const [schoolName, setSchoolName] = useState(settings.school_name || '');
   const [logo, setLogo] = useState(settings.school_logo || '');
   const [color, setColor] = useState(settings.brand_color || 'indigo');
@@ -74,10 +75,13 @@ export const SettingsPage: React.FC = () => {
   const save = async () => {
     const clean = url.trim();
     if (clean && !/^https?:\/\//i.test(clean)) return alert(t('الرابط يجب أن يبدأ بـ https://'));
+    const skills = skillsUrl.trim();
+    if (skills && !/^https?:\/\//i.test(skills)) return alert(t('الرابط يجب أن يبدأ بـ https://'));
     setBusy(true);
     await updateSettings({
       require_quiz_approval: approval,
       preparations_url: clean || settings.preparations_url,
+      skills_url: skills,
       school_name: schoolName.trim(),
       school_logo: logo,
       brand_color: color,
@@ -303,6 +307,13 @@ export const SettingsPage: React.FC = () => {
         <input aria-label={t('رابط متابعة تحضير مزن')} dir="ltr" value={url} onChange={(e) => setUrl(e.target.value)}
           className="w-full px-3 py-2 text-xs rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white" />
         <p className="text-[11px] text-slate-500">{t('يفتح في تبويب جديد عند الضغط على زر «متابعة تحضير مزن».')}</p>
+      </div>
+
+      <div className={`${card} space-y-2`}>
+        <label className="block text-sm font-bold text-slate-900 dark:text-white">{t('رابط التمكن المهاري')}</label>
+        <input aria-label={t('رابط التمكن المهاري')} dir="ltr" value={skillsUrl} onChange={(e) => setSkillsUrl(e.target.value)} placeholder="https://"
+          className="w-full px-3 py-2 text-xs rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white" />
+        <p className="text-[11px] text-slate-500">{t('يظهر «التمكن المهاري» في القائمة الجانبية (مثل رابط مزن) للمدير والمشرف ولمن يُمنح صلاحية «رابط التمكن المهاري». اتركه فارغاً لإخفائه.')}</p>
       </div>
       </>
       )}
