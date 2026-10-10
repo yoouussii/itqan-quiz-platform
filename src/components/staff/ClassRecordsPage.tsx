@@ -94,7 +94,7 @@ export const ClassRecordsPage: React.FC = () => {
       {rows === null ? null : tab === 'dash' ? (items.length ? <RecordsDashboard items={items} tools={tools} changes={changes} canManage={canManage} onSetTool={(k, m) => void setTool(k, m)} onOpenTeacher={(k) => { setTab('followup'); setOpenFile(k); }} /> : <EmptyFollow onEmpty={toSync} />)
         : tab === 'followup' ? <FollowupTab items={items} changes={changes} openFile={openFile} setOpenFile={setOpenFile} onEmpty={toSync} />
         : tab === 'levels' ? <LevelsTab rows={levels} cfg={cfg?.levels_cfg || {}} canManage={canManage}
-            onCfg={async (c) => { if (await setLevelsCfg(c)) { if (cfg) setCfg({ ...cfg, levels_cfg: c }); } else showToast(t('تعذر الحفظ — تأكد من تشغيل التحديث 064'), 'error'); }} />
+            onCfg={async (c) => { if (await setLevelsCfg(c)) { if (cfg) setCfg({ ...cfg, levels_cfg: c }); } else showToast(t('تعذر الحفظ — تأكد من تشغيل التحديث 065'), 'error'); }} />
         : <SyncTab cfg={cfg} rows={rows} live={live} onChanged={load} onCfg={setCfg} />}
     </div>
   );

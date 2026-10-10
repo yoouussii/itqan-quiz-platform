@@ -3392,4 +3392,5 @@ export const EN: Record<string, string> = {
   'بلا درجات': 'no scores',
   'لا تُحسب في هذا الفصل: {s}': 'Not counted in this class: {s}',
   'أوراق لم تُقرأ: {s}': 'Sheets not read: {s}',
+  'تعذر الحفظ — تأكد من تشغيل التحديث 065': 'Could not save — make sure update 065 has been run',
 };
