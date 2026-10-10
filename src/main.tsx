@@ -1,3 +1,4 @@
+import './utils/safeStorage'; // أولاً: ذاكرة محلية بلا بيانات قديمة عند امتلائها
 import React from 'react';
 import ReactDOM from 'react-dom/client';
 import App from './App';

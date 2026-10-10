@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { ChevronLeft, ChevronRight, Languages, LogOut, Moon, Sun, UserCheck, UserCog, Search, Compass } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Languages, LogOut, Moon, Sun, UserCheck, UserCog, Search, Compass, RefreshCw } from 'lucide-react';
+import { resetLocalCache } from '../../utils/safeStorage';
 import { useApp } from '../../context/AppContext';
 import { useLang } from '../../i18n/LangContext';
 import { Avatar } from './Avatar';
@@ -73,6 +74,8 @@ export const UserMenu: React.FC<{ displayName: string; roleLabel: string; onProf
                 <button type="button" role="menuitem" className={item} onClick={() => setPreview(true)} data-testid="menu-preview"><UserCheck className="w-5 h-5 text-slate-500" />{t('معاينة كمستخدم')}</button>
               )}
               <button type="button" role="menuitem" className={item} onClick={() => { close(); window.dispatchEvent(new Event(TOUR_EVENT)); }}><Compass className="w-5 h-5 text-slate-500" />{t('الجولة التعريفية')}</button>
+              <button type="button" role="menuitem" className={item} data-testid="menu-refresh-data" title={t('إن لم يظهر اختبار أو صورة موجودة: يمسح النسخة المحفوظة على هذا المتصفح ويجلب كل شيء من الخادم')}
+                onClick={() => { close(); resetLocalCache(); }}><RefreshCw className="w-5 h-5 text-slate-500" />{t('تحديث البيانات من الخادم')}</button>
               <div className="my-1 border-t border-slate-100 dark:border-slate-800" />
               <button type="button" role="menuitem" className={`${item} text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/40`} onClick={() => { close(); logout(); }}><LogOut className="w-5 h-5" />{t('تسجيل الخروج')}</button>
             </>

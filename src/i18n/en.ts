@@ -3393,4 +3393,6 @@ export const EN: Record<string, string> = {
   'لا تُحسب في هذا الفصل: {s}': 'Not counted in this class: {s}',
   'أوراق لم تُقرأ: {s}': 'Sheets not read: {s}',
   'تعذر الحفظ — تأكد من تشغيل التحديث 065': 'Could not save — make sure update 065 has been run',
+  'تحديث البيانات من الخادم': 'Refresh data from server',
+  'إن لم يظهر اختبار أو صورة موجودة: يمسح النسخة المحفوظة على هذا المتصفح ويجلب كل شيء من الخادم': 'If a quiz or image is missing: clears this browser\'s saved copy and reloads everything from the server',
 };
