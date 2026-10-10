@@ -121,3 +121,33 @@ export function summarize(q: SurveyQuestion, rs: SurveyResponse[]) {
   }
   return { kind: 'text' as const, n: vals.length, texts: vals.map(String) };
 }
+
+// ---------------------------------------------------------------------
+// زيارات منصة مزن (067): مستوردة بملف، تقييم زيارة صفية لمعلم
+// ---------------------------------------------------------------------
+import type { MoznVisitRow } from '../utils/moznVisits';
+export interface MoznVisit extends MoznVisitRow { synced_at: string }
+
+export async function fetchMoznVisits(): Promise<{ ok: boolean; rows: MoznVisit[] }> {
+  const rows: MoznVisit[] = [];
+  for (let page = 0; page < 20; page++) {
+    const r = await safe<MoznVisit[]>(() => supabase.from('mozn_visits').select('*').order('visit_date', { ascending: false }).order('id', { ascending: false }).range(page * 500, page * 500 + 499) as any);
+    if (!r.ok || !Array.isArray(r.data)) return { ok: page > 0, rows };
+    rows.push(...r.data);
+    if (r.data.length < 500) break;
+  }
+  return { ok: true, rows };
+}
+export async function importMoznVisits(rows: MoznVisitRow[]) {
+  let n = 0; let error: string | undefined;
+  for (let i = 0; i < rows.length; i += 200) {
+    const r = await safe<{ rows: number }>(() => supabase.rpc('itqan_mozn_import', { p_rows: rows.slice(i, i + 200) }) as any);
+    if (!r.ok) { error = r.error; break; }
+    n += r.data?.rows || 0;
+  }
+  return { ok: !error, rows: n, error };
+}
+export async function deleteMoznVisit(id: number) {
+  const r = await safe<any[]>(() => supabase.from('mozn_visits').delete().eq('id', id).select('id') as any);
+  return r.ok && (r.data || []).length > 0;
+}
