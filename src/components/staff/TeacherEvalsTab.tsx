@@ -57,6 +57,146 @@ const Dist: React.FC<{ title: string; items: Array<{ k: string; n: number; color
   </Card>
 );
 
+// ألوان الرسوم: درجات (لون واحد متدرّج)، والتغير بين الفصلين (أزرق صعود / أحمر هبوط مع سهم ونص)
+const C = { bar: 'var(--te-bar, #2a78d6)', up: 'var(--te-up, #2a78d6)', down: 'var(--te-down, #e34948)' };
+const binsOf = (rows: Row[]) => {
+  const sc = rows.map((r) => r.score).filter((x): x is number => x !== null);
+  if (!sc.length) return [];
+  const lo = Math.max(0, Math.floor(Math.min(...sc) / 5) * 5), hi = Math.min(100, Math.floor(Math.max(...sc) / 5) * 5);
+  const out: Array<{ from: number; to: number; rows: Row[] }> = [];
+  for (let b = lo; b <= hi; b += 5) out.push({ from: b, to: b === 100 ? 100 : b + 4, rows: rows.filter((r) => r.score !== null && r.score >= b && r.score < b + 5 + (b === 100 ? 1 : 0)) });
+  return out;
+};
+
+/** توزيع الدرجات: عمود لكل 5 درجات، مع تلميح عند المرور وضغطة تعرض المعلمين */
+const ScoreHistogram: React.FC<{ rows: Row[]; onPick?: (title: string, rows: Row[]) => void; height?: number }> = ({ rows, onPick, height = 150 }) => {
+  const bins = binsOf(rows);
+  const [hov, setHov] = useState<number | null>(null);
+  const max = Math.max(1, ...bins.map((b) => b.rows.length));
+  const mean = avg(rows.map((r) => r.score).filter((x): x is number => x !== null));
+  if (!bins.length) return <p className="text-xs text-slate-400">—</p>;
+  return (
+    <div dir="ltr">
+      <div className="relative flex items-end gap-[2px]" style={{ height }} role="img" aria-label={t('توزيع الدرجات')}>
+        {[0.5, 1].map((f) => <span key={f} className="absolute inset-x-0 border-t border-slate-100 dark:border-slate-800" style={{ bottom: `${f * 100}%` }} aria-hidden="true" />)}
+        {bins.map((b, i) => (
+          <button key={b.from} type="button" onMouseEnter={() => setHov(i)} onMouseLeave={() => setHov(null)} onFocus={() => setHov(i)} onBlur={() => setHov(null)}
+            onClick={() => b.rows.length && onPick?.(t('الدرجات {a}–{b}', { a: b.from, b: b.to }), b.rows)}
+            className="relative flex-1 h-full flex items-end justify-center group" aria-label={t('{a}–{b}: {n} معلم', { a: b.from, b: b.to, n: b.rows.length })}>
+            <span className="w-full max-w-[44px] rounded-t-[4px] transition-opacity" style={{ height: `${(b.rows.length / max) * 100}%`, minHeight: b.rows.length ? 3 : 0, background: C.bar, opacity: hov === null || hov === i ? 1 : 0.45 }} />
+            {b.rows.length > 0 && <span className="absolute text-[11px] font-bold text-slate-700 dark:text-slate-200 tabular-nums" style={{ bottom: `calc(${(b.rows.length / max) * 100}% + 2px)` }}>{b.rows.length}</span>}
+            {hov === i && (
+              <span className="absolute z-10 bottom-full mb-6 px-2.5 py-1.5 rounded-lg bg-slate-900 text-white text-xs whitespace-nowrap shadow-lg pointer-events-none" dir={uiDir()}>
+                <b className="tabular-nums">{b.from}–{b.to}</b> · {t('{n} معلم', { n: b.rows.length })}
+              </span>
+            )}
+          </button>
+        ))}
+      </div>
+      <div className="flex gap-[2px] mt-1">{bins.map((b) => <span key={b.from} className="flex-1 text-center text-[10px] text-slate-500 tabular-nums">{b.from}</span>)}</div>
+      {mean !== null && <p className="text-[11px] text-slate-500 mt-1 text-center" dir={uiDir()}>{t('المتوسط {n}', { n: mean })}</p>}
+    </div>
+  );
+};
+
+/** التغير من ف1 إلى ف2 لكل معلم: يمين (أزرق ↑) تحسّن، يسار (أحمر ↓) تراجع */
+const DeltaChart: React.FC<{ rows: Row[]; onOpen: (r: Row) => void; maxRows?: number }> = ({ rows, onOpen, maxRows = 14 }) => {
+  const d = rows.map((r) => ({ r, a: num(r.s1), b: num(r.s2) })).filter((x) => x.a !== null && x.b !== null).map((x) => ({ ...x, v: Math.round((x.b! - x.a!) * 10) / 10 })).sort((x, y) => y.v - x.v);
+  if (!d.length) return <p className="text-xs text-slate-400">{t('لا توجد درجات للفصلين معاً بعد')}</p>;
+  const m = Math.max(1, ...d.map((x) => Math.abs(x.v)));
+  const up = d.filter((x) => x.v > 0).length, down = d.filter((x) => x.v < 0).length;
+  return (
+    <div className="space-y-2">
+      <div className="flex flex-wrap gap-3 text-xs text-slate-600 dark:text-slate-300">
+        <span className="inline-flex items-center gap-1"><i className="w-2.5 h-2.5 rounded-sm" style={{ background: C.up }} />{t('تحسّن: {n}', { n: up })}</span>
+        <span className="inline-flex items-center gap-1"><i className="w-2.5 h-2.5 rounded-sm" style={{ background: C.down }} />{t('تراجع: {n}', { n: down })}</span>
+        <span>{t('ثبات: {n}', { n: d.length - up - down })}</span>
+      </div>
+      <ul className="space-y-1 overflow-y-auto pe-1" style={{ maxHeight: `${maxRows * 1.9}rem` }}>
+        {d.map(({ r, a, b, v }) => (
+          <li key={`${r.file}|${r.row}`}>
+            <button type="button" onClick={() => onOpen(r)} className="w-full grid grid-cols-[minmax(0,9rem)_1fr_3.5rem] items-center gap-2 text-sm rounded-lg px-1 py-0.5 hover:bg-slate-50 dark:hover:bg-slate-800/60" title={`${a} ← ${b}`}>
+              <span className="truncate text-start text-slate-700 dark:text-slate-200">{r.name}</span>
+              <span className="relative h-3" dir="ltr" aria-hidden="true">
+                <span className="absolute inset-y-0 left-1/2 w-px bg-slate-300 dark:bg-slate-600" />
+                {v !== 0 && <span className="absolute inset-y-0 rounded-[3px]" style={v > 0 ? { left: '50%', width: `${(v / m) * 50}%`, background: C.up } : { right: '50%', width: `${(-v / m) * 50}%`, background: C.down }} />}
+              </span>
+              <span className={`text-xs font-bold tabular-nums text-end ${v > 0 ? 'text-blue-700 dark:text-blue-300' : v < 0 ? 'text-rose-700 dark:text-rose-300' : 'text-slate-500'}`} dir="ltr">{v > 0 ? `↑ +${v}` : v < 0 ? `↓ ${v}` : '='}</span>
+            </button>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+};
+
+/** ترتيب المعلمين بالدرجة مع خط المتوسط */
+const ScoreRank: React.FC<{ rows: Row[]; onOpen: (r: Row) => void }> = ({ rows, onOpen }) => {
+  const list = rows.filter((r) => r.score !== null).sort((a, b) => b.score! - a.score!);
+  const mean = avg(list.map((r) => r.score!));
+  const lo = Math.max(0, Math.floor((Math.min(...list.map((r) => r.score!), 100) - 5) / 10) * 10);
+  const pos = (v: number) => `${((v - lo) / (100 - lo)) * 100}%`;
+  return (
+    <ul className="space-y-1">
+      {list.map((r, i) => {
+        const p = perfOf(r.perfClass) || perfFromScore(r.score);
+        return (
+          <li key={`${r.file}|${r.row}`}>
+            <button type="button" onClick={() => onOpen(r)} className="w-full grid grid-cols-[1.5rem_minmax(0,10rem)_1fr_2.5rem] items-center gap-2 text-sm rounded-lg px-1 py-0.5 hover:bg-slate-50 dark:hover:bg-slate-800/60">
+              <span className="text-[11px] text-slate-400 tabular-nums">{i + 1}</span>
+              <span className="truncate text-start text-slate-800 dark:text-slate-100">{r.name}</span>
+              <span className="relative h-3 rounded-full bg-slate-100 dark:bg-slate-800" dir="ltr" aria-hidden="true">
+                <span className="absolute inset-y-0 left-0 rounded-full" style={{ width: pos(r.score!), background: p?.color || C.bar }} />
+                {mean !== null && <span className="absolute -inset-y-1 w-0.5 bg-slate-900 dark:bg-white" style={{ left: pos(mean) }} />}
+              </span>
+              <b className="tabular-nums text-end">{r.score}</b>
+            </button>
+          </li>
+        );
+      })}
+      {mean !== null && <li className="text-[11px] text-slate-500 pt-1 flex items-center gap-1.5"><span className="w-0.5 h-3 bg-slate-900 dark:bg-white inline-block" />{t('الخط: المتوسط {n}', { n: mean })} · {t('الألوان حسب تصنيف الأداء')}</li>}
+    </ul>
+  );
+};
+
+/** نافذة تفاصيل مؤشر: رسم + قائمة المعلمين (كل معلم يفتح تفاصيله) */
+const KpiModal: React.FC<{ title: string; sub?: string; chart?: React.ReactNode; rows: Row[]; note?: (r: Row) => React.ReactNode; onOpen: (r: Row) => void; onFilter?: () => void; onClose: () => void }> = ({ title, sub, chart, rows, note, onOpen, onFilter, onClose }) => (
+  <div className="fixed inset-0 z-[60] bg-slate-900/50 flex items-end sm:items-center justify-center sm:p-6" role="dialog" aria-modal="true" aria-label={title} onClick={onClose}>
+    <div className="w-full sm:max-w-3xl max-h-[92vh] bg-white dark:bg-slate-900 rounded-t-3xl sm:rounded-3xl shadow-2xl flex flex-col" onClick={(e) => e.stopPropagation()} dir={uiDir()} data-testid="te-kpi-modal">
+      <div className="flex items-start gap-3 p-5 border-b border-slate-100 dark:border-slate-800">
+        <div className="flex-1 min-w-0"><h2 className="font-bold text-lg text-slate-900 dark:text-white">{title}</h2>{sub && <p className="text-sm text-slate-500">{sub}</p>}</div>
+        {onFilter && <Button size="sm" variant="secondary" onClick={() => { onFilter(); onClose(); }}>{t('تصفية الجدول بها')}</Button>}
+        <button type="button" aria-label={t('إغلاق')} onClick={onClose} className="w-9 h-9 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 flex items-center justify-center"><X className="w-5 h-5" /></button>
+      </div>
+      <div className="flex-1 overflow-y-auto p-5 space-y-5">
+        {chart}
+        {(rows.length > 0 || !chart) && <div>
+          <h3 className="font-bold text-sm text-slate-900 dark:text-white mb-2">{t('المعلمون ({n})', { n: rows.length })}</h3>
+          {rows.length === 0 ? <p className="text-sm text-slate-500">—</p> : (
+            <ul className="divide-y divide-slate-100 dark:divide-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700">
+              {[...rows].sort((a, b) => (b.score ?? -1) - (a.score ?? -1)).map((r) => {
+                const p = perfOf(r.perfClass) || perfFromScore(r.score);
+                return (
+                  <li key={`${r.file}|${r.row}`}>
+                    <button type="button" onClick={() => onOpen(r)} className="w-full flex items-center gap-3 px-3 py-2.5 text-start hover:bg-slate-50 dark:hover:bg-slate-800/50">
+                      <span className="flex-1 min-w-0">
+                        <span className="block font-semibold text-slate-900 dark:text-white truncate">{r.name}</span>
+                        <span className="block text-xs text-slate-500 truncate">{note ? note(r) : [r.subject, r.stage].filter(Boolean).join(' · ')}</span>
+                      </span>
+                      {p && <Chip tone={p.tone}>{r.perfClass || p.k}</Chip>}
+                      <b className="tabular-nums w-10 text-end">{r.score ?? '—'}</b>
+                    </button>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+        </div>}
+      </div>
+    </div>
+  </div>
+);
+
 /** تقييم المعلمين (من ملف Drive أو Excel): مؤشرات، وتوزيعات، وجدول المعلمين وتفاصيل كل معلم */
 export const TeacherEvalsTab: React.FC<{ rows: RecordSheet[]; onEmpty?: () => void }> = ({ rows, onEmpty }) => {
   const all = useMemo<Row[]>(() => rows.flatMap((r) => (parseTeachers(r.grid)?.rows || []).map((x) => ({ ...x, file: r.file_name }))), [rows]);
@@ -64,6 +204,7 @@ export const TeacherEvalsTab: React.FC<{ rows: RecordSheet[]; onEmpty?: () => vo
   const [q, setQ] = useState('');
   const [f, setF] = useState<Record<string, string>>({});
   const [open, setOpen] = useState<Row | null>(null);
+  const [detail, setDetail] = useState<{ title: string; sub?: string; chart?: React.ReactNode; rows: Row[]; note?: (r: Row) => React.ReactNode; filter?: () => void } | null>(null);
   const setFilter = (k: string, v: string) => setF((p) => ({ ...p, [k]: p[k] === v ? '' : v }));
   const opts = (k: keyof TeacherEval) => [...new Set(all.map((r) => String(r[k] ?? '')).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'ar'));
   const list = all.filter((r) =>
@@ -97,13 +238,23 @@ export const TeacherEvalsTab: React.FC<{ rows: RecordSheet[]; onEmpty?: () => vo
   }).sort((a, b) => (b.a ?? 0) - (a.a ?? 0));
   const hi = list.filter((r) => { const p = perfOf(r.perfClass) || perfFromScore(r.score); return p && PERF.indexOf(p) <= 1; }).length;
   const licensed = list.filter((r) => r.license && !bare(r.license).includes('لا يوجد')).length;
-  const KPI: Array<[React.ElementType, string, React.ReactNode, string, string?]> = [
-    [Users, t('المعلمون'), list.length, all.length !== list.length ? t('من {n}', { n: all.length }) : ''],
-    [Award, t('متوسط المعدل النهائي'), avg(scores) ?? '—', scores.length ? t('أعلى {a} · أدنى {b}', { a: Math.max(...scores), b: Math.min(...scores) }) : ''],
-    [BadgeCheck, t('ممتاز وجيد جداً'), `${list.length ? Math.round((hi / list.length) * 100) : 0}%`, t('{n} معلم', { n: hi })],
-    [AlertTriangle, t('يحتاجون متابعة'), list.filter(needsFollow).length, t('تصنيف «جيد» فأقل'), 'follow'],
-    [GraduationCap, t('لديهم رخصة مهنية'), `${list.length ? Math.round((licensed / list.length) * 100) : 0}%`, t('{n} معلم', { n: licensed })],
-    [RefreshCcw, t('لا يجدد'), list.filter(noRenew).length, list.some((r) => r.renew) ? '' : t('لم يُحدَّد بعد')],
+  const isHi = (r: Row) => { const pp = perfOf(r.perfClass) || perfFromScore(r.score); return !!pp && PERF.indexOf(pp) <= 1; };
+  const hasLicense = (r: Row) => !!r.license && !bare(r.license).includes('لا يوجد');
+  const licenseDist = count((r) => r.license, ['خبير', 'متقدم', 'ممارس', 'لا يوجد']);
+  // كل بطاقة تفتح تفاصيلها: رسم + قائمة المعلمين
+  const KPI: Array<[React.ElementType, string, React.ReactNode, string, () => void]> = [
+    [Users, t('المعلمون'), list.length, all.length !== list.length ? t('من {n}', { n: all.length }) : '',
+      () => setDetail({ title: t('المعلمون'), sub: t('توزيع الدرجات النهائية، اضغط على عمود لعرض معلميه'), rows: list, chart: <Card className="p-4"><ScoreHistogram rows={list} height={170} onPick={(title, rs) => setDetail({ title, rows: rs })} /></Card> })],
+    [Award, t('متوسط المعدل النهائي'), avg(scores) ?? '—', scores.length ? t('أعلى {a} · أدنى {b}', { a: Math.max(...scores), b: Math.min(...scores) }) : '',
+      () => setDetail({ title: t('ترتيب المعلمين بالمعدل النهائي'), sub: t('المتوسط {n}', { n: avg(scores) ?? '—' }), rows: [], chart: <Card className="p-4"><ScoreRank rows={list} onOpen={setOpen} /></Card> })],
+    [BadgeCheck, t('ممتاز وجيد جداً'), `${list.length ? Math.round((hi / list.length) * 100) : 0}%`, t('{n} معلم', { n: hi }),
+      () => setDetail({ title: t('ممتاز وجيد جداً'), sub: t('{a} من {b} معلم', { a: hi, b: list.length }), rows: list.filter(isHi), chart: <Dist title={t('تصنيف الأداء الوظيفي')} items={perfDist} total={list.length} />, note: (r) => [r.subject, r.compClass].filter(Boolean).join(' · ') })],
+    [AlertTriangle, t('يحتاجون متابعة'), list.filter(needsFollow).length, t('تصنيف «جيد» فأقل'),
+      () => setDetail({ title: t('يحتاجون متابعة'), sub: t('تصنيف «جيد» فأقل، مع جوانب التحسين لكل معلم'), rows: list.filter(needsFollow), note: (r) => r.needs || r.subject, filter: () => setF((p) => ({ ...p, follow: '1' })) })],
+    [GraduationCap, t('لديهم رخصة مهنية'), `${list.length ? Math.round((licensed / list.length) * 100) : 0}%`, t('{n} معلم', { n: licensed }),
+      () => setDetail({ title: t('بلا رخصة مهنية'), sub: t('{n} لديهم رخصة', { n: licensed }), rows: list.filter((r) => !hasLicense(r)), chart: <Dist title={t('الرخصة المهنية')} items={licenseDist} total={list.length} />, note: (r) => [r.subject, r.license].filter(Boolean).join(' · ') })],
+    [RefreshCcw, t('لا يجدد'), list.filter(noRenew).length, list.some((r) => r.renew) ? '' : t('لم يُحدَّد بعد'),
+      () => setDetail({ title: t('لا يجدد'), rows: list.filter(noRenew), note: (r) => [r.subject, r.perfClass].filter(Boolean).join(' · ') })],
   ];
 
   const exportExcel = async () => {
@@ -148,14 +299,26 @@ export const TeacherEvalsTab: React.FC<{ rows: RecordSheet[]; onEmpty?: () => vo
       {latest && <p className="text-xs text-slate-500 flex items-center gap-2 -mt-2">{t('آخر تعديل:')} <b>{latest.last_edit_by || '—'}</b><Freshness at={latest.last_edit_at} /></p>}
 
       <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-3">
-        {KPI.map(([Icon, l, v, sub, key]) => (
-          <button key={l} type="button" disabled={!key} onClick={() => key && setFilter(key, '1')}
-            className={`text-start rounded-2xl border bg-white dark:bg-slate-900 p-4 ${key ? 'hover:border-indigo-300' : 'cursor-default'} ${key && f[key] ? 'border-indigo-500 ring-2 ring-indigo-200 dark:ring-indigo-900' : 'border-slate-200 dark:border-slate-800'}`}>
+        {KPI.map(([Icon, l, v, sub, act]) => (
+          <button key={l} type="button" onClick={act} data-testid="te-kpi"
+            className="text-start rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4 hover:border-indigo-300 hover:shadow-sm transition">
             <div className="flex items-center gap-1.5 text-xs font-semibold text-slate-500"><Icon className="w-4 h-4" />{l}</div>
             <div className="text-2xl font-extrabold tabular-nums text-slate-900 dark:text-white mt-1">{v}</div>
-            {sub && <div className="text-[11px] text-slate-500">{sub}</div>}
+            <div className="text-[11px] text-slate-500 flex justify-between gap-1"><span>{sub}</span><span className="text-indigo-600 dark:text-indigo-400 font-semibold">{t('التفاصيل')}</span></div>
           </button>
         ))}
+      </div>
+      {f.follow && <div className="-mt-2"><Chip tone="warn">{t('يحتاجون متابعة')}<button type="button" aria-label={t('إلغاء')} onClick={() => setFilter('follow', '1')}><X className="w-3 h-3" /></button></Chip></div>}
+
+      <div className="grid lg:grid-cols-2 gap-4">
+        <Card className="p-4">
+          <h3 className="font-bold text-sm text-slate-900 dark:text-white mb-3">{t('توزيع الدرجات النهائية')}</h3>
+          <ScoreHistogram rows={list} onPick={(title, rs) => setDetail({ title, rows: rs })} />
+        </Card>
+        <Card className="p-4">
+          <h3 className="font-bold text-sm text-slate-900 dark:text-white mb-3">{t('التغير من ف1 إلى ف2')}</h3>
+          <DeltaChart rows={list} onOpen={setOpen} maxRows={8} />
+        </Card>
       </div>
 
       <div className="grid md:grid-cols-2 xl:grid-cols-3 gap-4">
@@ -212,6 +375,7 @@ export const TeacherEvalsTab: React.FC<{ rows: RecordSheet[]; onEmpty?: () => vo
         </div>
       </Card>
 
+      {detail && <KpiModal title={detail.title} sub={detail.sub} chart={detail.chart} rows={detail.rows} note={detail.note} onFilter={detail.filter} onOpen={(r) => setOpen(r)} onClose={() => setDetail(null)} />}
       {open && <TeacherDrawer r={open} onClose={() => setOpen(null)} />}
     </div>
   );
