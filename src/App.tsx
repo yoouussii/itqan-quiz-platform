@@ -158,7 +158,7 @@ const AppContent: React.FC = () => {
     surveys: true,
     remedial: isStaff,
     homework: isStaff || currentUser.role === 'student',
-    class_records: hasPerm(currentUser, 'can_view_class_records') || hasPerm(currentUser, 'can_manage_class_records'),
+    class_records: hasPerm(currentUser, 'can_view_class_records') || hasPerm(currentUser, 'can_manage_class_records') || hasPerm(currentUser, 'can_view_teacher_evals'),
     points_store: isStaff && hasPerm(currentUser, 'can_manage_store'),
     indicators: currentUser.role === 'admin' || currentUser.role === 'supervisor' || hasPerm(currentUser, 'can_view_all_reports'),
     academic_support: isStaff && (hasPerm(currentUser, 'can_academic_support') || currentUser.role === 'admin'),

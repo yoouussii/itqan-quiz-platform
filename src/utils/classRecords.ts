@@ -254,7 +254,7 @@ export function trimGrid(grid: Grid, maxRows = 300, maxCols = 60): Grid {
 }
 
 /** كود Google Apps Script المركزي: يسأل المنصة كل دقيقة، ويفحص مجلدات Drive عند الطلب («تحديث الآن») أو حين يحين موعد الفحص، ويرسل ما تغيّر */
-export function recordsAppsScript(url: string, anonKey: string, token: string, folders: Array<{ id: string; kind: 'followup' | 'levels' }>): string {
+export function recordsAppsScript(url: string, anonKey: string, token: string, folders: Array<{ id: string; kind: 'followup' | 'levels' | 'teachers' }>): string {
   return `// ===== ربط سجلات المتابعة وتتبع المستويات بمنصة إتقان =====
 // 1) افتح script.google.com بحساب المدرسة ← مشروع جديد، احذف أي كود والصق هذا الكود واحفظ.
 // 2) اختر الدالة setup من الأعلى واضغط «تشغيل» مرة واحدة، ووافق على الأذونات.
@@ -378,4 +378,100 @@ function syncAll() {
   return complete;
 }
 `;
+}
+
+// ---------------------------------------------------------------------
+// تقييم المعلمين: صف عناوين فيه «اسم المعلم» (وصف عناوين فرعية اختياري: سنوات الخبرة، درجة الأداء ف1/ف2)،
+// ثم معلم في كل صف. الأعمدة تُعرف بأسمائها لا بمواضعها، فيُقرأ الملف وإن تغيّر ترتيبه.
+// ---------------------------------------------------------------------
+export type TeacherField =
+  | 'name' | 'complex' | 'dept' | 'nationality' | 'contract' | 'nid' | 'birth' | 'age' | 'qual' | 'phone' | 'license'
+  | 'subject' | 'stage' | 'periods' | 'stage2' | 'periods2' | 'load' | 'start' | 'status' | 'expIn' | 'expOut'
+  | 's1' | 'c1' | 's2' | 'c2' | 'final' | 'perfClass' | 'compClass' | 'strengths' | 'needs' | 'actions' | 'renew';
+export type TeacherEval = Partial<Record<TeacherField, string>> & { name: string; score: number | null; row: number };
+export interface TeacherEvalSheet { rows: TeacherEval[]; fields: TeacherField[] }
+
+const bareAr = (s: string) => norm(s).replace(/[ً-ْٰ]/g, '').replace(/[أإآ]/g, 'ا').replace(/ة/g, 'ه').replace(/ى/g, 'ي');
+const TEACHER_RULES: Array<[TeacherField, (l: string) => boolean]> = [
+  ['name', (l) => l.includes('اسم المعلم')],
+  ['c1', (l) => l.includes('تصنيف') && /ف\s*1/.test(l)],
+  ['c2', (l) => l.includes('تصنيف') && /ف\s*2/.test(l)],
+  ['perfClass', (l) => l.includes('تصنيف') && l.includes('الاداء')],
+  ['compClass', (l) => l.includes('تصنيف') && (l.includes('الكفاءه') || l.includes('الفاعليه'))],
+  ['final', (l) => l.includes('المعدل النهائي')],
+  ['s1', (l) => /(^|\/)\s*ف\s*1\s*$/.test(l)],
+  ['s2', (l) => /(^|\/)\s*ف\s*2\s*$/.test(l)],
+  ['expOut', (l) => l.includes('خارج الشركه')],
+  ['expIn', (l) => l.includes('في الشركه') || l.includes('سنوات الخبره')],
+  ['strengths', (l) => l.includes('نقاط القوه')],
+  ['needs', (l) => l.includes('تحتاج') || l.includes('تحسين')],
+  ['actions', (l) => l.includes('الاجراءات')],
+  ['renew', (l) => l.includes('يجدد')],
+  ['stage2', (l) => l.includes('مرحله الاكمال')],
+  ['periods2', (l) => l.includes('حصص الاكمال')],
+  ['stage', (l) => l.includes('المرحله')],
+  ['periods', (l) => l.includes('عدد الحصص')],
+  ['load', (l) => l.includes('النصاب')],
+  ['complex', (l) => l.includes('المجمع')],
+  ['dept', (l) => l === 'القسم' || l.startsWith('القسم')],
+  ['nationality', (l) => l.includes('الجنسيه')],
+  ['contract', (l) => l.includes('التعاقد')],
+  ['nid', (l) => l.includes('الهويه') || l.includes('السجل المدني') || l.includes('الاقامه')],
+  ['birth', (l) => l.includes('الميلاد')],
+  ['age', (l) => l.startsWith('العمر')],
+  ['qual', (l) => l.includes('المؤهل')],
+  ['phone', (l) => l.includes('الجوال')],
+  ['license', (l) => l.includes('الرخصه')],
+  ['subject', (l) => l.includes('ماده')],
+  ['start', (l) => l.includes('المباشره')],
+  ['status', (l) => l.includes('حاله المعلم')],
+];
+/** تاريخ Excel التسلسلي (عند الرفع اليدوي) ← YYYY-MM-DD */
+const excelDate = (v: Cell): string => {
+  if (typeof v === 'number' && v > 15000 && v < 80000) return new Date(Math.round((v - 25569) * 864e5)).toISOString().slice(0, 10);
+  const s = norm(v); return /^\d{4}-\d{2}-\d{2}/.test(s) ? s.slice(0, 10) : s;
+};
+
+export function parseTeachers(grid: Grid): TeacherEvalSheet | null {
+  let h = -1;
+  for (let r = 0; r < Math.min(grid.length, 15) && h < 0; r++) if ((grid[r] || []).some((v) => bareAr(String(v ?? '')).includes('اسم المعلم'))) h = r;
+  if (h < 0) return null;
+  const top = grid[h] || [], next = grid[h + 1] || [];
+  const nameCol = top.findIndex((v) => bareAr(String(v ?? '')).includes('اسم المعلم'));
+  // صف العناوين الفرعية: الصف التالي بلا اسم معلم وفيه نص تحت عنوان مدمج
+  const hasSub = !norm(next[nameCol]) && next.some((v, c) => norm(v) && !norm(top[c]));
+  const width = Math.max(top.length, hasSub ? next.length : 0);
+  const cols = new Map<TeacherField, number>();
+  let parent = '', gap = 0;
+  for (let c = 0; c < width; c++) {
+    const t = bareAr(String(top[c] ?? '')), sub = hasSub ? bareAr(String(next[c] ?? '')) : '';
+    if (t) parent = t;
+    if (!t && !sub) { if (++gap >= 2 && c > nameCol) break; continue; } // بعد فراغين: أعمدة القوائم المساعدة
+    gap = 0;
+    const label = t && !sub ? t : `${t || parent}/${sub}`;
+    const rule = TEACHER_RULES.find(([f, test]) => !cols.has(f) && (test(label) || (sub && test(sub))));
+    if (rule) cols.set(rule[0], c);
+  }
+  const rows: TeacherEval[] = [];
+  let empties = 0;
+  for (let r = h + (hasSub ? 2 : 1); r < grid.length; r++) {
+    const row = grid[r] || [];
+    const name = norm(row[nameCol]);
+    if (!name) { if (++empties >= 3) break; continue; }
+    empties = 0;
+    if (toNum(name) !== null) continue;
+    const ev: TeacherEval = { name, score: null, row: r };
+    cols.forEach((c, f) => {
+      if (f === 'name') return;
+      const v = f === 'birth' || f === 'start' ? excelDate(row[c]) : norm(row[c]);
+      if (v) ev[f] = v;
+    });
+    // الدرجة: المعدل النهائي، وإلا ف2 أو ف1
+    ev.score = [ev.final, ev.s2, ev.s1].map((x) => (x === undefined ? null : toNum(x))).find((x) => x !== null && x !== undefined) ?? null;
+    if (ev.score !== null) ev.score = Math.round(ev.score * 10) / 10;
+    // التصنيف النهائي إن غاب: من ف2 ثم ف1
+    if (!ev.perfClass) ev.perfClass = ev.c2 || ev.c1;
+    rows.push(ev);
+  }
+  return rows.length ? { rows, fields: [...cols.keys()] } : null;
 }

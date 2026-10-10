@@ -2,7 +2,7 @@ import { supabase } from './supabase';
 import { safe } from './remote';
 import type { Grid } from '../utils/classRecords';
 
-export type RecordKind = 'followup' | 'levels';
+export type RecordKind = 'followup' | 'levels' | 'teachers';
 export interface RecordSheet {
   id: number; kind: RecordKind; file_key: string; file_name: string; folder_path: string; sheet_name: string;
   grid: Grid; last_edit_by: string; last_edit_at: string | null; source: 'drive' | 'upload'; synced_at: string;
