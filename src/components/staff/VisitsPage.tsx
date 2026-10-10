@@ -8,6 +8,8 @@ import { exportElementToPdf } from '../../utils/exportPdf';
 import { uiDir, t, dateLocale } from '../../i18n';
 import type { User } from '../../types';
 import { EmptyMascot } from '../common/Mascot';
+import { MoznVisitsTab } from './MoznVisitsTab';
+import { Globe } from 'lucide-react';
 
 const esc = (v: unknown) => String(v ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 const fmtDay = (d: string) => new Date(`${d}T12:00:00`).toLocaleDateString(dateLocale(), { weekday: 'short', day: 'numeric', month: 'long', year: 'numeric' });
@@ -23,7 +25,8 @@ export const VisitsPage: React.FC = () => {
   const me = currentUser!;
   const canVisit = hasPerm(me, 'can_class_visits');
   const isAdmin = me.role === 'admin';
-  const [tab, setTab] = useState<'list' | 'items'>('list');
+  const [tab, setTab] = useState<'list' | 'items' | 'mozn'>('list');
+  const canMozn = isAdmin || canVisit;
   const [visits, setVisits] = useState<ClassVisit[] | null>(null);
   const [items, setItems] = useState<VisitItem[]>([]);
   const [teacherFilter, setTeacherFilter] = useState('');
@@ -73,15 +76,15 @@ export const VisitsPage: React.FC = () => {
         subtitle={canVisit ? t('تقييم حصص المعلمين ببنود واضحة، مع نقاط القوة والتوصيات، ويطّلع المعلم على زيارته') : t('زياراتك الصفية: التقييم والتوصيات')}
         actions={canVisit ? <Button icon={Plus} onClick={() => setForm(true)}>{t('زيارة جديدة')}</Button> : undefined} />
 
-      {isAdmin && (
-        <div className="flex gap-2">
-          {([['list', 'الزيارات'], ['items', 'بنود التقييم']] as const).map(([k, l]) => (
-            <button key={k} type="button" onClick={() => setTab(k)} className={`h-10 px-4 rounded-xl text-sm font-bold ${tab === k ? 'bg-indigo-600 text-white' : 'bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200'}`}>{t(l)}</button>
+      {canMozn && (
+        <div className="flex flex-wrap gap-2">
+          {([['list', 'الزيارات', null], ...(isAdmin ? [['items', 'بنود التقييم', null]] as const : []), ['mozn', 'زيارات مزن', Globe]] as Array<[typeof tab, string, any]>).map(([k, l, Icon]) => (
+            <button key={k} type="button" onClick={() => setTab(k)} className={`h-10 px-4 rounded-xl text-sm font-bold inline-flex items-center gap-2 ${tab === k ? 'bg-indigo-600 text-white' : 'bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200'}`}>{Icon && <Icon className="w-4 h-4" />}{t(l)}</button>
           ))}
         </div>
       )}
 
-      {tab === 'items' && isAdmin ? <ItemsEditor items={items} onSaved={setItems} /> : (
+      {tab === 'mozn' ? <MoznVisitsTab /> : tab === 'items' && isAdmin ? <ItemsEditor items={items} onSaved={setItems} /> : (
         <>
           {/* أنواع الزيارات: مدير المدرسة، الوكيل، المشرف التعليمي… */}
           <div className="flex flex-wrap gap-1.5" role="group" aria-label={t('نوع الزيارة')}>
