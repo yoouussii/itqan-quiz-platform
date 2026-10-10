@@ -1,18 +1,19 @@
 import { HBarRank } from '../common/HBarRank';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { FolderSync, ClipboardList, TrendingUp, Upload, Copy, KeyRound, X, FileDown, Trash2, Search, RefreshCw, Users, CheckCircle2, AlertTriangle, LayoutDashboard, History } from 'lucide-react';
+import { FolderSync, ClipboardList, TrendingUp, UserCheck, Upload, Copy, KeyRound, X, FileDown, Trash2, Search, RefreshCw, Users, CheckCircle2, AlertTriangle, LayoutDashboard, History } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 import { PageHeader, Card, Button, Chip, timeAgo } from '../common/ui';
 import { RecordChange, RecordKind, RecordSheet, RecordsConfig, deleteRecordFile, fetchRecordChanges, setRecordTools, fetchRecordSheets, fetchRecordsConfig, folderIdFrom, importRecordFile, requestRecordsSync, setLevelsCfg, setRecordsInterval, setupRecords } from '../../services/classRecordsService';
-import { FollowSheet, LevelSheet, LevelsCfg, ToolMode, autoRounds, classLabel, lastOf, meanOf, parseFollowup, parseLevels, prepLevels, recordMeta, recordsAppsScript, trimGrid } from '../../utils/classRecords';
+import { FollowSheet, LevelSheet, LevelsCfg, ToolMode, autoRounds, classLabel, lastOf, meanOf, parseFollowup, parseLevels, parseTeachers, prepLevels, recordMeta, recordsAppsScript, trimGrid } from '../../utils/classRecords';
 import { ChangesTimeline, Freshness, RecItem, RecordsDashboard, VBarChart, buildItems, dayKey, fmtDay, fmtFull, sheetShort } from './ClassRecordsDashboard';
 import { supabaseUrl, supabaseAnonKey } from '../../services/supabase';
 import { hasPerm } from '../../utils/permissions';
 import { exportElementToPdf } from '../../utils/exportPdf';
 import { uiDir, t, dateLocale } from '../../i18n';
 import { MascotHere } from '../common/Mascot';
+import { TeacherEvalsTab } from './TeacherEvalsTab';
 
-type Tab = 'dash' | 'followup' | 'levels' | 'sync';
+type Tab = 'dash' | 'followup' | 'levels' | 'teachers' | 'sync';
 const inp = 'h-10 px-3 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm';
 const pct = (a: number, b: number) => (b ? Math.round((a / b) * 100) : 0);
 const escH = (v: unknown) => String(v ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
@@ -23,7 +24,10 @@ const fmtAt = (iso: string | null) => (iso ? new Date(iso).toLocaleString(dateLo
 export const ClassRecordsPage: React.FC = () => {
   const { currentUser, showToast } = useApp();
   const canManage = hasPerm(currentUser, 'can_manage_class_records');
-  const [tab, setTab] = useState<Tab>('dash');
+  // تقييم المعلمين: من يدير السجلات أو لديه صلاحيته فقط؛ ومن لا يرى غيره يبدأ به
+  const canEvals = canManage || hasPerm(currentUser, 'can_view_teacher_evals');
+  const canRecords = canManage || hasPerm(currentUser, 'can_view_class_records');
+  const [tab, setTab] = useState<Tab>(canRecords ? 'dash' : 'teachers');
   const [rows, setRows] = useState<RecordSheet[] | null>(null);
   const [changes, setChanges] = useState<RecordChange[]>([]);
   const [cfg, setCfg] = useState<RecordsConfig | null>(null);
@@ -74,8 +78,12 @@ export const ClassRecordsPage: React.FC = () => {
     if (r.ok && cfg) setCfg({ ...cfg, tools: r.tools }); else showToast(t('تعذر الحفظ — تأكد من تشغيل التحديث 046'), 'error');
   };
   const levels = useMemo(() => (rows || []).filter((r) => r.kind === 'levels'), [rows]);
+  const evals = useMemo(() => (rows || []).filter((r) => r.kind === 'teachers'), [rows]);
   const toSync = () => canManage && setTab('sync');
-  const TABS: Array<[Tab, string, React.ElementType]> = [['dash', t('لوحة المتابعة'), LayoutDashboard], ['followup', t('سجلات المتابعة الصفية'), ClipboardList], ['levels', t('تتبع مستويات الطلاب'), TrendingUp], ...(canManage ? [['sync', t('الربط والاستيراد'), FolderSync] as [Tab, string, React.ElementType]] : [])];
+  const TABS: Array<[Tab, string, React.ElementType]> = [
+    ...(canRecords ? [['dash', t('لوحة المتابعة'), LayoutDashboard], ['followup', t('سجلات المتابعة الصفية'), ClipboardList], ['levels', t('تتبع مستويات الطلاب'), TrendingUp]] as Array<[Tab, string, React.ElementType]> : []),
+    ...(canEvals ? [['teachers', t('تقييم المعلمين'), UserCheck] as [Tab, string, React.ElementType]] : []),
+    ...(canManage ? [['sync', t('الربط والاستيراد'), FolderSync] as [Tab, string, React.ElementType]] : [])];
   return (
     <div className="max-w-7xl mx-auto py-6 sm:py-8 px-4 sm:px-6 space-y-5" dir={uiDir()}>
       <PageHeader title={t('سجلات المتابعة')} subtitle={t('سجلات المعلمين ومستويات الطلاب من Google Drive، مع آخر تعديل لكل ملف')}
@@ -93,6 +101,7 @@ export const ClassRecordsPage: React.FC = () => {
       </div>
       {rows === null ? null : tab === 'dash' ? (items.length ? <RecordsDashboard items={items} tools={tools} changes={changes} canManage={canManage} onSetTool={(k, m) => void setTool(k, m)} onOpenTeacher={(k) => { setTab('followup'); setOpenFile(k); }} /> : <EmptyFollow onEmpty={toSync} />)
         : tab === 'followup' ? <FollowupTab items={items} changes={changes} openFile={openFile} setOpenFile={setOpenFile} onEmpty={toSync} />
+        : tab === 'teachers' ? <TeacherEvalsTab rows={evals} onEmpty={canManage ? toSync : undefined} />
         : tab === 'levels' ? <LevelsTab rows={levels} cfg={cfg?.levels_cfg || {}} canManage={canManage}
             onCfg={async (c) => { if (await setLevelsCfg(c)) { if (cfg) setCfg({ ...cfg, levels_cfg: c }); } else showToast(t('تعذر الحفظ — تأكد من تشغيل التحديث 065'), 'error'); }} />
         : <SyncTab cfg={cfg} rows={rows} live={live} onChanged={load} onCfg={setCfg} />}
@@ -505,13 +514,14 @@ const SyncTab: React.FC<{ cfg: RecordsConfig | null; rows: RecordSheet[]; live: 
   const { showToast } = useApp();
   const [fu, setFu] = useState(cfg?.folders.find((f) => f.kind === 'followup')?.url || '');
   const [lv, setLv] = useState(cfg?.folders.find((f) => f.kind === 'levels')?.url || '');
+  const [te, setTe] = useState(cfg?.folders.find((f) => f.kind === 'teachers')?.url || '');
   const [code, setCode] = useState('');
   const [kind, setKind] = useState<RecordKind>('followup');
   const [busy, setBusy] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
   const makeCode = async () => {
     const folders: RecordsConfig['folders'] = [];
-    for (const [url, k] of [[fu, 'followup'], [lv, 'levels']] as const) {
+    for (const [url, k] of [[fu, 'followup'], [lv, 'levels'], [te, 'teachers']] as const) {
       if (!url.trim()) continue;
       const id = folderIdFrom(url);
       if (!id) return showToast(t('رابط المجلد غير صحيح'), 'error');
@@ -546,17 +556,21 @@ const SyncTab: React.FC<{ cfg: RecordsConfig | null; rows: RecordSheet[]; live: 
   // أوراق لم تُقرأ (لم يُعثر فيها على عمود «اسم الطالب» / Student Name وصف الدرجات العظمى)
   const unread = useMemo(() => {
     const m = new Map<string, string[]>();
+    const okFiles = new Set<string>();
     rows.forEach((r) => {
-      const ok = r.kind === 'followup' ? !!parseFollowup(r.grid)?.students.length : !!parseLevels(r.grid)?.students.length;
-      if (!ok) { const k = `${r.kind}|${r.file_key}`; m.set(k, [...(m.get(k) || []), r.sheet_name]); }
+      const k = `${r.kind}|${r.file_key}`;
+      const ok = r.kind === 'followup' ? !!parseFollowup(r.grid)?.students.length : r.kind === 'levels' ? !!parseLevels(r.grid)?.students.length : !!parseTeachers(r.grid)?.rows.length;
+      if (ok) okFiles.add(k); else m.set(k, [...(m.get(k) || []), r.sheet_name]);
     });
+    // تقييم المعلمين: أوراق الإحصائيات بجانب ورقة المعلمين لا تُعد مشكلة
+    [...m.keys()].forEach((k) => { if (k.startsWith('teachers|') && okFiles.has(k)) m.delete(k); });
     return m;
   }, [rows]);
   return (
     <div className="space-y-5">
       <Card className="p-5 space-y-3">
         <h2 className="font-bold text-slate-900 dark:text-white flex items-center gap-2"><FolderSync className="w-5 h-5 text-indigo-600" />{t('الربط مع مجلدات Google Drive')}</h2>
-        <p className="text-sm text-slate-600 dark:text-slate-300">{t('كود واحد يتصل بالمنصة كل دقيقة: يقرأ ملفات المجلدين (وما بداخلهما) عند الضغط على «تحديث الآن» أو حين يحين موعد الفحص، ويرسل الملفات التي تغيّرت فقط مع اسم آخر من عدّلها ووقته. لا يحتاج كل معلم لأي إعداد.')}</p>
+        <p className="text-sm text-slate-600 dark:text-slate-300">{t('كود واحد يتصل بالمنصة كل دقيقة: يقرأ ملفات المجلدات (وما بداخلها) عند الضغط على «تحديث الآن» أو حين يحين موعد الفحص، ويرسل الملفات التي تغيّرت فقط مع اسم آخر من عدّلها ووقته. لا يحتاج كل معلم لأي إعداد.')}</p>
         {cfg?.has_token && (
           <div className="flex flex-wrap items-center gap-3 rounded-xl bg-slate-50 dark:bg-slate-800/60 p-3 text-sm">
             <span className={`inline-flex items-center gap-1.5 font-semibold ${live ? 'text-emerald-700 dark:text-emerald-400' : 'text-amber-700 dark:text-amber-400'}`}>
@@ -576,6 +590,7 @@ const SyncTab: React.FC<{ cfg: RecordsConfig | null; rows: RecordSheet[]; live: 
         <div className="grid md:grid-cols-2 gap-3">
           <label className="text-sm text-slate-600 dark:text-slate-300 flex flex-col gap-1">{t('مجلد سجلات المتابعة الصفية')}<input value={fu} onChange={(e) => setFu(e.target.value)} placeholder="https://drive.google.com/drive/folders/…" dir="ltr" className={inp} /></label>
           <label className="text-sm text-slate-600 dark:text-slate-300 flex flex-col gap-1">{t('مجلد تتبع مستويات الطلاب')}<input value={lv} onChange={(e) => setLv(e.target.value)} placeholder="https://drive.google.com/drive/folders/…" dir="ltr" className={inp} /></label>
+          <label className="text-sm text-slate-600 dark:text-slate-300 flex flex-col gap-1">{t('مجلد تقييم المعلمين')}<input value={te} onChange={(e) => setTe(e.target.value)} placeholder="https://drive.google.com/drive/folders/…" dir="ltr" className={inp} /></label>
         </div>
         <Button size="sm" icon={KeyRound} onClick={() => void makeCode()}>{cfg?.has_token ? t('إنشاء كود جديد') : t('إنشاء كود الربط')}</Button>
         {code && (
@@ -595,7 +610,7 @@ const SyncTab: React.FC<{ cfg: RecordsConfig | null; rows: RecordSheet[]; live: 
       <Card className="p-5 space-y-3">
         <h2 className="font-bold text-slate-900 dark:text-white flex items-center gap-2"><Upload className="w-5 h-5 text-indigo-600" />{t('رفع ملفات Excel يدوياً')}</h2>
         <div className="flex flex-wrap items-center gap-2">
-          <select value={kind} onChange={(e) => setKind(e.target.value as RecordKind)} className={inp} aria-label={t('النوع')}><option value="followup">{t('سجلات المتابعة الصفية')}</option><option value="levels">{t('تتبع مستويات الطلاب')}</option></select>
+          <select value={kind} onChange={(e) => setKind(e.target.value as RecordKind)} className={inp} aria-label={t('النوع')}><option value="followup">{t('سجلات المتابعة الصفية')}</option><option value="levels">{t('تتبع مستويات الطلاب')}</option><option value="teachers">{t('تقييم المعلمين')}</option></select>
           <input ref={fileRef} type="file" accept=".xlsx,.xls" multiple className="hidden" onChange={(e) => { const list = Array.from(e.target.files || []); e.target.value = ''; if (list.length) void upload(list); }} />
           <Button size="sm" variant="secondary" icon={Upload} disabled={busy} onClick={() => fileRef.current?.click()}>{busy ? t('جارٍ الرفع…') : t('اختيار الملفات')}</Button>
           <span className="text-xs text-slate-500">{t('سجلات المتابعة: ملف لكل معلم (اسم الملف = اسم المعلم). يمكن اختيار عدة ملفات معاً.')}</span>
@@ -606,7 +621,7 @@ const SyncTab: React.FC<{ cfg: RecordsConfig | null; rows: RecordSheet[]; live: 
         <ul className="divide-y divide-slate-100 dark:divide-slate-800 max-h-96 overflow-y-auto">
           {files.map((r) => (
             <li key={`${r.kind}|${r.file_key}`} className="flex flex-wrap items-center gap-2 px-4 py-2.5 text-sm">
-              <Chip tone={r.kind === 'followup' ? 'info' : 'ok'}>{r.kind === 'followup' ? t('متابعة') : t('مستويات')}</Chip>
+              <Chip tone={r.kind === 'followup' ? 'info' : r.kind === 'levels' ? 'ok' : 'warn'}>{r.kind === 'followup' ? t('متابعة') : r.kind === 'levels' ? t('مستويات') : t('تقييم المعلمين')}</Chip>
               <b className="text-slate-900 dark:text-white">{r.file_name}</b>
               <span className="text-xs text-slate-500">{r.source === 'drive' ? 'Drive' : t('رفع يدوي')} · {r.last_edit_by || '—'} · {fmtAt(r.last_edit_at)}</span>
               {unread.has(`${r.kind}|${r.file_key}`) && <span title={unread.get(`${r.kind}|${r.file_key}`)!.join('، ')}><Chip tone="warn"><AlertTriangle className="w-3 h-3" />{t('أوراق لم تُقرأ: {s}', { s: unread.get(`${r.kind}|${r.file_key}`)!.slice(0, 3).join('، ') })}</Chip></span>}

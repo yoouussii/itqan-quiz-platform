@@ -92,7 +92,7 @@ const staffGroups = (u: User, pendingApprovals: number, links: { prep: string; s
   if (hasPerm(u, 'can_manage_store')) school.push({ id: 'points_store', label: t('متجر النقاط'), icon: Store });
   if (hasPerm(u, 'can_view_attendance') || hasPerm(u, 'can_manage_attendance') || hasPerm(u, 'can_note_attendance')) school.push({ id: 'attendance', label: t('الحضور والغياب'), icon: CalendarCheck });
   if (hasPerm(u, 'can_view_behavior') || hasPerm(u, 'can_record_behavior')) school.push({ id: 'behavior', label: t('السلوك والمواظبة'), icon: ShieldCheck });
-  if (hasPerm(u, 'can_view_class_records') || hasPerm(u, 'can_manage_class_records')) school.push({ id: 'class_records', label: t('سجلات المتابعة'), icon: FolderSync });
+  if (hasPerm(u, 'can_view_class_records') || hasPerm(u, 'can_manage_class_records') || hasPerm(u, 'can_view_teacher_evals')) school.push({ id: 'class_records', label: t('سجلات المتابعة'), icon: FolderSync });
   school.push({ id: 'visits', label: t('الزيارات الصفية'), icon: EyeIcon });
   school.push({ id: 'portfolio', label: u.role === 'teacher' ? t('ملف إنجازي') : t('ملفات إنجاز المعلمين'), icon: FolderOpen });
   if (hasPerm(u, 'can_manage_surveys')) school.push({ id: 'surveys', label: t('الاستبيانات'), icon: ClipboardList });
