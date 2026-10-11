@@ -31,11 +31,20 @@ const STORAGE_KEYS = {
   DELETED_CLASS_IDS: 'itqan_deleted_class_ids',
 };
 
+// نسخة مفكوكة من كل مفتاح: الصفحات تقرأ المستخدمين والاختبارات آلاف المرات (مثلاً لكل صف في جدول)،
+// وفك JSON في كل مرة كان يستغرق ثواني على الجوال. تُستعمل النسخة ما دام النص المخزّن لم يتغيّر
+// (حتى لو كتبه تبويب آخر)، وتُلغى عند كل حفظ.
+const parsed = new Map<string, { raw: string; value: unknown }>();
+
 function getLocalItem<T>(key: string, defaultValue: T): T {
   try {
     const raw = localStorage.getItem(key);
     if (!raw) return defaultValue;
-    return JSON.parse(raw) as T;
+    const hit = parsed.get(key);
+    if (hit && hit.raw === raw) return (Array.isArray(hit.value) ? hit.value.slice() : hit.value) as T;
+    const value = JSON.parse(raw) as T;
+    parsed.set(key, { raw, value });
+    return (Array.isArray(value) ? value.slice() : value) as T;
   } catch (e) {
     console.error(`Error reading key ${key} from localStorage`, e);
     return defaultValue;
@@ -43,6 +52,7 @@ function getLocalItem<T>(key: string, defaultValue: T): T {
 }
 
 function setLocalItem<T>(key: string, value: T): void {
+  parsed.delete(key);
   try {
     localStorage.setItem(key, JSON.stringify(value));
   } catch (e) {

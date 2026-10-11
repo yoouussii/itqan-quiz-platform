@@ -21,11 +21,7 @@ import { STUDENT_EVENT, openStudentProfile } from './studentProfileEvents';
 
 export { STUDENT_EVENT, openStudentProfile };
 
-/** اسم طالب قابل للضغط يفتح ملفه */
-export const StudentLink: React.FC<{ id: string; name: string; className?: string }> = ({ id, name, className = '' }) => (
-  <button type="button" onClick={(e) => { e.stopPropagation(); openStudentProfile(id); }} title={t('فتح ملف الطالب')}
-    className={`text-start hover:underline decoration-indigo-400 underline-offset-4 ${className}`}>{name}</button>
-);
+export { StudentLink } from './StudentLink';
 
 type Tab = 'overview' | 'results' | 'attendance' | 'homework' | 'plans';
 

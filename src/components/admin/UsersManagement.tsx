@@ -1,7 +1,6 @@
-import { StudentLink } from '../common/StudentProfile';
+import { StudentLink } from '../common/StudentLink';
 import React, { useState, useRef } from 'react';
 import { normalizePhone } from '../../utils/whatsapp';
-import * as XLSX from 'xlsx';
 import {
   UserPlus,
   Search,
@@ -434,7 +433,9 @@ export const UsersManagement: React.FC = () => {
   }
 
   // === Excel Import Functions ===
-  const downloadExcelTemplate = () => {
+  // مكتبة Excel كبيرة، فتُحمَّل عند الاستيراد أو تنزيل النموذج فقط
+  const downloadExcelTemplate = async () => {
+    const XLSX = await import('xlsx');
     const templateData = [
       { 'الاسم': 'أحمد محمد', 'رقم الهوية': '1234567890', 'كلمة السر': '123456', 'الصف / الفصل': 'الصف الأول أ', 'النوع': 'ذكر', 'الفرع': 'فرع البنين', 'هوية ولي الأمر': '1098765432', 'كلمة سر ولي الأمر': '654321', 'جوال ولي الأمر': '0501234567' },
       { 'الاسم': 'سارة علي', 'رقم الهوية': '0987654321', 'كلمة السر': '123456', 'الصف / الفصل': 'الصف الثاني ب', 'النوع': 'أنثى', 'الفرع': 'فرع البنات', 'هوية ولي الأمر': '1098765432', 'كلمة سر ولي الأمر': '654321', 'جوال ولي الأمر': '0551234567' },
@@ -453,8 +454,9 @@ export const UsersManagement: React.FC = () => {
     setImportPreview([]);
 
     const reader = new FileReader();
-    reader.onload = (evt) => {
+    reader.onload = async (evt) => {
       try {
+        const XLSX = await import('xlsx');
         const data = evt.target?.result;
         const workbook = XLSX.read(data, { type: 'binary' });
         const sheetName = workbook.SheetNames[0];

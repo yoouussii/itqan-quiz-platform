@@ -1,4 +1,4 @@
-import { StudentLink } from '../common/StudentProfile';
+import { StudentLink } from '../common/StudentLink';
 import React, { useEffect, useMemo, useState } from 'react';
 import { BookOpenCheck, Plus, Trash2, FileSpreadsheet, FileDown, X } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
