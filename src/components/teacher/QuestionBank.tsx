@@ -7,6 +7,7 @@ import { RichText } from '../common/RichText';
 import { uiDir, t, optionLetters } from '../../i18n';
 import { marksCount } from '../../i18n/count';
 import { QUESTION_TYPES, QuestionItem } from './QuizEditor';
+import { BANK_TO_EDITOR_KEY } from '../../utils/bankHandoff';
 import {
   BankItem, Difficulty, DIFFICULTIES, loadBankCache, syncBank, saveBankItems, deleteBankItems,
   newBankItem, sameQuestion, pickRandom, toQuizQuestion, markBankUsed,
@@ -14,7 +15,7 @@ import {
 import { EmptyMascot, MascotHere } from '../common/Mascot';
 
 /** تمرير أسئلة من البنك إلى محرر اختبار جديد */
-export const BANK_TO_EDITOR_KEY = 'itqan_bank_to_editor';
+export { BANK_TO_EDITOR_KEY };
 
 const DIFF_TONE: Record<Difficulty, 'ok' | 'warn' | 'bad'> = { easy: 'ok', medium: 'warn', hard: 'bad' };
 const typeLabel = (type: string) => t(QUESTION_TYPES.find((x) => x.type === type)?.label || 'اختيار من متعدد');

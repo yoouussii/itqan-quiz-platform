@@ -15,6 +15,7 @@ import { replaceNextNavigation, PUBLIC_PATHS } from './utils/router';
 import { Lang, applyLang, loadEnglish, loadLangPref, saveLangPref, t, uiDir } from './i18n';
 import { LangContext } from './i18n/LangContext';
 import { PageLoader, NavProgress } from './components/common/Mascot';
+import { prefetchPages } from './utils/prefetch';
 
 // الصفحات تُحمَّل عند فتحها فقط: كل مستخدم ينزّل كود صفحاته (أسرع على الجوال)
 const AdminDashboard = React.lazy(() => import('./components/admin/AdminDashboard').then((m) => ({ default: m.AdminDashboard })));
@@ -115,6 +116,8 @@ const AppContent: React.FC = () => {
   const { settings, brandingReady } = useApp();
   const [adminLogin, setAdminLogin] = React.useState(false);
   const license = useLicense(!!currentUser);
+  // بعد فتح المنصة: تنزيل صفحات الدور الأكثر فتحاً في الخلفية لتفتح فوراً
+  React.useEffect(() => { if (dataReady && currentUser && !isPreview) prefetchPages(currentUser.role); }, [dataReady, currentUser, isPreview]);
 
   // If user is not logged in or in login view
   if (!currentUser || currentView === 'login') {

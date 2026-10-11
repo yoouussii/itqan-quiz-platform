@@ -9,7 +9,7 @@ import { PageHeader, Card, Chip, StatTile, Button } from '../common/ui';
 import { uiDir, t } from '../../i18n';
 import { computeOutcomes, pct, masteryLevel, MASTERY_LABEL, OutcomeStat } from '../../utils/outcomes';
 import { syncBank, loadBankCache, pickRandom } from '../../services/bankService';
-import { BANK_TO_EDITOR_KEY } from '../teacher/QuestionBank';
+import { BANK_TO_EDITOR_KEY } from '../../utils/bankHandoff';
 import type { QuizWithDetails, SubmissionWithDetails } from '../../types';
 import { MascotHere } from '../common/Mascot';
 

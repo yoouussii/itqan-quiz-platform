@@ -4,7 +4,7 @@ import { Target, Users, ClipboardList, Library, BarChart3, ListChecks, Plus, X, 
 import { useApp } from '../../context/AppContext';
 import { Card, Button, Chip, PageHeader, StatTile } from '../common/ui';
 import { HBarRank } from '../common/HBarRank';
-import { StudentLink } from '../common/StudentProfile';
+import { StudentLink } from '../common/StudentLink';
 import { QuestionBankPage } from '../teacher/QuestionBank';
 import { computeOutcomes, pct } from '../../utils/outcomes';
 import { exportSectionsPdf, exportSectionsXlsx, ExportSection } from '../../utils/tableExport';

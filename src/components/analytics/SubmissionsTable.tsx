@@ -1,4 +1,4 @@
-import { StudentLink } from '../common/StudentProfile';
+import { StudentLink } from '../common/StudentLink';
 import React, { useState, useMemo } from 'react';
 import {
   Search,
