@@ -12,7 +12,7 @@ import { hasPerm, pageAllowed } from './utils/permissions';
 import { ForcePasswordChange } from './components/common/ForcePasswordChange';
 import { PageHeader } from './components/common/ui';
 import { replaceNextNavigation, PUBLIC_PATHS } from './utils/router';
-import { Lang, applyLang, loadLangPref, saveLangPref, t, uiDir } from './i18n';
+import { Lang, applyLang, loadEnglish, loadLangPref, saveLangPref, t, uiDir } from './i18n';
 import { LangContext } from './i18n/LangContext';
 import { PageLoader, NavProgress } from './components/common/Mascot';
 
@@ -356,7 +356,11 @@ const LangRoot: React.FC = () => {
   const [lang, setPref] = React.useState<Lang>(loadLangPref);
   // قبل رسم الأبناء حتى تُترجَم النصوص في نفس الرسم
   applyLang(lang);
-  const setLang = React.useCallback((l: Lang) => { saveLangPref(l); setPref(l); }, []);
+  const setLang = React.useCallback((l: Lang) => {
+    const go = () => { saveLangPref(l); setPref(l); };
+    // قاموس الإنجليزية يُحمَّل أولاً؛ إن تعذّر (بلا إنترنت) تبقى اللغة كما هي
+    if (l === 'en') loadEnglish().then(go, () => undefined); else go();
+  }, []);
   const value = React.useMemo(() => ({ lang, setLang, canSwitch: true }), [lang, setLang]);
   return (
     <LangContext.Provider value={value}>

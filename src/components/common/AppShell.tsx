@@ -25,15 +25,17 @@ import {
 import { useApp } from '../../context/AppContext';
 import { Avatar } from './Avatar';
 import { Logo } from './Logo';
-import { ProfileModal } from './ProfileModal';
 import { NotificationBell } from './NotificationBell';
 import { Footer } from './Footer';
 import { pathFor } from '../../utils/router';
 import { ungradedSummary } from '../../utils/grading';
 import { UserMenu } from './UserMenu';
 import { GlobalSearch } from './GlobalSearch';
-import { StudentProfileHost } from './StudentProfile';
-import { OnboardingTour } from './OnboardingTour';
+import { LazyStudentProfileHost } from './StudentProfileLazy';
+
+// نوافذ لا تلزم عند أول فتح: تُحمَّل عند الحاجة
+const ProfileModal = React.lazy(() => import('./ProfileModal').then((m) => ({ default: m.ProfileModal })));
+const OnboardingTour = React.lazy(() => import('./OnboardingTour').then((m) => ({ default: m.OnboardingTour })));
 
 /** رابط حقيقي للصفحة: الضغط العادي يتنقل داخل الموقع، وCtrl/الزر الأوسط يفتحها في تبويب جديد */
 const linkClick = (go: () => void) => (e: React.MouseEvent) => {
@@ -335,9 +337,11 @@ const StaffShell: React.FC<{ children: React.ReactNode; banner?: React.ReactNode
         <div className="hidden lg:block"><Footer /></div>
       </div>
       <StaffBottomNav onMore={() => setDrawer(true)} />
-      <StudentProfileHost />
-      <OnboardingTour />
-      {profile && <ProfileModal onClose={() => setProfile(false)} />}
+      <LazyStudentProfileHost />
+      <React.Suspense fallback={null}>
+        <OnboardingTour />
+        {profile && <ProfileModal onClose={() => setProfile(false)} />}
+      </React.Suspense>
     </div>
   );
 };
@@ -392,8 +396,10 @@ const StudentShell: React.FC<{ children: React.ReactNode; banner?: React.ReactNo
           );
         })}
       </nav>
-      <OnboardingTour />
-      {profile && <ProfileModal onClose={() => setProfile(false)} />}
+      <React.Suspense fallback={null}>
+        <OnboardingTour />
+        {profile && <ProfileModal onClose={() => setProfile(false)} />}
+      </React.Suspense>
     </div>
   );
 };

@@ -1,9 +1,17 @@
 // اللغة: العربية (الأصل) أو الإنجليزية.
 // النص العربي نفسه هو مفتاح الترجمة: t('نتائجي') ← «My results» بالإنجليزية، ويبقى كما هو بالعربية.
 // نص بلا ترجمة يظهر بالعربية (لا تظهر مفاتيح فارغة). للتحقق: node scripts/i18n-check.mjs
-import { EN } from './en';
 
 export type Lang = 'ar' | 'en';
+
+// قاموس الإنجليزية كبير، فيُحمَّل عند اختيار الإنجليزية فقط (أغلب المستخدمين بالعربية)
+let EN: Record<string, string> | null = null;
+let enLoading: Promise<void> | null = null;
+export const loadEnglish = (): Promise<void> => {
+  if (EN) return Promise.resolve();
+  enLoading ??= import('./en').then((m) => { EN = m.EN; }).finally(() => { enLoading = null; });
+  return enLoading;
+};
 const KEY = 'itqan_lang';
 
 const readPref = (): Lang => {
@@ -36,7 +44,7 @@ export function applyLang(l: Lang) {
 
 /** ترجمة نص عربي، مع قيم متغيرة: t('ينتهي {date}', { date }) */
 export function t(ar: string, vars?: Record<string, string | number>): string {
-  let s = current === 'en' ? EN[ar] ?? ar : ar;
+  let s = current === 'en' ? EN?.[ar] ?? ar : ar;
   if (vars) s = s.replace(/\{(\w+)\}/g, (_, k) => (k in vars ? String(vars[k]) : `{${k}}`));
   return s;
 }
