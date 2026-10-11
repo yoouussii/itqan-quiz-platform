@@ -6,7 +6,7 @@ import { ErrorBoundary } from './components/common/ErrorBoundary';
 import './index.css';
 import { loadSettings } from './services/settingsService';
 import { applyBrandColor } from './utils/brand';
-import { applyLang, loadLangPref } from './i18n';
+import { applyLang, loadEnglish, loadLangPref } from './i18n';
 import { registerServiceWorker } from './services/pushService';
 
 // لون المدرسة المحفوظ يُطبَّق قبل أول رسم حتى لا يظهر اللون الافتراضي لحظة
@@ -15,10 +15,13 @@ applyLang(loadLangPref());
 // تثبيت الموقع كتطبيق وإشعارات الجوال
 registerServiceWorker();
 
-ReactDOM.createRoot(document.getElementById('root') as HTMLElement).render(
+const start = () => ReactDOM.createRoot(document.getElementById('root') as HTMLElement).render(
   <React.StrictMode>
     <ErrorBoundary>
       <App />
     </ErrorBoundary>
   </React.StrictMode>
 );
+// من اختار الإنجليزية: يُحمَّل قاموسها قبل أول رسم (وإن تعذّر تظهر الواجهة بالعربية)
+if (loadLangPref() === 'en') loadEnglish().catch(() => undefined).finally(start);
+else start();

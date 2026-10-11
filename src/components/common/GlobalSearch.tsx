@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Search, X, FileQuestion, GraduationCap, LayoutGrid, CornerDownLeft } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
-import { openStudentProfile } from './StudentProfile';
+import { openStudentProfile } from './studentProfileEvents';
 import { navigateTo, pathFor } from '../../utils/router';
 import { normalizeArabic } from '../../utils/arabicSearch';
 import { uiDir, t } from '../../i18n';

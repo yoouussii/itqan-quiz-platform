@@ -17,10 +17,9 @@ import { navigateTo, pathFor } from '../../utils/router';
 import { formatFullArabicDate } from '../../utils/dateUtils';
 import { uiDir, t } from '../../i18n';
 import { User } from '../../types';
+import { STUDENT_EVENT, openStudentProfile } from './studentProfileEvents';
 
-/** فتح ملف الطالب الشامل من أي مكان في المنصة */
-export const STUDENT_EVENT = 'itqan:student';
-export const openStudentProfile = (id: string) => window.dispatchEvent(new CustomEvent(STUDENT_EVENT, { detail: { id } }));
+export { STUDENT_EVENT, openStudentProfile };
 
 /** اسم طالب قابل للضغط يفتح ملفه */
 export const StudentLink: React.FC<{ id: string; name: string; className?: string }> = ({ id, name, className = '' }) => (
@@ -154,9 +153,9 @@ const Body: React.FC<{ student: User; onClose: () => void }> = ({ student, onClo
 };
 
 /** نافذة ملف الطالب: تُفتح بحدث عام، للطاقم فقط */
-export const StudentProfileHost: React.FC = () => {
+export const StudentProfileHost: React.FC<{ initialId?: string }> = ({ initialId }) => {
   const { users, currentUser } = useApp();
-  const [id, setId] = useState<string | null>(null);
+  const [id, setId] = useState<string | null>(initialId ?? null);
   useEffect(() => {
     const on = (e: Event) => setId((e as CustomEvent).detail?.id || null);
     window.addEventListener(STUDENT_EVENT, on);
