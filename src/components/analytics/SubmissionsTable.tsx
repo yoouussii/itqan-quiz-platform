@@ -45,7 +45,6 @@ export const SubmissionsTable: React.FC<SubmissionsTableProps> = ({
     subjects,
     classes,
     currentUser,
-    quizzes,
     allowStudentRetake,
     revokeStudentRetake,
     deleteSubmissions,
