@@ -492,6 +492,17 @@ export async function pushSubmission(submissionId: string): Promise<SyncResult> 
   }
 }
 
+/** بعد تعديل الإجابات المقبولة في «أكمل الفراغ»: إعادة تصحيحها في تسليمات الاختبار على الخادم (070) */
+export async function regradeBlanks(quizId: string): Promise<number> {
+  if (!isSupabaseConfigured()) return 0;
+  const { data, error } = await supabase.rpc('itqan_regrade_blanks', { p_quiz_id: quizId });
+  if (error) {
+    if (!isMissingRpc(error)) console.warn('[sync] تعذرت إعادة تصحيح الفراغات:', error.message);
+    return 0;
+  }
+  return data?.ok ? Number(data.updated) || 0 : 0;
+}
+
 export async function pullSubmissions(currentUser: User | null): Promise<void> {
   if (!isSupabaseConfigured() || !currentUser) return;
 

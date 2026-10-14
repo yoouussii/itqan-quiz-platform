@@ -23,6 +23,8 @@ export function answerStatus(question: Question, ans?: AnswerItem): AnswerStatus
       .reduce((s, sq) => s + (Number(sq.marks) || 0), 0);
     if (hasEssay && autoMarks === 0) return 'pending';
   }
+  // درجة جزئية وضعها المعلم يدوياً لسؤال يُصحَّح تلقائياً
+  if (ans?.graded && (ans.marks_awarded || 0) > 0) return 'partial';
   return 'wrong';
 }
 
@@ -38,14 +40,14 @@ const letters = optionLetters;
 type GradeFn = (subQuestionId: string | null, marks: number) => Promise<boolean> | void;
 
 /** خانة درجة المقالي للمعلم */
-const GradeBox: React.FC<{ max: number; current?: number; graded?: boolean; onSave: (m: number) => Promise<boolean> | void }> = ({ max, current, graded, onSave }) => {
-  const [val, setVal] = React.useState<string>(graded ? String(current ?? 0) : '');
+const GradeBox: React.FC<{ max: number; current?: number; graded?: boolean; prefill?: boolean; ariaLabel?: string; onSave: (m: number) => Promise<boolean> | void }> = ({ max, current, graded, prefill, ariaLabel, onSave }) => {
+  const [val, setVal] = React.useState<string>(graded || prefill ? String(current ?? 0) : '');
   const [busy, setBusy] = React.useState(false);
   return (
     <div data-pdf-hide className="flex flex-wrap items-center gap-2 mt-2 pt-2 border-t border-slate-200 dark:border-slate-700">
       <label className="text-[11px] font-bold text-slate-600 dark:text-slate-300">{t('الدرجة:')}</label>
       <input type="number" min={0} max={max} step={0.5} value={val} onChange={(e) => setVal(e.target.value)}
-        aria-label={t('درجة السؤال المقالي')}
+        aria-label={ariaLabel || t('درجة السؤال المقالي')}
         className="w-20 px-2 py-1 text-xs rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-900 dark:text-white" />
       <span className="text-[11px] text-slate-500">{t('من')}{' '}{max}</span>
       <button type="button" disabled={busy || val === ''}
@@ -79,7 +81,28 @@ const TextAnswer: React.FC<{ text?: string; graded?: boolean; awarded?: number; 
   </div>
 );
 
-/** تفاصيل إضافية لأسئلة المقالي والقطعة (أسئلة الاختيار تعرضها الصفحة نفسها) */
+/** تعديل المعلم لدرجة سؤال يُصحَّح تلقائياً (مثل إجابة «أكمل الفراغ» صحيحة بصياغة أخرى) */
+const OverrideBox: React.FC<{ max: number; answer?: AnswerItem; onSave: (m: number) => Promise<boolean> | void }> = ({ max, answer, onSave }) => {
+  const [open, setOpen] = React.useState(false);
+  if (!open) {
+    return (
+      <div data-pdf-hide className="mb-3 flex flex-wrap items-center gap-2 text-[11px]">
+        {answer?.graded && <span className="font-bold text-emerald-700 dark:text-emerald-300">{t('عدّل المعلم الدرجة: {a} من {m}', { a: answer.marks_awarded ?? 0, m: max })}</span>}
+        <button type="button" onClick={() => setOpen(true)} className="font-bold text-indigo-600 dark:text-indigo-400 hover:underline">
+          {t('✎ تعديل الدرجة يدوياً')}
+        </button>
+      </div>
+    );
+  }
+  return (
+    <div className="mb-3">
+      <GradeBox max={max} current={answer?.marks_awarded} graded={answer?.graded} prefill ariaLabel={t('درجة السؤال')}
+        onSave={async (m) => { const r = await onSave(m); setOpen(false); return r !== false; }} />
+    </div>
+  );
+};
+
+/** تفاصيل إضافية لأسئلة المقالي والقطعة، وتعديل درجة الأسئلة التلقائية للمعلم */
 export const AnswerExtras: React.FC<{ question: Question; answer?: AnswerItem; onGrade?: GradeFn }> = ({ question, answer, onGrade }) => {
   if (question.type === 'essay') {
     return (
@@ -89,7 +112,9 @@ export const AnswerExtras: React.FC<{ question: Question; answer?: AnswerItem; o
       </div>
     );
   }
-  if (question.type !== 'passage') return null;
+  if (question.type !== 'passage') {
+    return onGrade ? <OverrideBox max={Number(question.marks) || 0} answer={answer} onSave={(m) => onGrade(null, m)} /> : null;
+  }
 
   return (
     <div className="space-y-3 mb-3">

@@ -64,6 +64,7 @@ import {
   pullQuizzes,
   pushSubmission,
   pullSubmissions,
+  regradeBlanks,
   flushPending,
   submitAttemptRemote,
   queueAttempt,
@@ -1124,6 +1125,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     recompute();
     if (resubmitted) void notifyApprovers(id);
     if (outcome.synced) showToast(t('تم حفظ وتحديث بيانات الاختبار بنجاح'), 'success');
+    // إجابات «أكمل الفراغ» المقبولة قد تغيّرت: إعادة تصحيح التسليمات السابقة على الخادم
+    if (outcome.synced && (questions as any[]).some((q) => q?.type === 'fill_blank') && StorageService.getSubmissionsByQuizId(id).length) {
+      void regradeBlanks(id).then(async (n) => {
+        if (!n) return;
+        await pullSubmissions(currentUserRef.current);
+        recompute();
+        showToast(t('أُعيد تصحيح أسئلة «أكمل الفراغ» في {n} تسليم', { n }), 'success');
+      });
+    }
     log('quiz_updated', { type: 'quiz', id, name: (patch.title as string) || existing?.title }, resubmitted ? 'أُعيد إرساله للاعتماد' : undefined);
     return { ...outcome, status: (patch.status as string) || existing?.status };
   };
@@ -1405,7 +1415,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     StorageService.saveSubmissionFromRemote(updated);
     recompute();
     const res = await pushSubmission(submissionId);
-    showToast(res.ok ? 'تم حفظ درجة السؤال المقالي' : t('حُفظت الدرجة على جهازك فقط ({error})', { error: res.error || '' }), res.ok ? 'success' : 'error');
+    showToast(res.ok ? t('تم حفظ درجة السؤال') : t('حُفظت الدرجة على جهازك فقط ({error})', { error: res.error || '' }), res.ok ? 'success' : 'error');
     return res.ok;
   };
 

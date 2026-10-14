@@ -3503,4 +3503,9 @@ export const EN: Record<string, string> = {
   'على المنصة': 'On platform',
   'بنود الملاحظة': 'Observation items',
   'طلاب الفصل ودرجاتهم ({n})': 'Class students and their marks ({n})',
+  'تم حفظ درجة السؤال': 'Question score saved',
+  'أُعيد تصحيح أسئلة «أكمل الفراغ» في {n} تسليم': 'Fill-in-the-blank answers were regraded in {n} submissions',
+  'عدّل المعلم الدرجة: {a} من {m}': 'Teacher adjusted the score: {a} of {m}',
+  '✎ تعديل الدرجة يدوياً': '✎ Adjust score manually',
+  'درجة السؤال': 'Question score',
 };
