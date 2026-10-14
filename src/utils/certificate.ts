@@ -319,7 +319,8 @@ html, body { margin: 0; padding: 0; background: #e5e7eb; }
 .tpl-classic .br { bottom: 2mm; right: 2mm; transform: scale(-1, -1); }
 .tpl-classic .title, .tpl-classic .name { font-family: 'Amiri', serif; }
 .tpl-classic .title { font-size: 58px; }
-.tpl-classic .inner { background: radial-gradient(ellipse at 50% 45%, color-mix(in srgb, var(--a) 7%, transparent), transparent 65%); }
+/* ألوان معتمة بلا شفافية: بعض قارئات PDF ترسم التدرّج الشفاف أسود */
+.tpl-classic .inner { background: radial-gradient(ellipse at 50% 45%, color-mix(in srgb, var(--a) 7%, #fffdf8), #fffdf8 65%); }
 
 /* ملكي */
 .tpl-royal { padding: 9mm; background-color: var(--p); background-image: var(--pat); background-size: 12mm 12mm; }
@@ -330,7 +331,7 @@ html, body { margin: 0; padding: 0; background: #e5e7eb; }
 .tpl-royal .title { font-family: 'Aref Ruqaa', serif; font-size: 62px; color: var(--p); margin-top: 2mm; }
 .tpl-royal .name { font-family: 'Amiri', serif; color: var(--p); border-bottom-style: double; border-bottom-width: 4px; }
 .tpl-royal .school { font-family: 'Amiri', serif; font-size: 21px; font-weight: 700; }
-.tpl-royal .ornament i { background: linear-gradient(90deg, transparent, var(--a), transparent); width: 40mm; }
+.tpl-royal .ornament i { background: linear-gradient(90deg, #fffcf3, var(--a), #fffcf3); width: 40mm; }
 .tpl-royal .seal svg { width: 30mm; }
 
 /* عصري */
