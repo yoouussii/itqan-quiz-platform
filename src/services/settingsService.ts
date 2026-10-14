@@ -1,4 +1,4 @@
-import { supabase } from './supabase';
+import { supabase, isMissingRpc } from './supabase';
 import { safe, readJson, writeJson } from './remote';
 
 export const DEFAULT_PREPARATIONS_URL = 'https://www.tinyurl.com/moznedu1';
@@ -83,8 +83,11 @@ const KEY = 'itqan_settings_v2';
 export const hasCachedSettings = (): boolean => { try { return localStorage.getItem(KEY) != null; } catch { return false; } };
 export const loadSettings = (): AppSettings => ({ ...DEFAULT_SETTINGS, ...readJson<Partial<AppSettings>>(KEY, {}) });
 
+// الصور (الشعارات وصورة الدخول) تصل مع هوية المدرسة فقط، فلا تُعاد مع الإعدادات
+const IMAGE_KEYS = ['school_logo', 'login_image', 'login_logo', 'login_logo2', 'cert_company_logo', 'cert_school_logo'];
+
 export async function syncSettings(): Promise<boolean> {
-  const res = await safe<Array<{ key: string; value: any }>>(() => supabase.from('app_settings').select('*') as any);
+  const res = await safe<Array<{ key: string; value: any }>>(() => supabase.from('app_settings').select('*').not('key', 'in', `(${IMAGE_KEYS.join(',')})`) as any);
   if (!res.ok || !Array.isArray(res.data)) return false;
   const cur = loadSettings();
   const next: any = { ...cur };
@@ -96,14 +99,51 @@ export async function syncSettings(): Promise<boolean> {
   return changed;
 }
 
-/** هوية المدرسة لشاشة الدخول (قبل تسجيل الدخول): دالة عامة لا تكشف باقي الإعدادات (012) */
+// بصمة كل قيمة من هوية المدرسة كما أرسلها الخادم، وطولها لنتأكد أن القيمة ما زالت محفوظة على الجهاز
+const HASH_KEY = 'itqan_branding_hashes_v1';
+let brandingV2Missing = false;
+const CORE = ['school_name', 'school_logo', 'brand_color'];
+const sizeOf = (v: unknown) => JSON.stringify(v ?? null).length;
+
+/** هوية المدرسة بلا إعادة تنزيل الشعار: الخادم يرجع ما تغيّر فقط (068)، وإلا الدالة القديمة */
 export async function syncPublicBranding(): Promise<boolean> {
+  const cur = loadSettings();
+  if (!brandingV2Missing) {
+    const known = readJson<Record<string, { h: string; n: number }>>(HASH_KEY, {});
+    const have: Record<string, string> = {};
+    Object.entries(known).forEach(([k, v]) => { if ((cur as any)[k] != null && sizeOf((cur as any)[k]) === v.n) have[k] = v.h; });
+    let missing = false;
+    const res = await safe<{ values?: Record<string, any>; hashes?: Record<string, string> }>(async () => {
+      const r = await supabase.rpc('itqan_public_branding_v2', { p_have: have });
+      missing = isMissingRpc(r.error);
+      return r as any;
+    });
+    if (res.ok && res.data?.hashes) {
+      const values = res.data.values || {}, hashes = res.data.hashes;
+      const next: any = { ...cur };
+      BRANDING_KEYS.forEach((k) => {
+        if (k in values) next[k] = values[k] ?? DEFAULT_SETTINGS[k];
+        else if (!(k in hashes) && CORE.includes(k)) next[k] = DEFAULT_SETTINGS[k];
+      });
+      const nextKnown: Record<string, { h: string; n: number }> = {};
+      Object.entries(hashes).forEach(([k, h]) => { if (next[k] != null) nextKnown[k] = { h, n: sizeOf(next[k]) }; });
+      const changed = JSON.stringify(next) !== JSON.stringify(cur);
+      writeJson(KEY, next);
+      writeJson(HASH_KEY, nextKnown);
+      return changed;
+    }
+    if (!missing) return false;
+    brandingV2Missing = true;
+  }
+  return syncPublicBrandingV1(cur);
+}
+
+/** هوية المدرسة لشاشة الدخول (قبل تسجيل الدخول): دالة عامة لا تكشف باقي الإعدادات (012) */
+async function syncPublicBrandingV1(cur: AppSettings): Promise<boolean> {
   const res = await safe<Record<string, any>>(() => supabase.rpc('itqan_public_branding') as any);
   if (!res.ok || !res.data || typeof res.data !== 'object') return false;
-  const cur = loadSettings();
   const next: any = { ...cur };
   // الهوية الأساسية تعود للافتراضي إن حُذفت؛ المفاتيح الأحدث (019) تُحدَّث فقط إن أعادها الخادم
-  const CORE = ['school_name', 'school_logo', 'brand_color'];
   BRANDING_KEYS.forEach((k) => {
     if (k in res.data!) next[k] = res.data![k] ?? DEFAULT_SETTINGS[k];
     else if (CORE.includes(k)) next[k] = DEFAULT_SETTINGS[k];

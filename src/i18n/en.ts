@@ -1549,6 +1549,7 @@ export const EN: Record<string, string> = {
   'فلاتر التحليلات': 'Analytics filters',
   'كل المعلمين': 'All teachers',
   'كل المدارس': 'All schools',
+  'الضغط على المنصة مرتفع الآن، نعيد المحاولة تلقائياً…': 'The platform is busy right now. Retrying automatically…',
   'كل الزائرين': 'All visitors',
   'إعادة ضبط': 'Reset',
   'خريطة الأداء: الفصول × المواد': 'Performance map: classes × subjects',

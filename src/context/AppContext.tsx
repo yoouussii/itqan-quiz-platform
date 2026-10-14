@@ -972,7 +972,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     // الدخول الآمن: التحقق على الخادم (كلمات المرور مشفّرة ولا تصل للمتصفح)
     if (isSupabaseConfigured()) {
       try {
-        const { data, error } = await supabase.rpc('itqan_login', { p_national_id: id, p_password: password });
+        // وقت الزحمة (كل الطلاب يدخلون معاً) قد يرد الخادم «مشغول»: نعيد المحاولة بدل إظهار خطأ
+        const busy = (e: { code?: string; message?: string } | null) => !!e && navigator.onLine !== false && (e.code === 'PGRST003' || /timed out|failed to fetch|networkerror|fetch failed|\b50[234]\b/i.test(e.message || ''));
+        let { data, error } = await supabase.rpc('itqan_login', { p_national_id: id, p_password: password });
+        for (let i = 0; i < 4 && busy(error); i++) {
+          if (i === 0) showToast(t('الضغط على المنصة مرتفع الآن، نعيد المحاولة تلقائياً…'), 'info');
+          await new Promise((r) => setTimeout(r, 1500 * 2 ** i + Math.random() * 1500));
+          ({ data, error } = await supabase.rpc('itqan_login', { p_national_id: id, p_password: password }));
+        }
         if (!error && data) {
           if (data.ok) {
             setServerSession(data.token, { expires_at: data.expires_at, password_is_default: !!data.password_is_default, user_id: data.user?.id });
