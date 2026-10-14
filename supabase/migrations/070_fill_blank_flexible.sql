@@ -134,6 +134,41 @@ end $$;
 revoke all on function public.itqan_regrade_blanks(text) from public;
 grant execute on function public.itqan_regrade_blanks(text) to anon, authenticated;
 
+-- «اعتبرها صحيحة» من صفحة التصحيح: تُضاف الإجابة للإجابات المقبولة ثم يُعاد تصحيح كل التسليمات
+create or replace function public.itqan_accept_blank(p_quiz_id text, p_question_id text, p_answer text)
+returns jsonb language plpgsql security definer set search_path = '' as $$
+declare
+  v_quiz public.quizzes;
+  v_ans text := left(btrim(coalesce(p_answer, '')), 200);
+  v_qs jsonb;
+begin
+  if not coalesce(itqan.is_staff(), false) then return jsonb_build_object('ok', false, 'error', 'forbidden'); end if;
+  if v_ans = '' then return jsonb_build_object('ok', false, 'error', 'empty'); end if;
+  select * into v_quiz from public.quizzes where id::text = p_quiz_id for update;
+  if not found then return jsonb_build_object('ok', false, 'error', 'quiz_not_found'); end if;
+  -- معلم الاختبار، أو من لديه صلاحية التصحيح (والمدير)
+  if not (v_quiz.teacher_id::text = itqan.uid() or to_jsonb(v_quiz) ->> 'created_by' = itqan.uid() or itqan.has_perm('can_grade_essays')) then
+    return jsonb_build_object('ok', false, 'error', 'forbidden');
+  end if;
+  if not exists (select 1 from jsonb_array_elements(coalesce(v_quiz.questions, '[]'::jsonb)) q
+                 where q ->> 'id' = p_question_id and q ->> 'type' = 'fill_blank') then
+    return jsonb_build_object('ok', false, 'error', 'question_not_found');
+  end if;
+  select jsonb_agg(case
+           when q ->> 'id' = p_question_id and not itqan.blank_ok(q -> 'accepted_answers', v_ans)
+             then jsonb_set(q, '{accepted_answers}',
+                    case when jsonb_typeof(q -> 'accepted_answers') = 'array' then q -> 'accepted_answers' else '[]'::jsonb end || to_jsonb(v_ans))
+           else q end order by k)
+    into v_qs
+  from jsonb_array_elements(v_quiz.questions) with ordinality e(q, k);
+  perform set_config('itqan.internal', '1', true);
+  update public.quizzes set questions = v_qs, updated_at = now() where id = v_quiz.id;
+  return public.itqan_regrade_blanks(p_quiz_id);
+end $$;
+
+revoke all on function public.itqan_accept_blank(text, text, text) from public;
+grant execute on function public.itqan_accept_blank(text, text, text) to anon, authenticated;
+
 notify pgrst, 'reload schema';
 
 select '✓ تم تحديث 070: تصحيح «أكمل الفراغ» بمرونة وإعادة التصحيح' as result;

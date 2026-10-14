@@ -3508,4 +3508,12 @@ export const EN: Record<string, string> = {
   'عدّل المعلم الدرجة: {a} من {m}': 'Teacher adjusted the score: {a} of {m}',
   '✎ تعديل الدرجة يدوياً': '✎ Adjust score manually',
   'درجة السؤال': 'Question score',
+  'لا توجد إجابات «أكمل الفراغ» تحتاج مراجعة': 'No fill-in-the-blank answers need review',
+  'إجابات حُسبت خطأ لأنها لا تطابق الإجابة المقبولة. إن كانت صحيحة اضغط «اعتبرها صحيحة» فتُضاف للإجابات المقبولة وتُصحَّح لكل من كتبها.': 'These answers were marked wrong because they do not match an accepted answer. If one is correct, press “Mark correct” to add it to the accepted answers and regrade everyone who wrote it.',
+  'المقبول:': 'Accepted:',
+  'اعتبرها صحيحة': 'Mark correct',
+  'خطأ فعلاً': 'Really wrong',
+  'أُضيفت «{a}» للإجابات المقبولة وأُعيد تصحيح {n} تسليم': '“{a}” was added to the accepted answers and {n} submissions were regraded',
+  'حدّث قاعدة البيانات (070) لتفعيل هذه الميزة': 'Update the database (070) to enable this feature',
+  '{n} إجابة «أكمل الفراغ» حُسبت خطأ تحتاج مراجعتك.': '{n} fill-in-the-blank answers marked wrong need your review.',
 };

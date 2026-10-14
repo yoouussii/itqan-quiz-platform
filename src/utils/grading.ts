@@ -82,3 +82,36 @@ export const essayItems = (subs: Submission[]): EssayItem[] => {
   }
   return out;
 };
+
+/** توحيد إجابة «أكمل الفراغ» لتجميع الإجابات المتشابهة (يماثل itqan.norm_blank في 070) */
+export const normBlank = (x: string) => (x || '')
+  .toLowerCase()
+  .replace(/[\u064B-\u0652\u0640]/g, '')
+  .replace(/[أإآٱ]/g, 'ا').replace(/ة/g, 'ه').replace(/ى/g, 'ي')
+  .replace(/[\p{P}\p{S}]/gu, ' ')
+  .replace(/(^|\s)ال(?=\S{2,})/g, '$1')
+  .replace(/\s+/g, ' ').trim();
+
+export interface BlankGroup {
+  key: string; quizId: string; question: Question; order: number; text: string; count: number; studentIds: string[];
+}
+
+/** إجابات «أكمل الفراغ» التي حُسبت خطأ (ولم يعدّلها المعلم)، مجمّعة لكل سؤال وإجابة متشابهة */
+export const wrongBlankGroups = (subs: Submission[]): BlankGroup[] => {
+  const cache = new Map<string, Question[]>();
+  const groups = new Map<string, BlankGroup>();
+  for (const s of subs) {
+    if (!cache.has(s.quiz_id)) cache.set(s.quiz_id, StorageService.getQuestionsByQuizId(s.quiz_id));
+    (cache.get(s.quiz_id) || []).forEach((q, i) => {
+      if (q.type !== 'fill_blank') return;
+      const a = (s.answers_json || []).find((x) => x.question_id === q.id);
+      const text = (a?.text_answer || '').trim();
+      if (!a || !text || a.is_correct || a.graded) return;
+      const key = `${s.quiz_id}|${q.id}|${normBlank(text)}`;
+      const g = groups.get(key) || { key, quizId: s.quiz_id, question: q, order: i + 1, text, count: 0, studentIds: [] };
+      g.count++; g.studentIds.push(s.student_id);
+      groups.set(key, g);
+    });
+  }
+  return Array.from(groups.values());
+};
