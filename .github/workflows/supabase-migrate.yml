@@ -81,6 +81,8 @@ on:
           - supabase/migrations/065_levels_cfg.sql
           - supabase/migrations/066_teacher_evals.sql
           - supabase/migrations/067_mozn_visits.sql
+          - supabase/migrations/068_branding_cache.sql
+          - supabase/migrations/069_student_home_speed.sql
           - supabase/migrations/003_rollback.sql
       db_secret:
         description: 'اسم سر قاعدة البيانات (اتركه كما هو للمدرسة الأساسية، أو اكتب سر مدرسة أخرى مثل DB_URL_SCHOOL2)'

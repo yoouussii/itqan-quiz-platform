@@ -56,9 +56,20 @@ const MILESTONES = [3, 7, 14, 30, 60, 100];
 const card = 'rounded-3xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800';
 
 /** رئيسية الطالب: تحدي اليوم، الاختبارات المتاحة والقادمة، مستواه في المواد، السلسلة والمستوى وترتيب الفصل */
+/** شاشة واسعة (lg في Tailwind): يتحدّث عند تغيير حجم النافذة */
+const useWide = () => {
+  const q = '(min-width: 1024px)';
+  const [wide, setWide] = useState(() => { try { return window.matchMedia(q).matches; } catch { return false; } });
+  useEffect(() => {
+    try { const m = window.matchMedia(q); const on = () => setWide(m.matches); m.addEventListener('change', on); return () => m.removeEventListener('change', on); } catch { return undefined; }
+  }, []);
+  return wide;
+};
+
 export const StudentDashboard: React.FC<StudentDashboardProps> = ({ onStartQuiz, onViewReview }) => {
   const { currentUser, quizzes, submissions, classes, awards, setCurrentView, refreshData } = useApp();
   const me = currentUser?.id || '';
+  const wide = useWide();
   const studentClass = classes.find((c) => c.id === currentUser?.class_id);
   const [home, setHome] = useState<StudentHomeData | null>(null);
   const [playing, setPlaying] = useState(false);
@@ -392,6 +403,19 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({ onStartQuiz,
     </section>
   );
 
+  // بطاقات العمود الجانبي تُرسم مرة واحدة حسب عرض الشاشة (كانت تُرسم مرتين مخفيةً، فتطلب بياناتها مرتين)
+  const SideCards = (
+    <>
+      {StreakCard}
+      {LevelCard}
+      {BoardCard}
+      {me && <AttendanceSummary studentId={me} />}
+      {me && <ConductSummary studentId={me} />}
+      {me && <RemedialCard studentId={me} />}
+      {me && <AcademicSupportCard studentId={me} />}
+    </>
+  );
+
   return (
     <div className="max-w-6xl mx-auto py-5 sm:py-8 px-4 sm:px-6 space-y-5" dir={uiDir()}>
       <section className="flex items-center justify-between gap-3">
@@ -423,27 +447,11 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({ onStartQuiz,
           {EmptyCard}
           <DevicePushCard compact />
           {RingsCard}
-          <div className="lg:hidden space-y-5">
-            {StreakCard}
-            {LevelCard}
-            {BoardCard}
-            {me && <AttendanceSummary studentId={me} />}
-            {me && <ConductSummary studentId={me} />}
-            {me && <RemedialCard studentId={me} />}
-            {me && <AcademicSupportCard studentId={me} />}
-          </div>
+          {!wide && <div className="space-y-5">{SideCards}</div>}
           {ResultsCard}
         </div>
 
-        <aside className="hidden lg:block space-y-5">
-          {StreakCard}
-          {LevelCard}
-          {BoardCard}
-          {me && <AttendanceSummary studentId={me} />}
-            {me && <ConductSummary studentId={me} />}
-            {me && <RemedialCard studentId={me} />}
-            {me && <AcademicSupportCard studentId={me} />}
-        </aside>
+        {wide && <aside className="space-y-5">{SideCards}</aside>}
       </div>
 
       {playing && <DailyChallenge onClose={closeChallenge} />}
