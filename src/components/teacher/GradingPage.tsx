@@ -1,13 +1,76 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { PenLine, CheckCircle2, ChevronRight, ChevronLeft, EyeOff, Eye, FileText, Sparkles, Copy, ExternalLink } from 'lucide-react';
+import { PenLine, CheckCircle2, ChevronRight, ChevronLeft, EyeOff, Eye, FileText, Sparkles, Copy, ExternalLink, Check, X } from 'lucide-react';
 import { AI_SITES, copyText, gradingPrompt, parseGradingReply } from '../../utils/aiPrompt';
 import { useApp } from '../../context/AppContext';
 import { PageHeader, Card, Button } from '../common/ui';
 import { RichText } from '../common/RichText';
-import { EssayItem, essayItems } from '../../utils/grading';
+import { EssayItem, essayItems, wrongBlankGroups } from '../../utils/grading';
+import { acceptBlank } from '../../services/quizSync';
 import { uiDir, t } from '../../i18n';
 import { hasPerm } from '../../utils/permissions';
 import { MascotHere } from '../common/Mascot';
+
+const BLANK_DISMISS_KEY = 'itqan_blank_dismissed';
+
+/** مراجعة إجابات «أكمل الفراغ» المحسوبة خطأ: كل إجابة متشابهة مرة واحدة مع عدد من كتبها */
+const BlankReview: React.FC<{
+  groups: ReturnType<typeof wrongBlankGroups>; quizTitle: (id: string) => string; accepting: string;
+  names: (ids: string[]) => string; hideNames: boolean; onToggleNames: () => void;
+  onAccept: (g: ReturnType<typeof wrongBlankGroups>[number]) => void; onDismiss: (key: string) => void;
+}> = ({ groups, quizTitle, accepting, names, hideNames, onToggleNames, onAccept, onDismiss }) => {
+  if (!groups.length) {
+    return (
+      <Card className="p-10 text-center space-y-2" data-testid="blanks-empty">
+        <MascotHere className="mx-auto mb-1" />
+        <p className="font-bold text-slate-900 dark:text-white">{t('لا توجد إجابات «أكمل الفراغ» تحتاج مراجعة')}</p>
+      </Card>
+    );
+  }
+  let lastQ = '';
+  return (
+    <Card className="p-5 space-y-3" data-testid="blanks-review">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <p className="text-xs text-slate-600 dark:text-slate-300">{t('إجابات حُسبت خطأ لأنها لا تطابق الإجابة المقبولة. إن كانت صحيحة اضغط «اعتبرها صحيحة» فتُضاف للإجابات المقبولة وتُصحَّح لكل من كتبها.')}</p>
+        <button type="button" onClick={onToggleNames} className="text-xs font-bold text-slate-600 dark:text-slate-300 inline-flex items-center gap-1 hover:text-indigo-600">
+          {hideNames ? <Eye className="w-3.5 h-3.5" /> : <EyeOff className="w-3.5 h-3.5" />}{hideNames ? t('إظهار الأسماء') : t('إخفاء الأسماء')}
+        </button>
+      </div>
+      {groups.map((g) => {
+        const qKey = `${g.quizId}|${g.question.id}`;
+        const header = qKey !== lastQ;
+        lastQ = qKey;
+        return (
+          <React.Fragment key={g.key}>
+            {header && (
+              <div className="pt-3 first:pt-0 border-t first:border-t-0 border-slate-100 dark:border-slate-800">
+                <div className="text-[11px] text-slate-500 dark:text-slate-400 inline-flex items-center gap-1.5"><FileText className="w-3.5 h-3.5" />{quizTitle(g.quizId)} • {t('السؤال {n}', { n: g.order })}</div>
+                <div className="text-sm font-bold text-slate-900 dark:text-white mt-0.5"><RichText html={g.question.question_text} /></div>
+                <div className="mt-1 flex flex-wrap gap-1 text-[11px]">
+                  <span className="text-slate-500">{t('المقبول:')}</span>
+                  {(g.question.accepted_answers || []).filter(Boolean).map((a) => (
+                    <span key={a} className="px-2 py-0.5 rounded-full bg-emerald-50 dark:bg-emerald-950/40 text-emerald-800 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-900 font-semibold">{a}</span>
+                  ))}
+                </div>
+              </div>
+            )}
+            <div className="flex flex-wrap items-center gap-3 p-3 rounded-xl border border-rose-200 dark:border-rose-900 bg-rose-50/40 dark:bg-rose-950/20" data-testid="blank-group">
+              <div className="flex-1 min-w-[10rem]">
+                <div className="text-[15px] font-bold text-slate-900 dark:text-white" dir="auto">{g.text}</div>
+                <div className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5 line-clamp-2">{t('{n} طالب', { n: g.count })}{!hideNames && ` • ${names(g.studentIds)}`}</div>
+              </div>
+              <Button size="sm" icon={Check} disabled={!!accepting} onClick={() => onAccept(g)}>
+                {accepting === g.key ? t('جارٍ الحفظ…') : t('اعتبرها صحيحة')}
+              </Button>
+              <button type="button" onClick={() => onDismiss(g.key)} className="h-8 px-3 rounded-lg border border-slate-300 dark:border-slate-700 text-xs font-bold text-slate-700 dark:text-slate-200 inline-flex items-center gap-1 hover:bg-white dark:hover:bg-slate-800">
+                <X className="w-3.5 h-3.5" />{t('خطأ فعلاً')}
+              </button>
+            </div>
+          </React.Fragment>
+        );
+      })}
+    </Card>
+  );
+};
 
 /**
  * «التصحيح»: كل الإجابات المقالية في مكان واحد، تُصحَّح واحدة تلو الأخرى.
@@ -15,9 +78,9 @@ import { MascotHere } from '../common/Mascot';
  * المعلم يرى اختباراته فقط، والمدير والمشرف يرون كل ما في نطاقهم.
  */
 export const GradingPage: React.FC = () => {
-  const { currentUser, quizzes, submissions, users, classes, gradeEssay, showToast } = useApp();
+  const { currentUser, quizzes, submissions, users, classes, gradeEssay, showToast, refreshData } = useApp();
   const [quizFilter, setQuizFilter] = useState('');
-  const [show, setShow] = useState<'pending' | 'graded'>('pending');
+  const [show, setShow] = useState<'pending' | 'graded' | 'blanks'>('pending');
   const [hideNames, setHideNames] = useState(false);
   const [index, setIndex] = useState(0);
   const [marks, setMarks] = useState('');
@@ -35,6 +98,40 @@ export const GradingPage: React.FC = () => {
   }, [quizzes, submissions, currentUser]);
 
   const all = useMemo(() => essayItems(mySubs), [mySubs]);
+  const quizTitle = (id: string) => quizzes.find((q) => q.id === id)?.title || '—';
+
+  // «أكمل الفراغ»: إجابات حُسبت خطأ تلقائياً، لمراجعة المعلم (قد تكون صحيحة بصياغة أخرى)
+  const [dismissed, setDismissed] = useState<string[]>(() => { try { return JSON.parse(localStorage.getItem(BLANK_DISMISS_KEY) || '[]'); } catch { return []; } });
+  const blanks = useMemo(() => {
+    const hide = new Set(dismissed);
+    return wrongBlankGroups(mySubs).filter((g) => !hide.has(g.key))
+      .sort((a, b) => quizTitle(a.quizId).localeCompare(quizTitle(b.quizId), 'ar') || a.order - b.order || b.count - a.count);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mySubs, dismissed]);
+  const dismiss = (key: string) => {
+    const next = [...dismissed, key].slice(-2000);
+    setDismissed(next);
+    try { localStorage.setItem(BLANK_DISMISS_KEY, JSON.stringify(next)); } catch { /* ignore */ }
+  };
+  const [accepting, setAccepting] = useState('');
+  const accept = async (g: (typeof blanks)[number]) => {
+    setAccepting(g.key);
+    const r = await acceptBlank(g.quizId, g.question.id, g.text);
+    if (r.ok) {
+      await refreshData();
+      showToast(t('أُضيفت «{a}» للإجابات المقبولة وأُعيد تصحيح {n} تسليم', { a: g.text, n: r.updated }), 'success');
+    } else {
+      showToast(r.error === 'missing' ? t('حدّث قاعدة البيانات (070) لتفعيل هذه الميزة') : t('تعذر الحفظ: {e}', { e: r.error || '' }), 'error');
+    }
+    setAccepting('');
+  };
+  const blankQuizzes = useMemo(() => {
+    const m = new Map<string, number>();
+    blanks.forEach((g) => m.set(g.quizId, (m.get(g.quizId) || 0) + g.count));
+    return m;
+  }, [blanks]);
+  const blankTotal = blanks.reduce((n, g) => n + g.count, 0);
+
   const byQuiz = useMemo(() => {
     const m = new Map<string, { pending: number; graded: number }>();
     all.forEach((it) => {
@@ -44,7 +141,6 @@ export const GradingPage: React.FC = () => {
     });
     return m;
   }, [all]);
-  const quizTitle = (id: string) => quizzes.find((q) => q.id === id)?.title || '—';
 
   // قائمة ثابتة أثناء التصحيح: لا تختفي الإجابة من أمام المعلم فور حفظها (يتنقل بالتالي/السابق)
   const [queueKeys, setQueueKeys] = useState<string[]>([]);
@@ -90,23 +186,34 @@ export const GradingPage: React.FC = () => {
 
   return (
     <div className="max-w-6xl mx-auto py-8 px-4 sm:px-6 space-y-5" dir={uiDir()}>
-      <PageHeader title={t('التصحيح')} subtitle={totalPending ? t('{n} إجابة مقالية بانتظار التصحيح. الطلاب لا يرون درجتهم النهائية حتى تُصحَّح.', { n: totalPending }) : t('لا توجد إجابات مقالية بانتظار التصحيح.')} />
+      <PageHeader title={t('التصحيح')} subtitle={[
+        totalPending ? t('{n} إجابة مقالية بانتظار التصحيح. الطلاب لا يرون درجتهم النهائية حتى تُصحَّح.', { n: totalPending }) : t('لا توجد إجابات مقالية بانتظار التصحيح.'),
+        blankTotal ? t('{n} إجابة «أكمل الفراغ» حُسبت خطأ تحتاج مراجعتك.', { n: blankTotal }) : '',
+      ].filter(Boolean).join(' ')} />
 
       <div className="grid lg:grid-cols-[260px_1fr] gap-5 items-start">
         <Card className="p-3 space-y-1" aria-label={t('الاختبارات')}>
-          <div className="grid grid-cols-2 gap-1 p-1 rounded-xl bg-slate-100 dark:bg-slate-800 mb-2" role="radiogroup">
-            {(['pending', 'graded'] as const).map((k) => (
-              <button key={k} type="button" role="radio" aria-checked={show === k} onClick={() => setShow(k)}
-                className={`py-1.5 rounded-lg text-xs font-bold ${show === k ? 'bg-white dark:bg-slate-900 text-indigo-700 dark:text-indigo-300 shadow-sm' : 'text-slate-600 dark:text-slate-300'}`}>
-                {k === 'pending' ? t('بانتظار التصحيح') : t('تم تصحيحها')}
+          <div className="grid grid-cols-3 gap-1 p-1 rounded-xl bg-slate-100 dark:bg-slate-800 mb-2" role="radiogroup">
+            {(['pending', 'graded', 'blanks'] as const).map((k) => (
+              <button key={k} type="button" role="radio" aria-checked={show === k} onClick={() => { setShow(k); setQuizFilter(''); }}
+                className={`py-1.5 px-1 rounded-lg text-[11px] font-bold leading-tight ${show === k ? 'bg-white dark:bg-slate-900 text-indigo-700 dark:text-indigo-300 shadow-sm' : 'text-slate-600 dark:text-slate-300'}`}>
+                {k === 'pending' ? t('بانتظار التصحيح') : k === 'graded' ? t('تم تصحيحها') : t('أكمل الفراغ')}
+                {k === 'blanks' && blankTotal > 0 && <span className="ms-1 inline-flex min-w-4 h-4 px-1 rounded-full bg-amber-500 text-white text-[10px] items-center justify-center">{blankTotal}</span>}
               </button>
             ))}
           </div>
           <button type="button" onClick={() => setQuizFilter('')}
             className={`w-full flex items-center justify-between gap-2 px-3 py-2 rounded-xl text-sm font-semibold text-start ${!quizFilter ? 'bg-indigo-50 dark:bg-indigo-950/50 text-indigo-700 dark:text-indigo-300' : 'text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800'}`}>
-            {t('كل الاختبارات')}<span className="text-xs font-bold">{show === 'pending' ? totalPending : all.length - totalPending}</span>
+            {t('كل الاختبارات')}<span className="text-xs font-bold">{show === 'blanks' ? blankTotal : show === 'pending' ? totalPending : all.length - totalPending}</span>
           </button>
-          {Array.from(byQuiz.entries()).filter(([, c]) => (show === 'pending' ? c.pending : c.graded) > 0).map(([id, c]) => (
+          {show === 'blanks' && Array.from(blankQuizzes.entries()).map(([id, n]) => (
+            <button key={id} type="button" onClick={() => setQuizFilter(id)}
+              className={`w-full flex items-center justify-between gap-2 px-3 py-2 rounded-xl text-sm text-start ${quizFilter === id ? 'bg-indigo-50 dark:bg-indigo-950/50 text-indigo-700 dark:text-indigo-300 font-bold' : 'text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800'}`}>
+              <span className="truncate">{quizTitle(id)}</span>
+              <span className="shrink-0 min-w-6 h-6 px-1.5 rounded-full text-xs font-bold inline-flex items-center justify-center bg-amber-100 text-amber-900 dark:bg-amber-950 dark:text-amber-300">{n}</span>
+            </button>
+          ))}
+          {show !== 'blanks' && Array.from(byQuiz.entries()).filter(([, c]) => (show === 'pending' ? c.pending : c.graded) > 0).map(([id, c]) => (
             <button key={id} type="button" onClick={() => setQuizFilter(id)}
               className={`w-full flex items-center justify-between gap-2 px-3 py-2 rounded-xl text-sm text-start ${quizFilter === id ? 'bg-indigo-50 dark:bg-indigo-950/50 text-indigo-700 dark:text-indigo-300 font-bold' : 'text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800'}`}>
               <span className="truncate">{quizTitle(id)}</span>
@@ -115,7 +222,11 @@ export const GradingPage: React.FC = () => {
           ))}
         </Card>
 
-        {!item ? (
+        {show === 'blanks' ? (
+          <BlankReview groups={blanks.filter((g) => !quizFilter || g.quizId === quizFilter)} quizTitle={quizTitle} accepting={accepting}
+            names={(ids) => hideNames ? t('{n} طالب', { n: ids.length }) : ids.map((id) => users.find((u) => u.id === id)?.name || '—').join('، ')}
+            hideNames={hideNames} onToggleNames={() => setHideNames((v) => !v)} onAccept={accept} onDismiss={dismiss} />
+        ) : !item ? (
           <Card className="p-10 text-center space-y-2" data-testid="grading-empty">
             <MascotHere className="mx-auto mb-1" />
             <p className="font-bold text-slate-900 dark:text-white">{show === 'pending' ? t('أحسنت! لا توجد إجابات بانتظار التصحيح') : t('لا توجد إجابات مصحّحة بعد')}</p>

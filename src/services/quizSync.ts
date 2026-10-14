@@ -492,6 +492,25 @@ export async function pushSubmission(submissionId: string): Promise<SyncResult> 
   }
 }
 
+/** بعد تعديل الإجابات المقبولة في «أكمل الفراغ»: إعادة تصحيحها في تسليمات الاختبار على الخادم (070) */
+export async function regradeBlanks(quizId: string): Promise<number> {
+  if (!isSupabaseConfigured()) return 0;
+  const { data, error } = await supabase.rpc('itqan_regrade_blanks', { p_quiz_id: quizId });
+  if (error) {
+    if (!isMissingRpc(error)) console.warn('[sync] تعذرت إعادة تصحيح الفراغات:', error.message);
+    return 0;
+  }
+  return data?.ok ? Number(data.updated) || 0 : 0;
+}
+
+/** «اعتبرها صحيحة»: إضافة إجابة طالب للإجابات المقبولة وإعادة تصحيح التسليمات (070) */
+export async function acceptBlank(quizId: string, questionId: string, answer: string): Promise<{ ok: boolean; updated: number; error?: string }> {
+  if (!isSupabaseConfigured()) return { ok: false, updated: 0, error: 'not_configured' };
+  const { data, error } = await supabase.rpc('itqan_accept_blank', { p_quiz_id: quizId, p_question_id: questionId, p_answer: answer });
+  if (error) return { ok: false, updated: 0, error: isMissingRpc(error) ? 'missing' : error.message };
+  return { ok: !!data?.ok, updated: Number(data?.updated) || 0, error: data?.error };
+}
+
 export async function pullSubmissions(currentUser: User | null): Promise<void> {
   if (!isSupabaseConfigured() || !currentUser) return;
 
