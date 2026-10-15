@@ -19,6 +19,7 @@ import {
   User,
   QuizIntegrity,
 } from '../types';
+import { setOldUngraded } from './ungradedOld';
 
 export interface SyncResult {
   ok: boolean;
@@ -610,6 +611,9 @@ export async function pullSubmissions(currentUser: User | null, opts: { full?: b
         return;
       }
       deltaSupported = true;
+      // عدد المقالات غير المصححة في التسليمات القديمة (081) — لعدّاد «التصحيح»
+      const old = await supabase.rpc('itqan_ungraded_old', { p_before: cutoff });
+      if (!old.error && old.data && typeof old.data === 'object') setOldUngraded(old.data as Record<string, number>);
       const local = new Map(StorageService.getSubmissions().map((x) => [x.id, x] as const));
       complete = recent.data.length < STAFF_MAX && older.data.length < STAFF_MAX;
       data = recent.data;

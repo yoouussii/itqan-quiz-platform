@@ -10,6 +10,7 @@ import { EXAM_PERIODS, ExamEntry, ExamPeriod, addExamEntries, deleteExamEntry, f
 import { exportElementToPdf } from '../../utils/exportPdf';
 import { uiDir, t, dateLocale } from '../../i18n';
 import type { QuizWithDetails, User } from '../../types';
+import { firstName } from '../../utils/names';
 
 /** مصدر الموعد: اختبار إلكتروني على المنصة، أو موعد أضافه المعلم في الجدول */
 interface Ev {
@@ -65,8 +66,8 @@ export const ExamCalendar: React.FC = () => {
     if (role === 'parent') {
       const kids = (currentUser.child_ids || []).map((id) => (users as User[]).find((u) => u.id === id)).filter(Boolean) as User[];
       list = [
-        ...kids.flatMap((k) => StorageService.getQuizzesForStudent(k.id).map((q) => toEv(q, k.name.split(/\s+/)[0]))).filter(Boolean) as Ev[],
-        ...kids.flatMap((k) => entries.filter((e) => e.class_id === k.class_id).map((e) => entryEv(e, k.name.split(/\s+/)[0]))),
+        ...kids.flatMap((k) => StorageService.getQuizzesForStudent(k.id).map((q) => toEv(q, firstName(k.name)))).filter(Boolean) as Ev[],
+        ...kids.flatMap((k) => entries.filter((e) => e.class_id === k.class_id).map((e) => entryEv(e, firstName(k.name)))),
       ];
     } else if (role === 'student') {
       list = [

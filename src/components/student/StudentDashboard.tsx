@@ -11,7 +11,7 @@ import { uiDir, t, isEn, dateLocale } from '../../i18n';
 import { questionsCount, minutesCount, hoursCount, daysCount } from '../../i18n/count';
 import { DevicePushCard } from '../common/DevicePushCard';
 import { DailyChallenge } from './DailyChallenge';
-import { shortName } from '../../utils/names';
+import { shortName, firstName as getFirstName } from '../../utils/names';
 import { AttendanceSummary } from '../common/AttendanceSummary';
 import { ConductSummary } from '../common/ConductSummary';
 import { SurveyPrompt } from '../common/SurveyPrompt';
@@ -128,7 +128,7 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({ onStartQuiz,
       .map((x, i) => ({ name: x.name, pct: Math.round(x.sum / x.n), color: RING_COLORS[i] }));
   }, [validSubs, quizzes]);
 
-  const firstName = (currentUser?.name || '').split(' ')[0];
+  const firstName = getFirstName(currentUser?.name || '');
   const ch = home?.challenge;
   const showChallenge = !!ch && (ch.enabled || ch.done);
   const showStreak = !!home && home.settings.streak;

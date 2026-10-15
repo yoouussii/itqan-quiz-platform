@@ -9,6 +9,7 @@ import {
 import { pathFor } from '../../utils/router';
 import { uiDir, t, dateLocale } from '../../i18n';
 import type { User } from '../../types';
+import { firstName } from '../../utils/names';
 
 export const STATE_UI: Record<HwState, { tone: Tone; label: () => string }> = {
   pending: { tone: 'warn', label: () => t('مطلوب') },
@@ -183,7 +184,7 @@ export const HomeworkDetailModal: React.FC<{
 
           {hw.allow_submission && (canSubmit || cur) && (
             <section className="space-y-3 border-t border-slate-100 dark:border-slate-800 pt-4">
-              <h3 className="text-sm font-bold text-slate-700 dark:text-slate-200">{canSubmit ? t('إجابتي') : t('تسليم {name}', { name: student.name.split(' ')[0] })}</h3>
+              <h3 className="text-sm font-bold text-slate-700 dark:text-slate-200">{canSubmit ? t('إجابتي') : t('تسليم {name}', { name: firstName(student.name) })}</h3>
               {editable ? (
                 <textarea value={answer} onChange={(e) => setAnswer(e.target.value)} rows={4} maxLength={10000} placeholder={t('اكتب إجابتك هنا، أو أرفق صورة الحل أو ملفاً')}
                   className="w-full px-3 py-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-[15px]" />
