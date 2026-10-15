@@ -52,6 +52,7 @@ const NafesPage = React.lazy(() => import('./components/staff/NafesPage').then((
 const AcademicSupportPage = React.lazy(() => import('./components/staff/AcademicSupportPage').then((m) => ({ default: m.AcademicSupportPage })));
 const HomeworkPage = React.lazy(() => import('./components/staff/HomeworkPage').then((m) => ({ default: m.HomeworkPage })));
 const HomeworkStudentPage = React.lazy(() => import('./components/student/HomeworkStudentPage').then((m) => ({ default: m.HomeworkStudentPage })));
+const LivePage = React.lazy(() => import('./components/live/LivePage').then((m) => ({ default: m.LivePage })));
 const PortfolioPage = React.lazy(() => import('./components/staff/PortfolioPage').then((m) => ({ default: m.PortfolioPage })));
 const VisitsPage = React.lazy(() => import('./components/staff/VisitsPage').then((m) => ({ default: m.VisitsPage })));
 const SurveysPage = React.lazy(() => import('./components/staff/SurveysPage').then((m) => ({ default: m.SurveysPage })));
@@ -70,7 +71,7 @@ const KNOWN_VIEWS = [
   'students_management', 'subjects_classes', 'analytics', 'reports',
   'quiz_results', 'quiz_preview', 'quizzes', 'dashboard',
   'my_points', 'leaderboard', 'approvals', 'activity_log', 'settings', 'notifications', 'banners', 'question_bank', 'outcomes', 'certificates', 'grading',
-  'privacy', 'terms', 'attendance', 'calendar', 'behavior', 'school_year', 'gradebook', 'visits', 'surveys', 'remedial', 'portfolio', 'homework', 'academic_support', 'nafes', 'class_records', 'points_store', 'indicators',
+  'privacy', 'terms', 'attendance', 'calendar', 'behavior', 'school_year', 'gradebook', 'visits', 'surveys', 'remedial', 'portfolio', 'homework', 'academic_support', 'nafes', 'class_records', 'points_store', 'indicators', 'live',
 ];
 
 /** المسار الحالي، ويتحدّث مع زر الرجوع والروابط الداخلية (لصفحات ما قبل الدخول) */
@@ -161,6 +162,7 @@ const AppContent: React.FC = () => {
     surveys: true,
     remedial: isStaff,
     homework: isStaff || currentUser.role === 'student',
+    live: isStaff || currentUser.role === 'student',
     class_records: hasPerm(currentUser, 'can_view_class_records') || hasPerm(currentUser, 'can_manage_class_records') || hasPerm(currentUser, 'can_view_teacher_evals'),
     points_store: isStaff && hasPerm(currentUser, 'can_manage_store'),
     indicators: currentUser.role === 'admin' || currentUser.role === 'supervisor' || hasPerm(currentUser, 'can_view_all_reports'),
@@ -281,6 +283,7 @@ const AppContent: React.FC = () => {
         {currentView === 'surveys' && <SurveysPage />}
         {currentView === 'remedial' && isStaff && <OutcomesPage initialTab="plans" />}
         {currentView === 'homework' && isStaff && <HomeworkPage />}
+        {currentView === 'live' && <LivePage />}
         {currentView === 'academic_support' && isStaff && <AcademicSupportPage />}
         {currentView === 'nafes' && isStaff && <NafesPage />}
         {currentView === 'class_records' && isStaff && <ClassRecordsPage />}

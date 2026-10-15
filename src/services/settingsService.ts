@@ -46,6 +46,8 @@ export interface AppSettings {
   banner_slider: { transition?: string; seconds?: number } | null;
   /** رئيسية الطالب (021): تحدي اليوم والأيام المتتالية وترتيب الفصل (مفعّلة إن لم تُضبط) */
   student_home: { challenge?: boolean; streak?: boolean; leaderboard?: boolean; challenge_count?: number } | null;
+  /** الحصص المباشرة (083): عنوان خادم Jitsi */
+  live_classes: { domain?: string } | null;
 }
 // اشتراط اعتماد الاختبارات مفعّل افتراضياً (مثل الخادم في 008)، ويُلغيه المدير من الإعدادات
 export const DEFAULT_SETTINGS: AppSettings = {
@@ -77,6 +79,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   login_logo2: '',
   banner_slider: null,
   student_home: null,
+  live_classes: null,
 };
 const BRANDING_KEYS = ['school_name', 'school_logo', 'brand_color', 'maintenance', 'login_style', 'login_image', 'login_tagline', 'login_title', 'login_logo', 'login_logo2', 'cert_school_name', 'cert_company_logo', 'cert_school_logo'] as const;
 

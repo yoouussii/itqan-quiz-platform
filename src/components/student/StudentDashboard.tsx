@@ -21,6 +21,7 @@ import { AcademicSupportCard } from '../common/AcademicSupport';
 import { StudentHomeData, fetchStudentHome } from '../../services/studentHomeService';
 import { MascotHere } from '../common/Mascot';
 import { GoalsCard } from '../common/Goals';
+import { LiveNowBanner } from '../live/LiveNowBanner';
 
 interface StudentDashboardProps {
   onStartQuiz: (quizId: string) => void;
@@ -435,6 +436,7 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({ onStartQuiz,
           </button>
         </div>
       </section>
+      <LiveNowBanner />
       <BannerStrip embedded />
       <SurveyPrompt />
 
