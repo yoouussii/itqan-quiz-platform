@@ -6,7 +6,7 @@ import { Banner, BANNER_THEMES, BANNER_EFFECTS, BannerAudience, BannerEffect, fi
 import { BannerEffects } from '../common/BannerEffects';
 import { fileToAvatarDataUrl } from '../../services/avatarService';
 import { toInputValue, inputToIso } from '../../utils/quizWindow';
-import { BannerCard, EDIT_BANNER_KEY, BANNER_TRANSITIONS } from '../common/BannerStrip';
+import { BannerCard, EDIT_BANNER_KEY, BANNER_TRANSITIONS, HONOR_DESIGNS, HonorDesign } from '../common/BannerStrip';
 import { uiDir, t } from '../../i18n';
 import { EmptyMascot } from '../common/Mascot';
 
@@ -82,12 +82,13 @@ const Editor: React.FC<{ initial: Banner; onDone: () => void }> = ({ initial, on
   const fileRef = useRef<HTMLInputElement>(null);
   const set = (patch: Partial<Banner>) => setB((prev) => ({ ...prev, ...patch }));
   const sizeKb = Math.round(JSON.stringify(b.images).length / 1024);
-  const honor: Required<HonorConfig> = { ...HONOR_DEFAULTS, ...(b.config || {}) };
+  const honor: HonorConfig & typeof HONOR_DEFAULTS = { ...HONOR_DEFAULTS, ...(b.config || {}) };
+  const design = (honor.design as HonorDesign) || 'theme';
   const setHonor = (patch: HonorConfig) => set({ config: { ...honor, ...patch } });
   const pickKind = (k: Banner['kind']) => {
     if (k === 'honor') {
       set({
-        kind: k, images: [], config: honor,
+        kind: k, images: [], config: { ...honor, design: honor.design || 'gold' },
         title: b.title || t('🏆 لوحة الشرف — أبطال «ممتاز»'),
         body: b.body || t('تهانينا لزملائنا الحاصلين على «ممتاز» في اختباراتهم. أنت التالي! 💪'),
         effect: b.effect && b.effect !== 'none' ? b.effect : 'trophies', theme: b.theme === 'indigo' ? 'amber' : b.theme,
@@ -101,7 +102,7 @@ const Editor: React.FC<{ initial: Banner; onDone: () => void }> = ({ initial, on
     if (!files.length) return;
     setBusy(true);
     try {
-      if (b.kind === 'wide') {
+      if (b.kind === 'wide' || b.kind === 'honor') {
         set({ images: [{ src: await fileToBannerDataUrl(files[0]) }] });
       } else {
         const room = MAX_GALLERY - b.images.length;
@@ -121,7 +122,7 @@ const Editor: React.FC<{ initial: Banner; onDone: () => void }> = ({ initial, on
     if (b.starts_at && b.ends_at && new Date(b.ends_at) <= new Date(b.starts_at)) return showToast(t('تاريخ الإخفاء يجب أن يكون بعد تاريخ الظهور'), 'error');
     if (sizeKb > 2500) return showToast(t('الصور كبيرة جداً، احذف بعضها'), 'error');
     setBusy(true);
-    const ok = await saveBanner({ ...b, title: b.title.trim(), body: b.body.trim(), ...(b.kind === 'honor' ? { images: [], config: honor } : {}) });
+    const ok = await saveBanner({ ...b, title: b.title.trim(), body: b.body.trim(), ...(b.kind === 'honor' ? { images: design === 'image' ? b.images.slice(0, 1) : [], config: honor } : {}) });
     setBusy(false);
     if (ok && b.kind === 'honor') void fetchHonorRoll(honor, true);
     if (ok) onDone();
@@ -155,7 +156,7 @@ const Editor: React.FC<{ initial: Banner; onDone: () => void }> = ({ initial, on
         {b.kind === 'honor' ? (
         <div className="rounded-2xl border border-amber-200 dark:border-amber-900 bg-amber-50/60 dark:bg-amber-950/30 p-4 space-y-3" data-testid="honor-settings">
           <p className="text-xs text-slate-700 dark:text-slate-300 leading-relaxed">
-            {t('تظهر تلقائياً أسماء الطلاب (الاسم الأول والأخير مع الفصل) الذين حصلوا على النسبة المحددة أو أعلى في أي اختبار، من جميع الفصول. تتحدّث القائمة وحدها مع كل تسليم، ولا يظهر البانر ما دامت فارغة.')}
+            {t('تظهر تلقائياً أسماء الطلاب (الاسم الأول والثاني والأخير مع الفصل) الذين حصلوا على النسبة المحددة أو أعلى في أي اختبار، من جميع الفصول. تتحدّث القائمة وحدها مع كل تسليم، ولا يظهر البانر ما دامت فارغة.')}
           </p>
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             <label className="block">
@@ -178,6 +179,35 @@ const Editor: React.FC<{ initial: Banner; onDone: () => void }> = ({ initial, on
             </label>
           </div>
           <p className="text-[11px] text-slate-500 dark:text-slate-400">{t('أفضل نتيجة لكل طالب مرة واحدة، ولا تُحسب إعادة الاختبار. كل فرع يرى طلابه فقط.')}</p>
+          <div>
+            <span className={labelCls}>{t('تصميم اللوحة')}</span>
+            <div className="grid grid-cols-2 sm:grid-cols-5 gap-2" role="radiogroup" aria-label={t('تصميم اللوحة')}>
+              {(Object.keys(HONOR_DESIGNS) as HonorDesign[]).map((k) => (
+                <button key={k} type="button" role="radio" aria-checked={design === k} onClick={() => setHonor({ design: k })}
+                  className={`rounded-xl border p-1.5 text-[11px] font-bold ${design === k ? 'border-indigo-600 ring-2 ring-indigo-200 dark:ring-indigo-900 text-indigo-800 dark:text-indigo-200' : 'border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200'}`}>
+                  <span className="block h-8 rounded-lg mb-1" style={{
+                    gold: { background: 'radial-gradient(120% 90% at 50% 0%, #1e3a8a, #0a1328)', boxShadow: 'inset 0 0 0 2px #fbbf24' },
+                    stars: { background: 'linear-gradient(160deg, #1e1b4b, #4c1d95 55%, #831843)' },
+                    paper: { background: '#fdf3dc', boxShadow: 'inset 0 0 0 3px #d97706' },
+                    theme: { background: `linear-gradient(135deg, ${(BANNER_THEMES[b.theme] || BANNER_THEMES.indigo).from}, ${(BANNER_THEMES[b.theme] || BANNER_THEMES.indigo).to})` },
+                    image: { background: b.images[0] ? `center / cover url(${b.images[0].src})` : 'repeating-linear-gradient(45deg, #e2e8f0 0 6px, #f8fafc 6px 12px)' },
+                  }[k]} />
+                  {t(HONOR_DESIGNS[k])}
+                </button>
+              ))}
+            </div>
+            {design === 'image' && (
+              <div className="mt-2 flex flex-wrap items-center gap-2">
+                <button type="button" disabled={busy} onClick={() => fileRef.current?.click()}
+                  className="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold bg-indigo-600 hover:bg-indigo-700 text-white disabled:opacity-60">
+                  <Upload className="w-4 h-4" /> {b.images[0] ? t('تغيير الصورة') : t('رفع صورة')}
+                </button>
+                {b.images[0] && <button type="button" onClick={() => set({ images: [] })} className="text-xs font-bold text-rose-600">{t('إزالة الصورة')}</button>}
+                <span className="text-[11px] text-slate-500 w-full">{t('تُعرض الصورة خلف الأسماء مع تعتيم خفيف لتبقى الأسماء واضحة.')}</span>
+              </div>
+            )}
+          </div>
+          <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={onFiles} />
         </div>
         ) : (
         <div>
@@ -230,7 +260,7 @@ const Editor: React.FC<{ initial: Banner; onDone: () => void }> = ({ initial, on
           </div>
         )}
 
-        <div>
+        {(b.kind !== 'honor' || design === 'theme' || design === 'image') && <div>
           <span className={labelCls}>{t('لون الخلفية')}</span>
           <div className="flex flex-wrap gap-2">
             {Object.entries(BANNER_THEMES).map(([k, th]) => (
@@ -239,7 +269,7 @@ const Editor: React.FC<{ initial: Banner; onDone: () => void }> = ({ initial, on
                 className={`w-9 h-9 rounded-xl ${b.theme === k ? 'ring-2 ring-offset-2 ring-indigo-500 dark:ring-offset-slate-900' : ''}`} />
             ))}
           </div>
-        </div>
+        </div>}
 
         <div>
           <label className={labelCls} htmlFor="banner-duration">{t('مدة عرض هذا البانر (ثوانٍ)')}</label>

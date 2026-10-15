@@ -54,8 +54,10 @@ export interface HonorConfig {
   min?: number;
   days?: number;
   limit?: number;
+  /** تصميم اللوحة: gold | stars | paper | theme | image */
+  design?: string;
 }
-export const HONOR_DEFAULTS: Required<HonorConfig> = { min: 90, days: 7, limit: 30 };
+export const HONOR_DEFAULTS: Required<Omit<HonorConfig, 'design'>> = { min: 90, days: 7, limit: 30 };
 
 export interface HonorEntry {
   name: string;
