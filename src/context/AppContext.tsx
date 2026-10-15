@@ -74,6 +74,7 @@ import {
 } from '../services/quizSync';
 import { touchPresence } from '../services/presenceService';
 import { sortClasses } from '../utils/classOrder';
+import { ungradedEssayCount } from '../utils/grading';
 
 // ---------------------------------------------------------------------
 // إعدادات الجلسة
@@ -1445,6 +1446,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     recompute();
     const res = await pushSubmission(submissionId);
     showToast(res.ok ? t('تم حفظ درجة السؤال') : t('حُفظت الدرجة على جهازك فقط ({error})', { error: res.error || '' }), res.ok ? 'success' : 'error');
+    // اكتمل تصحيح آخر سؤال مقالي: تظهر النتيجة النهائية للطالب ويصله إشعار
+    if (res.ok && ungradedEssayCount(sub) > 0 && ungradedEssayCount(updated) === 0) {
+      const qz = StorageService.getQuizById(sub.quiz_id);
+      void notify({ type: 'announcement', title: `ظهرت نتيجتك في «${qz?.title || 'الاختبار'}»`, body: `صحّح المعلم الأسئلة المقالية. نتيجتك النهائية: ${updated.percentage}%`, audience: { user_ids: [sub.student_id] }, ref_type: 'submission', ref_id: sub.id });
+    }
     return res.ok;
   };
 

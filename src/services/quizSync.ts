@@ -506,6 +506,14 @@ export async function regradeBlanks(quizId: string): Promise<number> {
   return data?.ok ? Number(data.updated) || 0 : 0;
 }
 
+/** «خطأ فعلاً»: تُعلَّم الإجابة المطابقة في كل التسليمات بأن المعلم راجعها (082)، فتختفي على كل الأجهزة */
+export async function dismissBlank(quizId: string, questionId: string, answer: string): Promise<{ ok: boolean; updated: number; error?: string }> {
+  if (!isSupabaseConfigured()) return { ok: false, updated: 0, error: 'not_configured' };
+  const { data, error } = await supabase.rpc('itqan_dismiss_blank', { p_quiz_id: quizId, p_question_id: questionId, p_answer: answer });
+  if (error) return { ok: false, updated: 0, error: isMissingRpc(error) ? 'missing' : error.message };
+  return { ok: !!data?.ok, updated: Number(data?.updated) || 0, error: data?.error };
+}
+
 /** «اعتبرها صحيحة»: إضافة إجابة طالب للإجابات المقبولة وإعادة تصحيح التسليمات (070) */
 export async function acceptBlank(quizId: string, questionId: string, answer: string): Promise<{ ok: boolean; updated: number; error?: string }> {
   if (!isSupabaseConfigured()) return { ok: false, updated: 0, error: 'not_configured' };

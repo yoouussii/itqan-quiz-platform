@@ -83,19 +83,34 @@ export const QuizReview: React.FC<QuizReviewProps> = ({ submissionId, onBack }) 
       </button>
 
       <section className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 sm:p-8 flex flex-col items-center text-center gap-3">
-        <div className="w-[150px] h-[150px] rounded-full flex items-center justify-center" style={{ background: `conic-gradient(${ringColor} 0 ${pct}%, rgba(148,163,184,.25) ${pct}% 100%)` }}
-          role="img" aria-label={t('النتيجة {pct}%', { pct })}>
+        <div className="w-[150px] h-[150px] rounded-full flex items-center justify-center" style={{ background: pendingCount > 0 ? 'conic-gradient(#6366f1 0 100%)' : `conic-gradient(${ringColor} 0 ${pct}%, rgba(148,163,184,.25) ${pct}% 100%)` }}
+          role="img" aria-label={pendingCount > 0 ? t('قيد التصحيح') : t('النتيجة {pct}%', { pct })}>
           <div className="w-[118px] h-[118px] rounded-full bg-white dark:bg-slate-900 flex flex-col items-center justify-center">
-            <div className="text-4xl font-bold tabular-nums text-slate-900 dark:text-white leading-none">{pct}%</div>
-            <div className="text-[13px] text-slate-500 dark:text-slate-400 mt-1.5 tabular-nums">{t('{a} من {m}', { a: submission.score, m: submission.total_possible_score })}</div>
+            {pendingCount > 0 ? (
+              <>
+                <div className="text-4xl leading-none" aria-hidden>⏳</div>
+                <div className="text-[13px] font-bold text-indigo-700 dark:text-indigo-300 mt-2">{t('قيد التصحيح')}</div>
+              </>
+            ) : (
+              <>
+                <div className="text-4xl font-bold tabular-nums text-slate-900 dark:text-white leading-none">{pct}%</div>
+                <div className="text-[13px] text-slate-500 dark:text-slate-400 mt-1.5 tabular-nums">{t('{a} من {m}', { a: submission.score, m: submission.total_possible_score })}</div>
+              </>
+            )}
           </div>
         </div>
         <h1 className="text-2xl font-extrabold text-slate-900 dark:text-white">{headline}</h1>
         <div className="text-[15px] text-slate-500 dark:text-slate-400">{[submission.quiz?.title, submission.subject?.name].filter(Boolean).join(' · ')}</div>
         <div className="flex flex-wrap justify-center gap-2">
           {pendingCount > 0 ? <Chip tone="info">{t('قيد التصحيح')}</Chip> : <Chip tone={isPassed ? 'ok' : 'bad'}>{isPassed ? (female ? t('ناجحة') : t('ناجح')) : t('دون درجة النجاح')}</Chip>}
-          {currentUser?.role === 'student' && <Chip tone="warn">{t('+{n} نقطة', { n: earned })}</Chip>}
+          {currentUser?.role === 'student' && pendingCount === 0 && <Chip tone="warn">{t('+{n} نقطة', { n: earned })}</Chip>}
         </div>
+        {pendingCount > 0 && (
+          <p className="text-sm text-slate-600 dark:text-slate-300 leading-relaxed max-w-md" data-testid="pending-note">
+            {t('تظهر نتيجتك النهائية بعد أن يصحح المعلم {n} من الأسئلة المقالية، وسيصلك إشعار عندها.', { n: pendingCount })}
+            <span className="block text-xs text-slate-500 mt-1 tabular-nums">{t('الدرجة المبدئية حتى الآن: {a} من {m}', { a: submission.score, m: submission.total_possible_score })}</span>
+          </p>
+        )}
         {pendingCount === 0 && certKindFor(pct, pass) && (
           <button type="button"
             onClick={() => void exportCertificates([{

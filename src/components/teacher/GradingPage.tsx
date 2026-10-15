@@ -5,7 +5,7 @@ import { useApp } from '../../context/AppContext';
 import { PageHeader, Card, Button } from '../common/ui';
 import { RichText } from '../common/RichText';
 import { EssayItem, essayItems, wrongBlankGroups, loadBlankDismissed, saveBlankDismissed } from '../../utils/grading';
-import { acceptBlank } from '../../services/quizSync';
+import { acceptBlank, dismissBlank } from '../../services/quizSync';
 import { uiDir, t } from '../../i18n';
 import { hasPerm } from '../../utils/permissions';
 import { MascotHere } from '../common/Mascot';
@@ -111,9 +111,15 @@ export const GradingPage: React.FC = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mySubs, dismissed]);
   const dismiss = (key: string) => {
+    // يختفي فوراً على هذا الجهاز، ثم يُحفظ على الخادم (082) ليختفي على كل الأجهزة
     const next = [...dismissed, key].slice(-2000);
     setDismissed(next);
     saveBlankDismissed(next);
+    const g = blanks.find((x) => x.key === key);
+    if (g) void dismissBlank(g.quizId, g.question.id, g.text).then((r) => {
+      if (r.ok) void refreshData();
+      else if (r.error !== 'missing') showToast(t('تعذر الحفظ على الخادم: {e}', { e: r.error || '' }), 'error');
+    });
   };
   const [accepting, setAccepting] = useState('');
   const accept = async (g: (typeof blanks)[number]) => {

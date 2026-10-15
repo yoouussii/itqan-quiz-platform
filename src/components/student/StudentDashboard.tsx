@@ -114,7 +114,8 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({ onStartQuiz,
 
   // متوسط الطالب في كل مادة (أفضل محاولة لكل اختبار)
   const rings = useMemo(() => {
-    const best = bestPerQuiz(validSubs.filter((s) => (quizzes || []).some((q) => q.id === s.quiz_id)));
+    // اختبار فيه مقالي لم يُصحح بعد لا يدخل المتوسط حتى تظهر درجته النهائية
+    const best = bestPerQuiz(validSubs.filter((s) => (quizzes || []).some((q) => q.id === s.quiz_id) && ungradedEssayCount(s) === 0));
     const by = new Map<string, { name: string; color?: string; sum: number; n: number }>();
     best.forEach((s) => {
       const key = s.subject?.id || (s.quiz as any)?.subject_id || '';
