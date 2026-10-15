@@ -3690,4 +3690,10 @@ export const EN: Record<string, string> = {
   'تظهر نتيجتك النهائية بعد أن يصحح المعلم {n} من الأسئلة المقالية، وسيصلك إشعار عندها.': 'Your final result will appear once the teacher grades {n} written answer(s); you will be notified.',
   'الدرجة المبدئية حتى الآن: {a} من {m}': 'Provisional score so far: {a} of {m}',
   'تعذر الحفظ على الخادم: {e}': 'Could not save on the server: {e}',
+  'أنت تفتح المنصة من داخل تطبيق آخر (مثل واتساب)': 'You are opening the platform inside another app (such as WhatsApp)',
+  'اضغط زر المشاركة أو النقاط ثم «فتح في Safari»، ثم أكمل الخطوات.': 'Tap the share button or the dots, choose “Open in Safari”, then follow the steps.',
+  'اضغط النقاط الثلاث ثم «فتح في المتصفح» أو «فتح في Chrome»، ثم أكمل الخطوات.': 'Tap the three dots, choose “Open in browser” or “Open in Chrome”, then follow the steps.',
+  'افتح في Chrome': 'Open in Chrome',
+  'افتح المنصة من الأيقونة وسجّل دخولك': 'Open the platform from the icon and sign in',
+  'لاحقاً': 'Later',
 };

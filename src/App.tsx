@@ -11,6 +11,7 @@ import { LicenseBanner, LicenseBlocked, isBlocked, useLicense } from './componen
 
 import { hasPerm, pageAllowed } from './utils/permissions';
 import { ForcePasswordChange } from './components/common/ForcePasswordChange';
+import { InstallGate } from './components/common/InstallGate';
 import { PageHeader } from './components/common/ui';
 import { replaceNextNavigation, PUBLIC_PATHS } from './utils/router';
 import { Lang, applyLang, loadEnglish, loadLangPref, saveLangPref, t, uiDir } from './i18n';
@@ -346,6 +347,7 @@ const AppContent: React.FC = () => {
 
       {/* كلمة المرور الافتراضية: تغيير إلزامي (لا يقاطع الطالب أثناء الاختبار) */}
       {passwordIsDefault && currentView !== 'take_quiz' && <ForcePasswordChange />}
+      {!passwordIsDefault && <InstallGate preview={isPreview} />}
 
       {/* Notification Toast */}
       <Toast />
