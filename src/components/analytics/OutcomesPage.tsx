@@ -12,6 +12,7 @@ import { syncBank, loadBankCache, pickRandom } from '../../services/bankService'
 import { BANK_TO_EDITOR_KEY } from '../../utils/bankHandoff';
 import type { QuizWithDetails, SubmissionWithDetails } from '../../types';
 import { MascotHere } from '../common/Mascot';
+import { useEnsureAnswers } from '../common/useEnsureAnswers';
 
 const BAR: Record<'ok' | 'warn' | 'bad', string> = { ok: 'bg-emerald-500', warn: 'bg-amber-500', bad: 'bg-rose-500' };
 const selectCls = 'h-10 px-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm text-slate-900 dark:text-white';
@@ -54,6 +55,7 @@ export const SkillsCard: React.FC<{ studentId: string; quizzes: QuizWithDetails[
 export const OutcomesPage: React.FC<{ initialTab?: 'outcomes' | 'plans' }> = ({ initialTab = 'outcomes' }) => {
   const [planFor, setPlanFor] = useState<null | { s: OutcomeStat; needs: { id: string; p: number }[] }>(null);
   const { currentUser, quizzes, submissions, subjects, classes, users, setCurrentView, setEditingQuizId, showToast } = useApp();
+  useEnsureAnswers('outcomes');
   // من يرى الخطط العلاجية فقط (قسم الدعم) لا يرى تبويب التحليل
   const canOutcomes = pageAllowed(currentUser, 'outcomes');
   const [tab, setTab] = useState<'outcomes' | 'plans'>(canOutcomes ? initialTab : 'plans');

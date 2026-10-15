@@ -15,6 +15,7 @@ import {
 } from '../../utils/analytics';
 import { t, isEn, dateLocale } from '../../i18n';
 import type { User, SubmissionWithDetails } from '../../types';
+import { useEnsureAnswers } from '../common/useEnsureAnswers';
 
 const PERIODS: Array<{ id: Period; label: string }> = [
   { id: 'week', label: 'أسبوع' },
@@ -68,6 +69,7 @@ const REASON_TEXT = (r: RiskReason) => {
 export const AnalyticsInsights: React.FC<{ onDrill?: (subs: SubmissionWithDetails[] | null) => void }> = ({ onDrill }) => {
   const exportRef = useRef<HTMLDivElement>(null);
   const { currentUser, submissions, quizzes, users, subjects, classes, branches, theme, awards, sendAnnouncement, setCurrentView, showToast } = useApp();
+  useEnsureAnswers('insights');
   const dark = theme === 'dark';
   const [f, setF] = useRememberedState<AnalyticsFilters>('analytics', emptyFilters());
   const [heatAsTable, setHeatAsTable] = useState(false);

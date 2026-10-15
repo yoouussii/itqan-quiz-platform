@@ -4,6 +4,7 @@ import { useApp } from '../../context/AppContext';
 import { RemedialPlan, currentMastery, fetchPlans } from '../../services/remedialService';
 import { StorageService } from '../../services/storage';
 import { t, dateLocale } from '../../i18n';
+import { useEnsureAnswers } from './useEnsureAnswers';
 
 /** شريط التقدم: البداية ← الحالي، مع علامة الهدف */
 export const PlanProgress: React.FC<{ start: number; now: number | null; target: number }> = ({ start, now, target }) => {
@@ -20,6 +21,7 @@ export const PlanProgress: React.FC<{ start: number; now: number | null; target:
 /** الخطط العلاجية الجارية للطالب (لولي الأمر وللطالب) */
 export const RemedialCard: React.FC<{ studentId: string; className?: string }> = ({ studentId, className = '' }) => {
   const { submissions, subjects } = useApp();
+  useEnsureAnswers(`remedial-${studentId}`, (s) => s.student_id === studentId);
   // اختبارات الطالب بأسئلتها (ولي الأمر لا يملك قائمة اختبارات الطاقم)
   const quizzes = React.useMemo(() => StorageService.getQuizzesForStudent(studentId), [studentId]);
   const [plans, setPlans] = useState<RemedialPlan[]>([]);

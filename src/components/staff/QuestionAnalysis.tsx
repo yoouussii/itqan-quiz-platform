@@ -6,6 +6,7 @@ import { stripHtml } from '../common/RichText';
 import { t } from '../../i18n';
 import { itemAnalysis } from '../../utils/analytics';
 import { EmptyMascot } from '../common/Mascot';
+import { useEnsureAnswers } from '../common/useEnsureAnswers';
 
 /** تصنيف معامل التمييز (المعايير الشائعة في القياس التربوي) */
 const discLabel = (d: number) => (d >= 0.4 ? 'ممتاز' : d >= 0.3 ? 'جيد' : d >= 0.2 ? 'مقبول' : 'ضعيف');
@@ -13,6 +14,7 @@ const discLabel = (d: number) => (d >= 0.4 ? 'ممتاز' : d >= 0.3 ? 'جيد' 
 /** تحليل أسئلة اختبار واحد: نسبة الإجابات الصحيحة، الصعوبة، وأكثر خيار خاطئ شيوعاً */
 export const QuestionAnalysis: React.FC<{ quizId: string }> = ({ quizId }) => {
   const { submissions } = useApp();
+  useEnsureAnswers(`qa-${quizId}`, (s) => s.quiz_id === quizId);
   const [hardestFirst, setHardestFirst] = useState(true);
   const [open, setOpen] = useState<number | null>(null);
 

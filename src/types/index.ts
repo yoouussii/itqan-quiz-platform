@@ -248,6 +248,10 @@ export interface Submission {
   is_retake?: boolean;
   /** سجل الخروج من صفحة الاختبار أثناء الحل */
   integrity?: QuizIntegrity | null;
+  /** آخر تعديل على الخادم (079) — للتحميل بالفرق */
+  updated_at?: string;
+  /** الإجابات لم تُحمَّل بعد (تسليم قديم): تُجلب عند الحاجة */
+  answers_pending?: boolean;
 }
 
 export interface QuizIntegrity {

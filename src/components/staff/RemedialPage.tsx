@@ -8,6 +8,7 @@ import { PlanProgress } from '../common/RemedialCard';
 import { uiDir, t, dateLocale } from '../../i18n';
 import type { User } from '../../types';
 import { EmptyMascot } from '../common/Mascot';
+import { useEnsureAnswers } from '../common/useEnsureAnswers';
 
 const esc = (v: unknown) => String(v ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 const fmt = (d?: string | null) => (d ? new Date(d.length <= 10 ? `${d}T12:00:00` : d).toLocaleDateString(dateLocale(), { day: 'numeric', month: 'short', year: 'numeric' }) : '—');
@@ -23,6 +24,7 @@ export const RemedialPage: React.FC<{
   setOutcome?: (o: string) => void;
 }> = ({ embedded, plans: extPlans, setPlans: extSetPlans, outcome: extOutcome, setOutcome: extSetOutcome }) => {
   const { currentUser, users, classes, subjects, quizzes, submissions } = useApp();
+  useEnsureAnswers('remedial');
   const me = currentUser!;
   const [ownPlans, setOwnPlans] = useState<RemedialPlan[] | null>(null);
   const plans = extSetPlans ? extPlans ?? null : ownPlans;

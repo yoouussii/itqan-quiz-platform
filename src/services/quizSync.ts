@@ -332,7 +332,8 @@ function submissionToRow(s: Submission): Record<string, any> {
     score: s.score,
     total_possible_score: s.total_possible_score,
     percentage: s.percentage,
-    answers_json: s.answers_json ?? [],
+    // إجابات لم تُحمَّل بعد على هذا الجهاز: لا نرسل قائمة فارغة فوق الإجابات الحقيقية
+    ...(s.answers_pending ? {} : { answers_json: s.answers_json ?? [] }),
     completed_at: s.completed_at,
     status: s.status,
     time_spent_seconds: s.time_spent_seconds ?? null,
@@ -355,6 +356,7 @@ export function rowToSubmission(row: any): Submission {
     time_spent_seconds: row.time_spent_seconds ?? undefined,
     is_retake: row.is_retake ?? false,
     integrity: row.integrity && typeof row.integrity === 'object' ? row.integrity : null,
+    ...(row.updated_at ? { updated_at: row.updated_at } : {}),
   };
 }
 
@@ -511,34 +513,137 @@ export async function acceptBlank(quizId: string, questionId: string, answer: st
   return { ok: !!data?.ok, updated: Number(data?.updated) || 0, error: data?.error };
 }
 
-export async function pullSubmissions(currentUser: User | null): Promise<void> {
-  if (!isSupabaseConfigured() || !currentUser) return;
+// ---- تحميل التسليمات بالفرق (079) ----
+// أول مرة (أو كل 24 ساعة): تحميل كامل. بعدها كل دقيقتين: ما تغيّر منذ آخر مرة فقط + معرّفات ما حُذف.
+// للطاقم: إجابات التسليمات الأقدم من 30 يوماً لا تُحمَّل في التحميل الكامل؛ تُجلب عند الحاجة (ensureAnswers).
+const SUB_LIGHT_COLS = 'id,quiz_id,student_id,score,total_possible_score,percentage,completed_at,status,time_spent_seconds,is_retake,integrity,updated_at';
+const RECENT_ANSWER_DAYS = 30;
+const FULL_SYNC_EVERY_MS = 24 * 3600_000;
+const DELTA_OVERLAP_MS = 2 * 60_000;
+const DELTA_MAX = 1000;
+const STAFF_MAX = 5000;
+/** null = لم نعرف بعد، false = 079 لم يُشغَّل (تحميل كامل كالسابق) */
+let deltaSupported: boolean | null = null;
 
-  let query = supabase.from('submissions').select('*');
-  if (currentUser.role === 'student') {
-    query = query.eq('student_id', currentUser.id);
-  } else if (currentUser.role === 'parent') {
-    query = query.in('student_id', currentUser.child_ids?.length ? currentUser.child_ids : ['-']);
-  } else {
-    query = query.order('completed_at', { ascending: false }).limit(5000);
+interface SubCursor { at: string; full: number; v: 1 }
+const cursorKey = (uid: string) => `itqan_sub_cursor_${uid}`;
+function readCursor(uid: string): SubCursor | null {
+  try {
+    const c = JSON.parse(localStorage.getItem(cursorKey(uid)) || 'null');
+    return c && c.v === 1 && typeof c.at === 'string' ? c : null;
+  } catch {
+    return null;
+  }
+}
+function writeCursor(uid: string, c: SubCursor | null) {
+  try {
+    if (c) localStorage.setItem(cursorKey(uid), JSON.stringify(c));
+    else localStorage.removeItem(cursorKey(uid));
+  } catch { /* ignore */ }
+}
+const maxUpdated = (rows: any[], start = '1970-01-01T00:00:00Z') =>
+  rows.reduce((m, r) => (r?.updated_at && Date.parse(r.updated_at) > Date.parse(m) ? r.updated_at : m), start);
+const isMissingUpdatedAt = (e: any) => /updated_at/.test(e?.message || '') && /(column|does not exist|schema cache)/i.test(e?.message || '');
+
+function scoped(q: any, user: User) {
+  if (user.role === 'student') return q.eq('student_id', user.id);
+  if (user.role === 'parent') return q.in('student_id', user.child_ids?.length ? user.child_ids : ['-']);
+  return q;
+}
+
+/** صف خفيف (بلا إجابات): نُبقي إجابات النسخة المحلية إن لم يتغيّر التسليم */
+function lightToSubmission(row: any, local?: Submission): Submission {
+  const sub = rowToSubmission(row);
+  if (local && !local.answers_pending && local.answers_json?.length && local.updated_at && local.updated_at === row.updated_at) {
+    return { ...sub, answers_json: local.answers_json };
+  }
+  return { ...sub, answers_json: [], answers_pending: true };
+}
+
+export async function pullSubmissions(currentUser: User | null, opts: { full?: boolean } = {}): Promise<void> {
+  if (!isSupabaseConfigured() || !currentUser) return;
+  const cursor = readCursor(currentUser.id);
+  const pending = new Set(StorageService.getPendingSync('submission'));
+
+  // ---- بالفرق ----
+  if (!opts.full && deltaSupported !== false && cursor && Date.now() - cursor.full < FULL_SYNC_EVERY_MS) {
+    const since = new Date(Date.parse(cursor.at) - DELTA_OVERLAP_MS).toISOString();
+    const { data, error } = await scoped(supabase.from('submissions').select('*').gt('updated_at', since), currentUser)
+      .order('updated_at', { ascending: true }).limit(DELTA_MAX);
+    if (error && isMissingUpdatedAt(error)) {
+      deltaSupported = false;
+    } else if (error || !Array.isArray(data)) {
+      console.warn('[sync] تعذر جلب التسليمات:', error?.message);
+      return;
+    } else if (data.length < DELTA_MAX) {
+      deltaSupported = true;
+      const del = await supabase.rpc('itqan_deleted_submissions', { p_since: since });
+      const removed = (Array.isArray(del.data) ? (del.data as string[]) : []).filter((id) => !pending.has(id));
+      const rows = data.filter((r: any) => r?.id && !pending.has(r.id)).map(rowToSubmission);
+      if (rows.length || removed.length) {
+        const ok = StorageService.mergeSubmissionsFromRemote(rows, removed);
+        // لم تُحفظ على الجهاز (المساحة ممتلئة): المرة القادمة تحميل كامل
+        if (!ok) return writeCursor(currentUser.id, null);
+      }
+      writeCursor(currentUser.id, { ...cursor, at: maxUpdated(data, cursor.at) });
+      return;
+    }
+    // تغييرات كثيرة جداً أو 079 غير موجود: تحميل كامل
   }
 
-  const { data, error } = await query;
-  if (error || !Array.isArray(data)) {
+  // ---- تحميل كامل ----
+  let data: any[] = [];
+  let complete = true;
+  const staff = currentUser.role !== 'student' && currentUser.role !== 'parent';
+  if (staff && deltaSupported !== false) {
+    const cutoff = new Date(Date.now() - RECENT_ANSWER_DAYS * 86400_000).toISOString();
+    const recent = await supabase.from('submissions').select('*').gte('updated_at', cutoff).order('updated_at', { ascending: false }).limit(STAFF_MAX);
+    if (recent.error && isMissingUpdatedAt(recent.error)) {
+      deltaSupported = false;
+    } else if (recent.error || !Array.isArray(recent.data)) {
+      console.warn('[sync] تعذر جلب التسليمات:', recent.error?.message);
+      return;
+    } else {
+      const older = await supabase.from('submissions').select(SUB_LIGHT_COLS).lt('updated_at', cutoff).order('completed_at', { ascending: false }).limit(STAFF_MAX);
+      if (older.error || !Array.isArray(older.data)) {
+        console.warn('[sync] تعذر جلب التسليمات:', older.error?.message);
+        return;
+      }
+      deltaSupported = true;
+      const local = new Map(StorageService.getSubmissions().map((x) => [x.id, x] as const));
+      complete = recent.data.length < STAFF_MAX && older.data.length < STAFF_MAX;
+      data = recent.data;
+      const light = older.data.filter((r: any) => r?.id && !pending.has(r.id)).map((r: any) => lightToSubmission(r, local.get(r.id)));
+      return finishFull(currentUser, [...recent.data.filter((r: any) => r?.id && !pending.has(r.id)).map(rowToSubmission), ...light],
+        [...recent.data, ...older.data], complete, pending);
+    }
+  }
+  const plain = () => {
+    const q = scoped(supabase.from('submissions').select('*'), currentUser);
+    return staff ? q.order('completed_at', { ascending: false }).limit(STAFF_MAX) : q;
+  };
+  let res: any;
+  if (!staff && deltaSupported !== false) {
+    // الطالب وولي الأمر: نرتّب بوقت التعديل لنعرف هل 079 موجود (حتى لو لم توجد تسليمات بعد)
+    res = await scoped(supabase.from('submissions').select('*'), currentUser).order('updated_at', { ascending: false });
+    if (res.error && isMissingUpdatedAt(res.error)) {
+      deltaSupported = false;
+      res = await plain();
+    } else if (!res.error) deltaSupported = true;
+  } else res = await plain();
+  if (res.error || !Array.isArray(res.data)) {
     // الجدول قد لا يكون أُنشئ بعد (لم يُنفَّذ ملف SQL)
-    console.warn('[sync] تعذر جلب التسليمات:', error?.message);
+    console.warn('[sync] تعذر جلب التسليمات:', res.error?.message);
     return;
   }
+  data = res.data;
+  complete = !staff || data.length < STAFF_MAX;
+  return finishFull(currentUser, data.filter((r: any) => r?.id && !pending.has(r.id)).map(rowToSubmission), data, complete, pending);
+}
 
-  const pending = new Set(StorageService.getPendingSync('submission'));
-  const remoteIds = new Set<string>();
-  for (const row of data) {
-    if (!row?.id) continue;
-    remoteIds.add(row.id);
-    if (pending.has(row.id)) continue;
-    StorageService.saveSubmissionFromRemote(rowToSubmission(row));
-  }
-
+/** بعد التحميل الكامل: دمج بكتابة واحدة، وحذف ما اختفى من الخادم، ورفع ما لم يصل */
+function finishFull(currentUser: User, subs: Submission[], rawRows: any[], complete: boolean, pending: Set<string>) {
+  const remoteIds = new Set<string>(rawRows.filter((r) => r?.id).map((r) => r.id));
   // مشاركات كانت على الخادم ثم اختفت = حذفها المدير: تُحذف من الجهاز ولا تُعاد
   const seenKey = `itqan_seen_remote_submission_ids_${currentUser.id}`;
   let seen = new Set<string>();
@@ -547,29 +652,52 @@ export async function pullSubmissions(currentUser: User | null): Promise<void> {
   } catch {
     /* ignore */
   }
-  const complete = currentUser.role === 'student' || currentUser.role === 'parent' || data.length < 5000;
+  const removed: string[] = [];
+  const secure = !!getSessionToken();
+  const toPush: string[] = [];
   if (complete) {
     for (const s of StorageService.getSubmissions()) {
       if (remoteIds.has(s.id) || pending.has(s.id)) continue;
       // الطاقم: الخادم هو المرجع. الطالب: نحذف فقط ما سبق أن رأيناه على الخادم
-      if (currentUser.role !== 'student' || seen.has(s.id)) StorageService.removeSubmissionLocal(s.id);
-    }
-    localStorage.setItem(seenKey, JSON.stringify(Array.from(remoteIds)));
-  }
-
-  // تسليمات محلية لهذا الطالب لم تصل للخادم: نرفعها
-  if (currentUser.role === 'student') {
-    const secure = !!getSessionToken();
-    for (const s of StorageService.getSubmissionsByStudentId(currentUser.id)) {
-      if (remoteIds.has(s.id) || pending.has(s.id)) continue;
-      if (secure) {
+      if (currentUser.role !== 'student' || seen.has(s.id)) removed.push(s.id);
+      // تسليمات محلية لهذا الطالب لم تصل للخادم
+      else if (s.student_id === currentUser.id) {
         // الوضع الآمن: ما لم يُرسل يكون في قائمة الانتظار؛ غير ذلك حُذف على الخادم (حذفه المدير)
-        StorageService.removeSubmissionLocal(s.id);
-      } else {
-        void pushSubmission(s.id);
+        if (secure) removed.push(s.id);
+        else toPush.push(s.id);
       }
     }
+    try {
+      localStorage.setItem(seenKey, JSON.stringify(Array.from(remoteIds)));
+    } catch { /* ignore */ }
   }
+  const ok = StorageService.mergeSubmissionsFromRemote(subs, removed);
+  toPush.forEach((id) => void pushSubmission(id));
+  if (deltaSupported) writeCursor(currentUser.id, ok ? { at: maxUpdated(rawRows), full: Date.now(), v: 1 } : null);
+}
+
+/** جلب إجابات التسليمات التي لم تُحمَّل إجاباتها بعد (الأقدم من 30 يوماً للطاقم) */
+let answersInflight: Promise<number> | null = null;
+export function ensureAnswers(filter?: (s: Submission) => boolean): Promise<number> {
+  if (!isSupabaseConfigured()) return Promise.resolve(0);
+  const missing = StorageService.getSubmissions().filter((s) => s.answers_pending && (!filter || filter(s)));
+  if (!missing.length) return answersInflight || Promise.resolve(0);
+  const run = async (prev: Promise<number> | null) => {
+    if (prev) await prev.catch(() => 0);
+    const still = StorageService.getSubmissions().filter((s) => s.answers_pending && (!filter || filter(s)));
+    let n = 0;
+    for (let i = 0; i < still.length; i += 200) {
+      const chunk = still.slice(i, i + 200);
+      const { data, error } = await supabase.from('submissions').select('*').in('id', chunk.map((s) => s.id));
+      if (error || !Array.isArray(data)) break;
+      StorageService.mergeSubmissionsFromRemote(data.map(rowToSubmission));
+      n += data.length;
+    }
+    return n;
+  };
+  const p = run(answersInflight).finally(() => { if (answersInflight === p) answersInflight = null; });
+  answersInflight = p;
+  return p;
 }
 
 /** حذف مشاركات نهائياً (المدير أو صاحب الصلاحية). يُرجع المعرّفات التي حُذفت فعلاً */
