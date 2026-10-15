@@ -46,6 +46,27 @@ export async function deletePlan(id: string) {
   return r.ok && (r.data || []).length > 0;
 }
 
+/** حذف عدة خطط دفعة واحدة؛ يُرجع معرّفات ما حُذف فعلاً (حسب الصلاحية) */
+export async function deletePlans(ids: string[]): Promise<string[]> {
+  const done: string[] = [];
+  for (let i = 0; i < ids.length; i += 100) {
+    const r = await safe<any[]>(() => supabase.from('remedial_plans').delete().in('id', ids.slice(i, i + 100)).select('id') as any);
+    (r.data || []).forEach((x: any) => done.push(x.id));
+  }
+  return done;
+}
+
+/** تغيير حالة عدة خطط دفعة واحدة */
+export async function setPlansStatus(ids: string[], status: PlanStatus): Promise<RemedialPlan[]> {
+  const out: RemedialPlan[] = [];
+  for (let i = 0; i < ids.length; i += 100) {
+    const r = await safe<RemedialPlan[]>(() => supabase.from('remedial_plans')
+      .update({ status, closed_at: status === 'active' ? null : new Date().toISOString() }).in('id', ids.slice(i, i + 100)).select('*') as any);
+    out.push(...(r.data || []));
+  }
+  return out;
+}
+
 /** نسبة إتقان الطالب الحالية في مهارة (من كل تسليماته)، أو null إن لم يُقس بعد */
 export function currentMastery(plan: Pick<RemedialPlan, 'student_id' | 'subject_id' | 'outcome'>, quizzes: QuizWithDetails[], submissions: SubmissionWithDetails[]): number | null {
   const mine = submissions.filter((s) => s.student_id === plan.student_id);
