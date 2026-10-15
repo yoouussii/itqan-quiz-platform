@@ -28,7 +28,7 @@ import { Logo } from './Logo';
 import { NotificationBell } from './NotificationBell';
 import { Footer } from './Footer';
 import { pathFor } from '../../utils/router';
-import { ungradedSummary } from '../../utils/grading';
+import { ungradedSummary, pendingBlankCount, BLANKS_EVENT } from '../../utils/grading';
 import { UserMenu } from './UserMenu';
 import { GlobalSearch } from './GlobalSearch';
 import { LazyStudentProfileHost } from './StudentProfileLazy';
@@ -175,15 +175,22 @@ const NAV_PREFS_EVENT = 'itqan:nav-prefs';
 const lsGet = (k: string, d: string[]): string[] => { try { const v = JSON.parse(localStorage.getItem(k) || 'null'); return Array.isArray(v) ? v : d; } catch { return d; } };
 const lsSet = (k: string, v: string[]) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch { /* ignore */ } };
 
-/** عدد الإجابات المقالية بانتظار التصحيح (المعلم: اختباراته فقط) */
+/** ما ينتظر المعلم في «التصحيح»: إجابات مقالية + إجابات «أكمل الفراغ» المحسوبة خطأ (المعلم: اختباراته فقط) */
 const usePendingGrading = () => {
   const { currentUser, submissions, quizzes } = useApp();
+  const [tick, setTick] = useState(0);
+  useEffect(() => {
+    const on = () => setTick((n) => n + 1);
+    window.addEventListener(BLANKS_EVENT, on);
+    return () => window.removeEventListener(BLANKS_EVENT, on);
+  }, []);
   return React.useMemo(() => {
     if (!currentUser || !(currentUser.role === 'teacher' || hasPerm(currentUser, 'can_grade_essays'))) return 0;
     const all = hasPerm(currentUser, 'can_grade_essays');
     const mine = new Set(quizzes.filter((q) => !q.is_deleted && (all || q.teacher_id === currentUser.id || q.created_by === currentUser.id)).map((q) => q.id));
-    return ungradedSummary((submissions || []).filter((x) => mine.has(x.quiz_id))).essays;
-  }, [currentUser, quizzes, submissions]);
+    const subs = (submissions || []).filter((x) => mine.has(x.quiz_id) && x.status !== 'in_progress');
+    return ungradedSummary(subs).essays + pendingBlankCount(subs);
+  }, [currentUser, quizzes, submissions, tick]); // eslint-disable-line react-hooks/exhaustive-deps
 };
 
 const SidebarBody: React.FC<{ onNavigate?: () => void; onProfile: () => void }> = ({ onNavigate, onProfile }) => {

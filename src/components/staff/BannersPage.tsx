@@ -1,8 +1,8 @@
 import React, { useMemo, useRef, useState } from 'react';
-import { Image as ImageIcon, Images, Plus, Pencil, Trash2, Eye, EyeOff, ArrowUp, ArrowDown, Upload, X, Pin, Sparkles, Play } from 'lucide-react';
+import { Image as ImageIcon, Images, Plus, Pencil, Trash2, Eye, EyeOff, ArrowUp, ArrowDown, Upload, X, Pin, Sparkles, Play, Trophy } from 'lucide-react';
 import { DateTimeField } from '../common/DateTimeField';
 import { useApp } from '../../context/AppContext';
-import { Banner, BANNER_THEMES, BANNER_EFFECTS, BannerAudience, BannerEffect, fileToBannerDataUrl, newBanner } from '../../services/bannerService';
+import { Banner, BANNER_THEMES, BANNER_EFFECTS, BannerAudience, BannerEffect, fileToBannerDataUrl, newBanner, HONOR_DEFAULTS, HonorConfig, fetchHonorRoll } from '../../services/bannerService';
 import { BannerEffects } from '../common/BannerEffects';
 import { fileToAvatarDataUrl } from '../../services/avatarService';
 import { toInputValue, inputToIso } from '../../utils/quizWindow';
@@ -82,6 +82,18 @@ const Editor: React.FC<{ initial: Banner; onDone: () => void }> = ({ initial, on
   const fileRef = useRef<HTMLInputElement>(null);
   const set = (patch: Partial<Banner>) => setB((prev) => ({ ...prev, ...patch }));
   const sizeKb = Math.round(JSON.stringify(b.images).length / 1024);
+  const honor: Required<HonorConfig> = { ...HONOR_DEFAULTS, ...(b.config || {}) };
+  const setHonor = (patch: HonorConfig) => set({ config: { ...honor, ...patch } });
+  const pickKind = (k: Banner['kind']) => {
+    if (k === 'honor') {
+      set({
+        kind: k, images: [], config: honor,
+        title: b.title || t('🏆 لوحة الشرف — أبطال «ممتاز»'),
+        body: b.body || t('تهانينا لزملائنا الحاصلين على «ممتاز» في اختباراتهم. أنت التالي! 💪'),
+        effect: b.effect && b.effect !== 'none' ? b.effect : 'trophies', theme: b.theme === 'indigo' ? 'amber' : b.theme,
+      });
+    } else set({ kind: k, images: [] });
+  };
 
   const onFiles = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files || []);
@@ -104,13 +116,14 @@ const Editor: React.FC<{ initial: Banner; onDone: () => void }> = ({ initial, on
   };
 
   const save = async () => {
-    if (!b.title.trim() && !b.body.trim() && !b.images.length) return showToast(t('أضف صورة أو نصاً للبانر'), 'error');
+    if (b.kind !== 'honor' && !b.title.trim() && !b.body.trim() && !b.images.length) return showToast(t('أضف صورة أو نصاً للبانر'), 'error');
     if (b.kind === 'gallery' && !b.images.length) return showToast(t('أضف صورة واحدة على الأقل للمعرض'), 'error');
     if (b.starts_at && b.ends_at && new Date(b.ends_at) <= new Date(b.starts_at)) return showToast(t('تاريخ الإخفاء يجب أن يكون بعد تاريخ الظهور'), 'error');
     if (sizeKb > 2500) return showToast(t('الصور كبيرة جداً، احذف بعضها'), 'error');
     setBusy(true);
-    const ok = await saveBanner({ ...b, title: b.title.trim(), body: b.body.trim() });
+    const ok = await saveBanner({ ...b, title: b.title.trim(), body: b.body.trim(), ...(b.kind === 'honor' ? { images: [], config: honor } : {}) });
     setBusy(false);
+    if (ok && b.kind === 'honor') void fetchHonorRoll(honor, true);
     if (ok) onDone();
   };
 
@@ -119,9 +132,9 @@ const Editor: React.FC<{ initial: Banner; onDone: () => void }> = ({ initial, on
       <div className="space-y-4 bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800 p-5">
         <div>
           <span className={labelCls}>{t('نوع البانر')}</span>
-          <div className="grid grid-cols-2 gap-2">
-            {([['wide', t('صورة عريضة'), ImageIcon], ['gallery', t('معرض صور طلاب'), Images]] as const).map(([k, label, Icon]) => (
-              <button key={k} type="button" onClick={() => set({ kind: k, images: [] })}
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+            {([['wide', t('صورة عريضة'), ImageIcon], ['gallery', t('معرض صور طلاب'), Images], ['honor', t('لوحة الشرف (تلقائي)'), Trophy]] as const).map(([k, label, Icon]) => (
+              <button key={k} type="button" onClick={() => pickKind(k)}
                 className={`p-3 rounded-2xl border text-xs font-bold flex items-center justify-center gap-2 ${b.kind === k ? 'border-indigo-600 bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300' : 'border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300'}`}>
                 <Icon className="w-4 h-4" /> {label}
               </button>
@@ -139,6 +152,34 @@ const Editor: React.FC<{ initial: Banner; onDone: () => void }> = ({ initial, on
             placeholder={t('مثال: تهانينا لطلابنا على تحقيق المراكز الأولى في مسابقة الرياضيات على مستوى المنطقة')} className={inputCls} />
         </div>
 
+        {b.kind === 'honor' ? (
+        <div className="rounded-2xl border border-amber-200 dark:border-amber-900 bg-amber-50/60 dark:bg-amber-950/30 p-4 space-y-3" data-testid="honor-settings">
+          <p className="text-xs text-slate-700 dark:text-slate-300 leading-relaxed">
+            {t('تظهر تلقائياً أسماء الطلاب (الاسم الأول والأخير مع الفصل) الذين حصلوا على النسبة المحددة أو أعلى في أي اختبار، من جميع الفصول. تتحدّث القائمة وحدها مع كل تسليم، ولا يظهر البانر ما دامت فارغة.')}
+          </p>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <label className="block">
+              <span className={labelCls}>{t('أقل نسبة')}</span>
+              <select aria-label={t('أقل نسبة')} value={honor.min} onChange={(e) => setHonor({ min: Number(e.target.value) })} className={inputCls}>
+                {[100, 95, 90, 85, 80].map((n) => <option key={n} value={n}>{n === 100 ? t('الدرجة الكاملة فقط') : `${n}% ${t('فأعلى')}`}</option>)}
+              </select>
+            </label>
+            <label className="block">
+              <span className={labelCls}>{t('خلال آخر')}</span>
+              <select aria-label={t('خلال آخر')} value={honor.days} onChange={(e) => setHonor({ days: Number(e.target.value) })} className={inputCls}>
+                {[[1, t('يوم واحد')], [3, t('3 أيام')], [7, t('أسبوع')], [14, t('أسبوعين')], [30, t('شهر')]].map(([n, l]) => <option key={n} value={n}>{l}</option>)}
+              </select>
+            </label>
+            <label className="block">
+              <span className={labelCls}>{t('أقصى عدد أسماء')}</span>
+              <select aria-label={t('أقصى عدد أسماء')} value={honor.limit} onChange={(e) => setHonor({ limit: Number(e.target.value) })} className={inputCls}>
+                {[10, 20, 30, 45, 60].map((n) => <option key={n} value={n}>{n}</option>)}
+              </select>
+            </label>
+          </div>
+          <p className="text-[11px] text-slate-500 dark:text-slate-400">{t('أفضل نتيجة لكل طالب مرة واحدة، ولا تُحسب إعادة الاختبار. كل فرع يرى طلابه فقط.')}</p>
+        </div>
+        ) : (
         <div>
           <span className={labelCls}>
             {b.kind === 'wide' ? t('الصورة (تُعرض بعرض الصفحة)') : t('صور الطلاب (حتى {n}) مع الاسم تحت كل صورة', { n: MAX_GALLERY })}
@@ -177,6 +218,7 @@ const Editor: React.FC<{ initial: Banner; onDone: () => void }> = ({ initial, on
             {t('الحجم الحالي:')}{' '}{sizeKb}{' '}{t('ك.ب')}
           </p>
         </div>
+        )}
 
         {b.kind === 'wide' && b.images.length > 0 && (
           <div>
@@ -332,7 +374,7 @@ export const BannersPage: React.FC = () => {
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <div className="flex items-center gap-2">
                     <span className={`px-2 py-0.5 rounded-lg text-[11px] font-bold ${st.cls}`}>{st.label}</span>
-                    <span className="text-[11px] text-slate-500">{t(AUDIENCE[b.audience])} • {b.kind === 'wide' ? t('صورة عريضة') : t('معرض ({n} صور)', { n: b.images.length })}</span>
+                    <span className="text-[11px] text-slate-500">{t(AUDIENCE[b.audience])} • {b.kind === 'honor' ? t('لوحة الشرف (تلقائي)') : b.kind === 'wide' ? t('صورة عريضة') : t('معرض ({n} صور)', { n: b.images.length })}</span>
                     {b.pinned && <span className="inline-flex items-center gap-1 text-[11px] font-bold px-2 py-0.5 rounded-full bg-amber-50 dark:bg-amber-950/60 text-amber-800 dark:text-amber-300"><Pin className="w-3 h-3" />{t('دائم')}</span>}
                     {(b.effect || 'none') !== 'none' && <span className="inline-flex items-center gap-1 text-[11px] font-bold px-2 py-0.5 rounded-full bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300"><Sparkles className="w-3 h-3" />{t(BANNER_EFFECTS[b.effect!]).replace(/^\S+\s/, '')}</span>}
                   </div>

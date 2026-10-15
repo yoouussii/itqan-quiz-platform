@@ -6,7 +6,7 @@
 import { supabase } from './supabase';
 import { safe, readJson, writeJson, newId } from './remote';
 
-export type BannerKind = 'wide' | 'gallery';
+export type BannerKind = 'wide' | 'gallery' | 'honor';
 export type BannerAudience = 'all' | 'students' | 'staff';
 export type BannerEffect = 'none' | 'confetti' | 'balloons' | 'stars' | 'trophies';
 
@@ -41,10 +41,56 @@ export interface Banner {
   duration_seconds?: number | null;
   starts_at?: string | null;
   ends_at?: string | null;
+  /** إعدادات «لوحة الشرف» التلقائية (077) */
+  config?: HonorConfig | null;
   sort: number;
   created_by?: string | null;
   created_at: string;
   updated_at: string;
+}
+
+/** لوحة الشرف: أدنى نسبة، آخر كم يوم، أقصى عدد أسماء */
+export interface HonorConfig {
+  min?: number;
+  days?: number;
+  limit?: number;
+}
+export const HONOR_DEFAULTS: Required<HonorConfig> = { min: 90, days: 7, limit: 30 };
+
+export interface HonorEntry {
+  name: string;
+  class?: string | null;
+  quiz?: string | null;
+  pct: number;
+  at: string;
+}
+
+const honorCache = new Map<string, { at: number; list: HonorEntry[] }>();
+const honorInflight = new Map<string, Promise<HonorEntry[]>>();
+const HONOR_TTL = 10 * 60 * 1000;
+export const honorKey = (c?: HonorConfig | null) => {
+  const v = { ...HONOR_DEFAULTS, ...(c || {}) };
+  return `${v.min}|${v.days}|${v.limit}`;
+};
+export const cachedHonor = (c?: HonorConfig | null): HonorEntry[] | null => honorCache.get(honorKey(c))?.list ?? null;
+
+/** أسماء لوحة الشرف (تُحفظ 10 دقائق، وطلب واحد لكل الإعدادات المتطابقة) */
+export function fetchHonorRoll(c?: HonorConfig | null, force = false): Promise<HonorEntry[]> {
+  const key = honorKey(c);
+  const hit = honorCache.get(key);
+  if (!force && hit && Date.now() - hit.at < HONOR_TTL) return Promise.resolve(hit.list);
+  const running = honorInflight.get(key);
+  if (running) return running;
+  const v = { ...HONOR_DEFAULTS, ...(c || {}) };
+  const p = safe<HonorEntry[]>(() => supabase.rpc('itqan_honor_roll', { p_min: v.min, p_days: v.days, p_limit: v.limit }) as any)
+    .then((r) => {
+      const list = r.ok && Array.isArray(r.data) ? r.data : hit?.list || [];
+      honorCache.set(key, { at: Date.now(), list });
+      return list;
+    })
+    .finally(() => honorInflight.delete(key));
+  honorInflight.set(key, p);
+  return p;
 }
 
 export const BANNER_THEMES: Record<string, { label: string; from: string; to: string }> = {
@@ -111,10 +157,15 @@ export async function syncBanners(): Promise<boolean> {
 }
 
 export async function saveBannerRemote(b: Banner): Promise<{ ok: boolean; error?: string; needsMigration?: boolean }> {
-  const row = { ...b, pinned: !!b.pinned, effect: b.effect || 'none', updated_at: new Date().toISOString() };
+  const row: Banner = { ...b, pinned: !!b.pinned, effect: b.effect || 'none', updated_at: new Date().toISOString() };
+  // عمود config من 077: لا يُرسل للبانرات العادية حتى تعمل قبل تشغيل التحديث
+  if (b.kind !== 'honor') delete row.config;
   let res = await safe(() => supabase.from('banners').upsert(row, { onConflict: 'id' }) as any);
   // قبل تشغيل 013: الأعمدة الجديدة غير موجودة، فنحفظ البانر بدونها
   let needsMigration = false;
+  if (!res.ok && /config|banners_kind_check/.test(res.error || '')) {
+    return { ok: false, error: res.error, needsMigration: true };
+  }
   if (!res.ok && /duration_seconds/.test(res.error || '')) {
     // قبل تشغيل 020: نحفظ بدون مدة البانر الخاصة
     const { duration_seconds: _d, ...rest } = row;

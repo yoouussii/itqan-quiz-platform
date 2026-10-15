@@ -2055,7 +2055,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       showToast(t('تم حفظ البانر'), 'success');
       log('banner_saved', { type: 'banner', id: b.id, name: b.title || 'بانر' });
     } else {
-      showToast(/banners/.test(res.error || '') ? 'شغّل تحديث قاعدة البيانات 006 أولاً' : `تعذر حفظ البانر (${res.error})`, 'error');
+      showToast(res.needsMigration ? t('«لوحة الشرف» تحتاج تشغيل تحديث قاعدة البيانات 077 أولاً') : /banners/.test(res.error || '') ? 'شغّل تحديث قاعدة البيانات 006 أولاً' : `تعذر حفظ البانر (${res.error})`, 'error');
     }
     return res.ok;
   };
