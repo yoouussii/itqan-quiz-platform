@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
+import { sortClasses } from '../../utils/classOrder';
 import { CalendarRange, DatabaseBackup, HardDrive, FileSpreadsheet, FileJson, ArrowLeftRight, GraduationCap, History, AlertTriangle, X, CloudUpload, CheckCircle2, Lock } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 import { PageHeader, Card, Button, Chip } from '../common/ui';
@@ -50,7 +51,7 @@ export const SchoolYearPage: React.FC = () => {
     (users as User[]).forEach((u) => { if (u.role === 'student' && u.class_id) m.set(u.class_id, (m.get(u.class_id) || 0) + 1); });
     return m;
   }, [users]);
-  const sortedClasses = useMemo(() => [...classes].sort((a, b) => a.name.localeCompare(b.name, 'ar')), [classes]);
+  const sortedClasses = useMemo(() => sortClasses(classes), [classes]);
   const plan = useMemo(() => {
     let moved = 0, grad = 0, stay = 0;
     for (const c of classes) {

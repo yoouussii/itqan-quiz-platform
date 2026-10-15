@@ -2,6 +2,7 @@
  * جداول تفاصيل بطاقات المؤشرات (تظهر عند الضغط على أي بطاقة).
  * كل دالة تُرجع قسماً جاهزاً للعرض: عنوان + أعمدة + صفوف نصية.
  */
+import { compareClasses } from './classOrder';
 import {
   User, SchoolClass, Subject, QuizWithDetails, SubmissionWithDetails, Submission,
 } from '../types';
@@ -27,7 +28,7 @@ const classNameOf = (u: User, classes: SchoolClass[]) =>
 
 export function studentsSection(title: string, students: User[], subs: Array<Submission>, classes: SchoolClass[]): KpiSection {
   const rows = [...students]
-    .sort((a, b) => classNameOf(a, classes).localeCompare(classNameOf(b, classes), 'ar') || a.name.localeCompare(b.name, 'ar'))
+    .sort((a, b) => compareClasses({ name: classNameOf(a, classes) }, { name: classNameOf(b, classes) }) || a.name.localeCompare(b.name, 'ar'))
     .map((st) => {
       const mine = subs.filter((s) => s.student_id === st.id);
       return [st.name, st.national_id, classNameOf(st, classes), mine.length, mine.length ? pct(avg(mine.map((s) => Number(s.percentage) || 0))) : '—'];

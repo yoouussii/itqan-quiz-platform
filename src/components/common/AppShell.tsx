@@ -171,6 +171,7 @@ const NavLink: React.FC<{ item: NavItem; active: boolean; onGo: (id: string) => 
   );
 };
 
+const NAV_PREFS_EVENT = 'itqan:nav-prefs';
 const lsGet = (k: string, d: string[]): string[] => { try { const v = JSON.parse(localStorage.getItem(k) || 'null'); return Array.isArray(v) ? v : d; } catch { return d; } };
 const lsSet = (k: string, v: string[]) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch { /* ignore */ } };
 
@@ -191,13 +192,20 @@ const SidebarBody: React.FC<{ onNavigate?: () => void; onProfile: () => void }> 
   const uid = currentUser?.id || '';
   const [favs, setFavs] = useState<string[]>(() => lsGet(`itqan_nav_favs_${uid}`, []));
   const [folded, setFolded] = useState<string[]>(() => lsGet(`itqan_nav_folded_${uid}`, []));
+  // المستخدم قد يُعرف بعد أول عرض، والقائمة لها نسختان (المكتب والجوال): نعيد القراءة عند تغيّره أو تعديل النسخة الأخرى
+  useEffect(() => {
+    const read = () => { setFavs(lsGet(`itqan_nav_favs_${uid}`, [])); setFolded(lsGet(`itqan_nav_folded_${uid}`, [])); };
+    read();
+    window.addEventListener(NAV_PREFS_EVENT, read);
+    return () => window.removeEventListener(NAV_PREFS_EVENT, read);
+  }, [uid]);
   if (!currentUser) return null;
   const groups = staffGroups(currentUser, pendingApprovalsCount, { prep: settings.preparations_url, skills: settings.skills_url }, pendingGrading);
   const go = (id: string) => { setCurrentView(id); onNavigate?.(); };
   const activeId = currentView === 'students_management' ? 'users_management' : currentView;
   const all = groups.flatMap((g) => g.items);
   const favItems = favs.map((id) => all.find((i) => i.id === id)).filter(Boolean) as NavItem[];
-  const toggleFav = (id: string) => { const n = favs.includes(id) ? favs.filter((x) => x !== id) : [...favs, id]; setFavs(n); lsSet(`itqan_nav_favs_${uid}`, n); };
+  const toggleFav = (id: string) => { const n = favs.includes(id) ? favs.filter((x) => x !== id) : [...favs, id]; setFavs(n); lsSet(`itqan_nav_favs_${uid}`, n); window.dispatchEvent(new Event(NAV_PREFS_EVENT)); };
   const toggleFold = (title: string) => { const n = folded.includes(title) ? folded.filter((x) => x !== title) : [...folded, title]; setFolded(n); lsSet(`itqan_nav_folded_${uid}`, n); };
   return (
     <div className="h-full flex flex-col">

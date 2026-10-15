@@ -1,4 +1,5 @@
 import { StudentLink } from '../common/StudentLink';
+import { sortClasses } from '../../utils/classOrder';
 import React, { useEffect, useMemo, useState } from 'react';
 import { BookOpenCheck, Plus, Trash2, FileSpreadsheet, FileDown, X } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
@@ -37,7 +38,7 @@ export const GradebookPage: React.FC = () => {
   const myClasses = useMemo(() => {
     const ids = new Set([...(fresh.assigned_class_ids || []), ...(fresh.class_id ? [fresh.class_id] : [])]);
     const list = isTeacher ? classes.filter((c) => ids.has(c.id)) : classes;
-    return [...list].sort((a, b) => a.name.localeCompare(b.name, 'ar'));
+    return sortClasses(list);
   }, [isTeacher, fresh, classes]);
   const noAssignment = isTeacher && (!myClasses.length || !mySubjects.length);
 

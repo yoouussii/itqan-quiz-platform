@@ -46,6 +46,7 @@ export function notifAction(
     if (me.role === 'parent') return { label: 'متابعة أبنائي', view: 'dashboard' };
     return me.role === 'student' ? { label: 'عرض نقاطي وجوائزي', view: 'my_points' } : null;
   }
+  if (n.type === 'certificate' && me.role === 'student') return { label: 'عرض شهاداتي وطباعتها', view: 'my_points' };
   if (n.type === 'quiz_pending') return { label: 'مراجعة الاختبار', view: 'approvals' };
   if (n.ref_type === 'survey') return { label: 'الإجابة على الاستبيان', view: 'surveys' };
   if (n.ref_type === 'visit') return { label: 'عرض الزيارة', view: 'visits' };
@@ -60,6 +61,7 @@ export function notifAction(
     return null;
   }
 
+  if (n.type === 'quiz_submitted' && me.role !== 'student') return { label: 'عرض نتائج الاختبار', view: 'quiz_results', quizId: quiz.id };
   if (me.role !== 'student') return { label: 'معاينة الاختبار', view: 'quiz_preview', quizId: quiz.id };
 
   const mine = submissions

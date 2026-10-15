@@ -1,3 +1,4 @@
+import { TimeField } from '../common/DateTimeField';
 import React, { useEffect, useState } from 'react';
 import { Sunrise, UserX, Clock, ClipboardCheck, BookOpen, ShieldAlert, FolderSync, Repeat, Bell, BellOff, ChevronDown } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
@@ -64,7 +65,7 @@ export const MorningSummaryCard: React.FC = () => {
         <div className="rounded-xl bg-slate-50 dark:bg-slate-800/60 p-3 space-y-3 text-sm" data-testid="auto-schedule">
           <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
             <label className="inline-flex items-center gap-2"><input type="checkbox" checked={enabled} onChange={(e) => save({ enabled: e.target.checked })} className="w-4 h-4 accent-indigo-600" />{t('إرسال الملخص إشعاراً كل صباح دراسي الساعة')}</label>
-            <input type="time" value={msTime} disabled={!enabled} onChange={(e) => e.target.value && save({ time: e.target.value })} aria-label={t('موعد ملخص الصباح')} className={tm} />
+            <TimeField value={msTime} disabled={!enabled} onChange={(v) => v && save({ time: v })} label={t('موعد ملخص الصباح')} />
             <label className="inline-flex items-center gap-2"><input type="checkbox" disabled={!enabled} checked={roles.includes('supervisor')} onChange={(e) => save({ roles: e.target.checked ? ['admin', 'supervisor'] : ['admin'] })} className="w-4 h-4 accent-indigo-600" />{t('والمشرفون أيضاً')}</label>
           </div>
           <div className="flex flex-wrap items-center gap-x-2 gap-y-2">
@@ -73,7 +74,7 @@ export const MorningSummaryCard: React.FC = () => {
               {[0, 1, 2, 3, 4, 5, 6].map((d) => <option key={d} value={d}>{t(WEEKDAYS[d])}</option>)}
             </select>
             <span>{t('الساعة')}</span>
-            <input type="time" value={wrTime} disabled={!wrOn} onChange={(e) => e.target.value && saveWr({ time: e.target.value })} aria-label={t('موعد التقرير الأسبوعي')} className={tm} />
+            <TimeField value={wrTime} disabled={!wrOn} onChange={(v) => v && saveWr({ time: v })} label={t('موعد التقرير الأسبوعي')} />
           </div>
           <p className="text-[11px] text-slate-500">{t('بتوقيت السعودية. يصل الإشعار خلال 5 دقائق من الموعد.')}</p>
         </div>

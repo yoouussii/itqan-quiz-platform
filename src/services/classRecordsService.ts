@@ -15,10 +15,13 @@ export interface RecordsConfig {
   log: Array<{ at: string; kind: RecordKind; file: string; sheets: number; source: 'drive' | 'upload' }>;
 }
 
+/** النسخة المؤقتة التي ينشئها سكربت Drive لقراءة ملفات Excel (ليست ملف معلم) */
+const TEMP_COPY = 'itqan-tmp';
+
 export async function fetchRecordSheets(): Promise<{ ok: boolean; rows: RecordSheet[] }> {
   const rows: RecordSheet[] = [];
   for (let page = 0; page < 20; page++) {
-    const r = await safe<RecordSheet[]>(() => supabase.from('class_record_sheets').select('*').order('file_name').order('sheet_name').range(page * 200, page * 200 + 199) as any);
+    const r = await safe<RecordSheet[]>(() => supabase.from('class_record_sheets').select('*').neq('file_name', TEMP_COPY).order('file_name').order('sheet_name').range(page * 200, page * 200 + 199) as any);
     if (!r.ok || !Array.isArray(r.data)) return { ok: page > 0, rows };
     rows.push(...r.data);
     if (r.data.length < 200) break;
@@ -37,7 +40,7 @@ export async function fetchRecordChanges(days = 400): Promise<RecordChange[]> {
   const rows: RecordChange[] = [];
   for (let page = 0; page < 10; page++) {
     const r = await safe<RecordChange[]>(() => supabase.from('class_record_changes').select('id,kind,file_key,file_name,sheet_name,edited_by,edited_at,cells_changed,cells_filled,cells_cleared,initial')
-      .gte('edited_at', since).order('edited_at', { ascending: false }).order('id', { ascending: false }).range(page * 1000, page * 1000 + 999) as any);
+      .gte('edited_at', since).neq('file_name', TEMP_COPY).order('edited_at', { ascending: false }).order('id', { ascending: false }).range(page * 1000, page * 1000 + 999) as any);
     if (!r.ok || !Array.isArray(r.data)) break;
     rows.push(...r.data);
     if (r.data.length < 1000) break;

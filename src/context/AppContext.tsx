@@ -72,6 +72,7 @@ import {
   deleteSubmissionsRemote,
 } from '../services/quizSync';
 import { touchPresence } from '../services/presenceService';
+import { sortClasses } from '../utils/classOrder';
 
 // ---------------------------------------------------------------------
 // إعدادات الجلسة
@@ -151,6 +152,8 @@ interface AppContextType {
   clearUserNotifications: (userId: string) => Promise<void>;
   awards: StudentAward[];
   giveAward: (p: { student: User; title: string; note?: string; points: number }) => Promise<{ ok: boolean; error?: string }>;
+  /** إشعار الطالب وولي أمره بأن شهادة الاختبار جاهزة في حسابه (صفحة «نقاطي» ← شهاداتي) */
+  sendCertificate: (sub: SubmissionWithDetails) => Promise<void>;
   settings: AppSettings;
   /** وصلت هوية المدرسة (أو كانت محفوظة على الجهاز): شاشة الدخول تنتظرها على الجهاز الجديد */
   brandingReady: boolean;
@@ -160,6 +163,10 @@ interface AppContextType {
   passwordIsDefault: boolean;
   /** المدير يعاين حساباً آخر («تبديل الحساب»): العرض فقط، والخادم يتعامل معه كمدير */
   isPreview: boolean;
+  /** موظف له أبناء في المدرسة: يعرض واجهة ولي الأمر (صلاحياته على الخادم كما هي) */
+  canViewAsParent: boolean;
+  viewingAsParent: boolean;
+  setViewAsParent: (on: boolean) => void;
   /** العودة من المعاينة إلى حساب صاحب الجلسة */
   exitPreview: () => void;
   approveQuiz: (id: string) => Promise<void>;
@@ -602,6 +609,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [users, setUsers] = useState<User[]>(() => StorageService.getUsers().map(normalizeUser));
   const [subjects, setSubjects] = useState<Subject[]>(() => StorageService.getSubjects());
   const [classes, setClasses] = useState<SchoolClass[]>(() => StorageService.getClasses());
+  // كل الشاشات تستلم الفصول مرتبة ترتيباً مدرسياً (المرحلة ثم الصف ثم المسار)
+  const sortedClasses = useMemo(() => sortClasses(classes), [classes]);
   // الرابط هو مصدر الشاشة عند فتح الموقع أو تحديثه
   const [restored] = useState<RouteState>(() =>
     currentUser ? routeForUser(currentUser, window.location.pathname) : { view: 'login' }
@@ -1069,6 +1078,20 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const exitPreview = () => {
     if (sessionOwnerId) switchUser(sessionOwnerId);
   };
+
+  // الموظف ولي الأمر: تبديل الواجهة بين الحساب الوظيفي وحساب ولي الأمر (075)
+  const canViewAsParent = !!currentUser && currentUser.role !== 'student' && currentUser.role !== 'parent' && (currentUser.child_ids || []).length > 0;
+  const parentViewKey = `itqan_nav_parent_view_${currentUser?.id || ''}`;
+  const [parentViewOn, setParentViewOn] = useState(false);
+  useEffect(() => { setParentViewOn(localStorage.getItem(parentViewKey) === '1'); }, [parentViewKey]);
+  const viewingAsParent = canViewAsParent && parentViewOn;
+  const setViewAsParent = (on: boolean) => {
+    try { if (on) localStorage.setItem(parentViewKey, '1'); else localStorage.removeItem(parentViewKey); } catch { /* ignore */ }
+    setParentViewOn(on);
+    setCurrentView('dashboard');
+    showToast(on ? t('أنت الآن في واجهة ولي الأمر') : t('عدت إلى حسابك الوظيفي'), 'info');
+  };
+  const shownUser = useMemo(() => (viewingAsParent && currentUser ? { ...currentUser, role: 'parent' as User['role'] } : currentUser), [viewingAsParent, currentUser]);
 
   // وضع الصيانة: يُخرج كل من ليس مديراً (المدير الذي يعاين بحساب آخر لا يخرج)
   const maintenanceOn = !!settings.maintenance?.on;
@@ -2126,6 +2149,22 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return { ok: true };
   };
 
+  const sendCertificate: AppContextType['sendCertificate'] = async (sub) => {
+    const pct = Number(sub.percentage) || 0;
+    const kind = pct >= 90 ? 'شهادة تفوق' : 'شهادة نجاح';
+    const student = users.find((u) => u.id === sub.student_id);
+    const parents = users.filter((u) => u.role === 'parent' && (u.child_ids || []).includes(sub.student_id)).map((u) => u.id);
+    const quizTitle = sub.quiz?.title || StorageService.getQuizById(sub.quiz_id)?.title || '';
+    await notify({
+      type: 'certificate',
+      title: `🏅 ${kind}: ${quizTitle}`,
+      body: `${student?.name ? `${student.name} — ` : ''}بنسبة ${pct}%. يمكن عرضها وطباعتها من حساب الطالب: صفحة «نقاطي» ← «شهاداتي».`,
+      audience: { user_ids: [sub.student_id, ...parents] }, ref_type: 'certificate', ref_id: sub.id,
+    });
+    log('certificate_sent', { type: 'user', id: sub.student_id, name: student?.name }, `${kind} — ${quizTitle}`);
+    showToast(t('أُرسلت الشهادة إلى {name}، وتظهر في حسابه ليطبعها', { name: student?.name || t('الطالب') }), 'success');
+  };
+
   const updateSettings = async (patch: Partial<AppSettings>) => {
     if (currentUserRef.current?.role !== 'admin') return void showToast(t('الإعدادات لمدير النظام فقط'), 'error');
     const res = await saveSettings(patch);
@@ -2198,10 +2237,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   return (
     <AppContext.Provider
       value={{
-        currentUser,
+        currentUser: shownUser,
         users,
         subjects,
-        classes,
+        classes: sortedClasses,
         quizzes,
         submissions,
         kpis,
@@ -2222,12 +2261,16 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         clearUserNotifications,
         awards,
         giveAward,
+        sendCertificate,
         settings,
         brandingReady,
         updateSettings,
         changeMyPassword,
         passwordIsDefault,
         isPreview,
+        canViewAsParent,
+        viewingAsParent,
+        setViewAsParent,
         exitPreview,
         approveQuiz,
         rejectQuiz,

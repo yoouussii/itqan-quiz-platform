@@ -1,6 +1,7 @@
 import React, { useRef, useState } from 'react';
 import { Settings, ImagePlus, Trash2, Check, Wrench, LogIn, GraduationCap, Palette, ClipboardCheck } from 'lucide-react';
 import { LoginHero, LOGIN_STYLES, LoginStyle } from '../auth/LoginHero';
+import { DateTimeField } from '../common/DateTimeField';
 import { useApp } from '../../context/AppContext';
 import { BRAND_PRESETS, applyBrandColor, resizeLogo } from '../../utils/brand';
 import { uiDir, t } from '../../i18n';
@@ -256,7 +257,7 @@ export const SettingsPage: React.FC = () => {
           placeholder={t('نعمل على تحسين المنصة، وسنعود قريباً. شكراً لصبركم.')}
           className="w-full p-3 text-sm rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white" />
         <label className="flex flex-wrap items-center gap-2 text-sm text-slate-700 dark:text-slate-300">{t('موعد العودة المتوقع (اختياري)')}
-          <input type="datetime-local" value={mUntil} onChange={(e) => setMUntil(e.target.value)} className="h-10 px-3 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white" />
+          <DateTimeField value={mUntil} onChange={setMUntil} label={t('موعد العودة المتوقع')} />
         </label>
         {maintenanceOn && <p role="status" className="text-sm font-bold text-rose-700 dark:text-rose-400">{t('الصيانة مفعّلة الآن. عدّل الرسالة ثم «حفظ الإعدادات»، أو أوقفها من المفتاح.')}</p>}
       </section>

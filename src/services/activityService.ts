@@ -31,6 +31,7 @@ export const ACTION_LABELS: Record<string, string> = {
   password_changed: 'تغيير كلمة المرور (ذاتياً)',
   award_given: 'منح جائزة',
   points_deducted: 'خصم نقاط',
+  certificate_sent: 'إرسال شهادة لطالب',
   announcement_sent: 'إرسال إعلان',
   retake_granted: 'منح إعادة محاولة',
   settings_changed: 'تغيير إعدادات النظام',

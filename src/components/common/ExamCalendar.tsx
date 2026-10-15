@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { CalendarDays, ChevronRight, ChevronLeft, Clock, Plus, X, Trash2, FileDown, Save, MonitorSmartphone } from 'lucide-react';
+import { TimeField } from './DateTimeField';
 import { useApp } from '../../context/AppContext';
 import { StorageService } from '../../services/storage';
 import { PageHeader, Card, Button, Chip } from './ui';
@@ -265,7 +266,7 @@ const AddExamModal: React.FC<{ onClose: () => void; onSaved: (rows: ExamEntry[])
               <input type="date" value={date} onChange={(e) => setDate(e.target.value)} className={inp} />
             </label>
             <label className="text-sm text-slate-600 dark:text-slate-300 space-y-1 block">{t('الوقت (اختياري)')}
-              <input type="time" value={timeV} onChange={(e) => setTimeV(e.target.value)} className={inp} />
+              <TimeField optional value={timeV} onChange={setTimeV} label={t('الوقت (اختياري)')} />
             </label>
           </div>
           <div>

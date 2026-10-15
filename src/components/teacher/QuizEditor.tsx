@@ -18,7 +18,9 @@ import {
   Search,
 } from 'lucide-react';
 import { TargetType, PaperPin, QuizPaper } from '../../types';
+import { DateTimeField } from '../common/DateTimeField';
 import { useApp } from '../../context/AppContext';
+import { STAGE_LABELS, groupByStage } from '../../utils/classOrder';
 import { StorageService } from '../../services/storage';
 import { RichTextEditor } from '../common/RichTextEditor';
 import { BankPickerModal, BANK_TO_EDITOR_KEY } from './QuestionBank';
@@ -926,25 +928,13 @@ export const QuizEditor: React.FC = () => {
                   <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
                     {t('بدء إتاحة الاختبار (التاريخ والوقت)')} *
                   </label>
-                  <input
-                    type="datetime-local"
-                    required
-                    value={startDate}
-                    onChange={(e) => setStartDate(e.target.value)}
-                    className="w-full px-3 py-2 text-xs rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500 font-mono"
-                  />
+                  <DateTimeField required value={startDate} onChange={setStartDate} label={t('بدء إتاحة الاختبار')} defaultTime="07:00" />
                 </div>
                 <div>
                   <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
                     {t('انتهاء إتاحة الاختبار (التاريخ والوقت)')} *
                   </label>
-                  <input
-                    type="datetime-local"
-                    required
-                    value={endDate}
-                    onChange={(e) => setEndDate(e.target.value)}
-                    className="w-full px-3 py-2 text-xs rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500 font-mono"
-                  />
+                  <DateTimeField required value={endDate} onChange={setEndDate} label={t('انتهاء إتاحة الاختبار')} defaultTime="23:55" />
                 </div>
               </div>
             </div>
@@ -1112,8 +1102,21 @@ export const QuizEditor: React.FC = () => {
                   {t('هذا الاختبار موجَّه أيضاً لصفوف غير مسندة لك (')}{hiddenClassNames.join(t(' ، '))}{t(') وسيتم استبعادها عند الحفظ.')}
                 </div>
               )}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                {availableClasses.map((cls) => {
+              <div className="space-y-3">
+                {groupByStage(availableClasses).map((g, _i, groups) => {
+                  const ids = g.items.map((c) => c.id);
+                  const all = ids.every((id) => targetClassIds.includes(id));
+                  return (
+                    <div key={g.stage}>
+                      {groups.length > 1 && <div className="flex items-center justify-between mb-1.5">
+                        <span className="text-[11px] font-bold text-slate-500 dark:text-slate-400">{t(STAGE_LABELS[g.stage])} ({ids.length})</span>
+                        <button type="button" onClick={() => setTargetClassIds(all ? targetClassIds.filter((id) => !ids.includes(id)) : [...new Set([...targetClassIds, ...ids])])}
+                          className="text-[11px] font-bold text-indigo-600 dark:text-indigo-400 hover:underline">
+                          {all ? t('إلغاء تحديد المرحلة') : t('تحديد المرحلة')}
+                        </button>
+                      </div>}
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                {g.items.map((cls) => {
                   const checked = targetClassIds.includes(cls.id);
                   return (
                     <label
@@ -1138,6 +1141,10 @@ export const QuizEditor: React.FC = () => {
                         className="accent-indigo-600 w-4 h-4"
                       />
                     </label>
+                  );
+                })}
+                      </div>
+                    </div>
                   );
                 })}
               </div>

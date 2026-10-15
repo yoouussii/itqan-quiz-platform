@@ -13,6 +13,7 @@ import {
   RotateCcw,
   Trash2,
   Award,
+  Send,
 } from 'lucide-react';
 import { SubmissionWithDetails } from '../../types';
 import { useApp } from '../../context/AppContext';
@@ -50,6 +51,7 @@ export const SubmissionsTable: React.FC<SubmissionsTableProps> = ({
     deleteSubmissions,
     branches,
     users,
+    sendCertificate,
   } = useApp();
   const [genderFilter, setGenderFilter] = useState('all');
   const [branchFilter, setBranchFilter] = useState('all');
@@ -441,6 +443,7 @@ export const SubmissionsTable: React.FC<SubmissionsTableProps> = ({
               <button type="button" onClick={() => setSelectedSubmission(sub)} className="inline-flex items-center gap-1 px-3 h-8 rounded-lg text-xs font-semibold bg-indigo-50 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-300"><Eye className="w-3.5 h-3.5" />{t('عرض الإجابة')}</button>
               {!isStudent && sub.integrity && <IntegrityBadge integrity={sub.integrity} />}
               {!isStudent && certFor(sub) && <button type="button" onClick={() => void exportCertificates([certFor(sub)!])} className="inline-flex items-center gap-1 px-2.5 h-8 rounded-lg text-xs font-bold bg-amber-50 dark:bg-amber-950/40 text-amber-800 dark:text-amber-300"><Award className="w-3.5 h-3.5" />{t('شهادة')}</button>}
+              {!isStudent && certFor(sub) && <button type="button" onClick={() => void sendCertificate(sub)} className="inline-flex items-center gap-1 px-2.5 h-8 rounded-lg text-xs font-bold bg-emerald-50 dark:bg-emerald-950/40 text-emerald-800 dark:text-emerald-300"><Send className="w-3.5 h-3.5" />{t('إرسال للطالب')}</button>}
             </div>
           </li>
         ))}
@@ -577,6 +580,13 @@ export const SubmissionsTable: React.FC<SubmissionsTableProps> = ({
                           className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-xl text-[11px] font-bold bg-amber-50 dark:bg-amber-950/40 text-amber-800 dark:text-amber-300 hover:bg-amber-100 dark:hover:bg-amber-900/50"
                           title={t('طباعة شهادة للطالب')} aria-label={t('طباعة شهادة للطالب')}>
                           <Award className="w-3.5 h-3.5" /><span>{t('شهادة')}</span>
+                        </button>
+                      )}
+                      {!isStudent && certFor(sub) && (
+                        <button onClick={() => void sendCertificate(sub)}
+                          className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-xl text-[11px] font-bold bg-emerald-50 dark:bg-emerald-950/40 text-emerald-800 dark:text-emerald-300 hover:bg-emerald-100 dark:hover:bg-emerald-900/50"
+                          title={t('إشعار الطالب وولي أمره بأن الشهادة جاهزة في حسابه')} aria-label={t('إرسال الشهادة للطالب')}>
+                          <Send className="w-3.5 h-3.5" /><span>{t('إرسال للطالب')}</span>
                         </button>
                       )}
 
