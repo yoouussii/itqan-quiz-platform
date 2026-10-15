@@ -1,8 +1,9 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { LifeBuoy, X, FileDown, Trash2, CheckCircle2, Ban, Send } from 'lucide-react';
+import { LifeBuoy, X, FileDown, Trash2, CheckCircle2, Ban, Send, Search } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 import { PageHeader, Card, Button, Chip, ListSkeleton } from '../common/ui';
-import { RemedialPlan, PlanStatus, currentMastery, deletePlan, fetchPlans, updatePlan } from '../../services/remedialService';
+import { RemedialPlan, PlanStatus, currentMastery, deletePlan, deletePlans, setPlansStatus, fetchPlans, updatePlan } from '../../services/remedialService';
+import { compareClasses } from '../../utils/classOrder';
 import { exportElementToPdf } from '../../utils/exportPdf';
 import { PlanProgress } from '../common/RemedialCard';
 import { uiDir, t, dateLocale } from '../../i18n';
@@ -23,7 +24,7 @@ export const RemedialPage: React.FC<{
   outcome?: string;
   setOutcome?: (o: string) => void;
 }> = ({ embedded, plans: extPlans, setPlans: extSetPlans, outcome: extOutcome, setOutcome: extSetOutcome }) => {
-  const { currentUser, users, classes, subjects, quizzes, submissions } = useApp();
+  const { currentUser, users, classes, subjects, quizzes, submissions, showToast } = useApp();
   useEnsureAnswers('remedial');
   const me = currentUser!;
   const [ownPlans, setOwnPlans] = useState<RemedialPlan[] | null>(null);
@@ -47,7 +48,58 @@ export const RemedialPage: React.FC<{
   }, [plans, quizzes, submissions]);
 
   const outcomes = useMemo(() => Array.from(new Set((plans || []).map((p) => p.outcome))).sort((a, b) => a.localeCompare(b, 'ar')), [plans]);
-  const list = (plans || []).filter((p) => (!status || p.status === status) && (!mineOnly || p.teacher_id === me.id) && (!outcome || p.outcome === outcome));
+  // تصفية إضافية: المادة، الفصل، المعلم، اسم الطالب؛ وتجميع اختياري
+  const [subj, setSubj] = useState('');
+  const [cls, setCls] = useState('');
+  const [teacher, setTeacher] = useState('');
+  const [q, setQ] = useState('');
+  const [groupBy, setGroupBy] = useState<'' | 'subject' | 'class' | 'outcome' | 'teacher'>('');
+  const [sel, setSel] = useState<Set<string>>(new Set());
+  const [busy, setBusy] = useState(false);
+  const clsIdOf = (sid: string) => userOf(sid)?.class_id || '';
+  const usedSubjects = useMemo(() => subjects.filter((x) => (plans || []).some((p) => p.subject_id === x.id)), [plans, subjects]);
+  const usedClasses = useMemo(() => classes.filter((c) => (plans || []).some((p) => clsIdOf(p.student_id) === c.id)).sort(compareClasses),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [plans, classes, users]);
+  const teachers = useMemo(() => Array.from(new Map((plans || []).map((p) => [p.teacher_id, p.teacher_name] as const)).entries()), [plans]);
+  const needle = q.trim();
+  const list = (plans || []).filter((p) => (!status || p.status === status) && (!mineOnly || p.teacher_id === me.id) && (!outcome || p.outcome === outcome)
+    && (!subj || p.subject_id === subj) && (!cls || clsIdOf(p.student_id) === cls) && (!teacher || p.teacher_id === teacher)
+    && (!needle || (userOf(p.student_id)?.name || '').includes(needle)));
+  const canEditPlan = (p: RemedialPlan) => me.role === 'admin' || p.teacher_id === me.id;
+  const selectable = list.filter(canEditPlan);
+  const selected = selectable.filter((p) => sel.has(p.id));
+  const allSelected = selectable.length > 0 && selected.length === selectable.length;
+  const toggle = (ids: string[], on: boolean) => setSel((prev) => { const n = new Set(prev); ids.forEach((id) => (on ? n.add(id) : n.delete(id))); return n; });
+  const groupKey = (p: RemedialPlan) => groupBy === 'subject' ? subjectOf(p.subject_id) || t('بدون مادة')
+    : groupBy === 'class' ? classOf(p.student_id) || t('بدون فصل') : groupBy === 'outcome' ? p.outcome : groupBy === 'teacher' ? p.teacher_name : '';
+  const groups = useMemo(() => {
+    if (!groupBy) return [['', list]] as Array<[string, RemedialPlan[]]>;
+    const m = new Map<string, RemedialPlan[]>();
+    list.forEach((p) => { const k = groupKey(p); m.set(k, [...(m.get(k) || []), p]); });
+    return Array.from(m.entries()).sort((a, b) => a[0].localeCompare(b[0], 'ar'));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [list, groupBy]);
+  const bulkDelete = async () => {
+    if (!selected.length || !window.confirm(t('حذف {n} خطة نهائياً؟', { n: selected.length }))) return;
+    setBusy(true);
+    const done = new Set(await deletePlans(selected.map((p) => p.id)));
+    setBusy(false);
+    setPlans((ps) => (ps || []).filter((x) => !done.has(x.id)));
+    setSel(new Set());
+    showToast(done.size === selected.length ? t('تم حذف {n} خطة', { n: done.size }) : t('حُذفت {a} من {b} خطة', { a: done.size, b: selected.length }), done.size ? 'success' : 'error');
+  };
+  const bulkStatus = async (s: PlanStatus) => {
+    if (!selected.length) return;
+    setBusy(true);
+    const rows = await setPlansStatus(selected.map((p) => p.id), s);
+    setBusy(false);
+    const byId = new Map(rows.map((r) => [r.id, r]));
+    setPlans((ps) => (ps || []).map((x) => byId.get(x.id) || x));
+    setSel(new Set());
+    showToast(t('تم تحديث {n} خطة', { n: rows.length }), rows.length ? 'success' : 'error');
+  };
+  const selCls = 'h-9 max-w-[200px] px-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm';
   const all = (plans || []).filter((p) => !outcome || p.outcome === outcome);
   const kpi = {
     active: all.filter((p) => p.status === 'active').length,
@@ -79,12 +131,72 @@ export const RemedialPage: React.FC<{
           )}
           {me.role !== 'parent' && <label className="ms-auto flex items-center gap-2 text-sm text-slate-700 dark:text-slate-200"><input type="checkbox" checked={mineOnly} onChange={(e) => setMineOnly(e.target.checked)} />{t('خططي فقط')}</label>}
         </div>
+        <div className="flex flex-wrap items-center gap-2 px-5 pb-3" data-testid="plan-filters">
+          <label className="relative">
+            <Search className="w-4 h-4 text-slate-400 absolute top-1/2 -translate-y-1/2 start-2.5" />
+            <input value={q} onChange={(e) => setQ(e.target.value)} placeholder={t('بحث باسم الطالب')} aria-label={t('بحث باسم الطالب')} className="h-9 w-44 ps-8 pe-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm" />
+          </label>
+          {usedSubjects.length > 1 && (
+            <select aria-label={t('المادة')} value={subj} onChange={(e) => setSubj(e.target.value)} className={selCls}>
+              <option value="">{t('كل المواد')}</option>
+              {usedSubjects.map((x) => <option key={x.id} value={x.id}>{x.name}</option>)}
+            </select>
+          )}
+          {usedClasses.length > 1 && (
+            <select aria-label={t('الفصل')} value={cls} onChange={(e) => setCls(e.target.value)} className={selCls}>
+              <option value="">{t('كل الفصول')}</option>
+              {usedClasses.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+            </select>
+          )}
+          {!mineOnly && teachers.length > 1 && (
+            <select aria-label={t('المعلم')} value={teacher} onChange={(e) => setTeacher(e.target.value)} className={selCls}>
+              <option value="">{t('كل المعلمين')}</option>
+              {teachers.map(([id, name]) => <option key={id} value={id}>{name}</option>)}
+            </select>
+          )}
+          <select aria-label={t('تجميع حسب')} value={groupBy} onChange={(e) => setGroupBy(e.target.value as typeof groupBy)} className={selCls} data-testid="plan-group">
+            <option value="">{t('بدون تجميع')}</option>
+            <option value="subject">{t('تجميع حسب المادة')}</option>
+            <option value="class">{t('تجميع حسب الفصل')}</option>
+            <option value="outcome">{t('تجميع حسب المهارة')}</option>
+            <option value="teacher">{t('تجميع حسب المعلم')}</option>
+          </select>
+        </div>
+        {selectable.length > 0 && (
+          <div className={`flex flex-wrap items-center gap-2 px-5 py-2 border-t border-slate-100 dark:border-slate-800 ${selected.length ? 'bg-indigo-50/70 dark:bg-indigo-950/40' : ''}`} data-testid="plan-bulk">
+            <label className="flex items-center gap-2 text-sm font-semibold text-slate-700 dark:text-slate-200">
+              <input type="checkbox" checked={allSelected} onChange={(e) => toggle(selectable.map((p) => p.id), e.target.checked)} className="w-4 h-4 accent-indigo-600" data-testid="plan-select-all" />
+              {selected.length ? t('محدد {n} من {m}', { n: selected.length, m: selectable.length }) : t('تحديد الكل ({n})', { n: selectable.length })}
+            </label>
+            {selected.length > 0 && (
+              <span className="ms-auto flex flex-wrap gap-2">
+                {selected.some((p) => p.status === 'active') && <Button size="sm" variant="secondary" icon={CheckCircle2} disabled={busy} onClick={() => void bulkStatus('done')}>{t('إنهاء')}</Button>}
+                {selected.some((p) => p.status === 'active') && <Button size="sm" variant="secondary" icon={Ban} disabled={busy} onClick={() => void bulkStatus('cancelled')}>{t('إلغاء')}</Button>}
+                {selected.some((p) => p.status !== 'active') && <Button size="sm" variant="secondary" disabled={busy} onClick={() => void bulkStatus('active')}>{t('إعادة فتح')}</Button>}
+                <Button size="sm" variant="ghost" icon={Trash2} className="!text-rose-600" disabled={busy} onClick={() => void bulkDelete()} data-testid="plan-bulk-delete">{t('حذف ({n})', { n: selected.length })}</Button>
+              </span>
+            )}
+          </div>
+        )}
         {plans === null ? <ListSkeleton /> : list.length === 0 ? (
           <EmptyMascot text={t('لا توجد خطط. افتح خطة من صفحة «نواتج التعلم» للطلاب الذين يحتاجون علاجاً.')} />
-        ) : list.map((p) => {
+        ) : groups.map(([g, rows]) => (
+          <div key={g || 'all'}>
+            {groupBy && (
+              <div className="flex items-center gap-2 px-5 py-2 bg-slate-50 dark:bg-slate-800/60 border-t border-slate-200 dark:border-slate-700 text-sm font-bold text-slate-800 dark:text-slate-100">
+                {rows.some(canEditPlan) && <input type="checkbox" aria-label={t('تحديد المجموعة {g}', { g })} className="w-4 h-4 accent-indigo-600"
+                  checked={rows.filter(canEditPlan).every((p) => sel.has(p.id))} onChange={(e) => toggle(rows.filter(canEditPlan).map((p) => p.id), e.target.checked)} />}
+                <span className="flex-1 truncate">{g}</span><span className="text-xs font-semibold text-slate-500">{rows.length}</span>
+              </div>
+            )}
+            {rows.map((p) => {
           const now = nowPct.get(p.id) ?? null;
           return (
-            <button key={p.id} type="button" onClick={() => setOpen(p)} className="w-full grid sm:grid-cols-[1fr_220px_auto] items-center gap-3 px-5 py-3 border-t border-slate-100 dark:border-slate-800 text-start hover:bg-slate-50 dark:hover:bg-slate-800/50">
+            <div key={p.id} className={`flex items-center border-t border-slate-100 dark:border-slate-800 ${sel.has(p.id) ? 'bg-indigo-50/50 dark:bg-indigo-950/30' : ''}`}>
+            {selectable.length > 0 && (
+              <span className="ps-5 shrink-0 w-9">{canEditPlan(p) && <input type="checkbox" aria-label={t('تحديد')} checked={sel.has(p.id)} onChange={(e) => toggle([p.id], e.target.checked)} className="w-4 h-4 accent-indigo-600" />}</span>
+            )}
+            <button type="button" onClick={() => setOpen(p)} className="flex-1 min-w-0 grid sm:grid-cols-[1fr_220px_auto] items-center gap-3 px-5 py-3 text-start hover:bg-slate-50 dark:hover:bg-slate-800/50">
               <div className="min-w-0">
                 <div className="font-semibold text-slate-900 dark:text-white truncate">{userOf(p.student_id)?.name || t('طالب')} <span className="text-xs font-normal text-slate-500">· {classOf(p.student_id)}</span></div>
                 <div className="text-xs text-slate-500 truncate">{p.outcome} · {subjectOf(p.subject_id)} · {t('المتابعة {d}', { d: fmt(p.due_date) })}{p.teacher_id !== me.id ? ` · ${p.teacher_name}` : ''}</div>
@@ -95,8 +207,11 @@ export const RemedialPage: React.FC<{
               </div>
               <Chip tone={STATUS[p.status].tone}>{t(STATUS[p.status].l)}</Chip>
             </button>
+            </div>
           );
         })}
+          </div>
+        ))}
       </Card>
       {open && <PlanDrawer plan={open} student={userOf(open.student_id)} className={classOf(open.student_id)} subjectName={subjectOf(open.subject_id)} now={nowPct.get(open.id) ?? null}
         onClose={() => setOpen(null)} onChange={replace} onDeleted={() => { setPlans((ps) => (ps || []).filter((x) => x.id !== open.id)); setOpen(null); }} />}
