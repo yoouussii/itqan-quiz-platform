@@ -1,5 +1,5 @@
 import { StudentLink } from '../common/StudentLink';
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useMemo, useEffect } from 'react';
 import { normalizePhone } from '../../utils/whatsapp';
 import {
   UserPlus,
@@ -51,7 +51,24 @@ export const UsersManagement: React.FC = () => {
     bulkMoveToBranch,
   } = useApp();
   const isAdminUser = currentUser?.role === 'admin';
-  const branchName = (id?: string | null) => branches.find((b) => b.id === id)?.name;
+  // جداول بحث سريعة بدل find داخل كل صف (مئات المستخدمين)
+  const usersById = useMemo(() => new Map(users.map((u) => [u.id, u])), [users]);
+  const classesById = useMemo(() => new Map(classes.map((c) => [c.id, c])), [classes]);
+  const subjectsById = useMemo(() => new Map(subjects.map((s) => [s.id, s])), [subjects]);
+  const branchesById = useMemo(() => new Map(branches.map((b) => [b.id, b])), [branches]);
+  const nationalIds = useMemo(() => new Set(users.map((u) => u.national_id)), [users]);
+  const branchName = (id?: string | null) => (id ? branchesById.get(id)?.name : undefined);
+  // تخطيط واحد فقط في الصفحة: بطاقات على الجوال أو جدول على الشاشات العريضة (md)
+  const [wide, setWide] = useState(() => { try { return window.matchMedia('(min-width: 768px)').matches; } catch { return true; } });
+  useEffect(() => {
+    try {
+      const m = window.matchMedia('(min-width: 768px)');
+      const on = () => setWide(m.matches);
+      m.addEventListener('change', on);
+      return () => m.removeEventListener('change', on);
+    } catch { return undefined; }
+  }, []);
+  const [page, setPage] = useState(0);
   const [moveBranchId, setMoveBranchId] = useState('');
   const [branchFilter, setBranchFilter] = useState('all'); // all | none | معرّف فرع
   const [genderFilter, setGenderFilter] = useState('all');
@@ -144,24 +161,37 @@ export const UsersManagement: React.FC = () => {
     });
   };
 
-  const filteredUsers = users.filter((u) => {
-    // المعلم لا يرى سوى الطلاب الذين أضافهم هو فقط
-    if (isTeacher) {
-      if (u.role !== 'student') return false;
-      if (u.created_by !== currentUser?.id) return false;
-    }
-    const matchesSearch =
-      !searchTerm.trim() ||
-      u.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      u.national_id.includes(searchTerm) ||
-      (u.email && u.email.toLowerCase().includes(searchTerm.toLowerCase()));
-    const matchesRole = isTeacher ? true : (roleFilter === 'all' || u.role === roleFilter);
-    const matchesClass =
-      classFilter === 'all' ? true : classFilter === 'none' ? hasNoClass(u) : inClass(u, classFilter);
-    const matchesBranch = branchFilter === 'all' ? true : branchFilter === 'none' ? !u.branch_id : u.branch_id === branchFilter;
-    const matchesGender = genderFilter === 'all' ? true : u.gender === genderFilter;
-    return matchesSearch && matchesRole && matchesClass && matchesBranch && matchesGender;
-  });
+  const filteredUsers = useMemo(() => {
+    const q = searchTerm.trim() ? searchTerm.toLowerCase() : '';
+    return users.filter((u) => {
+      // المعلم لا يرى سوى الطلاب الذين أضافهم هو فقط
+      if (isTeacher) {
+        if (u.role !== 'student') return false;
+        if (u.created_by !== currentUser?.id) return false;
+      }
+      const matchesSearch =
+        !q ||
+        u.name.toLowerCase().includes(q) ||
+        u.national_id.includes(searchTerm) ||
+        (u.email && u.email.toLowerCase().includes(q));
+      const matchesRole = isTeacher ? true : (roleFilter === 'all' || u.role === roleFilter);
+      const matchesClass =
+        classFilter === 'all' ? true : classFilter === 'none' ? hasNoClass(u) : inClass(u, classFilter);
+      const matchesBranch = branchFilter === 'all' ? true : branchFilter === 'none' ? !u.branch_id : u.branch_id === branchFilter;
+      const matchesGender = genderFilter === 'all' ? true : u.gender === genderFilter;
+      return matchesSearch && matchesRole && matchesClass && matchesBranch && matchesGender;
+    });
+  }, [users, isTeacher, currentUser?.id, searchTerm, roleFilter, classFilter, branchFilter, genderFilter]);
+
+  // تقسيم القائمة إلى صفحات حتى لا تُرسم مئات الصفوف دفعة واحدة
+  const PAGE_SIZE = 50;
+  const pageCount = Math.max(1, Math.ceil(filteredUsers.length / PAGE_SIZE));
+  const safePage = Math.min(page, pageCount - 1);
+  const pageUsers = filteredUsers.slice(safePage * PAGE_SIZE, (safePage + 1) * PAGE_SIZE);
+  useEffect(() => { setPage(0); }, [searchTerm, roleFilter, classFilter, branchFilter, genderFilter]);
+  const selectedSet = useMemo(() => new Set(selectedIds), [selectedIds]);
+  const toggleSelected = (id: string) =>
+    setSelectedIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
 
   /** الصف النهائي لكل طالب في الملف: اختيار المستخدم ← مطابقة واضحة ← الصف الافتراضي ← (لا شيء) */
   const resolveImportRow = (i: number, className: string) => {
@@ -614,7 +644,7 @@ export const UsersManagement: React.FC = () => {
   };
 
   const importUnresolvedCount = importPreview.filter(
-    (s, i) => !users.some((u) => u.national_id === s.national_id) && !resolveImportRow(i, s.class_name).id
+    (s, i) => !nationalIds.has(s.national_id) && !resolveImportRow(i, s.class_name).id
   ).length;
 
   return (
@@ -757,7 +787,7 @@ export const UsersManagement: React.FC = () => {
 
       {/* شريط الإجراءات الجماعية */}
       {selectedIds.length > 0 && (() => {
-        const selectedStudents = selectedIds.filter((id) => users.find((u) => u.id === id)?.role === 'student');
+        const selectedStudents = selectedIds.filter((id) => usersById.get(id)?.role === 'student');
         return (
           <div className="sticky top-[72px] z-20 p-2.5 ps-4 rounded-2xl bg-slate-900 dark:bg-slate-800 text-white shadow-lg flex flex-wrap items-center gap-2" role="region" aria-label={t('إجراءات على المحدد')}>
             <span className="text-[15px] font-semibold flex-1 min-w-[8rem]">{t('تم تحديد')}{' '}{selectedIds.length}</span>
@@ -821,21 +851,22 @@ export const UsersManagement: React.FC = () => {
       })()}
 
       {/* على الجوال: بطاقة لكل مستخدم بدل الجدول العريض */}
-      <ul className="md:hidden space-y-2" data-testid="users-cards">
-        {filteredUsers.map((u) => {
-          const cls = classes.find((c) => c.id === (u.class_id || u.assigned_class_ids?.[0]));
+      {!wide && (
+      <ul className="space-y-2" data-testid="users-cards">
+        {pageUsers.map((u) => {
+          const cls = classesById.get((u.class_id || u.assigned_class_ids?.[0]) as string);
           const roleLabel = u.job_title?.trim() || ({ admin: t('مدير نظام'), teacher: t('معلم'), supervisor: t('مشرف'), student: u.gender === 'female' ? t('طالبة') : t('طالب'), parent: t('ولي أمر') } as Record<string, string>)[u.role];
           const detail = u.role === 'student' ? (cls?.name || t('غير مسكن في فصل'))
-            : u.role === 'parent' ? ((u.child_ids || []).map((id) => users.find((x) => x.id === id)?.name).filter(Boolean).join(t('، ')) || t('لا يوجد أبناء مرتبطون'))
-            : isStaffRole(u.role) ? [(u.assigned_subject_ids || (u.specialty_id ? [u.specialty_id] : [])).map((id) => subjects.find((x) => x.id === id)?.name).filter(Boolean).join(t('، ')), (u.assigned_class_ids || []).map((id) => classes.find((c) => c.id === id)?.name).filter(Boolean).join(t('، '))].filter(Boolean).join(' · ')
+            : u.role === 'parent' ? ((u.child_ids || []).map((id) => usersById.get(id)?.name).filter(Boolean).join(t('، ')) || t('لا يوجد أبناء مرتبطون'))
+            : isStaffRole(u.role) ? [(u.assigned_subject_ids || (u.specialty_id ? [u.specialty_id] : [])).map((id) => subjectsById.get(id)?.name).filter(Boolean).join(t('، ')), (u.assigned_class_ids || []).map((id) => classesById.get(id)?.name).filter(Boolean).join(t('، '))].filter(Boolean).join(' · ')
             : t('صلاحيات كاملة');
-          const sel = selectedIds.includes(u.id);
+          const sel = selectedSet.has(u.id);
           return (
             <li key={u.id} className={`rounded-2xl border p-3 bg-white dark:bg-slate-900 ${sel ? 'border-indigo-300 dark:border-indigo-800 bg-indigo-50/60 dark:bg-indigo-950/30' : 'border-slate-200 dark:border-slate-800'}`}>
               <div className="flex items-start gap-3">
                 {u.id !== currentUser?.id && (
                   <input type="checkbox" aria-label={t('تحديد {title}', { title: u.name })} className="accent-indigo-600 w-4 h-4 mt-3"
-                    checked={sel} onChange={() => setSelectedIds(sel ? selectedIds.filter((x) => x !== u.id) : [...selectedIds, u.id])} />
+                    checked={sel} onChange={() => toggleSelected(u.id)} />
                 )}
                 <Avatar name={u.name} role={u.role} userId={u.id} size="sm" showBadge />
                 <div className="flex-1 min-w-0">
@@ -858,9 +889,11 @@ export const UsersManagement: React.FC = () => {
           );
         })}
       </ul>
+      )}
 
       {/* Users Table */}
-      <div className="hidden md:block bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 overflow-hidden">
+      {wide && (
+      <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-start text-[14.5px]">
             <thead>
@@ -868,7 +901,7 @@ export const UsersManagement: React.FC = () => {
                 <th className="py-3 ps-4 w-8">
                   {(() => {
                     const selectable = filteredUsers.filter((u) => u.id !== currentUser?.id).map((u) => u.id);
-                    const all = selectable.length > 0 && selectable.every((id) => selectedIds.includes(id));
+                    const all = selectable.length > 0 && selectable.every((id) => selectedSet.has(id));
                     return (
                       <input type="checkbox" aria-label={t('تحديد كل المستخدمين المعروضين')} className="accent-indigo-600 w-4 h-4"
                         checked={all} onChange={() => setSelectedIds(all ? [] : selectable)} />
@@ -885,35 +918,36 @@ export const UsersManagement: React.FC = () => {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-              {filteredUsers.map((u) => {
+              {pageUsers.map((u) => {
                 const studentClassId = u.class_id || u.assigned_class_ids?.[0];
-                const userClass = classes.find((c) => c.id === studentClassId);
+                const userClass = studentClassId ? classesById.get(studentClassId) : undefined;
+                const sel = selectedSet.has(u.id);
                 const teacherSubIds = (u.assigned_subject_ids && u.assigned_subject_ids.length > 0)
                   ? u.assigned_subject_ids
                   : (u.specialty_id ? [u.specialty_id] : []);
                 const assignedSubs = teacherSubIds
-                  .map((id) => subjects.find((s) => s.id === id)?.name)
+                  .map((id) => subjectsById.get(id)?.name)
                   .filter(Boolean);
 
                 const teacherClsIds = (u.assigned_class_ids && u.assigned_class_ids.length > 0)
                   ? u.assigned_class_ids
                   : (u.class_id ? [u.class_id] : []);
                 const assignedCls = teacherClsIds
-                  .map((id) => classes.find((c) => c.id === id)?.name)
+                  .map((id) => classesById.get(id)?.name)
                   .filter(Boolean);
 
-                const creator = users.find((creatorUser) => creatorUser.id === u.created_by);
+                const creator = u.created_by ? usersById.get(u.created_by) : undefined;
 
                 return (
                   <tr
                     key={u.id}
-                    className={`transition-colors ${selectedIds.includes(u.id) ? 'bg-indigo-50/60 dark:bg-indigo-950/30' : 'hover:bg-indigo-50/20 dark:hover:bg-slate-800/40'}`}
+                    className={`transition-colors ${sel ? 'bg-indigo-50/60 dark:bg-indigo-950/30' : 'hover:bg-indigo-50/20 dark:hover:bg-slate-800/40'}`}
                   >
                     <td className="py-3.5 ps-4">
                       {u.id !== currentUser?.id && (
                         <input type="checkbox" aria-label={t('تحديد {title}', { title: u.name })} className="accent-indigo-600 w-4 h-4"
-                          checked={selectedIds.includes(u.id)}
-                          onChange={() => setSelectedIds(selectedIds.includes(u.id) ? selectedIds.filter((x) => x !== u.id) : [...selectedIds, u.id])} />
+                          checked={sel}
+                          onChange={() => toggleSelected(u.id)} />
                       )}
                     </td>
                     <td className="py-3.5 px-4">
@@ -1023,7 +1057,7 @@ export const UsersManagement: React.FC = () => {
                       {u.role === 'student' && (userClass?.name || t('غير مسكن في فصل'))}
                       {u.role === 'parent' && (
                         <span className="text-[13px]">
-                          {(u.child_ids || []).map((id) => users.find((x) => x.id === id)?.name).filter(Boolean).join(t('، ')) || t('لا يوجد أبناء مرتبطون')}
+                          {(u.child_ids || []).map((id) => usersById.get(id)?.name).filter(Boolean).join(t('، ')) || t('لا يوجد أبناء مرتبطون')}
                         </span>
                       )}
                       {u.role === 'admin' && <span className="text-slate-400">{t('صلاحيات كاملة')}</span>}
@@ -1095,6 +1129,32 @@ export const UsersManagement: React.FC = () => {
           </table>
         </div>
       </div>
+      )}
+
+      {filteredUsers.length === 0 && (
+        <p className="text-center text-[15px] text-slate-500 dark:text-slate-400 py-8">{t('لا يوجد مستخدمون مطابقون')}</p>
+      )}
+
+      {pageCount > 1 && (
+        <nav className="flex flex-wrap items-center justify-between gap-3" aria-label={t('صفحات المستخدمين')}>
+          <span className="text-[14px] text-slate-500 dark:text-slate-400 tabular-nums">
+            {t('عرض {from}–{to} من {total}', { from: safePage * PAGE_SIZE + 1, to: Math.min((safePage + 1) * PAGE_SIZE, filteredUsers.length), total: filteredUsers.length })}
+          </span>
+          <div className="flex items-center gap-2">
+            <button type="button" disabled={safePage === 0} onClick={() => setPage(safePage - 1)}
+              className="h-10 px-4 rounded-xl text-sm font-semibold border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-100 hover:bg-slate-50 dark:hover:bg-slate-800 disabled:opacity-40">
+              {t('السابق')}
+            </button>
+            <span className="text-sm font-semibold text-slate-700 dark:text-slate-300 tabular-nums">
+              {t('صفحة {n} من {total}', { n: safePage + 1, total: pageCount })}
+            </span>
+            <button type="button" disabled={safePage >= pageCount - 1} onClick={() => setPage(safePage + 1)}
+              className="h-10 px-4 rounded-xl text-sm font-semibold border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-100 hover:bg-slate-50 dark:hover:bg-slate-800 disabled:opacity-40">
+              {t('التالي')}
+            </button>
+          </div>
+        </nav>
+      )}
 
       {/* Add / Edit User Modal */}
       {(showAddModal || editingUser) && (
@@ -1623,7 +1683,7 @@ export const UsersManagement: React.FC = () => {
                   </thead>
                   <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                     {importPreview.map((s, i) => {
-                      const alreadyExists = users.some((u) => u.national_id === s.national_id);
+                      const alreadyExists = nationalIds.has(s.national_id);
                       const rc = resolveImportRow(i, s.class_name);
                       return (
                         <tr key={i} className={alreadyExists ? 'bg-amber-50 dark:bg-amber-950/30' : ''}>
@@ -1699,7 +1759,7 @@ export const UsersManagement: React.FC = () => {
 
             <div className="flex items-center justify-between pt-3 border-t border-slate-100 dark:border-slate-800">
               <p className="text-[10px] text-slate-400">
-                {importPreview.filter((s) => !users.some((u) => u.national_id === s.national_id)).length}{' '}{t('طالب جديد سيتم إضافته')}
+                {importPreview.filter((s) => !nationalIds.has(s.national_id)).length}{' '}{t('طالب جديد سيتم إضافته')}
                 {importUnresolvedCount > 0 && (
                   <span className="block text-rose-600 font-bold text-[11px]">
                     {importUnresolvedCount}{' '}{t('طالب بدون صف — اختر لهم صفاً قبل الاستيراد')}
@@ -1715,7 +1775,7 @@ export const UsersManagement: React.FC = () => {
                 </button>
                 <button
                   onClick={handleBulkImport}
-                  disabled={isImporting || importUnresolvedCount > 0 || importPreview.filter((s) => !users.some((u) => u.national_id === s.national_id)).length === 0}
+                  disabled={isImporting || importUnresolvedCount > 0 || importPreview.filter((s) => !nationalIds.has(s.national_id)).length === 0}
                   className="px-6 py-2 text-xs rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold shadow-md disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
                 >
                   {isImporting ? (

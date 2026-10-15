@@ -3537,4 +3537,8 @@ export const EN: Record<string, string> = {
   'خصم نقاط': 'Points deduction',
   'مخالفة سلوكية': 'Behavior violation',
   'تصحيح خطأ في النقاط': 'Points correction',
+  'لا يوجد مستخدمون مطابقون': 'No matching users',
+  'صفحات المستخدمين': 'User pages',
+  'عرض {from}–{to} من {total}': 'Showing {from}–{to} of {total}',
+  'صفحة {n} من {total}': 'Page {n} of {total}',
 };
