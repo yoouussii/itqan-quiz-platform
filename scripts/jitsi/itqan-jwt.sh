@@ -34,10 +34,11 @@ echo "    (luaossl build takes 1-3 minutes)"
 lua5.4 -e 'require "cjson.safe"' 2>/dev/null || luarocks --lua-version 5.4 install lua-cjson 2>&1 | tail -n 1
 lua5.4 -e 'require "basexx"' 2>/dev/null || luarocks --lua-version 5.4 install basexx 2>&1 | tail -n 1
 lua5.4 -e 'require "openssl.hmac"' 2>/dev/null || luarocks --lua-version 5.4 install luaossl 2>&1 | tail -n 1
+lua5.4 -e 'require "inspect"' 2>/dev/null || luarocks --lua-version 5.4 install inspect 2>&1 | tail -n 1
 if [ ! -f "$PLUG/luajwtjitsi.lib.lua" ]; then
   lua5.4 -e 'require "luajwtjitsi"' 2>/dev/null || luarocks --lua-version 5.4 install luajwtjitsi 2>&1 | tail -n 1
 fi
-lua5.4 -e 'require "cjson.safe"; require "basexx"; require "openssl.hmac"; print("    libs OK")'
+lua5.4 -e 'require "cjson.safe"; require "basexx"; require "openssl.hmac"; require "inspect"; print("    libs OK")'
 
 echo ">>> 2/5 itqan_affiliation module (teacher = moderator)"
 RAW=https://raw.githubusercontent.com/yoouussii/itqan-quiz-platform
