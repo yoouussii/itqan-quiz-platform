@@ -11,6 +11,8 @@
 # آمن لإعادة التشغيل، ويحفظ نسخة احتياطية من كل ملف يعدّله.
 # =====================================================================
 set -e
+# لا أسئلة ولا إعادة تشغيل خدمات أثناء التثبيت (needrestart يعلّق Cloud Shell)
+export DEBIAN_FRONTEND=noninteractive NEEDRESTART_MODE=a NEEDRESTART_SUSPEND=1
 H="$1"; APP="$2"; SECRET="$3"
 if [ -z "$H" ] || [ -z "$APP" ] || [ -z "$SECRET" ]; then
   echo "usage: sudo bash itqan-jwt.sh DOMAIN APP_ID SECRET"; exit 1
@@ -25,12 +27,13 @@ cp "$P" "$P.$TS.bak"; cp "$C" "$C.$TS.bak"; cp "$J" "$J.$TS.bak"
 echo ">>> backups: *.$TS.bak"
 
 echo ">>> 1/5 Lua libraries for tokens (Lua 5.4)"
-apt-get install -y libssl-dev luarocks liblua5.4-dev build-essential m4 >/dev/null
-lua5.4 -e 'require "cjson.safe"' 2>/dev/null || luarocks --lua-version 5.4 install lua-cjson >/dev/null
-lua5.4 -e 'require "basexx"' 2>/dev/null || luarocks --lua-version 5.4 install basexx >/dev/null
-lua5.4 -e 'require "openssl.hmac"' 2>/dev/null || luarocks --lua-version 5.4 install luaossl >/dev/null
+apt-get install -y -q libssl-dev luarocks liblua5.4-dev build-essential m4 2>&1 | grep -E "^(Setting up|E:)" || true
+echo "    (luaossl build takes 1-3 minutes)"
+lua5.4 -e 'require "cjson.safe"' 2>/dev/null || luarocks --lua-version 5.4 install lua-cjson 2>&1 | tail -n 1
+lua5.4 -e 'require "basexx"' 2>/dev/null || luarocks --lua-version 5.4 install basexx 2>&1 | tail -n 1
+lua5.4 -e 'require "openssl.hmac"' 2>/dev/null || luarocks --lua-version 5.4 install luaossl 2>&1 | tail -n 1
 if [ ! -f "$PLUG/luajwtjitsi.lib.lua" ]; then
-  lua5.4 -e 'require "luajwtjitsi"' 2>/dev/null || luarocks --lua-version 5.4 install luajwtjitsi >/dev/null
+  lua5.4 -e 'require "luajwtjitsi"' 2>/dev/null || luarocks --lua-version 5.4 install luajwtjitsi 2>&1 | tail -n 1
 fi
 lua5.4 -e 'require "cjson.safe"; require "basexx"; require "openssl.hmac"; print("    libs OK")'
 
