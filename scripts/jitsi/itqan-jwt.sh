@@ -27,7 +27,9 @@ cp "$P" "$P.$TS.bak"; cp "$C" "$C.$TS.bak"; cp "$J" "$J.$TS.bak"
 echo ">>> backups: *.$TS.bak"
 
 echo ">>> 1/5 Lua libraries for tokens (Lua 5.4)"
-apt-get install -y -q libssl-dev luarocks liblua5.4-dev build-essential m4 2>&1 | grep -E "^(Setting up|E:)" || true
+if ! lua5.4 -e 'require "cjson.safe"; require "basexx"; require "openssl.hmac"' 2>/dev/null; then
+  apt-get install -y -q libssl-dev luarocks liblua5.4-dev build-essential m4 2>&1 | grep -E "^(Setting up|E:)" || true
+fi
 echo "    (luaossl build takes 1-3 minutes)"
 lua5.4 -e 'require "cjson.safe"' 2>/dev/null || luarocks --lua-version 5.4 install lua-cjson 2>&1 | tail -n 1
 lua5.4 -e 'require "basexx"' 2>/dev/null || luarocks --lua-version 5.4 install basexx 2>&1 | tail -n 1
@@ -37,9 +39,11 @@ if [ ! -f "$PLUG/luajwtjitsi.lib.lua" ]; then
 fi
 lua5.4 -e 'require "cjson.safe"; require "basexx"; require "openssl.hmac"; print("    libs OK")'
 
-echo ">>> 2/5 token_affiliation module (teacher = moderator)"
-curl -fsSL https://raw.githubusercontent.com/jitsi-contrib/prosody-plugins/main/token_affiliation/mod_token_affiliation.lua \
-  -o "$PLUG/mod_token_affiliation.lua"
+echo ">>> 2/5 itqan_affiliation module (teacher = moderator)"
+RAW=https://raw.githubusercontent.com/yoouussii/itqan-quiz-platform
+curl -fsSL "$RAW/main/scripts/jitsi/mod_itqan_affiliation.lua" -o "$PLUG/mod_itqan_affiliation.lua" 2>/dev/null \
+  || curl -fsSL "$RAW/claude/task-7m0i7f/scripts/jitsi/mod_itqan_affiliation.lua" -o "$PLUG/mod_itqan_affiliation.lua"
+echo "    module OK"
 
 echo ">>> 3/5 prosody config"
 python3 - "$P" "$H" "$APP" "$SECRET" <<'PY'
@@ -74,7 +78,8 @@ s = s[:a] + body + s[b:]
 # غرف الاجتماعات: التحقق من الرمز + صلاحية المعلم
 a, b = block(s, 'Component "conference.%s" "muc"' % h)
 body = s[a:b]
-for mod in ('token_verification', 'token_affiliation'):
+body = body.replace('\n        "token_affiliation";', '')
+for mod in ('token_verification', 'itqan_affiliation'):
     if '"%s"' % mod not in body:
         body, n = re.subn(r'modules_enabled\s*=\s*\{', 'modules_enabled = {\n        "%s";' % mod, body, count=1)
         if n != 1:
