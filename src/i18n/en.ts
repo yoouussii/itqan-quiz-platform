@@ -3541,4 +3541,10 @@ export const EN: Record<string, string> = {
   'صفحات المستخدمين': 'User pages',
   'عرض {from}–{to} من {total}': 'Showing {from}–{to} of {total}',
   'صفحة {n} من {total}': 'Page {n} of {total}',
+  'لا يوجد دخول مسجّل': 'No recorded sign-in',
+  'آخر تسجيل دخول: {d}': 'Last sign-in: {d}',
+  'آخر ظهور: {d}': 'Last seen: {d}',
+  'مرات تسجيل الدخول: {n}': 'Sign-ins: {n}',
+  'متصل الآن': 'Online now',
+  'آخر ظهور {ago}': 'Last seen {ago}',
 };
