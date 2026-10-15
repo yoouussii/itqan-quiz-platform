@@ -1,11 +1,12 @@
 import React, { useState } from 'react';
-import { Info, Moon, Sun, Eye, EyeOff } from 'lucide-react';
+import { Info, Moon, Sun, Eye, EyeOff, Smartphone } from 'lucide-react';
 import { LoginHero, LoginStyle, LOGIN_STYLES } from './LoginHero';
 import { useApp } from '../../context/AppContext';
 import { Logo } from '../common/Logo';
 import { navigateTo } from '../../utils/router';
 import { LangToggle } from '../../i18n/LangContext';
 import { t } from '../../i18n';
+import { isStandalone } from '../../services/pushService';
 
 /** تسجيل الدخول برقم الهوية (لا يوجد تسجيل ذاتي: الحسابات تُنشأ من إدارة المدرسة) */
 export const AuthScreen: React.FC = () => {
@@ -109,6 +110,12 @@ export const AuthScreen: React.FC = () => {
               <a href="/privacy" onClick={(e) => { e.preventDefault(); navigateTo('/privacy'); }} className="text-indigo-700 dark:text-indigo-400 font-semibold hover:underline">{t('سياسة الخصوصية')}</a>
             </p>
           </form>
+
+          {!isStandalone() && (
+            <a href="/install" className="flex items-center justify-center gap-2 h-11 rounded-xl border border-indigo-200 dark:border-indigo-900 text-indigo-700 dark:text-indigo-300 text-sm font-bold hover:bg-indigo-50 dark:hover:bg-indigo-950/40" data-testid="install-link">
+              <Smartphone className="w-4 h-4" />{t('نزّل المنصة على جوالك')}
+            </a>
+          )}
 
           <div className="flex gap-3 items-start rounded-xl bg-slate-50 dark:bg-slate-900 px-4 py-3.5">
             <Info className="w-5 h-5 text-indigo-600 dark:text-indigo-400 shrink-0 mt-0.5" />
