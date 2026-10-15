@@ -15,7 +15,7 @@
 
 // مفاتيح صغيرة تُبقي الجلسة والتفضيلات ولا تُحذف لإفساح المكان
 // (ومنها مفضلة القائمة الجانبية وطيّ مجموعاتها: كانت تُحذف عند امتلاء الذاكرة فتختفي المفضلة)
-const KEEP = /^(itqan_session|itqan_current_user|itqan_lang|itqan_theme|itqan_tour_|itqan_active_attempt|itqan_pending_attempts|itqan_nav_|sb-)/;
+const KEEP = /^(itqan_session|itqan_current_user|itqan_lang|itqan_theme|itqan_tour_|itqan_active_attempt|itqan_pending_attempts|itqan_nav_|itqan_blank_dismissed|sb-)/;
 
 // قائمة المستخدمين: يُعرف منها المستخدم الحالي عند فتح الصفحة، فلا تُحذف كلها بل يبقى سجله هو
 const USERS_KEY = 'itqan_users_v2';

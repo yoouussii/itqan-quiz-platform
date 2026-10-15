@@ -4,13 +4,12 @@ import { AI_SITES, copyText, gradingPrompt, parseGradingReply } from '../../util
 import { useApp } from '../../context/AppContext';
 import { PageHeader, Card, Button } from '../common/ui';
 import { RichText } from '../common/RichText';
-import { EssayItem, essayItems, wrongBlankGroups } from '../../utils/grading';
+import { EssayItem, essayItems, wrongBlankGroups, loadBlankDismissed, saveBlankDismissed } from '../../utils/grading';
 import { acceptBlank } from '../../services/quizSync';
 import { uiDir, t } from '../../i18n';
 import { hasPerm } from '../../utils/permissions';
 import { MascotHere } from '../common/Mascot';
 
-const BLANK_DISMISS_KEY = 'itqan_blank_dismissed';
 
 /** مراجعة إجابات «أكمل الفراغ» المحسوبة خطأ: كل إجابة متشابهة مرة واحدة مع عدد من كتبها */
 const BlankReview: React.FC<{
@@ -101,7 +100,7 @@ export const GradingPage: React.FC = () => {
   const quizTitle = (id: string) => quizzes.find((q) => q.id === id)?.title || '—';
 
   // «أكمل الفراغ»: إجابات حُسبت خطأ تلقائياً، لمراجعة المعلم (قد تكون صحيحة بصياغة أخرى)
-  const [dismissed, setDismissed] = useState<string[]>(() => { try { return JSON.parse(localStorage.getItem(BLANK_DISMISS_KEY) || '[]'); } catch { return []; } });
+  const [dismissed, setDismissed] = useState<string[]>(loadBlankDismissed);
   const blanks = useMemo(() => {
     const hide = new Set(dismissed);
     return wrongBlankGroups(mySubs).filter((g) => !hide.has(g.key))
@@ -111,7 +110,7 @@ export const GradingPage: React.FC = () => {
   const dismiss = (key: string) => {
     const next = [...dismissed, key].slice(-2000);
     setDismissed(next);
-    try { localStorage.setItem(BLANK_DISMISS_KEY, JSON.stringify(next)); } catch { /* ignore */ }
+    saveBlankDismissed(next);
   };
   const [accepting, setAccepting] = useState('');
   const accept = async (g: (typeof blanks)[number]) => {
@@ -131,6 +130,14 @@ export const GradingPage: React.FC = () => {
     return m;
   }, [blanks]);
   const blankTotal = blanks.reduce((n, g) => n + g.count, 0);
+  // لا مقالي بانتظار التصحيح وفيه إجابات «أكمل الفراغ» تنتظر: نفتح تبويبها مباشرة (مرة واحدة)
+  const autoTab = useRef(false);
+  useEffect(() => {
+    if (autoTab.current || !mySubs.length) return;
+    autoTab.current = true;
+    if (!all.some((x) => !x.graded) && blankTotal > 0) setShow('blanks');
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mySubs.length, blankTotal]);
 
   const byQuiz = useMemo(() => {
     const m = new Map<string, { pending: number; graded: number }>();

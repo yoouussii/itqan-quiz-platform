@@ -115,3 +115,17 @@ export const wrongBlankGroups = (subs: Submission[]): BlankGroup[] => {
   }
   return Array.from(groups.values());
 };
+
+/** «خطأ فعلاً» في تبويب «أكمل الفراغ»: مجموعات أخفاها المعلم (على هذا الجهاز) */
+export const BLANK_DISMISS_KEY = 'itqan_blank_dismissed';
+export const BLANKS_EVENT = 'itqan:blanks-changed';
+export const loadBlankDismissed = (): string[] => { try { const v = JSON.parse(localStorage.getItem(BLANK_DISMISS_KEY) || '[]'); return Array.isArray(v) ? v : []; } catch { return []; } };
+export const saveBlankDismissed = (keys: string[]) => {
+  try { localStorage.setItem(BLANK_DISMISS_KEY, JSON.stringify(keys.slice(-2000))); } catch { /* ignore */ }
+  window.dispatchEvent(new Event(BLANKS_EVENT));
+};
+/** عدد إجابات «أكمل الفراغ» المحسوبة خطأ التي تنتظر مراجعة المعلم */
+export const pendingBlankCount = (subs: Submission[]): number => {
+  const hide = new Set(loadBlankDismissed());
+  return wrongBlankGroups(subs).filter((g) => !hide.has(g.key)).reduce((n, g) => n + g.count, 0);
+};
