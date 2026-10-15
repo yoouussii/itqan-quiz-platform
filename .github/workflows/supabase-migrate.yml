@@ -86,6 +86,8 @@ on:
           - supabase/migrations/070_fill_blank_flexible.sql
           - supabase/migrations/071_quiz_activity.sql
           - supabase/migrations/072_last_seen.sql
+          - supabase/migrations/073_records_skip_temp.sql
+          - supabase/migrations/074_submission_notify.sql
           - supabase/migrations/003_rollback.sql
       db_secret:
         description: 'اسم سر قاعدة البيانات (اتركه كما هو للمدرسة الأساسية، أو اكتب سر مدرسة أخرى مثل DB_URL_SCHOOL2)'

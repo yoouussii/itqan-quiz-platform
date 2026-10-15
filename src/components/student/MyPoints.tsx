@@ -8,12 +8,13 @@ import { exportStudentReport, reportExtras } from '../../utils/studentReport';
 import { formatFullArabicDate } from '../../utils/dateUtils';
 import { timeAgo } from '../common/NotificationBell';
 import { uiDir, t, isEn } from '../../i18n';
-import { exportCertificates } from '../../utils/certificate';
+import { certKindFor, exportCertificates } from '../../utils/certificate';
+import { ungradedEssayCount } from '../../utils/grading';
 import { StudentStore } from '../common/PointsStore';
 
 /** صفحة "نقاطي" للطالب: النقاط، المستوى، الأوسمة، الجوائز، ولوحة الشرف */
 export const MyPoints: React.FC = () => {
-  const { currentUser, submissions, quizzes, awards, classes, subjects } = useApp();
+  const { currentUser, submissions, quizzes, awards, classes, subjects, users } = useApp();
   const [busy, setBusy] = useState(false);
 
   const data = useMemo(() => {
@@ -24,7 +25,10 @@ export const MyPoints: React.FC = () => {
     const total = totalPoints(events);
     const valid = bestPerQuiz(mine.filter((s) => (quizzes || []).some((q) => q.id === s.quiz_id)));
     const avg = valid.length ? Math.round(valid.reduce((a, s) => a + (Number(s.percentage) || 0), 0) / valid.length) : 0;
-    return { mine, myAwards, events, total, avg, count: valid.length, badges: earnedBadges(mine, quizzes || []) };
+    // شهادات الاختبارات: أفضل محاولة في كل اختبار بلغت النجاح، وبعد اكتمال تصحيح المقالي
+    const certs = valid.filter((s) => !s.quiz?.is_deleted && certKindFor(Number(s.percentage) || 0, s.quiz?.pass_percentage || 50) && ungradedEssayCount(s) === 0)
+      .sort((a, b) => String(b.completed_at).localeCompare(String(a.completed_at)));
+    return { mine, myAwards, events, total, avg, count: valid.length, badges: earnedBadges(mine, quizzes || []), certs };
   }, [currentUser, submissions, quizzes, awards]);
 
   if (!currentUser || !data) return null;
@@ -112,6 +116,34 @@ export const MyPoints: React.FC = () => {
           })}
         </div>
       </section>
+
+      {data.certs.length > 0 && (
+        <section className="space-y-3" id="my-certificates" data-testid="my-certificates">
+          <h2 className="font-bold text-lg text-slate-900 dark:text-white flex items-center gap-2"><Award className="w-5 h-5 text-amber-500" />{' '}{t('شهاداتي')}</h2>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+            {data.certs.map((s) => {
+              const pct = Number(s.percentage) || 0;
+              const kind = certKindFor(pct, s.quiz?.pass_percentage || 50)!;
+              return (
+                <div key={s.id} className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800 p-4 flex items-center justify-between gap-3">
+                  <div className="min-w-0">
+                    <b className="block text-sm text-slate-900 dark:text-white truncate">{kind === 'excellence' ? '🏅 ' : '🎓 '}{s.quiz?.title}</b>
+                    <span className="text-xs text-slate-500">{[s.subject?.name, `${pct}%`, formatFullArabicDate(s.completed_at)].filter(Boolean).join(' · ')}</span>
+                  </div>
+                  <button type="button" onClick={() => void exportCertificates([{
+                      kind, student: currentUser.name, achievement: s.quiz?.title || '',
+                      detail: [s.subject?.name, t('بنسبة {pct}%', { pct })].filter(Boolean).join(' · '),
+                      date: s.completed_at, signer: users.find((u) => u.id === s.quiz?.teacher_id)?.name,
+                    }])}
+                    className="shrink-0 h-9 px-3 rounded-lg bg-amber-50 dark:bg-amber-950/50 text-amber-800 dark:text-amber-300 text-xs font-bold inline-flex items-center gap-1.5 hover:bg-amber-100">
+                    <Download className="w-3.5 h-3.5" />{t('عرض وطباعة')}
+                  </button>
+                </div>
+              );
+            })}
+          </div>
+        </section>
+      )}
 
       {data.myAwards.some((a) => (a.points || 0) >= 0) && (
         <section className="space-y-3">

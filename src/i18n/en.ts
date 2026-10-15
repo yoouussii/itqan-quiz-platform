@@ -3543,4 +3543,10 @@ export const EN: Record<string, string> = {
   'مرات تسجيل الدخول: {n}': 'Sign-ins: {n}',
   'متصل الآن': 'Online now',
   'آخر ظهور {ago}': 'Last seen {ago}',
+  'إرسال للطالب': 'Send to student',
+  'إشعار الطالب وولي أمره بأن الشهادة جاهزة في حسابه': 'Notify the student and parent that the certificate is ready in their account',
+  'إرسال الشهادة للطالب': 'Send certificate to student',
+  'شهاداتي': 'My certificates',
+  'عرض وطباعة': 'View & print',
+  'أُرسلت الشهادة إلى {name}، وتظهر في حسابه ليطبعها': 'Certificate sent to {name}; it is in their account to print',
 };

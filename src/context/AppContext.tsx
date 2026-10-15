@@ -151,6 +151,8 @@ interface AppContextType {
   clearUserNotifications: (userId: string) => Promise<void>;
   awards: StudentAward[];
   giveAward: (p: { student: User; title: string; note?: string; points: number }) => Promise<{ ok: boolean; error?: string }>;
+  /** إشعار الطالب وولي أمره بأن شهادة الاختبار جاهزة في حسابه (صفحة «نقاطي» ← شهاداتي) */
+  sendCertificate: (sub: SubmissionWithDetails) => Promise<void>;
   settings: AppSettings;
   /** وصلت هوية المدرسة (أو كانت محفوظة على الجهاز): شاشة الدخول تنتظرها على الجهاز الجديد */
   brandingReady: boolean;
@@ -2126,6 +2128,22 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return { ok: true };
   };
 
+  const sendCertificate: AppContextType['sendCertificate'] = async (sub) => {
+    const pct = Number(sub.percentage) || 0;
+    const kind = pct >= 90 ? 'شهادة تفوق' : 'شهادة نجاح';
+    const student = users.find((u) => u.id === sub.student_id);
+    const parents = users.filter((u) => u.role === 'parent' && (u.child_ids || []).includes(sub.student_id)).map((u) => u.id);
+    const quizTitle = sub.quiz?.title || StorageService.getQuizById(sub.quiz_id)?.title || '';
+    await notify({
+      type: 'certificate',
+      title: `🏅 ${kind}: ${quizTitle}`,
+      body: `${student?.name ? `${student.name} — ` : ''}بنسبة ${pct}%. يمكن عرضها وطباعتها من حساب الطالب: صفحة «نقاطي» ← «شهاداتي».`,
+      audience: { user_ids: [sub.student_id, ...parents] }, ref_type: 'certificate', ref_id: sub.id,
+    });
+    log('certificate_sent', { type: 'user', id: sub.student_id, name: student?.name }, `${kind} — ${quizTitle}`);
+    showToast(t('أُرسلت الشهادة إلى {name}، وتظهر في حسابه ليطبعها', { name: student?.name || t('الطالب') }), 'success');
+  };
+
   const updateSettings = async (patch: Partial<AppSettings>) => {
     if (currentUserRef.current?.role !== 'admin') return void showToast(t('الإعدادات لمدير النظام فقط'), 'error');
     const res = await saveSettings(patch);
@@ -2222,6 +2240,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         clearUserNotifications,
         awards,
         giveAward,
+        sendCertificate,
         settings,
         brandingReady,
         updateSettings,

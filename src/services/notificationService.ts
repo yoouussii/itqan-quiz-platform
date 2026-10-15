@@ -7,7 +7,7 @@ import { safe, readJson, writeJson, newId } from './remote';
 
 export type NotifType =
   | 'quiz_published' | 'quiz_pending' | 'quiz_approved' | 'quiz_rejected'
-  | 'retake_granted' | 'award' | 'announcement' | 'quiz_reminder';
+  | 'retake_granted' | 'award' | 'announcement' | 'quiz_reminder' | 'quiz_submitted' | 'certificate';
 
 export interface NotifAudience {
   all?: boolean;
@@ -92,7 +92,9 @@ export async function pullNotifications(): Promise<boolean> {
   const merged = [...res.data, ...keepLocal]
     .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
     .slice(0, 400);
-  const changed = JSON.stringify(merged.map((m) => m.id)) !== JSON.stringify(loadNotifCache().map((m) => m.id));
+  // إشعار التسليمات يتحدّث في مكانه (نفس المعرّف، وقت أحدث): نقارن الوقت أيضاً
+  const sig = (l: AppNotification[]) => JSON.stringify(l.map((m) => `${m.id}@${m.created_at}`));
+  const changed = sig(merged) !== sig(loadNotifCache());
   writeJson(NKEY, merged);
   return changed;
 }

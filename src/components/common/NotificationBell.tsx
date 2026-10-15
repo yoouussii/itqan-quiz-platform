@@ -10,7 +10,7 @@ import { EmptyMascot } from './Mascot';
 
 export const NOTIF_ICONS: Record<string, string> = {
   quiz_published: '📝', quiz_pending: '🕓', quiz_approved: '✅', quiz_rejected: '❌',
-  retake_granted: '🔁', award: '🏆', announcement: '📣', quiz_reminder: '⏰',
+  retake_granted: '🔁', award: '🏆', announcement: '📣', quiz_reminder: '⏰', quiz_submitted: '📥', certificate: '🏅',
 };
 
 export function timeAgo(iso: string): string {

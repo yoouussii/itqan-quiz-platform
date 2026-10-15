@@ -328,6 +328,7 @@ function collect(folder, path, out) {
   var files = folder.getFiles();
   while (files.hasNext()) {
     var f = files.next(), t = f.getMimeType();
+    if (f.isTrashed() || f.getName() === 'itqan-tmp') continue; // المحذوفات والنسخة المؤقتة
     if (t === MimeType.GOOGLE_SHEETS || XLSX_TYPES.indexOf(t) >= 0) out.push({ file: f, path: path, excel: t !== MimeType.GOOGLE_SHEETS });
   }
   var subs = folder.getFolders();
@@ -349,8 +350,9 @@ function readSheets(id) {
 }
 
 // ملف Excel: نسخة مؤقتة محوّلة إلى Google Sheets تُقرأ ثم تُحذف (الملف الأصلي لا يتغير)
+// تُنشأ في «ملفاتي» لا في مجلد السجلات، حتى لا يراها الفحص كأنها ملف معلم
 function readExcel(id) {
-  var tmp = drive('post', 'files/' + id + '/copy?supportsAllDrives=true&fields=id', { name: 'itqan-tmp', mimeType: MimeType.GOOGLE_SHEETS });
+  var tmp = drive('post', 'files/' + id + '/copy?supportsAllDrives=true&fields=id', { name: 'itqan-tmp', mimeType: MimeType.GOOGLE_SHEETS, parents: [DriveApp.getRootFolder().getId()] });
   try { return readSheets(tmp.id); } finally { try { drive('delete', 'files/' + tmp.id + '?supportsAllDrives=true'); } catch (e) { DriveApp.getFileById(tmp.id).setTrashed(true); } }
 }
 
