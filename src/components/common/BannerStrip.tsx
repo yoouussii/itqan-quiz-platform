@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { ChevronRight, ChevronLeft, ChevronDown, X, Pencil, Trash2 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
-import { Banner, BANNER_THEMES, isBannerVisible } from '../../services/bannerService';
+import { Banner, BANNER_THEMES, isBannerVisible, HonorEntry, fetchHonorRoll, cachedHonor, honorKey } from '../../services/bannerService';
 import { BannerEffects } from './BannerEffects';
 import { uiDir, isEn, t } from '../../i18n';
 
@@ -10,8 +10,53 @@ const themeBg = (theme: string) => {
   return { background: `linear-gradient(135deg, ${t.from}, ${t.to})` };
 };
 
-/** بانر واحد: صورة عريضة مع نص، أو معرض صور طلاب مع نص */
+/** أسماء لوحة الشرف لإعدادات بانر (تُجلب مرة كل 10 دقائق) */
+export function useHonorRoll(b: Banner | null | undefined): HonorEntry[] | null {
+  const key = b?.kind === 'honor' ? honorKey(b.config) : '';
+  const [list, setList] = useState<HonorEntry[] | null>(() => (key ? cachedHonor(b!.config) : null));
+  useEffect(() => {
+    if (!key) return setList(null);
+    let alive = true;
+    setList(cachedHonor(b!.config));
+    void fetchHonorRoll(b!.config).then((l) => alive && setList(l));
+    return () => { alive = false; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [key]);
+  return list;
+}
+
+/** «لوحة الشرف»: أسماء من حصلوا على «ممتاز» تلقائياً من جميع الفصول */
+const HonorCard: React.FC<{ banner: Banner }> = ({ banner: b }) => {
+  const list = useHonorRoll(b);
+  return (
+    <div className="rounded-3xl p-5 sm:p-7 text-white text-center shadow-lg" style={themeBg(b.theme)} data-testid="honor-banner">
+      <h2 className="text-lg sm:text-2xl font-black leading-snug">{b.title || t('🏆 لوحة الشرف')}</h2>
+      {b.body && <p className="text-xs sm:text-sm mt-1 opacity-95 leading-relaxed whitespace-pre-line">{b.body}</p>}
+      {list === null ? (
+        <p className="text-xs mt-4 opacity-80">{t('جارٍ التحميل...')}</p>
+      ) : list.length === 0 ? (
+        <p className="text-xs mt-4 opacity-90">{t('لا توجد أسماء حالياً. يظهر البانر تلقائياً عند حصول أول طالب على «ممتاز».')}</p>
+      ) : (
+        <ul className="flex flex-wrap justify-center gap-2 sm:gap-2.5 mt-5 max-h-64 overflow-y-auto">
+          {list.map((e, i) => (
+            <li key={`${e.name}-${i}`} title={e.quiz ? `${e.quiz} — ${e.pct}%` : `${e.pct}%`}
+              className="flex items-center gap-2 rounded-2xl bg-white/15 ring-1 ring-white/25 ps-2 pe-3 py-1.5 backdrop-blur-sm">
+              <span className="w-8 h-8 rounded-full bg-white/90 text-amber-600 flex items-center justify-center text-base shrink-0" aria-hidden>{i < 3 ? ['🥇', '🥈', '🥉'][i] : '⭐'}</span>
+              <span className="text-start leading-tight">
+                <span className="block text-sm font-black">{e.name}</span>
+                <span className="block text-[11px] opacity-90">{[e.class, `${e.pct}%`].filter(Boolean).join(' • ')}</span>
+              </span>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+};
+
+/** بانر واحد: صورة عريضة مع نص، أو معرض صور طلاب مع نص، أو لوحة الشرف التلقائية */
 export const BannerCard: React.FC<{ banner: Banner }> = ({ banner: b }) => {
+  if (b.kind === 'honor') return <HonorCard banner={b} />;
   const text = (b.title || b.body) && (
     <div>
       {b.title && <h2 className="text-lg sm:text-2xl font-black leading-snug">{b.title}</h2>}
@@ -83,9 +128,22 @@ export const EDIT_BANNER_KEY = 'itqan_edit_banner_id';
 export const BannerStrip: React.FC<{ embedded?: boolean }> = ({ embedded = false }) => {
   const { currentUser, banners, deleteBanner, setCurrentView, settings } = useApp();
   const slider = settings.banner_slider || {};
+  // لوحة الشرف: تُجلب أسماؤها، ولا تظهر ما دامت فارغة
+  const [honorTick, setHonorTick] = useState(0);
+  const honorKeys = banners.filter((b) => b.kind === 'honor' && currentUser && isBannerVisible(b, currentUser.role)).map((b) => honorKey(b.config)).join(',');
+  useEffect(() => {
+    if (!honorKeys) return;
+    let alive = true;
+    const load = () => banners.filter((b) => b.kind === 'honor').forEach((b) => void fetchHonorRoll(b.config).then(() => alive && setHonorTick((n) => n + 1)));
+    load();
+    const id = window.setInterval(load, 10 * 60 * 1000);
+    return () => { alive = false; window.clearInterval(id); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [honorKeys]);
   const allVisible = useMemo(
-    () => (currentUser ? banners.filter((b) => isBannerVisible(b, currentUser.role)).sort((a, b) => a.sort - b.sort || b.created_at.localeCompare(a.created_at)) : []),
-    [banners, currentUser]
+    () => (currentUser ? banners.filter((b) => isBannerVisible(b, currentUser.role) && (b.kind !== 'honor' || !!cachedHonor(b.config)?.length)).sort((a, b) => a.sort - b.sort || b.created_at.localeCompare(a.created_at)) : []),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [banners, currentUser, honorTick]
   );
   // الإخفاء يخص البانرات العادية فقط؛ البانر «الدائم» يبقى ظاهراً دائماً
   const signature = allVisible.filter((b) => !b.pinned).map((b) => `${b.id}:${b.updated_at}`).join('|');
@@ -135,6 +193,10 @@ export const BannerStrip: React.FC<{ embedded?: boolean }> = ({ embedded = false
 
   if (!current.pinned && !expanded) {
     const thumb = current.images[0]?.src;
+    const honor = current.kind === 'honor' ? cachedHonor(current.config) || [] : null;
+    const subtitle = honor
+      ? honor.slice(0, 6).map((e) => e.name).join('، ') + (honor.length > 6 ? ` ${t('و{n} آخرين', { n: honor.length - 6 })}` : '')
+      : current.body;
     const bt = BANNER_THEMES[current.theme] || BANNER_THEMES.indigo;
     return (
       <section className={embedded ? '' : 'max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-4'} dir={uiDir()} aria-label={t('إعلانات المدرسة')} data-testid="banner-compact"
@@ -142,10 +204,10 @@ export const BannerStrip: React.FC<{ embedded?: boolean }> = ({ embedded = false
         onPointerLeave={(e) => e.pointerType === 'mouse' && setHovering(false)}>
         <div className="flex items-center gap-2 rounded-2xl ps-2 pe-1.5 py-1.5 text-white shadow-sm" style={{ background: `linear-gradient(90deg, ${bt.from}, ${bt.to})` }}>
           <button type="button" onClick={() => setExpanded(true)} className="flex-1 min-w-0 flex items-center gap-2.5 text-start rounded-xl px-1 py-0.5 hover:bg-white/10" aria-label={t('عرض الإعلان كاملاً')}>
-            {thumb ? <img src={thumb} alt="" className="w-9 h-9 rounded-lg object-cover shrink-0 ring-1 ring-white/30" /> : <span className="w-9 h-9 rounded-lg bg-white/15 flex items-center justify-center shrink-0" aria-hidden>📣</span>}
+            {thumb ? <img src={thumb} alt="" className="w-9 h-9 rounded-lg object-cover shrink-0 ring-1 ring-white/30" /> : <span className="w-9 h-9 rounded-lg bg-white/15 flex items-center justify-center shrink-0" aria-hidden>{honor ? '🏆' : '📣'}</span>}
             <span key={`${current.id}-${safeIndex}`} className="min-w-0 flex-1 banner-in">
-              <span className="block text-sm font-black truncate">{current.title || t('إعلان')}</span>
-              {current.body && <span className="block text-xs opacity-90 truncate">{current.body}</span>}
+              <span className="block text-sm font-black truncate">{current.title || (honor ? t('🏆 لوحة الشرف') : t('إعلان'))}</span>
+              {subtitle && <span className="block text-xs opacity-90 truncate">{subtitle}</span>}
             </span>
             <ChevronDown className="w-4 h-4 opacity-80 shrink-0" />
           </button>
