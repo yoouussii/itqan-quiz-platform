@@ -64,6 +64,7 @@ import {
   pullQuizzes,
   pushSubmission,
   pullSubmissions,
+  ensureAnswers as ensureAnswersRemote,
   regradeBlanks,
   flushPending,
   submitAttemptRemote,
@@ -124,6 +125,8 @@ interface AppContextType {
   classes: SchoolClass[];
   quizzes: QuizWithDetails[];
   submissions: SubmissionWithDetails[];
+  /** جلب إجابات التسليمات القديمة التي لم تُحمَّل بعد (للصفحات التي تحتاجها) */
+  ensureAnswers: (filter?: (s: Submission) => boolean) => Promise<void>;
   kpis: Kpis;
   /** الصور الرمزية: معرّف المستخدم ← (صورة مصغّرة | preset:اسم) */
   avatars: Record<string, string>;
@@ -2041,6 +2044,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     await markRead(me.id, list);
   };
 
+  const ensureAnswers: AppContextType['ensureAnswers'] = useCallback(async (filter) => {
+    const n = await ensureAnswersRemote(filter);
+    if (n) recompute();
+  }, [recompute]);
+
   const saveBanner: AppContextType['saveBanner'] = async (b) => {
     if (currentUserRef.current?.role !== 'admin') {
       showToast(t('إدارة البانرات لمدير النظام فقط'), 'error');
@@ -2254,6 +2262,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         sendAttendanceNotice,
         banners,
         saveBanner,
+        ensureAnswers,
         deleteBanner,
         deleteMyNotifications,
         allNotifications: notifCache,

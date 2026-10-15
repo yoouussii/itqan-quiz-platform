@@ -11,6 +11,7 @@ import { STAY, suggestRollover } from '../../utils/schoolYear';
 import { logActivity } from '../../services/activityService';
 import { uiDir, t, dateLocale } from '../../i18n';
 import type { User } from '../../types';
+import { UsageCard } from './UsageCard';
 
 const TABLE_LABEL: Record<string, string> = {
   users: 'المستخدمون', quizzes: 'الاختبارات', submissions: 'المشاركات', question_bank: 'بنك الأسئلة', notifications: 'الإشعارات',
@@ -135,6 +136,7 @@ export const SchoolYearPage: React.FC = () => {
             </>
           )}
         </Card>
+        <UsageCard />
       </div>
 
       <Card className="p-5 space-y-4" data-testid="rollover-card">

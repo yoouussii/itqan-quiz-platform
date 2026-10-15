@@ -10,6 +10,7 @@ import { AnswerExtras, answerStatus, STATUS_LABEL } from '../common/AnswerExtras
 import { uiDir, optionLetters, t, isEn } from '../../i18n';
 import { IntegrityBadge } from '../common/IntegrityBadge';
 import { NewAnswerReview, isNewType } from '../common/QuestionTypes';
+import { useEnsureAnswers } from '../common/useEnsureAnswers';
 
 interface AnswerSheetModalProps {
   submission: SubmissionWithDetails | null;
@@ -19,6 +20,7 @@ interface AnswerSheetModalProps {
 export const AnswerSheetModal: React.FC<AnswerSheetModalProps> = ({ submission: initial, onClose }) => {
   const contentRef = useRef<HTMLDivElement>(null);
   const { currentUser, submissions, gradeEssay } = useApp();
+  const answersLoading = useEnsureAnswers(`sheet-${initial?.id}`, (s) => s.id === initial?.id, !!initial);
   // نسخة محدّثة من التسليم (تتغير بعد تصحيح المقالي)
   const fresh = initial ? submissions.find((x) => x.id === initial.id) : undefined;
   const submission = initial ? { ...initial, ...(fresh || {}) } : null;
@@ -170,6 +172,7 @@ export const AnswerSheetModal: React.FC<AnswerSheetModalProps> = ({ submission: 
                 {t('مراجعة الأخطاء مع الشروحات التوضيحية')}
               </span>
             </h4>
+            {answersLoading && <p className="text-xs font-bold text-indigo-600 dark:text-indigo-400 animate-pulse">{t('جارٍ تحميل الإجابات...')}</p>}
 
             {questions.map((question, qIdx) => {
               const studentAnswer = submission.answers_json?.find(

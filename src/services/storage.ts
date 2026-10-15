@@ -36,7 +36,14 @@ const STORAGE_KEYS = {
 // (حتى لو كتبه تبويب آخر)، وتُلغى عند كل حفظ.
 const parsed = new Map<string, { raw: string; value: unknown }>();
 
+// عند امتلاء مساحة المتصفح تبقى آخر نسخة في الذاكرة (بدل أن تضيع التعديلات بصمت)
+const memoryOnly = new Map<string, unknown>();
+
 function getLocalItem<T>(key: string, defaultValue: T): T {
+  if (memoryOnly.has(key)) {
+    const v = memoryOnly.get(key);
+    return (Array.isArray(v) ? v.slice() : v) as T;
+  }
   try {
     const raw = localStorage.getItem(key);
     if (!raw) return defaultValue;
@@ -51,12 +58,16 @@ function getLocalItem<T>(key: string, defaultValue: T): T {
   }
 }
 
-function setLocalItem<T>(key: string, value: T): void {
+function setLocalItem<T>(key: string, value: T): boolean {
   parsed.delete(key);
   try {
     localStorage.setItem(key, JSON.stringify(value));
+    memoryOnly.delete(key);
+    return true;
   } catch (e) {
     console.error(`Error writing key ${key} to localStorage`, e);
+    memoryOnly.set(key, value);
+    return false;
   }
 }
 
@@ -1212,6 +1223,14 @@ public static getCurrentUser(): User | null {
 
   public static removeSubmissionLocal(id: string): void {
     setLocalItem(STORAGE_KEYS.SUBMISSIONS, getLocalItem<Submission[]>(STORAGE_KEYS.SUBMISSIONS, []).filter((s) => s.id !== id));
+  }
+
+  /** دمج دفعة تسليمات من الخادم وحذف ما حُذف هناك، بكتابة واحدة. يُرجع false إن لم تُحفظ على الجهاز */
+  public static mergeSubmissionsFromRemote(rows: Submission[], removeIds: Iterable<string> = []): boolean {
+    const map = new Map(getLocalItem<Submission[]>(STORAGE_KEYS.SUBMISSIONS, []).map((s) => [s.id, s] as const));
+    for (const id of removeIds) map.delete(id);
+    for (const r of rows) map.set(r.id, r);
+    return setLocalItem(STORAGE_KEYS.SUBMISSIONS, Array.from(map.values()));
   }
 
   /** إدراج/استبدال تسليم قادم من الخادم */

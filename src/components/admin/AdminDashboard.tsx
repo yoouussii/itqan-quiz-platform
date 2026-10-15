@@ -15,6 +15,7 @@ import { uiDir, t, isEn } from '../../i18n';
 import { BannerStrip } from '../common/BannerStrip';
 import { MorningSummaryCard } from './MorningSummaryCard';
 import { LiveNowCard } from '../common/LiveNowCard';
+import { UsageCard } from './UsageCard';
 import { EmptyMascot } from '../common/Mascot';
 
 const avgOf = (vals: number[]) => (vals.length ? Math.round(vals.reduce((a, b) => a + b, 0) / vals.length) : 0);
@@ -133,6 +134,7 @@ export const AdminDashboard: React.FC = () => {
       />
       <BannerStrip embedded />
 
+      <UsageCard compact />
       <MorningSummaryCard />
       <LiveNowCard />
 

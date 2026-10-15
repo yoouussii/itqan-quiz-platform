@@ -10,6 +10,7 @@ import { formatQuizDateTime } from '../../utils/quizWindow';
 import { AnswerExtras, answerStatus, STATUS_LABEL } from '../common/AnswerExtras';
 import { NewAnswerReview, isNewType } from '../common/QuestionTypes';
 import { uiDir, t, optionLetters, isEn } from '../../i18n';
+import { useEnsureAnswers } from '../common/useEnsureAnswers';
 
 interface QuizReviewProps {
   submissionId: string;
@@ -18,6 +19,7 @@ interface QuizReviewProps {
 
 export const QuizReview: React.FC<QuizReviewProps> = ({ submissionId, onBack }) => {
   const { currentUser, users } = useApp();
+  useEnsureAnswers(`review-${submissionId}`, (s) => s.id === submissionId);
   const submission = StorageService.getSubmissionWithDetails(submissionId);
 
   if (!submission) {

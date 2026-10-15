@@ -7,6 +7,7 @@ import { Button, Chip } from '../common/ui';
 import { Mascot } from '../common/Mascot';
 import type { QuizWithDetails, User } from '../../types';
 import { t, uiDir } from '../../i18n';
+import { useEnsureAnswers } from '../common/useEnsureAnswers';
 
 const sel = 'h-9 px-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-sm';
 
@@ -26,6 +27,7 @@ function pickFor(weak: Array<{ outcome: string }>, pools: Map<string, BankItem[]
 /** اختبار علاجي فردي: لكل طالب أسئلة من بنك الأسئلة في المهارات التي ضعف فيها في هذا الاختبار (055) */
 export const IndividualRemedialModal: React.FC<{ quiz: QuizWithDetails; onClose: () => void }> = ({ quiz, onClose }) => {
   const { quizzes, submissions, users, createNewQuiz, currentUser, showToast, setCurrentView, setActiveQuizId } = useApp();
+  useEnsureAnswers('remedial-ind');
   const [bank, setBank] = useState<BankItem[] | null>(null);
   const [per, setPer] = useState(5);
   const [threshold, setThreshold] = useState(70);

@@ -1,4 +1,5 @@
 import React from 'react';
+import './services/usageService';
 import { AppProvider, useApp } from './context/AppContext';
 import { AppShell } from './components/common/AppShell';
 import { Footer } from './components/common/Footer';

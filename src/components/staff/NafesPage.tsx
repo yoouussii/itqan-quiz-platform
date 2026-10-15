@@ -13,6 +13,7 @@ import {
   LEVELS, NAFES_GRADES, NAFES_SUBJECTS, NAFES_NEW_QUIZ_KEY, NafesGrade, NafesMeasure, NafesSkill, NafesStudent, NafesSubject,
   addMeasures, addNafesStudents, avg, deleteMeasure, deleteNafesStudent, deleteSkill, fetchNafes, gradeLabel, levelOf, saveSkill, subjectLabel, updateNafesStudent,
 } from '../../services/nafesService';
+import { useEnsureAnswers } from '../common/useEnsureAnswers';
 
 type Tab = 'students' | 'tests' | 'bank' | 'reports' | 'skills';
 const inp = 'h-10 px-3 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm text-slate-900 dark:text-white';
@@ -58,6 +59,7 @@ const Modal: React.FC<{ title: string; onClose: () => void; children: React.Reac
 
 export const NafesPage: React.FC = () => {
   const { currentUser, users, classes, quizzes, submissions, showToast, setCurrentView, setEditingQuizId } = useApp();
+  useEnsureAnswers('nafes');
   const [tab, setTab] = useState<Tab>('students');
   const [loading, setLoading] = useState(true);
   const [ready, setReady] = useState(true);

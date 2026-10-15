@@ -9,6 +9,7 @@ import { acceptBlank } from '../../services/quizSync';
 import { uiDir, t } from '../../i18n';
 import { hasPerm } from '../../utils/permissions';
 import { MascotHere } from '../common/Mascot';
+import { useEnsureAnswers } from '../common/useEnsureAnswers';
 
 
 /** مراجعة إجابات «أكمل الفراغ» المحسوبة خطأ: كل إجابة متشابهة مرة واحدة مع عدد من كتبها */
@@ -78,6 +79,8 @@ const BlankReview: React.FC<{
  */
 export const GradingPage: React.FC = () => {
   const { currentUser, quizzes, submissions, users, classes, gradeEssay, showToast, refreshData } = useApp();
+  // إجابات التسليمات القديمة تُجلب عند فتح الصفحة (لا تُحمَّل تلقائياً)
+  const answersLoading = useEnsureAnswers('grading');
   const [quizFilter, setQuizFilter] = useState('');
   const [show, setShow] = useState<'pending' | 'graded' | 'blanks'>('pending');
   const [hideNames, setHideNames] = useState(false);
@@ -213,6 +216,7 @@ export const GradingPage: React.FC = () => {
             className={`w-full flex items-center justify-between gap-2 px-3 py-2 rounded-xl text-sm font-semibold text-start ${!quizFilter ? 'bg-indigo-50 dark:bg-indigo-950/50 text-indigo-700 dark:text-indigo-300' : 'text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800'}`}>
             {t('كل الاختبارات')}<span className="text-xs font-bold">{show === 'blanks' ? blankTotal : show === 'pending' ? totalPending : all.length - totalPending}</span>
           </button>
+          {answersLoading && <p className="px-3 py-1 text-[11px] font-bold text-indigo-600 dark:text-indigo-400 animate-pulse">{t('جارٍ تحميل الإجابات القديمة...')}</p>}
           {show === 'blanks' && Array.from(blankQuizzes.entries()).map(([id, n]) => (
             <button key={id} type="button" onClick={() => setQuizFilter(id)}
               className={`w-full flex items-center justify-between gap-2 px-3 py-2 rounded-xl text-sm text-start ${quizFilter === id ? 'bg-indigo-50 dark:bg-indigo-950/50 text-indigo-700 dark:text-indigo-300 font-bold' : 'text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800'}`}>
