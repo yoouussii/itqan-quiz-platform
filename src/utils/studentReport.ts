@@ -63,7 +63,7 @@ export async function exportStudentReport(i: StudentReportInput): Promise<void> 
     .map((b) => `<span style="display:inline-block;margin:2px 4px;padding:3px 10px;border-radius:999px;border:1px solid #cbd5e1;font-size:12px">${b.emoji} ${esc(t(b.name))}</span>`)
     .join('') || `<span style="font-size:12px;opacity:.7">${esc(t('لا توجد أوسمة بعد'))}</span>`;
   // نقاط تحدي اليوم ليست جوائز من المعلم فلا تُسرد هنا
-  const staffAwards = i.awards.filter((a) => a.source !== 'daily_challenge');
+  const staffAwards = i.awards.filter((a) => a.source !== 'daily_challenge' && (Number(a.points) || 0) >= 0);
   const awards = staffAwards.length
     ? `<ul style="margin:6px 0 0;padding-inline-start:18px;font-size:12px">${staffAwards.map((a) => `<li>${esc(a.title)}${a.note ? ` — ${esc(a.note)}` : ''}</li>`).join('')}</ul>`
     : `<span style="font-size:12px;opacity:.7">${esc(t('لا توجد جوائز بعد'))}</span>`;

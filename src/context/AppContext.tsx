@@ -2110,6 +2110,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     });
     const res = await pushAward(a);
     setAwards(loadAwardsCache());
+    if (points < 0) {
+      // خصم نقاط: إشعار هادئ للطالب بالسبب، ويُسجَّل في سجل النشاط
+      void notify({ type: 'award', title: `تعديل في نقاطك: ${title}`, body: `${points} نقطة${note ? ` — ${note}` : ''}`, audience: { user_ids: [student.id] }, ref_type: 'award', ref_id: a.id });
+      log('points_deducted', { type: 'user', id: student.id, name: student.name }, `${title} (${points})`);
+      showToast(res.ok ? t('تم خصم {n} نقطة من {name}', { n: -points, name: student.name }) : `حُفظ الخصم على جهازك وسيُرفع عند توفر الاتصال (${res.error})`, res.ok ? 'success' : 'info');
+      return { ok: true };
+    }
     void notify({ type: 'award', title: `🏆 حصلت على جائزة: ${title}`, body: note || (points ? `+${points} نقطة` : ''), audience: { user_ids: [student.id] }, ref_type: 'award', ref_id: a.id });
     log('award_given', { type: 'user', id: student.id, name: student.name }, `${title} (+${points})`);
     showToast(res.ok ? t('تم منح الجائزة للطالب {name}', { name: student.name }) : `حُفظت الجائزة على جهازك وسترفع عند توفر الاتصال (${res.error})`, res.ok ? 'success' : 'info');

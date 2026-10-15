@@ -52,7 +52,7 @@ export const MyPoints: React.FC = () => {
     }
   };
 
-  const honor = (awards || []).filter((a) => a.source !== 'daily_challenge').slice(0, 8);
+  const honor = (awards || []).filter((a) => a.source !== 'daily_challenge' && (a.points || 0) >= 0).slice(0, 8);
 
   return (
     <div className="max-w-5xl mx-auto py-8 px-4 sm:px-6 lg:px-8 space-y-8" dir={uiDir()}>
@@ -113,11 +113,11 @@ export const MyPoints: React.FC = () => {
         </div>
       </section>
 
-      {data.myAwards.length > 0 && (
+      {data.myAwards.some((a) => (a.points || 0) >= 0) && (
         <section className="space-y-3">
           <h2 className="font-bold text-lg text-slate-900 dark:text-white flex items-center gap-2"><Trophy className="w-5 h-5 text-emerald-500" />{' '}{t('جوائزي')}</h2>
           <ul className="space-y-2">
-            {data.myAwards.map((a) => (
+            {data.myAwards.filter((a) => (a.points || 0) >= 0).map((a) => (
               <li key={a.id} className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800 p-4 text-sm">
                 <b className="text-slate-900 dark:text-white">🏆 {a.title}</b>
                 {a.points > 0 && <span className="text-emerald-600 font-bold"> {t('+{n} نقطة', { n: a.points })}</span>}

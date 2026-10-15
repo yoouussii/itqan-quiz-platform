@@ -65,7 +65,7 @@ export function computePointEvents(subs: SubLike[], quizzes: QuizLike[], awards:
     events.push({
       id: `aw-${a.id}`,
       date: a.created_at,
-      label: a.source === 'daily_challenge' ? (a.note ? t('تحدي اليوم ({score})', { score: a.note }) : t('تحدي اليوم')) : t('جائزة: {title}', { title: a.title }),
+      label: a.source === 'daily_challenge' ? (a.note ? t('تحدي اليوم ({score})', { score: a.note }) : t('تحدي اليوم')) : (Number(a.points) || 0) < 0 ? t('خصم: {title}', { title: a.title }) : t('جائزة: {title}', { title: a.title }),
       points: Number(a.points) || 0,
       kind: 'award',
     })

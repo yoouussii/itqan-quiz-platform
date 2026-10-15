@@ -30,6 +30,7 @@ export const ACTION_LABELS: Record<string, string> = {
   password_reset: 'إعادة تعيين كلمة مرور',
   password_changed: 'تغيير كلمة المرور (ذاتياً)',
   award_given: 'منح جائزة',
+  points_deducted: 'خصم نقاط',
   announcement_sent: 'إرسال إعلان',
   retake_granted: 'منح إعادة محاولة',
   settings_changed: 'تغيير إعدادات النظام',
@@ -54,4 +55,20 @@ export async function fetchActivity(limit = 500): Promise<{ ok: boolean; rows: A
   );
   if (res.ok && Array.isArray(res.data)) return { ok: true, rows: res.data };
   return { ok: false, rows: readJson<ActivityEntry[]>(LKEY, []), error: res.error };
+}
+
+export interface QuizActivityRow {
+  student_id: string;
+  quiz_id: string;
+  started_at: string;
+  completed_at?: string | null;
+  time_spent?: number | null;
+  percentage?: number | null;
+}
+
+/** وقت دخول الطلاب للاختبارات ووقت تسليمها (071) */
+export async function fetchQuizActivity(days: number): Promise<{ ok: boolean; rows: QuizActivityRow[]; missing?: boolean }> {
+  const { data, error } = await supabase.rpc('itqan_quiz_activity', { p_days: days || 0 });
+  if (error) return { ok: false, rows: [], missing: /itqan_quiz_activity|PGRST202|42883/.test(`${error.code} ${error.message}`) };
+  return { ok: true, rows: Array.isArray(data) ? data : [] };
 }
