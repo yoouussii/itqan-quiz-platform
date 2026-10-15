@@ -3687,4 +3687,7 @@ export const EN: Record<string, string> = {
   'اختر «سماح» عندما يسألك الجوال': 'Choose “Allow” when your phone asks',
   'إن ضغطت «رفض» بالخطأ: فعّلها من إعدادات الجوال ← الإشعارات ← المنصة.': 'If you tapped “Don’t allow” by mistake, turn it on from your phone’s Settings → Notifications → the platform.',
   'الذهاب لتسجيل الدخول': 'Go to sign in',
+  'تظهر نتيجتك النهائية بعد أن يصحح المعلم {n} من الأسئلة المقالية، وسيصلك إشعار عندها.': 'Your final result will appear once the teacher grades {n} written answer(s); you will be notified.',
+  'الدرجة المبدئية حتى الآن: {a} من {m}': 'Provisional score so far: {a} of {m}',
+  'تعذر الحفظ على الخادم: {e}': 'Could not save on the server: {e}',
 };
