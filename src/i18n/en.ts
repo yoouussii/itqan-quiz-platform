@@ -3537,4 +3537,10 @@ export const EN: Record<string, string> = {
   'خصم نقاط': 'Points deduction',
   'مخالفة سلوكية': 'Behavior violation',
   'تصحيح خطأ في النقاط': 'Points correction',
+  'لا يوجد دخول مسجّل': 'No recorded sign-in',
+  'آخر تسجيل دخول: {d}': 'Last sign-in: {d}',
+  'آخر ظهور: {d}': 'Last seen: {d}',
+  'مرات تسجيل الدخول: {n}': 'Sign-ins: {n}',
+  'متصل الآن': 'Online now',
+  'آخر ظهور {ago}': 'Last seen {ago}',
 };

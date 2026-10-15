@@ -71,6 +71,7 @@ import {
   QuizAttempt,
   deleteSubmissionsRemote,
 } from '../services/quizSync';
+import { touchPresence } from '../services/presenceService';
 
 // ---------------------------------------------------------------------
 // إعدادات الجلسة
@@ -764,6 +765,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const slow = !opts?.periodic || Date.now() - lastSlowSyncRef.current >= SLOW_SYNC_MS;
     if (slow) lastSlowSyncRef.current = Date.now();
     try {
+      // آخر ظهور (072): طلب خفيف لا يتكرر أكثر من مرة كل 15 دقيقة
+      if (currentUserRef.current) void touchPresence(currentUserRef.current.id);
       if (isSupabaseConfigured() && currentUserRef.current) {
         // التحقق من الجلسة على الخادم: انتهت أو أُلغيت (تغيير كلمة المرور / حذف الحساب)
         // أو جلسة قديمة من قبل تفعيل الحماية ← إعادة تسجيل الدخول

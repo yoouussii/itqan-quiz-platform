@@ -18,6 +18,7 @@ import { formatFullArabicDate } from '../../utils/dateUtils';
 import { uiDir, t } from '../../i18n';
 import { User } from '../../types';
 import { STUDENT_EVENT, openStudentProfile } from './studentProfileEvents';
+import { LastSeen, usePresence } from './LastSeen';
 
 export { STUDENT_EVENT, openStudentProfile };
 
@@ -28,6 +29,8 @@ type Tab = 'overview' | 'results' | 'attendance' | 'homework' | 'plans';
 const Body: React.FC<{ student: User; onClose: () => void }> = ({ student, onClose }) => {
   const { users, classes, subjects, quizzes, submissions, awards, currentUser } = useApp();
   const [tab, setTab] = useState<Tab>('overview');
+  const presence = usePresence();
+  const isStaff = !!currentUser && currentUser.role !== 'student' && currentUser.role !== 'parent';
   const cls = classes.find((c) => c.id === student.class_id);
   const parent = (users as User[]).find((u) => u.role === 'parent' && (u.child_ids || []).includes(student.id));
   const phone = guardianPhone(student, users as User[]);
@@ -65,6 +68,7 @@ const Body: React.FC<{ student: User; onClose: () => void }> = ({ student, onClo
         <div className="flex-1 min-w-[12rem]">
           <h2 className="text-lg font-black text-slate-900 dark:text-white" data-testid="sp-name">{student.name}</h2>
           <p className="text-sm text-slate-500 dark:text-slate-400">{[cls?.name, parent ? t('ولي الأمر: {n}', { n: parent.name }) : '', student.national_id].filter(Boolean).join(' · ')}</p>
+          {isStaff && <LastSeen p={presence[student.id]} className="mt-0.5" />}
         </div>
         <div className="flex items-center gap-2">
           {phone && (

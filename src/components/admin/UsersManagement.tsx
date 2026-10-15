@@ -1,4 +1,5 @@
 import { StudentLink } from '../common/StudentLink';
+import { LastSeen, usePresence } from '../common/LastSeen';
 import React, { useState, useRef } from 'react';
 import { normalizePhone } from '../../utils/whatsapp';
 import {
@@ -53,6 +54,7 @@ export const UsersManagement: React.FC = () => {
   const isAdminUser = currentUser?.role === 'admin';
   const branchName = (id?: string | null) => branches.find((b) => b.id === id)?.name;
   const [moveBranchId, setMoveBranchId] = useState('');
+  const presence = usePresence();
   const [branchFilter, setBranchFilter] = useState('all'); // all | none | معرّف فرع
   const [genderFilter, setGenderFilter] = useState('all');
   // حقول إضافية في نموذج المستخدم
@@ -844,6 +846,7 @@ export const UsersManagement: React.FC = () => {
                     : <p className="font-bold text-slate-900 dark:text-white">{u.name}</p>}
                   <p className="text-[13px] text-slate-500 dark:text-slate-400"><span className="font-semibold text-slate-700 dark:text-slate-300">{roleLabel}</span> · <span className="font-mono">{u.national_id}</span>{branchName(u.branch_id) ? ` · ${branchName(u.branch_id)}` : ''}</p>
                   {detail && <p className="text-[13px] text-slate-500 dark:text-slate-400 mt-0.5">{detail}</p>}
+                  <LastSeen p={presence[u.id]} className="mt-0.5" />
                 </div>
               </div>
               <div className="flex items-center justify-end gap-1 mt-2 pt-2 border-t border-slate-100 dark:border-slate-800">
@@ -926,8 +929,9 @@ export const UsersManagement: React.FC = () => {
                       </div>
                     </td>
 
-                    <td className="py-3.5 px-4 font-mono font-bold text-indigo-600 dark:text-indigo-400">
-                      {u.national_id}
+                    <td className="py-3.5 px-4">
+                      <span className="block font-mono font-bold text-indigo-600 dark:text-indigo-400">{u.national_id}</span>
+                      <LastSeen p={presence[u.id]} />
                     </td>
 
                     <td className="py-3.5 px-4">
