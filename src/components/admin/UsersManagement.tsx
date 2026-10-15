@@ -17,6 +17,8 @@ import {
   Upload,
   Download,
   FileSpreadsheet,
+  ChevronLeft,
+  ChevronRight,
 } from 'lucide-react';
 import { UserCog } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
@@ -70,6 +72,16 @@ export const UsersManagement: React.FC = () => {
     } catch { return undefined; }
   }, []);
   const [page, setPage] = useState(0);
+  // عدد المستخدمين في الصفحة (يُحفظ على الجهاز)
+  const PAGE_SIZES = [5, 10, 20, 50];
+  const [pageSize, setPageSize] = useState(() => {
+    try { const n = Number(localStorage.getItem('itqan_users_page_size')); return PAGE_SIZES.includes(n) ? n : 20; } catch { return 20; }
+  });
+  const changePageSize = (n: number) => {
+    setPageSize(n);
+    setPage(0);
+    try { localStorage.setItem('itqan_users_page_size', String(n)); } catch { /* ignore */ }
+  };
   const [moveBranchId, setMoveBranchId] = useState('');
   const presence = usePresence();
   const [branchFilter, setBranchFilter] = useState('all'); // all | none | معرّف فرع
@@ -186,7 +198,7 @@ export const UsersManagement: React.FC = () => {
   }, [users, isTeacher, currentUser?.id, searchTerm, roleFilter, classFilter, branchFilter, genderFilter]);
 
   // تقسيم القائمة إلى صفحات حتى لا تُرسم مئات الصفوف دفعة واحدة
-  const PAGE_SIZE = 50;
+  const PAGE_SIZE = pageSize;
   const pageCount = Math.max(1, Math.ceil(filteredUsers.length / PAGE_SIZE));
   const safePage = Math.min(page, pageCount - 1);
   const pageUsers = filteredUsers.slice(safePage * PAGE_SIZE, (safePage + 1) * PAGE_SIZE);
@@ -1139,22 +1151,26 @@ export const UsersManagement: React.FC = () => {
         <p className="text-center text-[15px] text-slate-500 dark:text-slate-400 py-8">{t('لا يوجد مستخدمون مطابقون')}</p>
       )}
 
-      {pageCount > 1 && (
-        <nav className="flex flex-wrap items-center justify-between gap-3" aria-label={t('صفحات المستخدمين')}>
-          <span className="text-[14px] text-slate-500 dark:text-slate-400 tabular-nums">
-            {t('عرض {from}–{to} من {total}', { from: safePage * PAGE_SIZE + 1, to: Math.min((safePage + 1) * PAGE_SIZE, filteredUsers.length), total: filteredUsers.length })}
+      {filteredUsers.length > 0 && (
+        <nav className="flex flex-wrap items-center justify-end gap-x-6 gap-y-2 px-2 text-[14px] text-slate-500 dark:text-slate-400" aria-label={t('صفحات المستخدمين')}>
+          <label className="inline-flex items-center gap-2">
+            <span>{t('عدد العناصر في الصفحة:')}</span>
+            <select value={pageSize} onChange={(e) => changePageSize(Number(e.target.value))}
+              className="h-9 ps-2 pe-7 bg-transparent border-0 border-b border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white font-semibold tabular-nums focus:outline-none focus:border-indigo-500">
+              {PAGE_SIZES.map((n) => <option key={n} value={n}>{n}</option>)}
+            </select>
+          </label>
+          <span className="tabular-nums" aria-live="polite">
+            {t('{from} – {to} من {total}', { from: safePage * PAGE_SIZE + 1, to: Math.min((safePage + 1) * PAGE_SIZE, filteredUsers.length), total: filteredUsers.length })}
           </span>
-          <div className="flex items-center gap-2">
-            <button type="button" disabled={safePage === 0} onClick={() => setPage(safePage - 1)}
-              className="h-10 px-4 rounded-xl text-sm font-semibold border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-100 hover:bg-slate-50 dark:hover:bg-slate-800 disabled:opacity-40">
-              {t('السابق')}
+          <div className="flex items-center gap-1">
+            <button type="button" aria-label={t('الصفحة السابقة')} disabled={safePage === 0} onClick={() => setPage(safePage - 1)}
+              className="w-10 h-10 rounded-full flex items-center justify-center text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 disabled:opacity-30 disabled:hover:bg-transparent">
+              <ChevronRight className="w-5 h-5 dir-icon" />
             </button>
-            <span className="text-sm font-semibold text-slate-700 dark:text-slate-300 tabular-nums">
-              {t('صفحة {n} من {total}', { n: safePage + 1, total: pageCount })}
-            </span>
-            <button type="button" disabled={safePage >= pageCount - 1} onClick={() => setPage(safePage + 1)}
-              className="h-10 px-4 rounded-xl text-sm font-semibold border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-100 hover:bg-slate-50 dark:hover:bg-slate-800 disabled:opacity-40">
-              {t('التالي')}
+            <button type="button" aria-label={t('الصفحة التالية')} disabled={safePage >= pageCount - 1} onClick={() => setPage(safePage + 1)}
+              className="w-10 h-10 rounded-full flex items-center justify-center text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 disabled:opacity-30 disabled:hover:bg-transparent">
+              <ChevronLeft className="w-5 h-5 dir-icon" />
             </button>
           </div>
         </nav>
