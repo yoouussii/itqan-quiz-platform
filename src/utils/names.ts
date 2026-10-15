@@ -1,5 +1,7 @@
 // الأسماء المركبة: «عبد الرحمن»، «أبو بكر»، «آل مانع»، «بن سعيد» تُعامل ككلمة واحدة
 const JOIN_NEXT = new Set(['عبد', 'ابو', 'أبو', 'ال', 'آل', 'بن', 'ابن', 'بنت', 'أم', 'ام']);
+// وكلمات تُضم لما قبلها: «نور الدين»، «عطا الله»
+const JOIN_PREV = new Set(['الدين', 'الله']);
 
 /** يقسم الاسم إلى أجزاء مع ضم البادئات المركبة لما بعدها */
 export function nameParts(full: string): string[] {
@@ -9,9 +11,16 @@ export function nameParts(full: string): string[] {
     if (JOIN_NEXT.has(words[i]) && i + 1 < words.length) {
       parts.push(`${words[i]} ${words[i + 1]}`);
       i++;
+    } else if (JOIN_PREV.has(words[i]) && parts.length) {
+      parts[parts.length - 1] += ` ${words[i]}`;
     } else parts.push(words[i]);
   }
   return parts;
+}
+
+/** الاسم الأول (مع الأسماء المركبة): «عبد الله محمد…» ← «عبد الله»، ويتجاهل اللقب «أ.» و«د.» */
+export function firstName(full: string): string {
+  return nameParts((full || '').replace(/^(د\.|أ\.|م\.)\s*/, ''))[0] || '';
 }
 
 /** الاسم الأول واسم العائلة: «احمد عبد الرحمن احمد … القحطاني» ← «احمد القحطاني» */

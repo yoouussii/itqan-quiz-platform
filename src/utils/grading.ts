@@ -1,5 +1,6 @@
 import { Question, Submission } from '../types';
 import { StorageService } from '../services/storage';
+import { getOldUngraded } from '../services/ungradedOld';
 
 /** فتح جدول النتائج على فلتر معيّن (مثل «يحتاج تصحيح») عند الانتقال من الرئيسية */
 export const SUBMISSIONS_FILTER_KEY = 'itqan_submissions_filter';
@@ -8,6 +9,8 @@ const hasText = (v?: string) => !!v && v.replace(/<[^>]*>/g, '').trim().length >
 
 /** عدد الإجابات المقالية في التسليم التي كتب فيها الطالب ولم يصححها المعلم بعد */
 export const ungradedEssayCount = (sub: Submission, questions?: Question[]): number => {
+  // تسليم قديم لم تُحمَّل إجاباته: العدد من الخادم (081)
+  if (sub.answers_pending) return getOldUngraded(sub.id);
   const qs = questions || StorageService.getQuestionsByQuizId(sub.quiz_id);
   let n = 0;
   for (const q of qs) {

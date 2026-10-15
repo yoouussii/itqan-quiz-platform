@@ -11,6 +11,7 @@ import { AnswerExtras, answerStatus, STATUS_LABEL } from '../common/AnswerExtras
 import { NewAnswerReview, isNewType } from '../common/QuestionTypes';
 import { uiDir, t, optionLetters, isEn } from '../../i18n';
 import { useEnsureAnswers } from '../common/useEnsureAnswers';
+import { firstName as getFirstName } from '../../utils/names';
 
 interface QuizReviewProps {
   submissionId: string;
@@ -68,7 +69,7 @@ export const QuizReview: React.FC<QuizReviewProps> = ({ submissionId, onBack }) 
   const wrongCount = statuses.filter((x) => x === 'wrong').length;
   const pendingCount = statuses.filter((x) => x === 'pending').length;
   const earned = pointsForResult(pct, pass).total;
-  const firstName = (currentUser?.role === 'student' ? currentUser.name : submission.student?.name || '').split(' ')[0];
+  const firstName = getFirstName(currentUser?.role === 'student' ? currentUser.name : submission.student?.name || '');
   const ringColor = isPassed ? '#0f8a63' : pct >= pass * 0.8 ? '#d97706' : '#dc2626';
   const female = (currentUser?.role === 'student' ? currentUser.gender : submission.student?.gender) === 'female';
   const headline = pendingCount > 0

@@ -1,6 +1,6 @@
 import { TimeField } from '../common/DateTimeField';
 import React, { useEffect, useState } from 'react';
-import { Sunrise, UserX, Clock, ClipboardCheck, BookOpen, ShieldAlert, FolderSync, Repeat, Bell, BellOff, ChevronDown } from 'lucide-react';
+import { Sunrise, UserX, Clock, ClipboardCheck, BookOpen, ShieldAlert, FolderSync, Repeat, Bell, BellOff, ChevronDown, BarChart3 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 import { supabase } from '../../services/supabase';
 import { safe } from '../../services/remote';
@@ -14,6 +14,14 @@ interface Summary {
   homework_due_today: number; homework_ungraded: number; behavior_negative: number; records_stale: number;
 }
 
+interface WeekReport {
+  from: string; to: string; students: number; quizzes_new: number; submissions: number; participants: number;
+  avg: number | null; prev_avg: number | null; excellent: number; absences: number;
+  top_classes: Array<{ id: string; name: string; avg: number; n: number }>;
+  weak_outcomes: Array<{ outcome: string; subject?: string; pct: number; n: number }>;
+  active_teachers: Array<{ id: string; name: string; quizzes: number; subs: number }>;
+}
+
 const WEEKDAYS = ['الأحد', 'الاثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة', 'السبت'];
 const tm = 'h-8 px-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-sm tabular-nums disabled:opacity-50';
 const dayName = (iso: string) => new Date(`${iso}T12:00:00`).toLocaleDateString(dateLocale(), { weekday: 'long', day: 'numeric', month: 'long' });
@@ -23,6 +31,12 @@ export const MorningSummaryCard: React.FC = () => {
   const { setCurrentView, settings, updateSettings, currentUser } = useApp();
   const [s, setS] = useState<Summary | null | undefined>(undefined);
   const [open, setOpen] = useState(false);
+  const [week, setWeek] = useState<WeekReport | null | undefined>(undefined);
+  const [weekOpen, setWeekOpen] = useState(false);
+  const toggleWeek = () => {
+    setWeekOpen(!weekOpen);
+    if (week === undefined) void safe<WeekReport>(() => supabase.rpc('itqan_weekly_admin_report') as any).then((r) => setWeek(r.ok ? r.data : null));
+  };
   useEffect(() => { void safe<Summary>(() => supabase.rpc('itqan_morning_summary') as any).then((r) => setS(r.ok ? r.data : null)); }, []);
   if (!s) return null; // قبل تشغيل 050 أو لغير المدير/المشرف لا يظهر شيء
   const cfg = settings.morning_summary || {};
@@ -34,6 +48,9 @@ export const MorningSummaryCard: React.FC = () => {
   const wr = settings.weekly_report || {};
   const wrOn = wr.enabled !== false, wrDay = wr.day ?? 4, wrTime = wr.time || '14:40';
   const saveWr = (patch: { enabled?: boolean; day?: number; time?: string }) => void updateSettings({ weekly_report: { enabled: wrOn, day: wrDay, time: wrTime, ...patch } });
+  const wa = settings.weekly_admin || {};
+  const waOn = wa.enabled !== false, waDay = wa.day ?? 4, waTime = wa.time || '13:30';
+  const saveWa = (patch: { enabled?: boolean; day?: number; time?: string }) => void updateSettings({ weekly_admin: { enabled: waOn, day: waDay, time: waTime, roles: wa.roles, ...patch } });
 
   // «مهام اليوم»: البنود التي عليها عمل فقط، مرتبة بالأهم، ولكل بند زر ينقل لمكانه
   type Task = { icon: React.ElementType; n: number; text: string; sub?: string; tone: 'bad' | 'warn' | 'info'; go: string; action: string };
@@ -76,7 +93,54 @@ export const MorningSummaryCard: React.FC = () => {
             <span>{t('الساعة')}</span>
             <TimeField value={wrTime} disabled={!wrOn} onChange={(v) => v && saveWr({ time: v })} label={t('موعد التقرير الأسبوعي')} />
           </div>
+          <div className="flex flex-wrap items-center gap-x-2 gap-y-2">
+            <label className="inline-flex items-center gap-2"><input type="checkbox" checked={waOn} onChange={(e) => saveWa({ enabled: e.target.checked })} className="w-4 h-4 accent-indigo-600" />{t('إرسال التقرير الأسبوعي للإدارة كل')}</label>
+            <select value={waDay} disabled={!waOn} onChange={(e) => saveWa({ day: Number(e.target.value) })} aria-label={t('يوم تقرير الإدارة')} className={tm}>
+              {[0, 1, 2, 3, 4, 5, 6].map((d) => <option key={d} value={d}>{t(WEEKDAYS[d])}</option>)}
+            </select>
+            <span>{t('الساعة')}</span>
+            <TimeField value={waTime} disabled={!waOn} onChange={(v) => v && saveWa({ time: v })} label={t('موعد تقرير الإدارة')} />
+          </div>
           <p className="text-[11px] text-slate-500">{t('بتوقيت السعودية. يصل الإشعار خلال 5 دقائق من الموعد.')}</p>
+        </div>
+      )}
+      <button type="button" onClick={toggleWeek} aria-expanded={weekOpen} data-testid="weekly-admin-toggle"
+        className="w-full flex items-center gap-2 rounded-xl bg-indigo-50/70 dark:bg-indigo-950/40 px-3 py-2 text-sm font-bold text-indigo-800 dark:text-indigo-200 hover:bg-indigo-100 dark:hover:bg-indigo-950/70">
+        <BarChart3 className="w-4 h-4" />{t('ملخص هذا الأسبوع')}<ChevronDown className={`ms-auto w-4 h-4 transition ${weekOpen ? 'rotate-180' : ''}`} />
+      </button>
+      {weekOpen && (
+        <div className="rounded-xl border border-slate-200 dark:border-slate-800 p-3 text-sm space-y-2" data-testid="weekly-admin">
+          {week === undefined ? <p className="text-slate-500">{t('جارٍ التحميل…')}</p> : week === null ? (
+            <p className="text-slate-500">{t('غير متاح (شغّل تحديث قاعدة البيانات 081)')}</p>
+          ) : (
+            <>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                {[
+                  [t('مشاركة'), week.submissions],
+                  [t('طالب شارك'), `${week.participants}${week.students ? ` (${Math.round((week.participants / week.students) * 100)}%)` : ''}`],
+                  [t('متوسط النتائج'), week.avg == null ? '—' : `${week.avg}%`],
+                  [t('حصلوا على «ممتاز»'), week.excellent],
+                ].map(([l, v]) => (
+                  <div key={String(l)} className="rounded-lg bg-slate-50 dark:bg-slate-800/60 p-2">
+                    <div className="text-lg font-extrabold tabular-nums text-slate-900 dark:text-white">{v}</div>
+                    <div className="text-[11px] text-slate-500">{l}</div>
+                  </div>
+                ))}
+              </div>
+              {week.avg != null && week.prev_avg != null && week.avg !== week.prev_avg && (
+                <p className={week.avg > week.prev_avg ? 'text-emerald-700 dark:text-emerald-400' : 'text-rose-700 dark:text-rose-400'}>
+                  {week.avg > week.prev_avg ? '↑' : '↓'} {t('المتوسط الأسبوع الماضي كان {p}%', { p: week.prev_avg })}
+                </p>
+              )}
+              {week.top_classes.length > 0 && <p><b>{t('أفضل الفصول:')}</b> {week.top_classes.map((c) => `${c.name} ${c.avg}%`).join('، ')}</p>}
+              {week.weak_outcomes.length > 0 && (
+                <p><b>{t('نواتج تحتاج علاجاً:')}</b> {week.weak_outcomes.map((o) => `${o.outcome} (${o.pct}%)`).join('، ')}{' '}
+                  <button type="button" onClick={() => setCurrentView('outcomes')} className="text-indigo-600 dark:text-indigo-400 font-bold underline">{t('اعرض')}</button></p>
+              )}
+              {week.active_teachers.length > 0 && <p><b>{t('أنشط المعلمين:')}</b> {week.active_teachers.map((x) => x.name).join('، ')}</p>}
+              <p className="text-xs text-slate-500">{t('من {f} إلى {t2}', { f: dayName(week.from), t2: dayName(week.to) })}{week.absences ? ` · ${t('حالات الغياب: {n}', { n: week.absences })}` : ''}</p>
+            </>
+          )}
         </div>
       )}
       {tasks.length ? (

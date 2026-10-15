@@ -17,6 +17,7 @@ import { MorningSummaryCard } from './MorningSummaryCard';
 import { LiveNowCard } from '../common/LiveNowCard';
 import { UsageCard } from './UsageCard';
 import { EmptyMascot } from '../common/Mascot';
+import { firstName as getFirstName } from '../../utils/names';
 
 const avgOf = (vals: number[]) => (vals.length ? Math.round(vals.reduce((a, b) => a + b, 0) / vals.length) : 0);
 
@@ -75,7 +76,7 @@ export const AdminDashboard: React.FC = () => {
 
   const totalStudents = kpis?.totalStudents ?? students.length;
   const activeStudents = kpis?.activeStudents ?? 0;
-  const firstName = (currentUser?.name || '').replace(/^(د\.|أ\.|م\.)\s*/, '').split(' ')[0];
+  const firstName = getFirstName(currentUser?.name || '');
 
   const attention: Array<{ key: string; icon: React.ElementType; tone: string; title: string; desc: string; action: string; go: () => void }> = [];
   if (pendingApprovalsCount > 0) {

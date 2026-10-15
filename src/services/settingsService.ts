@@ -29,6 +29,8 @@ export interface AppSettings {
   morning_summary: { enabled?: boolean; roles?: string[]; time?: string } | null;
   /** التقرير الأسبوعي لأولياء الأمور كل خميس (051) */
   weekly_report: { enabled?: boolean; day?: number; time?: string } | null;
+  /** التقرير الأسبوعي للإدارة (081) */
+  weekly_admin: { enabled?: boolean; day?: number; time?: string; roles?: string[] } | null;
   cert_style: { template?: string; primary?: string; accent?: string; qr?: boolean; stampPos?: string; stampSize?: number; sigSize?: number } | null;
   /** وضع الصيانة (019): لا يدخل إلا المدير */
   maintenance: { on?: boolean; message?: string; until?: string } | null;
@@ -64,6 +66,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   auto_backup: null,
   morning_summary: null,
   weekly_report: null,
+  weekly_admin: null,
   cert_style: null,
   maintenance: null,
   login_style: 'classic',

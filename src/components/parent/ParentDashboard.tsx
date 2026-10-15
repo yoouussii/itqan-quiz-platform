@@ -26,6 +26,7 @@ import { DevicePushCard } from '../common/DevicePushCard';
 import { WeeklyReportCard } from '../common/WeeklyReportCard';
 import { GoalsCard } from '../common/Goals';
 import { MascotHere } from '../common/Mascot';
+import { firstName } from '../../utils/names';
 
 /** موعد الانتهاء مختصراً: «ينتهي اليوم» أو «ينتهي 4 أكتوبر» */
 const shortEnd = (end?: string) => {
@@ -117,7 +118,7 @@ export const ParentDashboard: React.FC<{ onViewReview: (submissionId: string) =>
             <button key={c.id} type="button" role="tab" aria-selected={c.id === child.id} onClick={() => setPicked(c.id)}
               className={`flex items-center gap-2 h-12 pe-4 ps-2 rounded-2xl border whitespace-nowrap ${c.id === child.id ? 'border-indigo-600 bg-indigo-50 dark:bg-indigo-950/50 text-indigo-800 dark:text-indigo-200' : 'border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-200'}`}>
               <Avatar name={c.name} role="student" userId={c.id} size="sm" />
-              <span className="font-semibold text-[15px]">{c.name.split(' ')[0]}</span>
+              <span className="font-semibold text-[15px]">{firstName(c.name)}</span>
             </button>
           ))}
         </div>
