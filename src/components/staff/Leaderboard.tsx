@@ -20,18 +20,28 @@ const PERIODS: Array<{ id: Period; label: string }> = [
   { id: 'all', label: 'كل الوقت' },
 ];
 const PRESET_TITLES = ['طالب الأسبوع', 'طالب الشهر', 'المتفوق', 'الأكثر تطوراً', 'الأكثر التزاماً', 'المشاركة المميزة'];
+const DEDUCT_TITLES = ['خصم نقاط', 'مخالفة سلوكية', 'تصحيح خطأ في النقاط'];
 const MEDALS = ['🥇', '🥈', '🥉'];
 
 const AwardModal: React.FC<{ student: User; onClose: () => void }> = ({ student, onClose }) => {
   const { giveAward } = useApp();
+  const [mode, setMode] = useState<'add' | 'deduct'>('add');
   const [title, setTitle] = useState(t(PRESET_TITLES[0]));
   const [points, setPoints] = useState(20);
   const [note, setNote] = useState('');
   const [busy, setBusy] = useState(false);
+  const deduct = mode === 'deduct';
+  const switchMode = (m: 'add' | 'deduct') => {
+    setMode(m);
+    setTitle(t(m === 'deduct' ? DEDUCT_TITLES[0] : PRESET_TITLES[0]));
+    setPoints(m === 'deduct' ? 10 : 20);
+  };
   const save = async () => {
     if (!title.trim()) return alert(t('اكتب عنوان الجائزة'));
+    const n = Math.max(0, Math.min(500, Math.round(Number(points) || 0)));
+    if (deduct && n <= 0) return alert(t('اكتب عدد النقاط المراد خصمها'));
     setBusy(true);
-    const res = await giveAward({ student, title: title.trim(), note: note.trim(), points: Math.max(0, Math.min(500, Number(points) || 0)) });
+    const res = await giveAward({ student, title: title.trim(), note: note.trim(), points: deduct ? -n : n });
     setBusy(false);
     if (res.ok) onClose();
   };
@@ -40,18 +50,27 @@ const AwardModal: React.FC<{ student: User; onClose: () => void }> = ({ student,
       <div role="dialog" aria-label={t('منح جائزة')} onClick={(e) => e.stopPropagation()}
         className="bg-white dark:bg-slate-900 rounded-3xl w-full max-w-md p-6 shadow-2xl border border-slate-100 dark:border-slate-800 space-y-4">
         <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800">
-          <h3 className="font-black text-base text-slate-900 dark:text-white">{t('🏆 منح جائزة:')}{' '}{student.name}</h3>
+          <h3 className="font-black text-base text-slate-900 dark:text-white">{deduct ? t('➖ خصم نقاط:') : t('🏆 منح جائزة:')}{' '}{student.name}</h3>
           <button onClick={onClose} aria-label={t('إغلاق')} className="p-1 text-slate-400"><X className="w-5 h-5" /></button>
         </div>
-        <div>
-          <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">{t('عنوان الجائزة')}</label>
-          <input aria-label={t('عنوان الجائزة')} list="award-titles" value={title} onChange={(e) => setTitle(e.target.value)}
-            className="w-full px-3 py-2 text-xs rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white" />
-          <datalist id="award-titles">{PRESET_TITLES.map((pt) => <option key={pt} value={t(pt)} />)}</datalist>
+        <div className="grid grid-cols-2 gap-1 p-1 rounded-xl bg-slate-100 dark:bg-slate-800" role="radiogroup" aria-label={t('نوع التعديل')}>
+          {(['add', 'deduct'] as const).map((m) => (
+            <button key={m} type="button" role="radio" aria-checked={mode === m} onClick={() => switchMode(m)}
+              className={`py-1.5 rounded-lg text-xs font-bold ${mode === m ? (m === 'add' ? 'bg-white dark:bg-slate-900 text-emerald-700 dark:text-emerald-300 shadow-sm' : 'bg-white dark:bg-slate-900 text-rose-700 dark:text-rose-300 shadow-sm') : 'text-slate-600 dark:text-slate-300'}`}>
+              {m === 'add' ? t('➕ إضافة نقاط') : t('➖ خصم نقاط')}
+            </button>
+          ))}
         </div>
         <div>
-          <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">{t('نقاط إضافية (0 – 500)')}</label>
-          <input aria-label={t('نقاط الجائزة')} type="number" min={0} max={500} value={points} onChange={(e) => setPoints(Number(e.target.value))}
+          <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">{deduct ? t('سبب الخصم') : t('عنوان الجائزة')}</label>
+          <input aria-label={deduct ? t('سبب الخصم') : t('عنوان الجائزة')} list={deduct ? 'deduct-titles' : 'award-titles'} value={title} onChange={(e) => setTitle(e.target.value)}
+            className="w-full px-3 py-2 text-xs rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white" />
+          <datalist id="award-titles">{PRESET_TITLES.map((pt) => <option key={pt} value={t(pt)} />)}</datalist>
+          <datalist id="deduct-titles">{DEDUCT_TITLES.map((pt) => <option key={pt} value={t(pt)} />)}</datalist>
+        </div>
+        <div>
+          <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">{deduct ? t('عدد النقاط المخصومة (1 – 500)') : t('نقاط إضافية (0 – 500)')}</label>
+          <input aria-label={deduct ? t('عدد النقاط المخصومة') : t('نقاط الجائزة')} type="number" min={0} max={500} value={points} onChange={(e) => setPoints(Number(e.target.value))}
             className="w-full px-3 py-2 text-xs rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white" />
         </div>
         <div>
@@ -61,7 +80,7 @@ const AwardModal: React.FC<{ student: User; onClose: () => void }> = ({ student,
         </div>
         <div className="flex justify-end gap-2">
           <button onClick={onClose} className="px-4 py-2 text-xs font-bold text-slate-600 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800">{t('إلغاء')}</button>
-          <button onClick={save} disabled={busy} className="px-5 py-2 text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-700 rounded-xl shadow-md disabled:opacity-60">{t('منح الجائزة')}</button>
+          <button onClick={save} disabled={busy} className={`px-5 py-2 text-xs font-bold text-white rounded-xl shadow-md disabled:opacity-60 ${deduct ? 'bg-rose-600 hover:bg-rose-700' : 'bg-emerald-600 hover:bg-emerald-700'}`}>{deduct ? t('خصم النقاط') : t('منح الجائزة')}</button>
         </div>
       </div>
     </div>
@@ -198,7 +217,7 @@ export const Leaderboard: React.FC = () => {
                     <div className="flex items-center justify-center gap-1.5">
                       {canAward && (
                         <button onClick={() => setAwardFor(r.s)} className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-[11px] font-bold bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-100">
-                          <Award className="w-3.5 h-3.5" />{' '}{t('منح جائزة')}
+                          <Award className="w-3.5 h-3.5" />{' '}{t('النقاط ±')}
                         </button>
                       )}
                       {canExport && (
