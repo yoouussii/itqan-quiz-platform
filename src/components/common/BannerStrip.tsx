@@ -25,26 +25,100 @@ export function useHonorRoll(b: Banner | null | undefined): HonorEntry[] | null 
   return list;
 }
 
+/** غصن غار للزينة (لوحة الشرف) */
+const Laurel: React.FC<{ color: string; flip?: boolean; className?: string }> = ({ color, flip, className }) => (
+  <svg viewBox="0 0 40 80" className={className} aria-hidden style={flip ? { transform: 'scaleX(-1)' } : undefined}>
+    <path d="M30 78 C 12 62, 8 32, 22 4" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" />
+    {[[24, 68, -40], [17, 57, -55], [13, 45, -70], [12, 33, -85], [14, 21, -100], [19, 10, -115], [31, 61, 30], [24, 49, 15], [20, 37, 0], [19, 25, -15], [22, 14, -30]].map(([x, y, r], i) => (
+      <ellipse key={i} cx={x} cy={y} rx="6.5" ry="2.8" fill={color} transform={`rotate(${r} ${x} ${y})`} />
+    ))}
+  </svg>
+);
+
+export type HonorDesign = 'gold' | 'stars' | 'paper' | 'theme' | 'image';
+export const HONOR_DESIGNS: Record<HonorDesign, string> = {
+  gold: 'ذهبي ملكي', stars: 'سماء النجوم', paper: 'شهادة كلاسيكية', theme: 'لون البانر', image: 'صورة من رفعك',
+};
+const STAR_DOTS = [
+  'radial-gradient(1.5px 1.5px at 12px 18px, #fff 50%, transparent 51%)',
+  'radial-gradient(1px 1px at 58px 44px, #fff 50%, transparent 51%)',
+  'radial-gradient(2px 2px at 92px 12px, #fde68a 50%, transparent 51%)',
+  'radial-gradient(1px 1px at 30px 86px, #fff 50%, transparent 51%)',
+  'radial-gradient(1.5px 1.5px at 104px 96px, #fff 50%, transparent 51%)',
+].join(', ');
+
+/** مظهر كل تصميم: الخلفية، والعنوان، وبطاقة الاسم، ودائرة الميدالية */
+const honorLook = (b: Banner, design: HonorDesign) => {
+  const img = b.images[0]?.src;
+  switch (design) {
+    case 'gold':
+      return {
+        style: { background: 'radial-gradient(120% 90% at 50% 0%, #1e3a8a 0%, #0f1d3a 62%, #0a1328 100%)' } as React.CSSProperties,
+        text: 'text-white', title: 'bg-gradient-to-b from-amber-100 via-amber-300 to-amber-500 bg-clip-text text-transparent',
+        pill: 'bg-white/[0.07] ring-1 ring-amber-300/40', medal: 'bg-gradient-to-b from-amber-100 to-amber-400', laurel: '#fbbf24',
+        frame: <><div className="absolute inset-2.5 rounded-[1.25rem] border-2 border-amber-300/60 pointer-events-none" /><div className="absolute inset-4 rounded-2xl border border-amber-300/25 pointer-events-none" /></>,
+      };
+    case 'stars':
+      return {
+        style: { backgroundImage: `${STAR_DOTS}, linear-gradient(160deg, #1e1b4b 0%, #4c1d95 55%, #831843 100%)`, backgroundSize: '120px 110px, 120px 110px, 120px 110px, 120px 110px, 120px 110px, 100% 100%' } as React.CSSProperties,
+        text: 'text-white', title: 'text-white drop-shadow', pill: 'bg-white/10 ring-1 ring-white/25 backdrop-blur-sm', medal: 'bg-white/90', laurel: '#fde68a', frame: null,
+      };
+    case 'paper':
+      return {
+        style: { background: 'radial-gradient(circle at 50% 0%, #fffdf5 0%, #fdf3dc 100%)' } as React.CSSProperties,
+        text: 'text-slate-800', title: 'text-amber-800', pill: 'bg-white ring-1 ring-amber-300 shadow-sm', medal: 'bg-amber-50 ring-1 ring-amber-300', laurel: '#b45309',
+        frame: <div className="absolute inset-2.5 rounded-[1.25rem] border-4 border-double border-amber-600/60 pointer-events-none" />,
+      };
+    case 'image':
+      return {
+        style: img ? { backgroundImage: `linear-gradient(rgba(0,0,0,.45), rgba(0,0,0,.55)), url(${img})`, backgroundSize: 'cover', backgroundPosition: 'center' } : themeBg(b.theme),
+        text: 'text-white', title: 'text-white drop-shadow', pill: 'bg-black/35 ring-1 ring-white/30 backdrop-blur-sm', medal: 'bg-white/90', laurel: '', frame: null,
+      };
+    default:
+      return { style: themeBg(b.theme), text: 'text-white', title: 'text-white', pill: 'bg-white/15 ring-1 ring-white/25 backdrop-blur-sm', medal: 'bg-white/90', laurel: '', frame: null };
+  }
+};
+
+/** كلما زاد عدد الأسماء صغُر الخط لتتسع المساحة */
+const HONOR_TIERS = [
+  { name: 'text-sm sm:text-base', sub: 'text-[11px] sm:text-xs', medal: 'w-8 h-8 text-base', pill: 'ps-2 pe-3 py-1.5 gap-2', gap: 'gap-2.5' },
+  { name: 'text-xs sm:text-sm', sub: 'text-[10px] sm:text-[11px]', medal: 'w-7 h-7 text-sm', pill: 'ps-1.5 pe-2.5 py-1 gap-1.5', gap: 'gap-2' },
+  { name: 'text-[11px] sm:text-xs', sub: 'text-[9px] sm:text-[10px]', medal: 'w-6 h-6 text-xs', pill: 'ps-1 pe-2 py-1 gap-1.5', gap: 'gap-1.5' },
+  { name: 'text-[10px] sm:text-[11px]', sub: 'text-[9px]', medal: 'w-5 h-5 text-[10px]', pill: 'ps-1 pe-1.5 py-0.5 gap-1', gap: 'gap-1' },
+];
+
 /** «لوحة الشرف»: أسماء من حصلوا على «ممتاز» تلقائياً من جميع الفصول */
 const HonorCard: React.FC<{ banner: Banner }> = ({ banner: b }) => {
   const list = useHonorRoll(b);
+  const design = (b.config?.design as HonorDesign) || 'theme';
+  const look = honorLook(b, design);
+  const n = list?.length || 0;
+  const tier = HONOR_TIERS[n <= 6 ? 0 : n <= 15 ? 1 : n <= 30 ? 2 : 3];
   return (
-    <div className="rounded-3xl p-5 sm:p-7 text-white text-center shadow-lg" style={themeBg(b.theme)} data-testid="honor-banner">
-      <h2 className="text-lg sm:text-2xl font-black leading-snug">{b.title || t('🏆 لوحة الشرف')}</h2>
-      {b.body && <p className="text-xs sm:text-sm mt-1 opacity-95 leading-relaxed whitespace-pre-line">{b.body}</p>}
+    <div className={`relative overflow-hidden rounded-3xl px-5 py-6 sm:px-8 sm:py-8 text-center shadow-lg ${look.text}`} style={look.style} data-testid="honor-banner" data-design={design}>
+      {look.frame}
+      <div className="relative flex items-center justify-center gap-2 sm:gap-4">
+        {look.laurel && <Laurel color={look.laurel} className="w-6 h-12 sm:w-9 sm:h-[4.5rem] shrink-0" />}
+        <div>
+          <h2 className={`text-lg sm:text-3xl font-black leading-snug ${look.title}`}>{b.title || t('🏆 لوحة الشرف')}</h2>
+          {b.body && <p className="text-xs sm:text-sm mt-1 opacity-90 leading-relaxed whitespace-pre-line">{b.body}</p>}
+        </div>
+        {look.laurel && <Laurel color={look.laurel} flip className="w-6 h-12 sm:w-9 sm:h-[4.5rem] shrink-0" />}
+      </div>
       {list === null ? (
-        <p className="text-xs mt-4 opacity-80">{t('جارٍ التحميل...')}</p>
+        <p className="relative text-xs mt-4 opacity-80">{t('جارٍ التحميل...')}</p>
       ) : list.length === 0 ? (
-        <p className="text-xs mt-4 opacity-90">{t('لا توجد أسماء حالياً. يظهر البانر تلقائياً عند حصول أول طالب على «ممتاز».')}</p>
+        <p className="relative text-xs mt-4 opacity-90">{t('لا توجد أسماء حالياً. يظهر البانر تلقائياً عند حصول أول طالب على «ممتاز».')}</p>
       ) : (
-        <ul className="flex flex-wrap justify-center gap-2 sm:gap-2.5 mt-5 max-h-64 overflow-y-auto">
+        <ul className={`relative grid grid-cols-2 sm:flex sm:flex-wrap sm:justify-center mt-5 max-h-[26rem] overflow-y-auto ${tier.gap}`}>
           {list.map((e, i) => (
             <li key={`${e.name}-${i}`} title={e.quiz ? `${e.quiz} — ${e.pct}%` : `${e.pct}%`}
-              className="flex items-center gap-2 rounded-2xl bg-white/15 ring-1 ring-white/25 ps-2 pe-3 py-1.5 backdrop-blur-sm">
-              <span className="w-8 h-8 rounded-full bg-white/90 text-amber-600 flex items-center justify-center text-base shrink-0" aria-hidden>{i < 3 ? ['🥇', '🥈', '🥉'][i] : '⭐'}</span>
-              <span className="text-start leading-tight">
-                <span className="block text-sm font-black">{e.name}</span>
-                <span className="block text-[11px] opacity-90">{[e.class, `${e.pct}%`].filter(Boolean).join(' • ')}</span>
+              className={`min-w-0 flex items-center rounded-2xl ${tier.pill} ${look.pill}`}>
+              <span className={`rounded-full flex items-center justify-center shrink-0 ${tier.medal} ${look.medal}`} aria-hidden>{i < 3 ? ['🥇', '🥈', '🥉'][i] : '⭐'}</span>
+              <span className="min-w-0 text-start leading-tight">
+                <span className={`block font-black ${tier.name}`}>{e.name}</span>
+                {/* على الجوال: النسبة فقط حتى لا تُقصّ الأسماء */}
+                <span className={`block opacity-85 ${tier.sub}`}>{e.class && <span className="hidden sm:inline">{e.class} • </span>}<span dir="ltr">{e.pct}%</span></span>
               </span>
             </li>
           ))}
