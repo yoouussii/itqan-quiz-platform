@@ -19,7 +19,7 @@ export function usePresence(): Record<string, Presence> {
 export const LastSeen: React.FC<{ p?: Presence; className?: string }> = ({ p, className = '' }) => {
   const seen = p?.s || p?.l;
   if (!seen) return <span className={`text-[11px] text-slate-400 ${className}`} data-testid="last-seen">{t('لا يوجد دخول مسجّل')}</span>;
-  const recent = Date.now() - new Date(seen).getTime() < 15 * 60_000;
+  const recent = Date.now() - new Date(seen).getTime() < 6 * 60_000;
   const title = [
     p?.l ? t('آخر تسجيل دخول: {d}', { d: formatFullArabicDate(p.l) }) : '',
     p?.s ? t('آخر ظهور: {d}', { d: formatFullArabicDate(p.s) }) : '',

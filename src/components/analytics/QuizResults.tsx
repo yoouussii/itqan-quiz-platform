@@ -1,3 +1,4 @@
+import { LiveNowCard } from '../common/LiveNowCard';
 import React, { useMemo, useRef, useState } from 'react';
 import { Sparkles, MessageCircle, ArrowRight, Users, Percent, Trophy, TrendingDown, CheckCircle2 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
@@ -136,6 +137,7 @@ export const QuizResults: React.FC = () => {
           <span>{t('رجوع')}</span>
         </button>
       </div>
+      <LiveNowCard quizId={quiz.id} />
 
       <div ref={exportRef} className="space-y-6">
       <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">

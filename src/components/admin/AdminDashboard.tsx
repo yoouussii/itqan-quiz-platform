@@ -14,6 +14,7 @@ import { Button, Card, Chip, PageHeader, SectionTitle, StatTile, greeting, score
 import { uiDir, t, isEn } from '../../i18n';
 import { BannerStrip } from '../common/BannerStrip';
 import { MorningSummaryCard } from './MorningSummaryCard';
+import { LiveNowCard } from '../common/LiveNowCard';
 import { EmptyMascot } from '../common/Mascot';
 
 const avgOf = (vals: number[]) => (vals.length ? Math.round(vals.reduce((a, b) => a + b, 0) / vals.length) : 0);
@@ -133,6 +134,7 @@ export const AdminDashboard: React.FC = () => {
       <BannerStrip embedded />
 
       <MorningSummaryCard />
+      <LiveNowCard />
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <StatTile label={t('الطلاب')} value={totalStudents} hint={isEn() ? `In ${classes.length} ${classes.length === 1 ? 'class' : 'classes'}` : `في ${classes.length} ${classes.length === 1 ? 'فصل' : 'فصول'}`} onClick={() => setKpiModal('students')} />

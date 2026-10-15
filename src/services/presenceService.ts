@@ -4,9 +4,9 @@ import { supabase, isSupabaseConfigured, getSessionToken } from './supabase';
 export interface Presence { l?: string | null; n?: number; s?: string | null }
 
 const TOUCH_KEY = 'itqan_touch_at';
-const TOUCH_EVERY = 15 * 60_000;
+const TOUCH_EVERY = 5 * 60_000;
 
-/** «أنا هنا»: طلب خفيف مرة كل 15 دقيقة على الأكثر من كل جهاز */
+/** «أنا هنا»: طلب خفيف مرة كل 5 دقائق على الأكثر من كل جهاز (076) */
 export async function touchPresence(userId: string): Promise<void> {
   if (!isSupabaseConfigured() || !getSessionToken()) return;
   try {
@@ -27,4 +27,18 @@ export async function fetchPresence(force = false): Promise<Record<string, Prese
   if (error || !data || typeof data !== 'object') return cache?.data || {};
   cache = { at: Date.now(), data: data as Record<string, Presence> };
   return cache.data;
+}
+
+export interface LiveNow {
+  online: Array<{ id: string; s: string }>;
+  in_quiz: Array<{ student_id: string; quiz_id: string; started_at: string }>;
+  at?: string;
+}
+
+/** للموظفين: المتصلون الآن ومن يحلّ اختباراً الآن (076). null إن لم يُشغَّل الملف بعد */
+export async function fetchLiveNow(): Promise<LiveNow | null> {
+  if (!isSupabaseConfigured()) return null;
+  const { data, error } = await supabase.rpc('itqan_live_now');
+  if (error || !data) return null;
+  return data as LiveNow;
 }
