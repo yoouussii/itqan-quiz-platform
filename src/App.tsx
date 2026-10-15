@@ -378,6 +378,13 @@ const OwnerRoot: React.FC = () => {
   return <React.Suspense fallback={<Spinner />}><OwnerPage /></React.Suspense>;
 };
 
+const InstallPage = React.lazy(() => import('./components/legal/InstallPage').then((m) => ({ default: m.InstallPage })));
+/** صفحة «نزّل المنصة على جوالك»: عامة، تُرسل رابطها للطلاب وأولياء الأمور */
+const InstallRoot: React.FC = () => {
+  applyLang(loadLangPref());
+  return <React.Suspense fallback={<Spinner />}><InstallPage /></React.Suspense>;
+};
+
 const VerifyRoot: React.FC = () => {
   applyLang(loadLangPref());
   return <React.Suspense fallback={<Spinner />}><VerifyPage /></React.Suspense>;
@@ -386,6 +393,7 @@ const VerifyRoot: React.FC = () => {
 export default function App() {
   if (/^\/verify(\/|$)/.test(window.location.pathname)) return <VerifyRoot />;
   if (/^\/owner\/?$/.test(window.location.pathname)) return <OwnerRoot />;
+  if (/^\/install\/?$/.test(window.location.pathname)) return <InstallRoot />;
   return (
     <AppProvider>
       <LangRoot />
