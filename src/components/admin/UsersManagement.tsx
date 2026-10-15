@@ -75,7 +75,7 @@ export const UsersManagement: React.FC = () => {
   // عدد المستخدمين في الصفحة (يُحفظ على الجهاز)
   const PAGE_SIZES = [5, 10, 20, 50];
   const [pageSize, setPageSize] = useState(() => {
-    try { const n = Number(localStorage.getItem('itqan_users_page_size')); return PAGE_SIZES.includes(n) ? n : 20; } catch { return 20; }
+    try { const n = Number(localStorage.getItem('itqan_users_page_size')); return PAGE_SIZES.includes(n) ? n : 5; } catch { return 5; }
   });
   const changePageSize = (n: number) => {
     setPageSize(n);
