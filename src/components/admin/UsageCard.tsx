@@ -77,8 +77,11 @@ export const UsageCard: React.FC<{ compact?: boolean }> = ({ compact = false }) 
             {u.days.length < 30
               ? t('مسجّل خلال {n} يوم: {b}. الرقم أعلاه تقدير للشهر كاملاً.', { n: u.days.length, b: ltr(fmtBytes(u.total_bytes)) })
               : t('آخر 30 يوماً.')}
-            {' '}{t('حد الخطة المجانية 5 جيجابايت شهرياً، وخطة Pro ‏250 جيجابايت. الرقم تقديري من أجهزة المستخدمين.')}
+            {' '}{t('حد الخطة المجانية 5 جيجابايت شهرياً، وخطة {pro} ‏250 جيجابايت. الرقم تقديري من أجهزة المستخدمين.', { pro: ltr('Pro') })}
           </p>
+          {u.days.length < 3 && (
+            <p className="text-xs font-bold text-amber-700 dark:text-amber-400">{t('البيانات ما زالت قليلة: كل جهاز يرسل استهلاكه مرة كل ساعتين تقريباً، فيصبح التقدير أدق بعد يومين أو ثلاثة من الاستخدام.')}</p>
+          )}
           {u.days.length > 0 && (
             <div>
               <p className="text-xs font-bold text-slate-600 dark:text-slate-300 mb-1">{t('التنزيل اليومي')}</p>
