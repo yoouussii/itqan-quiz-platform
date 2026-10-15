@@ -5,7 +5,7 @@ import { loadSettings, syncPublicBranding } from '../../services/settingsService
 import { t, uiDir } from '../../i18n';
 
 type Device = 'iphone' | 'android' | 'desktop';
-const detect = (): Device => {
+export const detect = (): Device => {
   const ua = navigator.userAgent || '';
   if (/iPhone|iPad|iPod/i.test(ua) || (/Macintosh/.test(ua) && navigator.maxTouchPoints > 1)) return 'iphone';
   if (/Android/i.test(ua)) return 'android';
@@ -22,8 +22,12 @@ const Step: React.FC<{ n: number; icon: React.ElementType; title: string; text?:
   </li>
 );
 
-/** صفحة عامة: «نزّل المنصة على جوالك» — التثبيت كتطبيق وتفعيل الإشعارات، لكل نوع جهاز */
-export const InstallPage: React.FC = () => {
+/** متصفح داخل تطبيق (واتساب/إنستغرام/سناب…): لا يدعم التثبيت، فيجب فتح الرابط في المتصفح */
+export const isInAppBrowser = () => /; wv\)|WhatsApp|FBAN|FBAV|Instagram|Snapchat|Line\/|TikTok|Twitter/i.test(navigator.userAgent || '');
+
+/** صفحة «نزّل المنصة على جوالك» — التثبيت كتطبيق وتفعيل الإشعارات، لكل نوع جهاز.
+ *  عامة على /install، وتظهر أيضاً شاشةً كاملة للطالب وولي الأمر عند الدخول من الجوال (onSkip = زر «لاحقاً»). */
+export const InstallPage: React.FC<{ onSkip?: () => void }> = ({ onSkip }) => {
   const [device, setDevice] = useState<Device>(detect);
   const [settings, setSettings] = useState(loadSettings);
   const [installable, setInstallable] = useState(canInstall());
@@ -46,6 +50,17 @@ export const InstallPage: React.FC = () => {
           <h1 className="text-2xl font-black text-slate-900 dark:text-white">{t('نزّل {school} على جوالك', { school })}</h1>
           <p className="text-sm text-slate-600 dark:text-slate-300">{t('تفتح بضغطة من الشاشة الرئيسية مثل أي تطبيق، وتصلك إشعارات الاختبارات الجديدة والنتائج.')}</p>
         </header>
+
+        {isInAppBrowser() && (
+          <div className="rounded-2xl bg-amber-50 dark:bg-amber-950/40 border border-amber-300 dark:border-amber-800 p-4 text-amber-900 dark:text-amber-200 space-y-2" data-testid="inapp-warning">
+            <p className="font-bold">{t('أنت تفتح المنصة من داخل تطبيق آخر (مثل واتساب)')}</p>
+            <p className="text-sm">{device === 'iphone' ? t('اضغط زر المشاركة أو النقاط ثم «فتح في Safari»، ثم أكمل الخطوات.') : t('اضغط النقاط الثلاث ثم «فتح في المتصفح» أو «فتح في Chrome»، ثم أكمل الخطوات.')}</p>
+            {device === 'android' && (
+              <a href={`intent://${window.location.host}${window.location.pathname}#Intent;scheme=https;package=com.android.chrome;end`}
+                className="inline-flex items-center gap-2 h-10 px-4 rounded-xl bg-amber-600 text-white text-sm font-bold">{t('افتح في Chrome')}</a>
+            )}
+          </div>
+        )}
 
         {installed ? (
           <div className="rounded-2xl bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-900 p-4 text-emerald-900 dark:text-emerald-200 flex items-start gap-3">
@@ -99,13 +114,18 @@ export const InstallPage: React.FC = () => {
         <section className="rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-5 space-y-4">
           <h2 className="font-black text-slate-900 dark:text-white">{t('٢) تفعيل الإشعارات')}</h2>
           <ol className="space-y-4">
-            <Step n={1} icon={LogIn} title={t('سجّل دخولك في المنصة')} text={device === 'iphone' ? t('من الأيقونة على الشاشة الرئيسية، وليس من Safari.') : undefined} />
+            <Step n={1} icon={LogIn} title={onSkip ? t('افتح المنصة من الأيقونة وسجّل دخولك') : t('سجّل دخولك في المنصة')} text={device === 'iphone' ? t('من الأيقونة على الشاشة الرئيسية، وليس من Safari.') : undefined} />
             <Step n={2} icon={BellRing} title={t('اضغط «تفعيل» في تنبيه الإشعارات')} text={t('يظهر في الصفحة الرئيسية، أو من صفحة «الإشعارات» ← «هذا الجهاز».')} />
             <Step n={3} icon={CheckCircle2} title={t('اختر «سماح» عندما يسألك الجوال')} text={t('إن ضغطت «رفض» بالخطأ: فعّلها من إعدادات الجوال ← الإشعارات ← المنصة.')} />
           </ol>
         </section>
 
-        <a href="/" className="block w-full h-12 rounded-2xl bg-slate-900 dark:bg-white text-white dark:text-slate-900 font-bold text-center leading-[3rem]">{t('الذهاب لتسجيل الدخول')}</a>
+        {onSkip ? (
+          <button type="button" onClick={onSkip} data-testid="install-skip"
+            className="block w-full h-12 rounded-2xl border border-slate-300 dark:border-slate-700 text-slate-600 dark:text-slate-300 font-bold">{t('لاحقاً')}</button>
+        ) : (
+          <a href="/" className="block w-full h-12 rounded-2xl bg-slate-900 dark:bg-white text-white dark:text-slate-900 font-bold text-center leading-[3rem]">{t('الذهاب لتسجيل الدخول')}</a>
+        )}
       </div>
     </div>
   );
