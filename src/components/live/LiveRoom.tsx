@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { X, MicOff, MessageSquareOff, MessageSquare, PhoneOff, Loader2, RefreshCw } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
-import { LiveJoin, LiveSession, loadJitsiApi, pingLive, setLive } from '../../services/liveService';
+import { LiveJoin, LiveSession, liveEnd, loadJitsiApi, pingLive, setLive } from '../../services/liveService';
 import { t, uiDir } from '../../i18n';
 
 const STUDENT_TOOLS = ['microphone', 'camera', 'raisehand', 'tileview', 'fullscreen', 'hangup'];
@@ -117,6 +117,27 @@ export const LiveRoom: React.FC<{ join: LiveJoin; onClose: () => void }> = ({ jo
     return () => window.clearInterval(iv);
   }, [session.id, mod, applyChat]);
 
+  // الإغلاق التلقائي بانتهاء وقت الحصة: تنبيه قبل دقيقتين، ثم إنهاء للجميع
+  const endAt = liveEnd(session).getTime();
+  const [left, setLeft] = useState(() => endAt - Date.now());
+  const warned = useRef(false);
+  useEffect(() => {
+    const iv = window.setInterval(() => {
+      const ms = endAt - Date.now();
+      setLeft(ms);
+      if (ms <= 2 * 60000 && ms > 0 && !warned.current) { warned.current = true; showToast(t('تنتهي الحصة خلال دقيقتين')); }
+      if (ms <= 0) {
+        window.clearInterval(iv);
+        if (mod) { try { api.current?.executeCommand('endConference'); } catch { /* ignore */ } void setLive(session.id, { status: 'ended' }); }
+        try { api.current?.dispose(); } catch { /* ignore */ }
+        api.current = null;
+        setState('ended');
+      }
+    }, 5000);
+    return () => window.clearInterval(iv);
+  }, [endAt, mod, session.id, showToast]);
+  const leftMin = Math.max(0, Math.ceil(left / 60000));
+
   const muteAll = () => { try { api.current?.executeCommand('muteEveryone', 'audio'); showToast(t('تم كتم صوت جميع الطلاب')); } catch { /* ignore */ } };
   const toggleChat = async () => {
     const r = await setLive(session.id, { chat_locked: !chatLocked });
@@ -139,6 +160,9 @@ export const LiveRoom: React.FC<{ join: LiveJoin; onClose: () => void }> = ({ jo
           <p className="font-black truncate text-sm sm:text-base">{session.title}</p>
           <p className="text-xs text-slate-400 truncate flex items-center gap-1.5">
             <span className="w-2 h-2 rounded-full bg-rose-500 animate-pulse" />{t('مباشر')} · {session.teacher_name}
+            <span className={`ms-1 px-1.5 rounded-md tabular-nums ${leftMin <= 2 ? 'bg-amber-500 text-slate-950 font-bold' : 'bg-slate-800 text-slate-300'}`} data-testid="live-left">
+              {t('متبقٍ {n} د', { n: leftMin })}
+            </span>
           </p>
         </div>
         {mod && (

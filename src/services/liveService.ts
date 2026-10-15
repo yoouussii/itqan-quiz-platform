@@ -3,10 +3,17 @@ import { safe } from './remote';
 
 /** الحصص المباشرة (083): Jitsi على خادم المدرسة، والدخول برمز يوقّعه الخادم */
 export type LiveStatus = 'scheduled' | 'live' | 'ended' | 'cancelled' | 'missed';
+/** موعد حصة ثابت من جدول المدرسة (يحدده المدير): بدايتها HH:MM ومدتها بالدقائق */
+export interface LivePeriod { start: string; minutes: number }
+export const periodEnd = (p: LivePeriod) => {
+  const [h, m] = p.start.split(':').map(Number);
+  const x = h * 60 + m + (Number(p.minutes) || 0);
+  return `${String(Math.floor(x / 60) % 24).padStart(2, '0')}:${String(x % 60).padStart(2, '0')}`;
+};
 export interface LiveSession {
   id: string; series_id: string | null; class_ids: string[]; subject_id: string | null;
   teacher_id: string; teacher_name: string; title: string; notes: string;
-  starts_at: string; duration_min: number; status: LiveStatus;
+  starts_at: string; duration_min: number; period: number | null; status: LiveStatus;
   started_at: string | null; ended_at: string | null; chat_locked: boolean; can_manage: boolean;
   attended: { seconds: number; first_join: string } | null;
 }
@@ -19,7 +26,7 @@ export interface LiveAttendee {
 }
 export interface LiveDraft {
   id?: string; title: string; notes: string; class_ids: string[]; subject_id: string | null;
-  starts_at: string; duration_min: number; teacher_id?: string;
+  starts_at: string; duration_min: number; teacher_id?: string; period?: number | null;
 }
 
 const norm = (s: any): LiveSession => ({ ...s, class_ids: Array.isArray(s.class_ids) ? s.class_ids : [], duration_min: Number(s.duration_min) || 35 });
