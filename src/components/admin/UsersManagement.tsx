@@ -339,7 +339,8 @@ export const UsersManagement: React.FC = () => {
       permissions: permsObj,
       gender: gender || null,
       branch_id: isAdminUser ? branchId || null : currentUser?.branch_id || null,
-      child_ids: effectiveRole === 'parent' ? [...childIds] : [],
+      // ولي الأمر، أو موظف له أبناء في المدرسة (يتبدّل لواجهة ولي الأمر من القائمة)
+      child_ids: effectiveRole !== 'student' ? [...childIds] : [],
       created_by: currentUser?.id,
     });
     setShowAddModal(false);
@@ -386,7 +387,7 @@ export const UsersManagement: React.FC = () => {
       teacher_permissions: permsObj,
       permissions: permsObj,
       gender: gender || null,
-      ...(isAdminUser ? { branch_id: branchId || null, child_ids: effectiveRole === 'parent' ? [...childIds] : [] } : {}),
+      ...(isAdminUser ? { branch_id: branchId || null, child_ids: effectiveRole !== 'student' ? [...childIds] : [] } : {}),
     };
 
     // لا نرسل كلمة المرور إلا إذا غيّرها المدير فعلاً (حتى لا تُكتب نسخة قديمة فوق الحالية)
@@ -1258,11 +1259,14 @@ export const UsersManagement: React.FC = () => {
                 )}
               </div>
 
-              {isAdminUser && (editingUser ? editingUser.role : role) === 'parent' && (
+              {isAdminUser && (editingUser ? editingUser.role : role) !== 'student' && (
                 <div>
                   <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5">
-                    {t('الأبناء المرتبطون (')}{childIds.length})
+                    {(editingUser ? editingUser.role : role) === 'parent' ? <>{t('الأبناء المرتبطون (')}{childIds.length})</> : <>{t('أبناؤه في المدرسة — اختياري (')}{childIds.length})</>}
                   </label>
+                  {(editingUser ? editingUser.role : role) !== 'parent' && (
+                    <p className="text-[11px] text-slate-500 dark:text-slate-400 mb-1.5">{t('لموظف هو أيضاً ولي أمر: يظهر له في قائمته «التبديل إلى ولي الأمر» لمتابعة أبنائه، بنفس صلاحيات ولي الأمر.')}</p>
+                  )}
                   <input value={childSearch} onChange={(e) => setChildSearch(e.target.value)} placeholder={t('ابحث عن طالب بالاسم أو الهوية')} aria-label={t('بحث عن طالب')}
                     className="w-full px-3 py-2 mb-1.5 text-xs rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white" />
                   <div className="max-h-40 overflow-y-auto p-1.5 border rounded-xl border-slate-200 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-800/30 space-y-1">

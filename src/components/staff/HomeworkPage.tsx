@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { NotebookPen, Plus, X, Trash2, Pencil, Link2, Save, HardDrive, ArrowRight, Users } from 'lucide-react';
+import { DateTimeField } from '../common/DateTimeField';
 import { useApp } from '../../context/AppContext';
 import { PageHeader, Card, Button, Chip } from '../common/ui';
 import { FileChips, FilePicker, LinksBlock, StateChip, dueText, uploadErrorText } from '../common/Homework';
@@ -200,7 +201,7 @@ const HomeworkEditor: React.FC<{ hw: Homework | null; classes: { id: string; nam
           </label>
           <div className="flex flex-wrap gap-3 items-end">
             <label className="text-sm text-slate-600 dark:text-slate-300 flex flex-col gap-1">{t('موعد التسليم')}
-              <input type="datetime-local" value={due} onChange={(e) => setDue(e.target.value)} className={inp} />
+              <DateTimeField value={due} onChange={setDue} label={t('موعد التسليم')} defaultTime="23:55" />
             </label>
             <label className="h-10 text-sm text-slate-700 dark:text-slate-200 flex items-center gap-2 cursor-pointer">
               <input type="checkbox" checked={allow} onChange={(e) => setAllow(e.target.checked)} />{t('التسليم عبر المنصة')}

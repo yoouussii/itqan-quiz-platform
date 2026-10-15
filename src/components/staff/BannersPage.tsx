@@ -1,5 +1,6 @@
 import React, { useMemo, useRef, useState } from 'react';
 import { Image as ImageIcon, Images, Plus, Pencil, Trash2, Eye, EyeOff, ArrowUp, ArrowDown, Upload, X, Pin, Sparkles, Play } from 'lucide-react';
+import { DateTimeField } from '../common/DateTimeField';
 import { useApp } from '../../context/AppContext';
 import { Banner, BANNER_THEMES, BANNER_EFFECTS, BannerAudience, BannerEffect, fileToBannerDataUrl, newBanner } from '../../services/bannerService';
 import { BannerEffects } from '../common/BannerEffects';
@@ -243,11 +244,11 @@ const Editor: React.FC<{ initial: Banner; onDone: () => void }> = ({ initial, on
           </label>
           <div>
             <label className={labelCls}>{t('يبدأ الظهور (اختياري)')}</label>
-            <input type="datetime-local" aria-label={t('يبدأ الظهور')} value={toInputValue(b.starts_at, 'start')} onChange={(e) => set({ starts_at: inputToIso(e.target.value) || null })} className={inputCls} />
+            <DateTimeField label={t('يبدأ الظهور')} value={toInputValue(b.starts_at, 'start')} onChange={(v) => set({ starts_at: inputToIso(v) || null })} defaultTime="07:00" />
           </div>
           <div>
             <label className={labelCls}>{t('يختفي تلقائياً (اختياري)')}</label>
-            <input type="datetime-local" aria-label={t('يختفي تلقائياً')} value={toInputValue(b.ends_at, 'end')} onChange={(e) => set({ ends_at: inputToIso(e.target.value) || null })} className={inputCls} />
+            <DateTimeField label={t('يختفي تلقائياً')} value={toInputValue(b.ends_at, 'end')} onChange={(v) => set({ ends_at: inputToIso(v) || null })} defaultTime="23:55" />
           </div>
         </div>
 

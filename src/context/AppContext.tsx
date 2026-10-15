@@ -72,6 +72,7 @@ import {
   deleteSubmissionsRemote,
 } from '../services/quizSync';
 import { touchPresence } from '../services/presenceService';
+import { sortClasses } from '../utils/classOrder';
 
 // ---------------------------------------------------------------------
 // إعدادات الجلسة
@@ -162,6 +163,10 @@ interface AppContextType {
   passwordIsDefault: boolean;
   /** المدير يعاين حساباً آخر («تبديل الحساب»): العرض فقط، والخادم يتعامل معه كمدير */
   isPreview: boolean;
+  /** موظف له أبناء في المدرسة: يعرض واجهة ولي الأمر (صلاحياته على الخادم كما هي) */
+  canViewAsParent: boolean;
+  viewingAsParent: boolean;
+  setViewAsParent: (on: boolean) => void;
   /** العودة من المعاينة إلى حساب صاحب الجلسة */
   exitPreview: () => void;
   approveQuiz: (id: string) => Promise<void>;
@@ -604,6 +609,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [users, setUsers] = useState<User[]>(() => StorageService.getUsers().map(normalizeUser));
   const [subjects, setSubjects] = useState<Subject[]>(() => StorageService.getSubjects());
   const [classes, setClasses] = useState<SchoolClass[]>(() => StorageService.getClasses());
+  // كل الشاشات تستلم الفصول مرتبة ترتيباً مدرسياً (المرحلة ثم الصف ثم المسار)
+  const sortedClasses = useMemo(() => sortClasses(classes), [classes]);
   // الرابط هو مصدر الشاشة عند فتح الموقع أو تحديثه
   const [restored] = useState<RouteState>(() =>
     currentUser ? routeForUser(currentUser, window.location.pathname) : { view: 'login' }
@@ -1071,6 +1078,20 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const exitPreview = () => {
     if (sessionOwnerId) switchUser(sessionOwnerId);
   };
+
+  // الموظف ولي الأمر: تبديل الواجهة بين الحساب الوظيفي وحساب ولي الأمر (075)
+  const canViewAsParent = !!currentUser && currentUser.role !== 'student' && currentUser.role !== 'parent' && (currentUser.child_ids || []).length > 0;
+  const parentViewKey = `itqan_nav_parent_view_${currentUser?.id || ''}`;
+  const [parentViewOn, setParentViewOn] = useState(false);
+  useEffect(() => { setParentViewOn(localStorage.getItem(parentViewKey) === '1'); }, [parentViewKey]);
+  const viewingAsParent = canViewAsParent && parentViewOn;
+  const setViewAsParent = (on: boolean) => {
+    try { if (on) localStorage.setItem(parentViewKey, '1'); else localStorage.removeItem(parentViewKey); } catch { /* ignore */ }
+    setParentViewOn(on);
+    setCurrentView('dashboard');
+    showToast(on ? t('أنت الآن في واجهة ولي الأمر') : t('عدت إلى حسابك الوظيفي'), 'info');
+  };
+  const shownUser = useMemo(() => (viewingAsParent && currentUser ? { ...currentUser, role: 'parent' as User['role'] } : currentUser), [viewingAsParent, currentUser]);
 
   // وضع الصيانة: يُخرج كل من ليس مديراً (المدير الذي يعاين بحساب آخر لا يخرج)
   const maintenanceOn = !!settings.maintenance?.on;
@@ -2216,10 +2237,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   return (
     <AppContext.Provider
       value={{
-        currentUser,
+        currentUser: shownUser,
         users,
         subjects,
-        classes,
+        classes: sortedClasses,
         quizzes,
         submissions,
         kpis,
@@ -2247,6 +2268,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         changeMyPassword,
         passwordIsDefault,
         isPreview,
+        canViewAsParent,
+        viewingAsParent,
+        setViewAsParent,
         exitPreview,
         approveQuiz,
         rejectQuiz,

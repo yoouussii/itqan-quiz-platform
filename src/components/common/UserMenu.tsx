@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { ChevronLeft, ChevronRight, Languages, LogOut, Moon, Sun, UserCheck, UserCog, Search, Compass, RefreshCw } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Languages, LogOut, Moon, Sun, UserCheck, UserCog, Search, Compass, RefreshCw, Users, Briefcase } from 'lucide-react';
 import { resetLocalCache } from '../../utils/safeStorage';
 import { useApp } from '../../context/AppContext';
 import { useLang } from '../../i18n/LangContext';
@@ -15,7 +15,7 @@ export const TOUR_EVENT = 'itqan:tour';
  * ومعاينة الموقع كمستخدم آخر (للمدير) والجولة التعريفية وتسجيل الخروج.
  */
 export const UserMenu: React.FC<{ displayName: string; roleLabel: string; onProfile: () => void; showName?: boolean }> = ({ displayName, roleLabel, onProfile, showName }) => {
-  const { currentUser, users, switchUser, theme, toggleTheme, logout } = useApp();
+  const { currentUser, users, switchUser, theme, toggleTheme, logout, canViewAsParent, viewingAsParent, setViewAsParent } = useApp();
   const { lang, setLang, canSwitch } = useLang();
   const [open, setOpen] = useState(false);
   const [preview, setPreview] = useState(false);
@@ -58,6 +58,12 @@ export const UserMenu: React.FC<{ displayName: string; roleLabel: string; onProf
                 </div>
               </div>
               <button type="button" role="menuitem" className={item} onClick={() => { close(); onProfile(); }}><UserCog className="w-5 h-5 text-slate-500" />{t('الملف الشخصي وكلمة المرور')}</button>
+              {canViewAsParent && (
+                <button type="button" role="menuitem" className={`${item} text-indigo-700 dark:text-indigo-300`} data-testid="menu-role-switch" onClick={() => { close(); setViewAsParent(!viewingAsParent); }}>
+                  {viewingAsParent ? <Briefcase className="w-5 h-5" /> : <Users className="w-5 h-5" />}
+                  <span className="flex-1">{viewingAsParent ? t('العودة إلى حسابي الوظيفي') : t('التبديل إلى ولي الأمر')}</span>
+                </button>
+              )}
               <button type="button" role="menuitem" className={item} onClick={toggleTheme} data-testid="menu-theme">
                 {theme === 'dark' ? <Sun className="w-5 h-5 text-amber-500" /> : <Moon className="w-5 h-5 text-slate-500" />}
                 <span className="flex-1">{t('الوضع الليلي')}</span>
