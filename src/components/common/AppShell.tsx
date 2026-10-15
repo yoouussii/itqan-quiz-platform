@@ -20,7 +20,7 @@ import {
   HeartHandshake,
   FolderSync,
   Star,
-  Plus,
+  Plus, Video,
 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 import { Avatar } from './Avatar';
@@ -76,6 +76,7 @@ const staffGroups = (u: User, pendingApprovals: number, links: { prep: string; s
   // الخطط العلاجية تبويب داخل «نواتج التعلم» (القسم نفسه)، وتظهر وحدها لمن لا يرى نواتج التعلم
   quizzes.push({ id: 'outcomes', label: t('نواتج التعلم والعلاج'), icon: Target });
   quizzes.push({ id: 'homework', label: t('الواجبات'), icon: NotebookPen });
+  quizzes.push({ id: 'live', label: t('الحصص المباشرة'), icon: Video });
   if (hasPerm(u, 'can_academic_support')) quizzes.push({ id: 'academic_support', label: t('الدعم الأكاديمي'), icon: HeartHandshake });
   if (u.role === 'supervisor' || hasPerm(u, 'can_nafes')) quizzes.push({ id: 'nafes', label: t('نافس'), icon: Target });
   if (!pageAllowed(u, 'outcomes')) quizzes.push({ id: 'remedial', label: t('الخطط العلاجية'), icon: LifeBuoy });
@@ -128,6 +129,7 @@ const PARENT_TABS = (): NavItem[] => [
 const STUDENT_TABS = (): NavItem[] => [
   { id: 'dashboard', label: t('الرئيسية'), icon: Home },
   { id: 'homework', label: t('واجباتي'), icon: NotebookPen },
+  { id: 'live', label: t('حصصي'), icon: Video },
   { id: 'analytics', label: t('نتائجي'), icon: BarChart2 },
   { id: 'calendar', label: t('الجدول'), icon: CalendarDays },
   { id: 'my_points', label: t('نقاطي'), icon: Sparkles },
@@ -399,7 +401,7 @@ const StudentShell: React.FC<{ children: React.ReactNode; banner?: React.ReactNo
       <div className="hidden md:block"><Footer /></div>
 
       <nav className="md:hidden fixed bottom-0 inset-x-0 z-30 bg-white dark:bg-slate-900 border-t border-slate-200 dark:border-slate-800 flex pb-[env(safe-area-inset-bottom)]" aria-label={t('التنقل')}>
-        {tabs.map((tab) => {
+        {tabs.filter((tab) => tab.id !== 'notifications' || tabs.length <= 6).map((tab) => {
           const Icon = tab.icon;
           const on = currentView === tab.id;
           return (

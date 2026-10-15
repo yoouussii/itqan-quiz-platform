@@ -51,6 +51,7 @@ export function notifAction(
   if (n.ref_type === 'survey') return { label: 'الإجابة على الاستبيان', view: 'surveys' };
   if (n.ref_type === 'visit') return { label: 'عرض الزيارة', view: 'visits' };
   if (n.ref_type === 'exam_schedule') return { label: 'جدول الاختبارات', view: 'calendar' };
+  if (n.ref_type === 'live' && me.role !== 'parent') return { label: 'الحصص المباشرة', view: 'live' };
 
   if (me.role === 'parent') return { label: 'متابعة أبنائي', view: 'dashboard' };
 
