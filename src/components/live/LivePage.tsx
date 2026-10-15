@@ -6,7 +6,7 @@ import { useApp } from '../../context/AppContext';
 import { PageHeader, Card, Button, Chip, Tone, ListSkeleton } from '../common/ui';
 import { DateTimeField } from '../common/DateTimeField';
 import {
-  LiveAttendee, LiveDraft, LiveJoin, LiveSession, deleteLive, isSoon, joinLive, listLive, liveAttendance, liveConfigStatus, liveEnd,
+  LiveAttendee, LiveDraft, LiveJoin, LivePeriod, LiveSession, deleteLive, periodEnd, isSoon, joinLive, listLive, liveAttendance, liveConfigStatus, liveEnd,
   randomSecret, saveLive, setLive, setLiveConfig, takePendingJoin,
 } from '../../services/liveService';
 import { saveSettings } from '../../services/settingsService';
@@ -34,7 +34,7 @@ const STATUS: Record<string, { label: () => string; tone: Tone }> = {
 const statusOf = (s: LiveSession) => (isSoon(s) ? 'soon' : s.status);
 
 const JOIN_ERR: Record<string, () => string> = {
-  not_started: () => t('لم يبدأ المعلم الحصة بعد، انتظر قليلاً ثم حاول مجدداً.'),
+  not_started: () => t('لم يحن موعد الحصة بعد. تفتح تلقائياً في وقتها.'),
   ended: () => t('انتهت هذه الحصة.'),
   cancelled: () => t('أُلغيت هذه الحصة.'),
   not_configured: () => t('لم يُضبط خادم الحصص بعد. تواصل مع إدارة المدرسة.'),
@@ -56,6 +56,7 @@ export const LivePage: React.FC = () => {
   const className = useCallback((id: string) => classes.find((c: any) => c.id === id)?.name || id, [classes]);
   const subjectName = useCallback((id: string | null) => (id ? subjects.find((s: any) => s.id === id)?.name || '' : ''), [subjects]);
   const domain: string = settings.live_classes?.domain || '';
+  const periods: LivePeriod[] = settings.live_classes?.periods || [];
 
   const [week, setWeek] = useState(() => weekStart(new Date()));
   const [rows, setRows] = useState<LiveSession[]>([]);
@@ -142,6 +143,10 @@ export const LivePage: React.FC = () => {
           const v = { ...(settings.live_classes || {}), domain: d };
           if (updateSettings) await updateSettings({ live_classes: v }); else await saveSettings({ live_classes: v } as any);
           showToast(t('تم الحفظ'));
+        }} periods={periods} onSavePeriods={async (ps) => {
+          const v = { ...(settings.live_classes || {}), periods: ps };
+          if (updateSettings) await updateSettings({ live_classes: v }); else await saveSettings({ live_classes: v } as any);
+          showToast(t('تم الحفظ'));
         }} />
       )}
 
@@ -162,7 +167,7 @@ export const LivePage: React.FC = () => {
                 <Button icon={Video} onClick={() => void enter(s)} disabled={joining === s.id} className={s.status === 'live' ? '!bg-rose-600 hover:!bg-rose-700' : ''} data-testid="live-join">
                   {s.can_manage ? (s.status === 'live' ? t('العودة للحصة') : t('ابدأ الحصة')) : t('ادخل الحصة')}
                 </Button>
-              ) : <Chip tone="info">{t('في انتظار المعلم')}</Chip>}
+              ) : <Chip tone="info">{t('تفتح {time}', { time: fmtTime(s.starts_at) })}</Chip>}
             </Card>
           ))}
         </div>
@@ -222,7 +227,7 @@ export const LivePage: React.FC = () => {
       )}
 
       {editing && (
-        <LiveEditor session={editing === 'new' ? null : editing} classes={myClasses} subjects={subjects}
+        <LiveEditor session={editing === 'new' ? null : editing} classes={myClasses} subjects={subjects} periods={periods}
           teachers={me.role === 'teacher' ? [] : (users as User[]).filter((u) => u.role === 'teacher').sort((a, b) => a.name.localeCompare(b.name, 'ar'))}
           me={me} onClose={() => setEditing(null)} onSaved={(n) => { setEditing(null); showToast(n > 1 ? t('تمت جدولة {n} حصة', { n }) : t('تم الحفظ')); void load(true); }} />
       )}
@@ -239,13 +244,13 @@ const SessionRow: React.FC<{
   const st = statusOf(s);
   const meta = STATUS[st] || STATUS.scheduled;
   const subj = subjectName(s.subject_id);
-  const canEnter = s.status === 'live' || (s.can_manage && (st === 'scheduled' || st === 'soon' || st === 'missed'));
+  const canEnter = s.status === 'live' || (s.can_manage && (st === 'scheduled' || st === 'soon'));
   const ib = 'w-9 h-9 rounded-xl flex items-center justify-center text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800';
   return (
     <Card className={`p-3 sm:p-4 flex flex-wrap items-center gap-3 ${s.status === 'cancelled' ? 'opacity-60' : ''}`} data-testid="live-row">
       <div className="w-16 shrink-0 text-center">
         <p className="font-black text-slate-900 dark:text-white tabular-nums">{fmtTime(s.starts_at)}</p>
-        <p className="text-xs text-slate-500">{t('{n} د', { n: s.duration_min })}</p>
+        <p className="text-xs text-slate-500">{s.period ? t('الحصة {n}', { n: s.period }) : t('{n} د', { n: s.duration_min })}</p>
       </div>
       <div className="flex-1 min-w-[12rem]">
         <p className={`font-bold text-slate-900 dark:text-white ${s.status === 'cancelled' ? 'line-through' : ''}`}>{s.title}</p>
@@ -288,8 +293,8 @@ const Modal: React.FC<{ title: string; onClose: () => void; children: React.Reac
 );
 
 const LiveEditor: React.FC<{
-  session: LiveSession | null; classes: any[]; subjects: any[]; teachers: User[]; me: User; onClose: () => void; onSaved: (n: number) => void;
-}> = ({ session, classes, subjects, teachers, me, onClose, onSaved }) => {
+  session: LiveSession | null; classes: any[]; subjects: any[]; periods: LivePeriod[]; teachers: User[]; me: User; onClose: () => void; onSaved: (n: number) => void;
+}> = ({ session, classes, subjects, periods, teachers, me, onClose, onSaved }) => {
   const next = () => { const d = new Date(); d.setMinutes(Math.ceil((d.getMinutes() + 5) / 5) * 5, 0, 0); return toLocalInput(d); };
   const [title, setTitle] = useState(session?.title || '');
   const [notes, setNotes] = useState(session?.notes || '');
@@ -297,13 +302,24 @@ const LiveEditor: React.FC<{
   const [subjectId, setSubjectId] = useState(session?.subject_id || '');
   const [start, setStart] = useState(session ? toLocalInput(new Date(session.starts_at)) : next());
   const [dur, setDur] = useState(session?.duration_min || 35);
+  // الحصص الثابتة: أقرب حصة قادمة اليوم، وإلا الأولى غداً
+  const nowHm = `${pad(new Date().getHours())}:${pad(new Date().getMinutes())}`;
+  const nextIdx = periods.findIndex((p) => periodEnd(p) > nowHm);
+  const [period, setPeriod] = useState<number>(session ? session.period || 0 : periods.length ? (nextIdx >= 0 ? nextIdx + 1 : 1) : 0);
+  const [date, setDate] = useState(() => {
+    if (session) return dayKey(new Date(session.starts_at));
+    const d = new Date(); if (periods.length && nextIdx < 0) d.setDate(d.getDate() + 1); return dayKey(d);
+  });
+  const per = period > 0 ? periods[period - 1] : null;
+  const effStart = per ? `${date}T${per.start}` : start;
+  const effDur = per ? Number(per.minutes) || 35 : dur;
   const [teacherId, setTeacherId] = useState('');
   const [repeat, setRepeat] = useState(false);
   const [weekdays, setWeekdays] = useState<number[]>([]);
   const [until, setUntil] = useState(() => { const d = new Date(); d.setMonth(d.getMonth() + 1); return dayKey(d); });
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
-  const startDow = start ? new Date(start).getDay() : -1;
+  const startDow = effStart ? new Date(effStart).getDay() : -1;
   const toggleClass = (id: string) => setClassIds((x) => (x.includes(id) ? x.filter((y) => y !== id) : [...x, id]));
 
   const submit = async (e: React.FormEvent) => {
@@ -311,9 +327,9 @@ const LiveEditor: React.FC<{
     setErr('');
     if (!title.trim()) return setErr(t('اكتب عنوان الحصة'));
     if (!classIds.length) return setErr(t('اختر فصلاً واحداً على الأقل'));
-    if (!start) return setErr(t('حدد موعد الحصة'));
+    if (!effStart || (per && !date)) return setErr(t('حدد موعد الحصة'));
     setBusy(true);
-    const d: LiveDraft = { id: session?.id, title: title.trim(), notes, class_ids: classIds, subject_id: subjectId || null, starts_at: new Date(start).toISOString(), duration_min: dur, teacher_id: teacherId || undefined };
+    const d: LiveDraft = { id: session?.id, title: title.trim(), notes, class_ids: classIds, subject_id: subjectId || null, starts_at: new Date(effStart).toISOString(), duration_min: effDur, period: per ? period : null, teacher_id: teacherId || undefined };
     const r = await saveLive(d, !session && repeat ? until : null, !session && repeat ? weekdays.filter((w) => w !== startDow) : undefined);
     setBusy(false);
     if (!r.ok) {
@@ -341,25 +357,46 @@ const LiveEditor: React.FC<{
             ))}
           </div>
         </div>
-        <div className="grid sm:grid-cols-2 gap-3">
-          <label className="block space-y-1">
-            <span className="text-sm font-bold text-slate-700 dark:text-slate-200">{t('المادة (اختياري)')}</span>
-            <select value={subjectId} onChange={(e) => setSubjectId(e.target.value)} className={`${inp} w-full`}>
-              <option value="">—</option>
-              {subjects.map((s: any) => <option key={s.id} value={s.id}>{s.name}</option>)}
-            </select>
-          </label>
-          <label className="block space-y-1">
-            <span className="text-sm font-bold text-slate-700 dark:text-slate-200">{t('المدة')}</span>
-            <select value={dur} onChange={(e) => setDur(Number(e.target.value))} className={`${inp} w-full`}>
-              {[30, 35, 40, 45, 60, 90].map((m) => <option key={m} value={m}>{t('{n} دقيقة', { n: m })}</option>)}
-            </select>
-          </label>
-        </div>
-        <div className="space-y-1">
-          <span className="text-sm font-bold text-slate-700 dark:text-slate-200">{t('الموعد')}</span>
-          <DateTimeField value={start} onChange={setStart} required label={t('الموعد')} />
-        </div>
+        <label className="block space-y-1">
+          <span className="text-sm font-bold text-slate-700 dark:text-slate-200">{t('المادة (اختياري)')}</span>
+          <select value={subjectId} onChange={(e) => setSubjectId(e.target.value)} className={`${inp} w-full`}>
+            <option value="">—</option>
+            {subjects.map((s: any) => <option key={s.id} value={s.id}>{s.name}</option>)}
+          </select>
+        </label>
+        {periods.length > 0 && (
+          <div className="grid sm:grid-cols-2 gap-3">
+            <label className="block space-y-1">
+              <span className="text-sm font-bold text-slate-700 dark:text-slate-200">{t('الحصة')}</span>
+              <select value={period} onChange={(e) => setPeriod(Number(e.target.value))} className={`${inp} w-full`} data-testid="live-period">
+                {periods.map((p, i) => <option key={i} value={i + 1}>{t('الحصة {n}', { n: i + 1 })} · {`\u2066${p.start}–${periodEnd(p)}\u2069`}</option>)}
+                <option value={0}>{t('وقت آخر')}</option>
+              </select>
+            </label>
+            {per && (
+              <label className="block space-y-1">
+                <span className="text-sm font-bold text-slate-700 dark:text-slate-200">{t('اليوم')}</span>
+                <input type="date" required value={date} onChange={(e) => setDate(e.target.value)} className={`${inp} w-full`} />
+              </label>
+            )}
+          </div>
+        )}
+        {per ? (
+          <p className="text-xs text-slate-500 dark:text-slate-400">{t('تفتح الحصة تلقائياً من {a} وتُغلق للجميع عند {b}.', { a: per.start, b: periodEnd(per) })}</p>
+        ) : (
+          <div className="grid sm:grid-cols-[1fr_auto] gap-3 items-end">
+            <div className="space-y-1">
+              <span className="text-sm font-bold text-slate-700 dark:text-slate-200">{t('الموعد')}</span>
+              <DateTimeField value={start} onChange={setStart} required label={t('الموعد')} />
+            </div>
+            <label className="block space-y-1">
+              <span className="text-sm font-bold text-slate-700 dark:text-slate-200">{t('المدة')}</span>
+              <select value={dur} onChange={(e) => setDur(Number(e.target.value))} className={`${inp} w-full`}>
+                {[30, 35, 40, 45, 60, 90].map((m) => <option key={m} value={m}>{t('{n} دقيقة', { n: m })}</option>)}
+              </select>
+            </label>
+          </div>
+        )}
         {teachers.length > 0 && !session && (
           <label className="block space-y-1">
             <span className="text-sm font-bold text-slate-700 dark:text-slate-200">{t('المعلم')}</span>
@@ -475,8 +512,12 @@ const DeleteModal: React.FC<{ s: LiveSession; onClose: () => void; onDone: (n: n
 };
 
 /** إعدادات خادم الحصص (للمدير): العنوان، وسرّ رموز الدخول */
-const ServerSettings: React.FC<{ domain: string; onSaveDomain: (d: string) => Promise<void> }> = ({ domain, onSaveDomain }) => {
+const ServerSettings: React.FC<{ domain: string; onSaveDomain: (d: string) => Promise<void>; periods: LivePeriod[]; onSavePeriods: (p: LivePeriod[]) => Promise<void> }> = ({ domain, onSaveDomain, periods, onSavePeriods }) => {
   const { showToast } = useApp();
+  const [ps, setPs] = useState<LivePeriod[]>(periods);
+  const addPeriod = () => setPs((x) => [...x, { start: x.length ? periodEnd(x[x.length - 1]) : '07:00', minutes: x.length ? x[x.length - 1].minutes : 35 }]);
+  const setP = (i: number, patch: Partial<LivePeriod>) => setPs((x) => x.map((p, j) => (j === i ? { ...p, ...patch } : p)));
+  const psValid = ps.every((p) => /^\d{2}:\d{2}$/.test(p.start) && p.minutes >= 5);
   const [d, setD] = useState(domain);
   const [cfg, setCfg] = useState<{ configured: boolean; app_id?: string } | null>(null);
   const [secret, setSecret] = useState('');
@@ -496,6 +537,27 @@ const ServerSettings: React.FC<{ domain: string; onSaveDomain: (d: string) => Pr
         <div className="flex flex-wrap gap-2">
           <input value={d} onChange={(e) => setD(e.target.value)} dir="ltr" placeholder="meet.school.sa" className={`${inp} flex-1 min-w-[14rem]`} data-testid="live-domain" />
           <Button icon={Save} onClick={() => void onSaveDomain(clean)} disabled={!clean || clean === domain}>{t('حفظ')}</Button>
+        </div>
+      </div>
+      <div className="space-y-2 border-t border-slate-100 dark:border-slate-800 pt-4" data-testid="live-periods">
+        <p className="font-black text-slate-900 dark:text-white">{t('مواعيد الحصص الثابتة')}</p>
+        <p className="text-sm text-slate-600 dark:text-slate-300">{t('يختار المعلم رقم الحصة فقط، فتفتح الحصة تلقائياً في موعدها وتُغلق للجميع عند نهايته.')}</p>
+        <div className="space-y-2">
+          {ps.map((p, i) => (
+            <div key={i} className="flex flex-wrap items-center gap-2 text-sm">
+              <span className="w-20 font-bold text-slate-700 dark:text-slate-200">{t('الحصة {n}', { n: i + 1 })}</span>
+              <input type="time" value={p.start} onChange={(e) => setP(i, { start: e.target.value })} className={inp} aria-label={t('بداية الحصة {n}', { n: i + 1 })} />
+              <select value={p.minutes} onChange={(e) => setP(i, { minutes: Number(e.target.value) })} className={inp} aria-label={t('المدة')}>
+                {[30, 35, 40, 45, 50, 60].map((m) => <option key={m} value={m}>{t('{n} دقيقة', { n: m })}</option>)}
+              </select>
+              <span className="text-slate-500 tabular-nums">← {periodEnd(p)}</span>
+              <button type="button" onClick={() => setPs((x) => x.filter((_, j) => j !== i))} className="w-9 h-9 rounded-xl flex items-center justify-center text-slate-400 hover:text-rose-600" aria-label={t('حذف')}><Trash2 className="w-4 h-4" /></button>
+            </div>
+          ))}
+        </div>
+        <div className="flex flex-wrap gap-2">
+          {ps.length < 12 && <Button size="sm" variant="secondary" icon={Plus} onClick={addPeriod}>{t('إضافة حصة')}</Button>}
+          <Button size="sm" icon={Save} onClick={() => void onSavePeriods(ps)} disabled={!psValid || JSON.stringify(ps) === JSON.stringify(periods)}>{t('حفظ المواعيد')}</Button>
         </div>
       </div>
       <div className="space-y-2 border-t border-slate-100 dark:border-slate-800 pt-4">

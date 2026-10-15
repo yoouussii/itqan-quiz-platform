@@ -47,7 +47,7 @@ export interface AppSettings {
   /** رئيسية الطالب (021): تحدي اليوم والأيام المتتالية وترتيب الفصل (مفعّلة إن لم تُضبط) */
   student_home: { challenge?: boolean; streak?: boolean; leaderboard?: boolean; challenge_count?: number } | null;
   /** الحصص المباشرة (083): عنوان خادم Jitsi */
-  live_classes: { domain?: string } | null;
+  live_classes: { domain?: string; periods?: Array<{ start: string; minutes: number }> } | null;
 }
 // اشتراط اعتماد الاختبارات مفعّل افتراضياً (مثل الخادم في 008)، ويُلغيه المدير من الإعدادات
 export const DEFAULT_SETTINGS: AppSettings = {
