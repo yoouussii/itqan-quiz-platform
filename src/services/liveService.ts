@@ -19,6 +19,8 @@ export interface LiveSession {
   external?: boolean; external_url?: string | null;
   /** مزوّد الحصة (086): خادم المدرسة، أو Zoom داخل المنصة، أو رابط خارجي */
   provider?: 'jitsi' | 'zoom' | 'external'; zoom_meeting?: string | null; zoom_passcode?: string | null;
+  /** اعتماد المعلم لحضور الحصة (090) */
+  att_submitted_at?: string | null;
   attended: { seconds: number; first_join: string } | null;
 }
 export interface LiveJoin {
@@ -29,7 +31,9 @@ export interface LiveJoin {
 export interface LiveAttendee {
   user_id: string; name: string; class_id: string; first_join: string | null; last_seen: string | null; seconds: number; joins: number;
   /** بعد انتهاء الحصة (088) */
-  status?: 'present' | 'late' | 'absent' | null;
+  status?: 'present' | 'late' | 'absent' | 'excused' | null;
+  /** تعديل المعلم (090) */
+  override?: 'present' | 'late' | 'absent' | 'excused' | null;
 }
 export interface LiveDraft {
   id?: string; title: string; notes: string; class_ids: string[]; subject_id: string | null;
@@ -73,6 +77,11 @@ export async function pingLive(id: string): Promise<{ ok: boolean; status?: Live
 export async function liveAttendance(id: string): Promise<LiveAttendee[] | null> {
   const r = await safe<LiveAttendee[]>(() => supabase.rpc('itqan_live_attendance', { p_id: id }) as any);
   return r.ok ? r.data || [] : null;
+}
+
+/** المعلم يعدّل حالات الحضور ويعتمدها (090) */
+export async function setLiveAttendance(id: string, marks: Record<string, string | null>, submit: boolean) {
+  return safe<{ ok: boolean; changed: number; submitted_at: string | null }>(() => supabase.rpc('itqan_live_attendance_set', { p_id: id, p_marks: marks, p_submit: submit }) as any);
 }
 
 export async function liveConfigStatus(): Promise<{ configured: boolean; app_id?: string }> {
@@ -142,13 +151,30 @@ export const externalKind = (url?: string | null) =>
   !url ? '' : /zoom\./i.test(url) ? 'Zoom' : /teams\.(microsoft|live)\./i.test(url) ? 'Teams' : /meet\.google\./i.test(url) ? 'Google Meet' : '';
 
 /** مفاتيح تطبيق Zoom Meeting SDK للمعلم الحالي (086): السرّ لا يُعاد أبداً */
-export async function zoomKeysStatus(): Promise<{ configured: boolean; client_id?: string | null }> {
+export async function zoomKeysStatus(): Promise<{ configured: boolean; client_id?: string | null; meeting?: string | null; passcode?: string | null }> {
   const r = await safe<any>(() => supabase.rpc('itqan_zoom_keys_status') as any);
   return r.data || { configured: false };
 }
 export async function setZoomKeys(clientId: string, secret: string | null) {
   return safe<any>(() => supabase.rpc('itqan_zoom_keys_set', { p_client_id: clientId, p_secret: secret }) as any);
 }
+/** اجتماع المعلم الثابت في Zoom (089): يُستخدم في كل حصصه من الجدول */
+export async function setZoomMeeting(meeting: string, passcode: string) {
+  return safe<any>(() => supabase.rpc('itqan_zoom_meeting_set', { p_meeting: meeting, p_passcode: passcode }) as any);
+}
+
+/** جدول الحصص الأونلاين (089) */
+export interface TimetableRow { class_id: string; dow: number; period: number; teacher_id: string | null; subject_id: string | null; title: string }
+export async function getTimetable(): Promise<TimetableRow[]> {
+  const r = await safe<TimetableRow[]>(() => supabase.rpc('itqan_live_timetable_get') as any);
+  return r.data || [];
+}
+export async function applyTimetable(rows: TimetableRow[], periods: LivePeriod[], from: string, to: string, replace: boolean) {
+  return safe<{ ok: boolean; created: number; deleted: number; skipped: number }>(() => supabase.rpc('itqan_live_timetable_apply', {
+    p_rows: rows, p_periods: periods, p_from: from, p_to: to, p_replace: replace,
+  }) as any);
+}
+
 /** رقم الاجتماع من رابط دعوة Zoom أو من الرقم نفسه (بمسافات أو شرطات) */
 export function parseZoomMeeting(v: string): string {
   const m = v.match(/\/j\/(\d{9,12})/) || v.match(/\/wc\/(\d{9,12})/);

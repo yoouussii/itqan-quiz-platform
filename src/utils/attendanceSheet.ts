@@ -177,7 +177,8 @@ function pullMarks() {
       if (sh) {
         var g = grids[m.sheet] || (grids[m.sheet] = sh.getDataRange().getValues());
         var cell = findCell(g, m);
-        if (cell) { sh.getRange(cell[0] + 1, cell[1] + 1).setValue(true); g[cell[0]][cell[1]] = true; }
+        // value=false: تصحيح من المعلم (إزالة العلامة)
+        if (cell) { var val = m.value !== false; sh.getRange(cell[0] + 1, cell[1] + 1).setValue(val); g[cell[0]][cell[1]] = val; }
       }
       done.push(m.id);
     });

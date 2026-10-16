@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
-  Video, Plus, ChevronRight, ChevronLeft, Pencil, Trash2, Users, X, Save, Ban, RotateCcw, Settings2, Copy, Download, KeyRound, Radio, Clock, Link2,
+  Video, Plus, ChevronRight, ChevronLeft, Pencil, Trash2, Users, X, Save, Ban, RotateCcw, Settings2, Copy, Download, KeyRound, Radio, Clock, Link2, FileSpreadsheet, Send, ClipboardCheck,
 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 import { PageHeader, Card, Button, Chip, Tone, ListSkeleton } from '../common/ui';
@@ -8,11 +8,12 @@ import { DateTimeField } from '../common/DateTimeField';
 import {
   LiveAttendee, LiveDraft, LiveJoin, LivePeriod, LiveSession, deleteLive, periodEnd, isSoon, joinLive, listLive, liveAttendance, liveConfigStatus, liveEnd,
   randomSecret, saveLive, setLive, setLiveConfig, takePendingJoin, copyLiveLink, openExternal, externalKind,
-  zoomKeysStatus, setZoomKeys, parseZoomMeeting,
+  zoomKeysStatus, setZoomKeys, parseZoomMeeting, setZoomMeeting, setLiveAttendance,
 } from '../../services/liveService';
 import { saveSettings } from '../../services/settingsService';
 import { LiveRoom } from './LiveRoom';
 const ZoomRoom = React.lazy(() => import('./ZoomRoom'));
+const TimetableImport = React.lazy(() => import('./TimetableImport'));
 import { setLiveRoomOpen } from '../../utils/liveRoomFlag';
 import { t, uiDir, dateLocale } from '../../i18n';
 import type { User } from '../../types';
@@ -73,6 +74,7 @@ export const LivePage: React.FC = () => {
   const [joining, setJoining] = useState<string | null>(null);
   const [showCfg, setShowCfg] = useState(false);
   const [showZoom, setShowZoom] = useState(false);
+  const [showTt, setShowTt] = useState(false);
   const [zoomJoin, setZoomJoin] = useState<LiveJoin | null>(null);
   const [now, setNow] = useState(Date.now());
 
@@ -112,6 +114,9 @@ export const LivePage: React.FC = () => {
 
   const visible = rows.filter((s) => (!classFilter || s.class_ids.includes(classFilter)) && (!mineOnly || s.teacher_id === me.id));
   const happening = visible.filter((s) => s.status === 'live' || isSoon(s, now));
+  // حصص انتهت ولم يعتمد مديرها حضورها بعد (آخر يومين)
+  const pendingAtt = rows.filter((s) => s.can_manage && s.status === 'ended' && !s.att_submitted_at && (s.teacher_id === me.id || mineOnly)
+    && now - new Date(s.starts_at).getTime() < 2 * 86400000);
   const days = useMemo(() => Array.from({ length: 7 }, (_, i) => { const d = new Date(week); d.setDate(d.getDate() + i); return d; }), [week]);
   const byDay = useMemo(() => {
     const m: Record<string, LiveSession[]> = {};
@@ -154,6 +159,7 @@ export const LivePage: React.FC = () => {
         actions={<>
           {canCreate && <Button icon={Plus} onClick={() => setEditing('new')} data-testid="live-new">{t('حصة جديدة')}</Button>}
           {isStaff && <Button variant="secondary" icon={Video} onClick={() => setShowZoom((v) => !v)} data-testid="zoom-keys-btn">{t('حسابي في Zoom')}</Button>}
+          {me.role === 'admin' && <Button variant="secondary" icon={FileSpreadsheet} onClick={() => setShowTt(true)} data-testid="tt-btn">{t('استيراد الجدول')}</Button>}
           {me.role === 'admin' && <Button variant="secondary" icon={Settings2} onClick={() => setShowCfg((v) => !v)}>{t('إعدادات الخادم')}</Button>}
         </>}
       />
@@ -176,7 +182,24 @@ export const LivePage: React.FC = () => {
       )}
 
       {isStaff && showZoom && <ZoomKeysCard />}
+      {showTt && (
+        <React.Suspense fallback={null}>
+          <TimetableImport periods={periods} onClose={() => setShowTt(false)} onDone={() => { setShowTt(false); void load(true); }} />
+        </React.Suspense>
+      )}
 
+      {pendingAtt.length > 0 && (
+        <Card className="p-4 space-y-2 border-amber-200 dark:border-amber-900 bg-amber-50/60 dark:bg-amber-950/30" data-testid="att-pending">
+          <p className="font-black text-amber-900 dark:text-amber-200 flex items-center gap-2"><ClipboardCheck className="w-5 h-5" />{t('حصص تنتظر اعتماد الحضور')}</p>
+          <div className="flex flex-wrap gap-2">
+            {pendingAtt.map((x) => (
+              <Button key={x.id} size="sm" variant="secondary" onClick={() => setAtt(x)}>
+                {x.title} · {fmtTime(x.starts_at)} · {x.class_ids.map(className).join('، ')}
+              </Button>
+            ))}
+          </div>
+        </Card>
+      )}
       {happening.length > 0 && (
         <div className="space-y-3">
           {happening.map((s) => (
@@ -262,7 +285,7 @@ export const LivePage: React.FC = () => {
           teachers={me.role === 'teacher' ? [] : (users as User[]).filter((u) => u.role === 'teacher').sort((a, b) => a.name.localeCompare(b.name, 'ar'))}
           me={fresh} onClose={() => setEditing(null)} onSaved={(n) => { setEditing(null); showToast(n > 1 ? t('تمت جدولة {n} حصة', { n }) : t('تم الحفظ')); void load(true); }} />
       )}
-      {att && <AttendanceModal s={att} className={className} onClose={() => setAtt(null)} />}
+      {att && <AttendanceModal s={att} className={className} onClose={() => setAtt(null)} onSubmitted={() => void load(true)} />}
       {del && <DeleteModal s={del} onClose={() => setDel(null)} onDone={(n) => { setDel(null); showToast(t('تم حذف {n} حصة', { n })); void load(true); }} />}
     </div>
   );
@@ -543,29 +566,48 @@ const LiveEditor: React.FC<{
   );
 };
 
-const AttendanceModal: React.FC<{ s: LiveSession; className: (id: string) => string; onClose: () => void }> = ({ s, className, onClose }) => {
+const AttendanceModal: React.FC<{ s: LiveSession; className: (id: string) => string; onClose: () => void; onSubmitted?: () => void }> = ({ s, className, onClose, onSubmitted }) => {
+  const { showToast } = useApp();
   const [rows, setRows] = useState<LiveAttendee[] | null>(null);
-  useEffect(() => { void liveAttendance(s.id).then((r) => setRows(r || [])); }, [s.id]);
-  // الحالة من الخادم بعد انتهاء الحصة (088)؛ أثناءها: دخل أو لم يدخل بعد
-  const stOf = (r: LiveAttendee): 'present' | 'late' | 'absent' | 'in' | 'out' => r.status || (r.joins > 0 ? 'in' : 'out');
-  const ST: Record<string, { label: string; dot: string; tone: 'ok' | 'warn' | 'bad' | 'info' | 'muted' }> = {
+  const [edits, setEdits] = useState<Record<string, string>>({});
+  const [busy, setBusy] = useState(false);
+  const [submittedAt, setSubmittedAt] = useState<string | null>(s.att_submitted_at || null);
+  const reload = useCallback(() => liveAttendance(s.id).then((r) => { setRows(r || []); setEdits({}); }), [s.id]);
+  useEffect(() => { void reload(); }, [reload]);
+  // الحالة من الخادم بعد انتهاء الحصة (088/090)؛ أثناءها: دخل أو لم يدخل بعد
+  type K = 'present' | 'late' | 'absent' | 'excused' | 'in' | 'out';
+  const stOf = (r: LiveAttendee): K => (edits[r.user_id] as K) || r.status || (r.joins > 0 ? 'in' : 'out');
+  const ST: Record<K, { label: string; dot: string; tone: 'ok' | 'warn' | 'bad' | 'info' | 'muted' }> = {
     present: { label: 'حاضر', dot: 'bg-emerald-500', tone: 'ok' },
     late: { label: 'متأخر', dot: 'bg-amber-500', tone: 'warn' },
     absent: { label: 'غائب', dot: 'bg-rose-400', tone: 'bad' },
+    excused: { label: 'مستأذن', dot: 'bg-sky-500', tone: 'info' },
     in: { label: 'دخل', dot: 'bg-emerald-500', tone: 'info' },
     out: { label: 'لم يدخل', dot: 'bg-slate-300 dark:bg-slate-600', tone: 'muted' },
   };
-  const count = (k: string) => (rows || []).filter((r) => stOf(r) === k).length;
-  const ended = (rows || []).some((r) => r.status);
+  const count = (k: K) => (rows || []).filter((r) => stOf(r) === k).length;
+  const ended = s.status === 'ended' || (rows || []).some((r) => r.status);
+  // التعديل والاعتماد: لمدير الحصة (المعلم أو المدير) بعد انتهائها
+  const canEdit = s.can_manage && ended;
+  const dirty = Object.keys(edits).length > 0;
   const mins = (sec: number) => Math.round(sec / 60);
   const exportCsv = () => {
     const lines = [[t('الطالب'), t('الفصل'), t('الحالة'), t('أول دخول'), t('الدقائق')].join(',')];
     (rows || []).forEach((r) => lines.push([r.name, className(r.class_id), t(ST[stOf(r)].label), r.first_join ? fmtTime(r.first_join) : '', mins(r.seconds)].map((x) => `"${String(x).replace(/"/g, '""')}"`).join(',')));
     const a = document.createElement('a');
-    a.href = URL.createObjectURL(new Blob(['\ufeff' + lines.join('\n')], { type: 'text/csv;charset=utf-8' }));
+    a.href = URL.createObjectURL(new Blob(['﻿' + lines.join('\n')], { type: 'text/csv;charset=utf-8' }));
     a.download = `${s.title}-${dayKey(new Date(s.starts_at))}.csv`;
     a.click();
     URL.revokeObjectURL(a.href);
+  };
+  const save = async (submit: boolean) => {
+    setBusy(true);
+    const r = await setLiveAttendance(s.id, edits, submit);
+    setBusy(false);
+    if (!r.ok) { showToast(t('تعذر الحفظ'), 'error'); return; }
+    if (submit) { setSubmittedAt(r.data?.submitted_at || new Date().toISOString()); onSubmitted?.(); }
+    showToast(submit ? t('تم اعتماد الحضور وإرساله لسجل الغياب') : t('تم الحفظ'));
+    await reload();
   };
   return (
     <Modal title={t('حضور: {title}', { title: s.title })} onClose={onClose} wide>
@@ -573,37 +615,59 @@ const AttendanceModal: React.FC<{ s: LiveSession; className: (id: string) => str
       {!rows ? <ListSkeleton rows={4} /> : (
         <>
           <div className="flex flex-wrap items-center gap-2">
-            {(ended ? ['present', 'late', 'absent'] : ['in', 'out']).map((k) => (
+            {(ended ? ['present', 'late', 'absent', 'excused'] as K[] : ['in', 'out'] as K[]).map((k) => (
               <Chip key={k} tone={ST[k].tone}>{t(ST[k].label)} {count(k)}</Chip>
             ))}
             <span className="flex-1" />
             <Button size="sm" variant="secondary" icon={Download} onClick={exportCsv} disabled={!rows.length}>{t('تصدير Excel')}</Button>
           </div>
+          {submittedAt ? (
+            <p className="text-xs font-bold text-emerald-700 dark:text-emerald-300" data-testid="att-submitted">{t('اعتُمد الحضور وأُرسل لسجل الغياب {time}. يمكنك التعديل وإعادة الاعتماد.', { time: fmtTime(submittedAt) })}</p>
+          ) : canEdit ? (
+            <p className="text-xs font-bold text-amber-700 dark:text-amber-300">{t('راجع الحضور وعدّل ما يلزم ثم اضغط «اعتماد وإرسال». إن لم يُعتمد يُرسل تلقائياً بعد ساعتين من آخر حصة.')}</p>
+          ) : null}
           <p className="text-xs text-slate-500 dark:text-slate-400">
             {t('حاضر: حضر نصف الحصة أو أكثر. متأخر: دخل بعد 10 دقائق من بدايتها. غائب: لم يدخل أو حضر أقل من نصفها. تُسجَّل في سجل الغياب بعد آخر حصة في اليوم.')}
           </p>
           <div className="divide-y divide-slate-100 dark:divide-slate-800" data-testid="live-att-list">
             {rows.map((r) => {
-              const st = ST[stOf(r)];
+              const k = stOf(r); const st = ST[k];
               return (
-                <div key={r.user_id} className="py-2 flex items-center gap-3 text-sm">
+                <div key={r.user_id} className="py-2 flex flex-wrap items-center gap-x-3 gap-y-1.5 text-sm">
                   <span className={`w-2.5 h-2.5 rounded-full shrink-0 ${st.dot}`} />
-                  <span className="flex-1 font-semibold text-slate-800 dark:text-slate-100 truncate">{r.name}</span>
+                  <span className="flex-1 min-w-[8rem] font-semibold text-slate-800 dark:text-slate-100 truncate">{r.name}</span>
                   <span className="text-xs text-slate-500 hidden sm:inline">{className(r.class_id)}</span>
                   <span className="text-xs text-slate-500 w-24 text-end tabular-nums">
                     {r.joins ? `${r.first_join ? fmtTime(r.first_join) : ''} · ${t('{n} د', { n: mins(r.seconds) })}` : ''}
                   </span>
-                  <Chip tone={st.tone}>{t(st.label)}</Chip>
+                  {canEdit ? (
+                    <div className="flex rounded-xl border border-slate-200 dark:border-slate-700 overflow-hidden" role="radiogroup" aria-label={r.name}>
+                      {(['present', 'late', 'absent', 'excused'] as K[]).map((opt) => (
+                        <button key={opt} type="button" role="radio" aria-checked={k === opt}
+                          onClick={() => setEdits((e) => { const n = { ...e }; if (opt === (r.status || '')) delete n[r.user_id]; else n[r.user_id] = opt; return n; })}
+                          className={`h-8 px-2.5 text-xs font-bold ${k === opt ? `${TONE_BG[opt]} text-white` : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'}`}>
+                          {t(ST[opt].label)}
+                        </button>
+                      ))}
+                    </div>
+                  ) : <Chip tone={st.tone}>{t(st.label)}</Chip>}
                 </div>
               );
             })}
             {!rows.length && <p className="py-4 text-sm text-slate-500">{t('لا يوجد طلاب في فصول هذه الحصة')}</p>}
           </div>
+          {canEdit && rows.length > 0 && (
+            <div className="flex flex-wrap gap-2 justify-end sticky bottom-0 bg-white dark:bg-slate-900 pt-2">
+              {dirty && <Button variant="secondary" icon={Save} onClick={() => void save(false)} disabled={busy}>{t('حفظ')}</Button>}
+              <Button icon={Send} onClick={() => void save(true)} disabled={busy} data-testid="att-submit">{submittedAt ? t('إعادة الاعتماد') : t('اعتماد وإرسال')}</Button>
+            </div>
+          )}
         </>
       )}
     </Modal>
   );
 };
+const TONE_BG: Record<string, string> = { present: 'bg-emerald-600', late: 'bg-amber-500', absent: 'bg-rose-500', excused: 'bg-sky-600' };
 
 const DeleteModal: React.FC<{ s: LiveSession; onClose: () => void; onDone: (n: number) => void }> = ({ s, onClose, onDone }) => {
   const [busy, setBusy] = useState(false);
@@ -695,7 +759,7 @@ const ServerSettings: React.FC<{ domain: string; onSaveDomain: (d: string) => Pr
 /** ربط حساب المعلم في Zoom: مفاتيح تطبيق Meeting SDK من حسابه (السرّ يُحفظ على الخادم ولا يُعرض) */
 const ZoomKeysCard: React.FC = () => {
   const { showToast } = useApp();
-  const [st, setSt] = useState<{ configured: boolean; client_id?: string | null } | null>(null);
+  const [st, setSt] = useState<{ configured: boolean; client_id?: string | null; meeting?: string | null; passcode?: string | null } | null>(null);
   const [cid, setCid] = useState('');
   const [sec, setSec] = useState('');
   const [busy, setBusy] = useState(false);
@@ -707,6 +771,18 @@ const ZoomKeysCard: React.FC = () => {
     if (!r.ok) { showToast(t('تعذر الحفظ'), 'error'); return; }
     setSt(r.data); setSec(''); if (remove) setCid('');
     showToast(remove ? t('أُلغي ربط Zoom') : t('تم ربط حسابك في Zoom'));
+  };
+  const [mt, setMt] = useState('');
+  const [mp, setMp] = useState('');
+  useEffect(() => { if (st) { setMt(st.meeting || ''); setMp(st.passcode || ''); } }, [st]);
+  const saveMeeting = async () => {
+    const m = mt.trim() ? parseZoomMeeting(mt) : '';
+    if (mt.trim() && !m) { showToast(t('اكتب رقم اجتماع Zoom (9 إلى 12 رقماً) أو الصق رابط الدعوة'), 'error'); return; }
+    setBusy(true);
+    const r = await setZoomMeeting(m, mp.trim());
+    setBusy(false);
+    if (!r.ok) { showToast(t('تعذر الحفظ'), 'error'); return; }
+    setSt(r.data); showToast(t('تم حفظ اجتماعك، وطُبّق على حصصك القادمة من الجدول'));
   };
   const steps = [
     t('ادخل marketplace.zoom.us بحسابك في Zoom ← Develop ← Build App.'),
@@ -729,6 +805,15 @@ const ZoomKeysCard: React.FC = () => {
       <div className="flex flex-wrap gap-2">
         <Button size="sm" icon={Save} onClick={() => void save()} disabled={busy || !cid.trim() || (!st?.configured && !sec.trim())} data-testid="zoom-save">{t('حفظ')}</Button>
         {st?.configured && <Button size="sm" variant="secondary" icon={Trash2} onClick={() => void save(true)} disabled={busy}>{t('إلغاء الربط')}</Button>}
+      </div>
+      <div className="border-t border-slate-200 dark:border-slate-800 pt-3 space-y-2">
+        <p className="font-black text-slate-900 dark:text-white">{t('اجتماعي الثابت في Zoom')}</p>
+        <p className="text-xs text-slate-500 dark:text-slate-400">{t('اجتماع واحد متكرر (بدون وقت محدد) لكل حصصك: يُستخدم تلقائياً في حصص الجدول. لا يظهر الرقم ولا الرمز للطلاب.')}</p>
+        <div className="grid sm:grid-cols-2 gap-2">
+          <input value={mt} onChange={(e) => setMt(e.target.value)} dir="ltr" placeholder={t('رقم الاجتماع أو رابط الدعوة')} className={`${inp} w-full`} data-testid="zoom-meeting-fixed" />
+          <input value={mp} onChange={(e) => setMp(e.target.value)} dir="ltr" placeholder={t('رمز المرور (Passcode)')} className={`${inp} w-full`} data-testid="zoom-pass-fixed" />
+        </div>
+        <Button size="sm" icon={Save} onClick={() => void saveMeeting()} disabled={busy} data-testid="zoom-meeting-save">{t('حفظ الاجتماع')}</Button>
       </div>
     </Card>
   );
