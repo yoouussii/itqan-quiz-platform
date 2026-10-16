@@ -50,6 +50,8 @@ export class ErrorBoundary extends React.Component<{ children: React.ReactNode }
     try {
       localStorage.removeItem('itqan_current_user_id_v2');
       localStorage.removeItem('itqan_session_started_at');
+      localStorage.removeItem('itqan_session_token_v1');
+      localStorage.removeItem('itqan_session_info_v1');
     } catch {
       /* ignore */
     }

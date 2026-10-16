@@ -785,7 +785,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         // التحقق من الجلسة على الخادم: انتهت أو أُلغيت (تغيير كلمة المرور / حذف الحساب)
         // أو جلسة قديمة من قبل تفعيل الحماية ← إعادة تسجيل الدخول
         try {
-          const { data, error } = await supabase.rpc('itqan_session_user');
+          let { data, error } = await supabase.rpc('itqan_session_user');
+          // تأكيد قبل الإخراج: إعادة السؤال بعد ثوانٍ (تجنّب خروج بسبب ردّ لحظي خاطئ)
+          if (!error && !data && getSessionToken()) {
+            await new Promise((r) => setTimeout(r, 3000));
+            ({ data, error } = await supabase.rpc('itqan_session_user'));
+          }
           if (!error && !data) {
             // داخل حصة مباشرة أو أثناء اختبار أو تحرير اختبار: لا نُخرج المستخدم ولا نمسح شاشته؛
             // يُطلب تسجيل الدخول بعد انتهائه (إجابات الاختبار محفوظة على الجهاز وتُرسل بعد الدخول)
@@ -996,6 +1001,28 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     else all.push(user);
     localStorage.setItem(LS_USERS, JSON.stringify(all));
   };
+
+  // استعادة الجلسة: رمز الجلسة ما زال على الجهاز لكن سجل المستخدم ضاع من النسخة المحلية
+  // (امتلاء ذاكرة المتصفح أو مسحها) ← نسأل الخادم بدل إظهار شاشة الدخول
+  useEffect(() => {
+    if (currentUser || !isSupabaseConfigured() || !getSessionToken()) return;
+    let cancelled = false;
+    void (async () => {
+      try {
+        const { data, error } = await supabase.rpc('itqan_session_user');
+        if (cancelled || error || !data || currentUserRef.current) return;
+        const u = normalizeUser(data as User);
+        cacheUser(u);
+        StorageService.setCurrentUserId(u.id);
+        localStorage.setItem(SESSION_KEY, String(Date.now()));
+        currentUserRef.current = u;
+        setCurrentUserState(u);
+        applyRoute(PUBLIC_PATHS[window.location.pathname] ? { view: 'dashboard' } : routeForUser(u, window.location.pathname));
+      } catch { /* بلا شبكة: تبقى شاشة الدخول */ }
+    })();
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const login = async (nationalId: string, password: string): Promise<boolean> => {
     const id = nationalId.trim();
