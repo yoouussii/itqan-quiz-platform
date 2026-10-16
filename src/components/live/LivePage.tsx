@@ -13,6 +13,7 @@ import {
 import { saveSettings } from '../../services/settingsService';
 import { LiveRoom } from './LiveRoom';
 const ZoomRoom = React.lazy(() => import('./ZoomRoom'));
+import { setLiveRoomOpen } from '../../utils/liveRoomFlag';
 import { t, uiDir, dateLocale } from '../../i18n';
 import type { User } from '../../types';
 
@@ -101,6 +102,8 @@ export const LivePage: React.FC = () => {
   // لا تحديث أثناء وجود المستخدم داخل الحصة (يخفّف الحمل مع مئات الطلاب في وقت واحد)
   const anyLive = rows.some((s) => s.status === 'live');
   const inRoom = !!room || !!zoomJoin;
+  // داخل الحصة: لا تسجيل خروج تلقائي ولا تحديث بيانات دوري للمنصة حتى يخرج المستخدم منها
+  useEffect(() => { setLiveRoomOpen(inRoom); return () => setLiveRoomOpen(false); }, [inRoom]);
   useEffect(() => {
     if (inRoom) return undefined;
     const iv = window.setInterval(() => { setNow(Date.now()); void load(true); }, anyLive ? 20000 : 60000);

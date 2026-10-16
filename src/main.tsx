@@ -2,7 +2,7 @@ import './utils/safeStorage'; // أولاً: ذاكرة محلية بلا بيا
 import React from 'react';
 import ReactDOM from 'react-dom/client';
 import App from './App';
-import { ErrorBoundary, reloadForNewVersion } from './components/common/ErrorBoundary';
+import { ErrorBoundary } from './components/common/ErrorBoundary';
 import './index.css';
 import { loadSettings } from './services/settingsService';
 import { applyBrandColor } from './utils/brand';
@@ -14,8 +14,6 @@ applyBrandColor(loadSettings().brand_color);
 applyLang(loadLangPref());
 // تثبيت الموقع كتطبيق وإشعارات الجوال
 registerServiceWorker();
-// بعد نشر إصدار جديد لا تبقى ملفات الإصدار القديم: الصفحة المفتوحة تُعيد التحميل مرة واحدة بدل رسالة الخطأ
-window.addEventListener('vite:preloadError', (e) => { if (reloadForNewVersion()) e.preventDefault(); });
 
 const start = () => ReactDOM.createRoot(document.getElementById('root') as HTMLElement).render(
   <React.StrictMode>
