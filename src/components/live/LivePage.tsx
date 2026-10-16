@@ -797,7 +797,7 @@ const ZoomKeysCard: React.FC = () => {
     t('ادخل marketplace.zoom.us بحسابك في Zoom ← Develop ← Build App.'),
     t('اختر General App، ثم من Features فعّل Embed ← Meeting SDK.'),
     t('من App Credentials انسخ Client ID و Client Secret والصقهما هنا.'),
-    t('أنشئ في Zoom اجتماعاً متكرراً لكل فصل، وضع رقمه في الحصة.'),
+    t('أنشئ في Zoom اجتماعاً متكرراً واحداً (No Fixed Time)، وضع رقمه ورمزه في «اجتماعي الثابت» أدناه.'),
   ];
   return (
     <Card className="p-4 sm:p-5 space-y-3" data-testid="zoom-keys">
