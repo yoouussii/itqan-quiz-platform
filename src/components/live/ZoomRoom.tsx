@@ -53,10 +53,20 @@ const ZoomRoom: React.FC<{ join: LiveJoin; onClose: () => void }> = ({ join, onC
           patchJsMedia: true,
           leaveOnPageUnload: true,
           // «active»: المتحدث أو الشاشة المشتركة تملأ العرض بدل المربعات الصغيرة
-          customize: { video: { isResizable: false, defaultViewType: 'active' as any, viewSizes: { default: { width: Math.floor(box.width), height: Math.floor(box.height - 60) } } } },
+          customize: { video: { isResizable: false, defaultViewType: 'active' as any, viewSizes: {
+            default: { width: Math.floor(box.width), height: Math.floor(box.height - 60) },
+            ribbon: { width: Math.floor(box.width), height: Math.floor(box.height - 60) },
+          } } },
         });
         c.on('connection-change', (p: any) => { if (p?.state === 'Closed') endNow(); });
+        // مشاركة الشاشة: عرض «الشريط» يضع الفيديوهات في شريط صغير فتأخذ الشاشة المشتركة العرض كله
+        // (في الجوال بالطول كان العرض جنباً إلى جنب فتصغر الشاشة جداً)
+        c.on('peer-share-state-change', (p: any) => {
+          try { c.setViewType(p?.action === 'Start' ? 'ribbon' : 'active'); } catch { /* ignore */ }
+        });
         await c.join({ signature: z.signature, meetingNumber: z.meetingNumber, password: z.password, userName: z.userName });
+        // دخل الطالب والمعلم يشارك شاشته مسبقاً: نفس عرض «الشريط»
+        try { if ((c.getAttendeeslist?.() || []).some((u: any) => u?.sharerOn)) c.setViewType('ribbon'); } catch { /* ignore */ }
         if (alive) setState('ready');
       } catch (e: any) {
         if (!alive) return;
