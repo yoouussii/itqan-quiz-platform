@@ -1,13 +1,13 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
-  Video, Plus, ChevronRight, ChevronLeft, Pencil, Trash2, Users, X, Save, Ban, RotateCcw, Settings2, Copy, Download, KeyRound, Radio, Clock,
+  Video, Plus, ChevronRight, ChevronLeft, Pencil, Trash2, Users, X, Save, Ban, RotateCcw, Settings2, Copy, Download, KeyRound, Radio, Clock, Link2,
 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 import { PageHeader, Card, Button, Chip, Tone, ListSkeleton } from '../common/ui';
 import { DateTimeField } from '../common/DateTimeField';
 import {
   LiveAttendee, LiveDraft, LiveJoin, LivePeriod, LiveSession, deleteLive, periodEnd, isSoon, joinLive, listLive, liveAttendance, liveConfigStatus, liveEnd,
-  randomSecret, saveLive, setLive, setLiveConfig, takePendingJoin,
+  randomSecret, saveLive, setLive, setLiveConfig, takePendingJoin, copyLiveLink, openExternal, externalKind,
 } from '../../services/liveService';
 import { saveSettings } from '../../services/settingsService';
 import { LiveRoom } from './LiveRoom';
@@ -81,7 +81,12 @@ export const LivePage: React.FC = () => {
   }, [week]);
   useEffect(() => { void load(); }, [load]);
   // دخول مباشر من بطاقة الرئيسية
-  const [pending] = useState(takePendingJoin);
+  // أو من رابط الحصة المنسوخ (/live?s=…)
+  const [pending] = useState(() => {
+    const fromUrl = new URLSearchParams(window.location.search).get('s');
+    if (fromUrl) { try { window.history.replaceState(null, '', window.location.pathname); } catch { /* ignore */ } }
+    return takePendingJoin() || fromUrl;
+  });
   useEffect(() => {
     if (!pending || loading) return;
     const s = rows.find((x) => x.id === pending);
@@ -111,6 +116,7 @@ export const LivePage: React.FC = () => {
     const r = await joinLive(s.id);
     setJoining(null);
     if (!r.ok) { showToast((JOIN_ERR[r.error || ''] || (() => t('تعذر دخول الحصة')))(), 'error'); void load(true); return; }
+    if (r.external_url) { openExternal(r.external_url); void load(true); return; }
     setRoom(r);
   };
   const setStatus = async (s: LiveSession, status: 'cancelled' | 'scheduled' | 'ended') => {
@@ -128,14 +134,14 @@ export const LivePage: React.FC = () => {
         title={isStaff ? t('الحصص المباشرة') : t('حصصي المباشرة')}
         subtitle={isStaff ? t('جدول الحصص عن بُعد: جدولة، وتذكير تلقائي للطلاب، ودخول بضغطة، وحضور يُسجَّل وحده') : t('ادخل حصتك من هنا عندما يبدأها المعلم')}
         actions={<>
-          {canCreate && <Button icon={Plus} onClick={() => setEditing('new')} disabled={!domain} data-testid="live-new">{t('حصة جديدة')}</Button>}
+          {canCreate && <Button icon={Plus} onClick={() => setEditing('new')} data-testid="live-new">{t('حصة جديدة')}</Button>}
           {me.role === 'admin' && <Button variant="secondary" icon={Settings2} onClick={() => setShowCfg((v) => !v)}>{t('إعدادات الخادم')}</Button>}
         </>}
       />
 
       {!domain && (
         <Card className="p-4 text-sm bg-amber-50 dark:bg-amber-950/40 border-amber-200 dark:border-amber-900 text-amber-900 dark:text-amber-200">
-          {me.role === 'admin' ? t('اضبط عنوان خادم الحصص أولاً من «إعدادات الخادم».') : t('لم تُفعَّل الحصص المباشرة بعد. تواصل مع إدارة المدرسة.')}
+          {me.role === 'admin' ? t('اضبط عنوان خادم الحصص من «إعدادات الخادم»، أو أضف رابط Zoom/Teams لكل حصة.') : isStaff ? t('خادم الحصص غير مضبوط: أضف رابط اجتماع Zoom أو Teams للحصة.') : t('لم تُفعَّل الحصص المباشرة بعد. تواصل مع إدارة المدرسة.')}
         </Card>
       )}
       {me.role === 'admin' && (showCfg || !domain) && (
@@ -215,6 +221,7 @@ export const LivePage: React.FC = () => {
                   <div className="space-y-2">
                     {list.map((s) => (
                       <SessionRow key={s.id} s={s} className={className} subjectName={subjectName} isStaff={isStaff} joining={joining === s.id}
+                        onCopy={() => void copyLiveLink(s.id).then((ok) => ok && showToast(t('نُسخ رابط الحصة')))}
                         onJoin={() => void enter(s)} onEdit={() => setEditing(s)} onDelete={() => setDel(s)} onAtt={() => setAtt(s)}
                         onCancel={() => void setStatus(s, 'cancelled')} onRestore={() => void setStatus(s, 'scheduled')} />
                     ))}
@@ -227,7 +234,7 @@ export const LivePage: React.FC = () => {
       )}
 
       {editing && (
-        <LiveEditor session={editing === 'new' ? null : editing} classes={myClasses} subjects={subjects} periods={periods}
+        <LiveEditor session={editing === 'new' ? null : editing} classes={myClasses} subjects={subjects} periods={periods} needExternal={!domain}
           teachers={me.role === 'teacher' ? [] : (users as User[]).filter((u) => u.role === 'teacher').sort((a, b) => a.name.localeCompare(b.name, 'ar'))}
           me={me} onClose={() => setEditing(null)} onSaved={(n) => { setEditing(null); showToast(n > 1 ? t('تمت جدولة {n} حصة', { n }) : t('تم الحفظ')); void load(true); }} />
       )}
@@ -239,8 +246,8 @@ export const LivePage: React.FC = () => {
 
 const SessionRow: React.FC<{
   s: LiveSession; className: (id: string) => string; subjectName: (id: string | null) => string; isStaff: boolean; joining: boolean;
-  onJoin: () => void; onEdit: () => void; onDelete: () => void; onAtt: () => void; onCancel: () => void; onRestore: () => void;
-}> = ({ s, className, subjectName, isStaff, joining, onJoin, onEdit, onDelete, onAtt, onCancel, onRestore }) => {
+  onJoin: () => void; onEdit: () => void; onDelete: () => void; onAtt: () => void; onCancel: () => void; onRestore: () => void; onCopy: () => void;
+}> = ({ s, className, subjectName, isStaff, joining, onJoin, onEdit, onDelete, onAtt, onCancel, onRestore, onCopy }) => {
   const st = statusOf(s);
   const meta = STATUS[st] || STATUS.scheduled;
   const subj = subjectName(s.subject_id);
@@ -258,11 +265,15 @@ const SessionRow: React.FC<{
           {[subj, s.class_ids.map(className).join('، '), s.teacher_name].filter(Boolean).join(' · ')}
         </p>
       </div>
+      {s.external && <Chip tone="info">{externalKind(s.external_url) || t('رابط خارجي')}</Chip>}
       <Chip tone={meta.tone}>{meta.label()}</Chip>
       {!isStaff && s.attended && <Chip tone="ok">{t('حضرت ✓')}</Chip>}
       <div className="flex items-center gap-1">
         {canEnter && (
           <Button size="sm" icon={Video} onClick={onJoin} disabled={joining}>{s.can_manage ? (s.status === 'live' ? t('العودة') : t('ابدأ')) : t('ادخل')}</Button>
+        )}
+        {isStaff && s.status !== 'ended' && s.status !== 'cancelled' && s.status !== 'missed' && (
+          <button type="button" onClick={onCopy} className={ib} title={t('نسخ رابط الحصة')} aria-label={t('نسخ رابط الحصة')}><Link2 className="w-4 h-4" /></button>
         )}
         {isStaff && <button type="button" onClick={onAtt} className={ib} title={t('الحضور')} aria-label={t('الحضور')}><Users className="w-4 h-4" /></button>}
         {s.can_manage && s.status !== 'live' && (
@@ -293,8 +304,8 @@ const Modal: React.FC<{ title: string; onClose: () => void; children: React.Reac
 );
 
 const LiveEditor: React.FC<{
-  session: LiveSession | null; classes: any[]; subjects: any[]; periods: LivePeriod[]; teachers: User[]; me: User; onClose: () => void; onSaved: (n: number) => void;
-}> = ({ session, classes, subjects, periods, teachers, me, onClose, onSaved }) => {
+  session: LiveSession | null; classes: any[]; subjects: any[]; periods: LivePeriod[]; needExternal: boolean; teachers: User[]; me: User; onClose: () => void; onSaved: (n: number) => void;
+}> = ({ session, classes, subjects, periods, needExternal, teachers, me, onClose, onSaved }) => {
   const next = () => { const d = new Date(); d.setMinutes(Math.ceil((d.getMinutes() + 5) / 5) * 5, 0, 0); return toLocalInput(d); };
   const [title, setTitle] = useState(session?.title || '');
   const [notes, setNotes] = useState(session?.notes || '');
@@ -317,6 +328,7 @@ const LiveEditor: React.FC<{
   const [repeat, setRepeat] = useState(false);
   const [weekdays, setWeekdays] = useState<number[]>([]);
   const [until, setUntil] = useState(() => { const d = new Date(); d.setMonth(d.getMonth() + 1); return dayKey(d); });
+  const [ext, setExt] = useState(session?.external_url || '');
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
   const startDow = effStart ? new Date(effStart).getDay() : -1;
@@ -328,12 +340,16 @@ const LiveEditor: React.FC<{
     if (!title.trim()) return setErr(t('اكتب عنوان الحصة'));
     if (!classIds.length) return setErr(t('اختر فصلاً واحداً على الأقل'));
     if (!effStart || (per && !date)) return setErr(t('حدد موعد الحصة'));
+    const extUrl = ext.trim();
+    if (extUrl && !/^https:\/\/\S+$/i.test(extUrl)) return setErr(t('الرابط يجب أن يبدأ بـ https://'));
+    if (!extUrl && needExternal) return setErr(t('أضف رابط اجتماع Zoom أو Teams (خادم الحصص غير مضبوط)'));
     setBusy(true);
-    const d: LiveDraft = { id: session?.id, title: title.trim(), notes, class_ids: classIds, subject_id: subjectId || null, starts_at: new Date(effStart).toISOString(), duration_min: effDur, period: per ? period : null, teacher_id: teacherId || undefined };
+    const d: LiveDraft = { id: session?.id, title: title.trim(), notes, class_ids: classIds, subject_id: subjectId || null, starts_at: new Date(effStart).toISOString(), duration_min: effDur, period: per ? period : null, teacher_id: teacherId || undefined, external_url: extUrl || null };
     const r = await saveLive(d, !session && repeat ? until : null, !session && repeat ? weekdays.filter((w) => w !== startDow) : undefined);
     setBusy(false);
     if (!r.ok) {
       const m = r.error || '';
+      if (m.includes('bad_url')) return setErr(t('الرابط يجب أن يبدأ بـ https://'));
       return setErr(m.includes('class_forbidden') ? t('أحد الفصول ليس ضمن إسنادك') : m.includes('repeat_too_long') ? t('مدة التكرار طويلة جداً (الحد ستة أشهر)') : t('تعذر الحفظ'));
     }
     onSaved(session ? 1 : Number(r.data?.created) || 1);
@@ -433,6 +449,11 @@ const LiveEditor: React.FC<{
             )}
           </div>
         )}
+        <label className="block space-y-1">
+          <span className="text-sm font-bold text-slate-700 dark:text-slate-200">{needExternal ? t('رابط الاجتماع (Zoom / Teams / Meet)') : t('رابط اجتماع خارجي (اختياري)')}</span>
+          <input value={ext} onChange={(e) => setExt(e.target.value)} dir="ltr" inputMode="url" placeholder="https://zoom.us/j/…" className={`${inp} w-full`} data-testid="live-ext" />
+          <span className="block text-xs text-slate-500 dark:text-slate-400">{t('اتركه فارغاً لاستخدام خادم المدرسة. مع الرابط: يدخل الطالب من المنصة فيُسجَّل حضوره ثم يُفتح الاجتماع في تطبيقه.')}</span>
+        </label>
         <label className="block space-y-1">
           <span className="text-sm font-bold text-slate-700 dark:text-slate-200">{t('ملاحظات للطلاب (اختياري)')}</span>
           <textarea value={notes} onChange={(e) => setNotes(e.target.value)} maxLength={2000} rows={2} className="w-full px-3 py-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm" />
