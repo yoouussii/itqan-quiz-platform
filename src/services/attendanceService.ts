@@ -2,7 +2,7 @@ import { supabase } from './supabase';
 import { safe } from './remote';
 import type { AttKind, SheetPayload } from '../utils/attendanceSheet';
 
-export interface AttRecord { id: number; student_id: string; day: string; kind: AttKind; source: 'sheet' | 'manual'; note: string; created_at: string }
+export interface AttRecord { id: number; student_id: string; day: string; kind: AttKind; source: 'sheet' | 'manual' | 'live'; note: string; created_at: string }
 export interface AttConfig {
   start_date: string | null;
   weeks: number;

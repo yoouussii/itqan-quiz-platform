@@ -546,13 +546,23 @@ const LiveEditor: React.FC<{
 const AttendanceModal: React.FC<{ s: LiveSession; className: (id: string) => string; onClose: () => void }> = ({ s, className, onClose }) => {
   const [rows, setRows] = useState<LiveAttendee[] | null>(null);
   useEffect(() => { void liveAttendance(s.id).then((r) => setRows(r || [])); }, [s.id]);
-  const present = (rows || []).filter((r) => r.joins > 0);
+  // الحالة من الخادم بعد انتهاء الحصة (088)؛ أثناءها: دخل أو لم يدخل بعد
+  const stOf = (r: LiveAttendee): 'present' | 'late' | 'absent' | 'in' | 'out' => r.status || (r.joins > 0 ? 'in' : 'out');
+  const ST: Record<string, { label: string; dot: string; tone: 'ok' | 'warn' | 'bad' | 'info' | 'muted' }> = {
+    present: { label: 'حاضر', dot: 'bg-emerald-500', tone: 'ok' },
+    late: { label: 'متأخر', dot: 'bg-amber-500', tone: 'warn' },
+    absent: { label: 'غائب', dot: 'bg-rose-400', tone: 'bad' },
+    in: { label: 'دخل', dot: 'bg-emerald-500', tone: 'info' },
+    out: { label: 'لم يدخل', dot: 'bg-slate-300 dark:bg-slate-600', tone: 'muted' },
+  };
+  const count = (k: string) => (rows || []).filter((r) => stOf(r) === k).length;
+  const ended = (rows || []).some((r) => r.status);
   const mins = (sec: number) => Math.round(sec / 60);
   const exportCsv = () => {
     const lines = [[t('الطالب'), t('الفصل'), t('الحالة'), t('أول دخول'), t('الدقائق')].join(',')];
-    (rows || []).forEach((r) => lines.push([r.name, className(r.class_id), r.joins ? t('حاضر') : t('غائب'), r.first_join ? fmtTime(r.first_join) : '', mins(r.seconds)].map((x) => `"${String(x).replace(/"/g, '""')}"`).join(',')));
+    (rows || []).forEach((r) => lines.push([r.name, className(r.class_id), t(ST[stOf(r)].label), r.first_join ? fmtTime(r.first_join) : '', mins(r.seconds)].map((x) => `"${String(x).replace(/"/g, '""')}"`).join(',')));
     const a = document.createElement('a');
-    a.href = URL.createObjectURL(new Blob(['﻿' + lines.join('\n')], { type: 'text/csv;charset=utf-8' }));
+    a.href = URL.createObjectURL(new Blob(['\ufeff' + lines.join('\n')], { type: 'text/csv;charset=utf-8' }));
     a.download = `${s.title}-${dayKey(new Date(s.starts_at))}.csv`;
     a.click();
     URL.revokeObjectURL(a.href);
@@ -563,22 +573,30 @@ const AttendanceModal: React.FC<{ s: LiveSession; className: (id: string) => str
       {!rows ? <ListSkeleton rows={4} /> : (
         <>
           <div className="flex flex-wrap items-center gap-2">
-            <Chip tone="ok">{t('حضر {n}', { n: present.length })}</Chip>
-            <Chip tone="bad">{t('غاب {n}', { n: rows.length - present.length })}</Chip>
+            {(ended ? ['present', 'late', 'absent'] : ['in', 'out']).map((k) => (
+              <Chip key={k} tone={ST[k].tone}>{t(ST[k].label)} {count(k)}</Chip>
+            ))}
             <span className="flex-1" />
             <Button size="sm" variant="secondary" icon={Download} onClick={exportCsv} disabled={!rows.length}>{t('تصدير Excel')}</Button>
           </div>
+          <p className="text-xs text-slate-500 dark:text-slate-400">
+            {t('حاضر: حضر نصف الحصة أو أكثر. متأخر: دخل بعد 10 دقائق من بدايتها. غائب: لم يدخل أو حضر أقل من نصفها. تُسجَّل في سجل الغياب بعد آخر حصة في اليوم.')}
+          </p>
           <div className="divide-y divide-slate-100 dark:divide-slate-800" data-testid="live-att-list">
-            {rows.map((r) => (
-              <div key={r.user_id} className="py-2 flex items-center gap-3 text-sm">
-                <span className={`w-2.5 h-2.5 rounded-full shrink-0 ${r.joins ? 'bg-emerald-500' : 'bg-rose-400'}`} />
-                <span className="flex-1 font-semibold text-slate-800 dark:text-slate-100 truncate">{r.name}</span>
-                <span className="text-xs text-slate-500 hidden sm:inline">{className(r.class_id)}</span>
-                <span className="text-xs text-slate-500 w-28 text-end tabular-nums">
-                  {r.joins ? `${r.first_join ? fmtTime(r.first_join) : ''} · ${t('{n} د', { n: mins(r.seconds) })}` : t('غائب')}
-                </span>
-              </div>
-            ))}
+            {rows.map((r) => {
+              const st = ST[stOf(r)];
+              return (
+                <div key={r.user_id} className="py-2 flex items-center gap-3 text-sm">
+                  <span className={`w-2.5 h-2.5 rounded-full shrink-0 ${st.dot}`} />
+                  <span className="flex-1 font-semibold text-slate-800 dark:text-slate-100 truncate">{r.name}</span>
+                  <span className="text-xs text-slate-500 hidden sm:inline">{className(r.class_id)}</span>
+                  <span className="text-xs text-slate-500 w-24 text-end tabular-nums">
+                    {r.joins ? `${r.first_join ? fmtTime(r.first_join) : ''} · ${t('{n} د', { n: mins(r.seconds) })}` : ''}
+                  </span>
+                  <Chip tone={st.tone}>{t(st.label)}</Chip>
+                </div>
+              );
+            })}
             {!rows.length && <p className="py-4 text-sm text-slate-500">{t('لا يوجد طلاب في فصول هذه الحصة')}</p>}
           </div>
         </>
