@@ -3,6 +3,7 @@ import { uiDir, t } from '../../i18n';
 
 interface State {
   error: Error | null;
+  reloading?: boolean;
 }
 
 /** خطأ تحميل جزء من الموقع بعد نشر إصدار جديد (ملف الإصدار القديم لم يعد موجوداً) */
@@ -30,7 +31,7 @@ export class ErrorBoundary extends React.Component<{ children: React.ReactNode }
   }
 
   componentDidCatch(error: Error, info: React.ErrorInfo) {
-    if (isStaleChunk(error) && reloadForNewVersion()) return;
+    if (isStaleChunk(error) && reloadForNewVersion()) { this.setState({ reloading: true }); return; }
     console.error('[ErrorBoundary]', error, info.componentStack);
   }
 
@@ -46,11 +47,16 @@ export class ErrorBoundary extends React.Component<{ children: React.ReactNode }
 
   render() {
     if (!this.state.error) return this.props.children;
+    // إصدار جديد من المنصة أو انقطاع لحظي: إعادة تحميل تلقائية بدل رسالة الخطأ
+    if (this.state.reloading) {
+      return <div dir={uiDir()} style={{ margin: '20vh auto', textAlign: 'center', fontSize: 15, fontWeight: 700, color: '#475569' }}>{t('جارٍ تحديث المنصة…')}</div>;
+    }
+    const stale = isStaleChunk(this.state.error);
     return (
       <div dir={uiDir()} style={{ maxWidth: 640, margin: '10vh auto', padding: 24, fontFamily: 'inherit' }}>
-        <h1 style={{ fontSize: 20, fontWeight: 800, marginBottom: 8 }}>{t('حدث خطأ غير متوقع')}</h1>
+        <h1 style={{ fontSize: 20, fontWeight: 800, marginBottom: 8 }}>{stale ? t('تعذّر تحميل الصفحة') : t('حدث خطأ غير متوقع')}</h1>
         <p style={{ fontSize: 13, marginBottom: 16, color: '#475569' }}>
-          {t('لم تضِع بياناتك. جرّب إعادة التحميل، وإن تكرر الخطأ أرسل النص أدناه للمطوّر.')}
+          {stale ? t('تأكد من اتصالك بالإنترنت ثم اضغط «إعادة التحميل». لم تضِع بياناتك.') : t('لم تضِع بياناتك. جرّب إعادة التحميل، وإن تكرر الخطأ أرسل النص أدناه للمطوّر.')}
         </p>
         <pre
           style={{

@@ -73,6 +73,7 @@ import {
   deleteSubmissionsRemote,
 } from '../services/quizSync';
 import { touchPresence } from '../services/presenceService';
+import { isLiveRoomOpen } from '../utils/liveRoomFlag';
 import { sortClasses } from '../utils/classOrder';
 import { ungradedEssayCount } from '../utils/grading';
 
@@ -786,10 +787,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         try {
           const { data, error } = await supabase.rpc('itqan_session_user');
           if (!error && !data) {
+            // داخل حصة مباشرة: لا نُخرج المستخدم منها؛ يُطلب تسجيل الدخول بعد خروجه من الحصة
+            if (isLiveRoomOpen()) return;
             logoutRef.current('انتهت الجلسة، يرجى تسجيل الدخول من جديد');
             return;
           }
           if (!error && data) {
+            // الخادم أكّد الجلسة (ويمدّها للمستخدم النشط، 087): مهلة الجهاز تبدأ من آخر تأكيد
+            try { localStorage.setItem(SESSION_KEY, String(Date.now())); } catch { /* ignore */ }
             serverRole = data.role;
             if (getSessionInfo()?.user_id !== data.id) updateSessionInfo({ user_id: data.id });
           }
@@ -930,12 +935,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     let lastTick = Date.now();
     const tick = () => {
       lastTick = Date.now();
-      if (isSessionExpired() && currentViewRef.current !== 'take_quiz') {
+      // لا نقاطع الطالب أثناء الاختبار، ولا أي مستخدم داخل حصة مباشرة
+      const busy = currentViewRef.current === 'take_quiz' || isLiveRoomOpen();
+      if (isSessionExpired() && !busy) {
         logout(t('انتهت الجلسة، يرجى تسجيل الدخول من جديد'));
         return;
       }
-      // لا نقاطع الطالب أثناء أداء الاختبار
-      if (document.visibilityState === 'visible' && currentViewRef.current !== 'take_quiz') {
+      if (document.visibilityState === 'visible' && !busy) {
         void refreshData({ periodic: true });
       }
     };
