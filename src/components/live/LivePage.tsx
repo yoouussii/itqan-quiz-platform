@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
-  Video, Plus, ChevronRight, ChevronLeft, Pencil, Trash2, Users, X, Save, Ban, RotateCcw, Settings2, Copy, Download, KeyRound, Radio, Clock, Link2, FileSpreadsheet, Send, ClipboardCheck,
+  Video, Plus, ChevronRight, ChevronLeft, Pencil, Trash2, Users, X, Save, Ban, RotateCcw, Settings2, Copy, Download, KeyRound, Radio, Clock, Link2, FileSpreadsheet, Send, ClipboardCheck, Mic,
 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 import { PageHeader, Card, Button, Chip, Tone, ListSkeleton } from '../common/ui';
@@ -14,6 +14,7 @@ import { saveSettings } from '../../services/settingsService';
 import { LiveRoom } from './LiveRoom';
 const ZoomRoom = React.lazy(() => import('./ZoomRoom'));
 const TimetableImport = React.lazy(() => import('./TimetableImport'));
+import DeviceCheck, { checkedToday } from './DeviceCheck';
 import { setLiveRoomOpen } from '../../utils/liveRoomFlag';
 import { t, uiDir, dateLocale } from '../../i18n';
 import type { User } from '../../types';
@@ -75,6 +76,7 @@ export const LivePage: React.FC = () => {
   const [showCfg, setShowCfg] = useState(false);
   const [showZoom, setShowZoom] = useState(false);
   const [showTt, setShowTt] = useState(false);
+  const [devCheck, setDevCheck] = useState<LiveSession | 'test' | null>(null);
   const [zoomJoin, setZoomJoin] = useState<LiveJoin | null>(null);
   const [now, setNow] = useState(Date.now());
 
@@ -127,7 +129,9 @@ export const LivePage: React.FC = () => {
   const shownDays = days.filter((d) => d.getDay() <= 4 || byDay[dayKey(d)]?.length);
   const thisWeek = weekStart(new Date()).getTime() === week.getTime();
 
-  const enter = async (s: LiveSession) => {
+  const enter = async (s: LiveSession, skipCheck = false) => {
+    // الطالب: تجربة المايك والكاميرا مرة يومياً قبل أول حصة (Zoom داخل المنصة أو خادم المدرسة)
+    if (!skipCheck && !isStaff && s.provider !== 'external' && !checkedToday()) { setDevCheck(s); return; }
     // اجتماع في تطبيق آخر (المعلم في Zoom، أو رابط خارجي): نفتح التاب لحظة الضغط قبل انتظار الخادم،
     // وإلا منعه المتصفح وفتح الاجتماع مكان المنصة
     const tab = s.provider === 'external' || (s.provider === 'zoom' && s.can_manage) ? window.open('about:blank', '_blank') : null;
@@ -158,6 +162,7 @@ export const LivePage: React.FC = () => {
         subtitle={isStaff ? t('جدول الحصص عن بُعد: جدولة، وتذكير تلقائي للطلاب، ودخول بضغطة، وحضور يُسجَّل وحده') : t('ادخل حصتك من هنا عندما يبدأها المعلم')}
         actions={<>
           {canCreate && <Button icon={Plus} onClick={() => setEditing('new')} data-testid="live-new">{t('حصة جديدة')}</Button>}
+          {!isStaff && <Button variant="secondary" icon={Mic} onClick={() => setDevCheck('test')} data-testid="device-check-btn">{t('تجربة المايك والكاميرا')}</Button>}
           {isStaff && <Button variant="secondary" icon={Video} onClick={() => setShowZoom((v) => !v)} data-testid="zoom-keys-btn">{t('حسابي في Zoom')}</Button>}
           {me.role === 'admin' && <Button variant="secondary" icon={FileSpreadsheet} onClick={() => setShowTt(true)} data-testid="tt-btn">{t('استيراد الجدول')}</Button>}
           {me.role === 'admin' && <Button variant="secondary" icon={Settings2} onClick={() => setShowCfg((v) => !v)}>{t('إعدادات الخادم')}</Button>}
@@ -182,6 +187,10 @@ export const LivePage: React.FC = () => {
       )}
 
       {isStaff && showZoom && <ZoomKeysCard />}
+      {devCheck && (
+        <DeviceCheck onClose={() => setDevCheck(null)}
+          onContinue={devCheck !== 'test' ? () => { const x = devCheck; setDevCheck(null); void enter(x, true); } : undefined} />
+      )}
       {showTt && (
         <React.Suspense fallback={null}>
           <TimetableImport periods={periods} onClose={() => setShowTt(false)} onDone={() => { setShowTt(false); void load(true); }} />

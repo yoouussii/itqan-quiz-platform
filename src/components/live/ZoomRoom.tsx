@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { Loader2, RefreshCw } from 'lucide-react';
+import { Loader2, RefreshCw, WifiOff, Hourglass } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 import { LiveJoin, LiveSession, liveEnd, pingLive } from '../../services/liveService';
 import { t, uiDir } from '../../i18n';
@@ -14,7 +14,8 @@ const ZoomRoom: React.FC<{ join: LiveJoin; onClose: () => void }> = ({ join, onC
   const session = join.session as LiveSession;
   const z = join.zoom!;
   const mtg = useRef<any>(null);
-  const [state, setState] = useState<'loading' | 'ready' | 'error' | 'ended'>('loading');
+  // waiting: لم يبدأ المعلم بعد (دخول تلقائي عند بدئه) — reconnecting: انقطع الاتصال (رجوع تلقائي)
+  const [state, setState] = useState<'loading' | 'ready' | 'waiting' | 'reconnecting' | 'error' | 'ended'>('loading');
   const [err, setErr] = useState('');
   const [attempt, setAttempt] = useState(0);
   const onCloseRef = useRef(onClose);
@@ -24,11 +25,18 @@ const ZoomRoom: React.FC<{ join: LiveJoin; onClose: () => void }> = ({ join, onC
   const zoomRoot = () => document.getElementById('zmmtg-root');
   const hideZoom = () => { const r = zoomRoot(); if (r) r.style.display = 'none'; };
   // الخروج من الاجتماع: يعيد Zoom الصفحة إلى leaveUrl (صفحة الحصص)
+  // (فقط إن كان داخل الاجتماع؛ إعادة المحاولة بانتظار المعلم لا تغادر الصفحة)
+  const joinedRef = useRef(false);
   const leave = useCallback(() => {
+    if (!joinedRef.current) return;
+    joinedRef.current = false;
     try { mtg.current?.leaveMeeting({}); } catch { /* ignore */ }
   }, []);
   const close = useCallback(() => { leave(); hideZoom(); onCloseRef.current(); }, [leave]);
   const endNow = useCallback(() => { leave(); hideZoom(); setState('ended'); }, [leave]);
+  const endAt = liveEnd(session).getTime();
+  const retry = useCallback(() => setAttempt((n) => n + 1), []);
+  const notStarted = (e: string) => /not started|has not started|3008|meeting is not|wait for host/i.test(e);
 
   useEffect(() => {
     let alive = true;
@@ -45,8 +53,12 @@ const ZoomRoom: React.FC<{ join: LiveJoin; onClose: () => void }> = ({ join, onC
         const fail = (e: any) => {
           if (!alive) return;
           hideZoom();
-          setErr(String(e?.reason || e?.errorMessage || e?.message || e?.errorCode || e?.method || ''));
-          setState('error');
+          const msg = String(e?.reason || e?.errorMessage || e?.message || e?.errorCode || e?.method || '');
+          setErr(msg);
+          // المعلم لم يبدأ بعد، أو لا إنترنت: محاولة تلقائية بدل رسالة خطأ
+          if (Date.now() < endAt && notStarted(msg)) setState('waiting');
+          else if (Date.now() < endAt && !navigator.onLine) setState('reconnecting');
+          else setState('error');
         };
         ZoomMtg.init({
           leaveUrl: `${window.location.origin}/live`,
@@ -60,6 +72,7 @@ const ZoomRoom: React.FC<{ join: LiveJoin; onClose: () => void }> = ({ join, onC
               passWord: z.password,
               userName: z.userName,
               success: () => {
+                joinedRef.current = true;
                 if (!alive) return;
                 const r = zoomRoot();
                 if (r) { r.style.display = 'block'; r.style.zIndex = '200'; }
@@ -70,10 +83,18 @@ const ZoomRoom: React.FC<{ join: LiveJoin; onClose: () => void }> = ({ join, onC
           },
           error: fail,
         });
-        // أنهى المعلم الاجتماع في Zoom
+        // انقطع الاجتماع: إما انتهت الحصة، أو انقطع الإنترنت ← رجوع تلقائي
         try {
           ZoomMtg.inMeetingServiceListener('onMeetingStatus', (d: any) => {
-            if (d?.meetingStatus === 3 && alive) { hideZoom(); setState('ended'); }
+            if (d?.meetingStatus !== 3 || !alive) return;
+            joinedRef.current = false;
+            hideZoom();
+            if (Date.now() >= endAt) { setState('ended'); return; }
+            setState('reconnecting');
+            void pingLive(session.id).then((r) => {
+              if (!alive) return;
+              if (r.ok && (r.status === 'ended' || r.status === 'cancelled')) setState('ended');
+            });
           });
         } catch { /* ignore */ }
       } catch (e: any) {
@@ -93,8 +114,24 @@ const ZoomRoom: React.FC<{ join: LiveJoin; onClose: () => void }> = ({ join, onC
     return () => window.clearInterval(iv);
   }, [session.id, endNow]);
 
+  // محاولة تلقائية: كل 15 ثانية بانتظار المعلم، وكل 5 ثوانٍ (أو فور عودة الإنترنت) بعد الانقطاع
+  const [countdown, setCountdown] = useState(0);
+  useEffect(() => {
+    if (state !== 'waiting' && state !== 'reconnecting') return undefined;
+    const wait = state === 'waiting' ? 15 : 5;
+    setCountdown(wait);
+    let left = wait;
+    const iv = window.setInterval(() => {
+      if (state === 'reconnecting' && !navigator.onLine) return; // ننتظر عودة الإنترنت
+      left -= 1; setCountdown(left);
+      if (left <= 0) { window.clearInterval(iv); retry(); }
+    }, 1000);
+    const onOnline = () => { if (state === 'reconnecting') { window.clearInterval(iv); retry(); } };
+    window.addEventListener('online', onOnline);
+    return () => { window.clearInterval(iv); window.removeEventListener('online', onOnline); };
+  }, [state, retry]);
+
   // الإغلاق التلقائي بانتهاء وقت الحصة (مع تنبيه قبل دقيقتين)
-  const endAt = liveEnd(session).getTime();
   const warned = useRef(false);
   useEffect(() => {
     const iv = window.setInterval(() => {
@@ -111,6 +148,25 @@ const ZoomRoom: React.FC<{ join: LiveJoin; onClose: () => void }> = ({ join, onC
     <div className="fixed inset-0 z-[90] bg-slate-950 flex flex-col items-center justify-center gap-4 text-center px-6 text-white" dir={uiDir()} data-testid="zoom-room">
       <img src={logo} alt="" className="w-16 h-16 rounded-2xl object-contain bg-white p-1" />
       <p className="font-black text-lg">{session.title}</p>
+      {state === 'waiting' && (
+        <>
+          <Hourglass className="w-10 h-10 text-amber-300 animate-pulse" />
+          <p className="text-xl font-black">{t('في انتظار المعلم…')}</p>
+          <p className="text-sm text-slate-300 max-w-md">{t('لم يبدأ المعلم الاجتماع بعد. ستدخل الحصة تلقائياً عند بدئه، لا تغلق الصفحة.')}</p>
+          <p className="text-xs text-slate-400 tabular-nums" data-testid="zoom-wait">{t('المحاولة التالية خلال {n} ث', { n: Math.max(0, countdown) })}</p>
+        </>
+      )}
+      {state === 'reconnecting' && (
+        <>
+          <WifiOff className="w-10 h-10 text-rose-300" />
+          <p className="text-xl font-black">{t('انقطع الاتصال بالحصة')}</p>
+          <p className="text-sm text-slate-300 max-w-md">{t('جارٍ إعادة الدخول تلقائياً. تأكد من اتصالك بالإنترنت.')}</p>
+          <Loader2 className="w-6 h-6 animate-spin text-slate-300" />
+        </>
+      )}
+      {(state === 'waiting' || state === 'reconnecting') && (
+        <button type="button" onClick={close} className={`${btn} bg-slate-800 hover:bg-slate-700`}>{t('رجوع')}</button>
+      )}
       {state === 'loading' && (
         <>
           <Loader2 className="w-10 h-10 animate-spin text-slate-300" />
