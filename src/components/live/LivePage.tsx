@@ -98,11 +98,14 @@ export const LivePage: React.FC = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pending, loading]);
   // تحديث دوري: كل 20 ثانية إن كانت هناك حصة مباشرة (حتى تختفي عند إنهائها)، وإلا كل دقيقة
+  // لا تحديث أثناء وجود المستخدم داخل الحصة (يخفّف الحمل مع مئات الطلاب في وقت واحد)
   const anyLive = rows.some((s) => s.status === 'live');
+  const inRoom = !!room || !!zoomJoin;
   useEffect(() => {
+    if (inRoom) return undefined;
     const iv = window.setInterval(() => { setNow(Date.now()); void load(true); }, anyLive ? 20000 : 60000);
     return () => window.clearInterval(iv);
-  }, [load, anyLive]);
+  }, [load, anyLive, inRoom]);
 
   const visible = rows.filter((s) => (!classFilter || s.class_ids.includes(classFilter)) && (!mineOnly || s.teacher_id === me.id));
   const happening = visible.filter((s) => s.status === 'live' || isSoon(s, now));
@@ -117,12 +120,16 @@ export const LivePage: React.FC = () => {
   const thisWeek = weekStart(new Date()).getTime() === week.getTime();
 
   const enter = async (s: LiveSession) => {
+    // اجتماع في تطبيق آخر (المعلم في Zoom، أو رابط خارجي): نفتح التاب لحظة الضغط قبل انتظار الخادم،
+    // وإلا منعه المتصفح وفتح الاجتماع مكان المنصة
+    const tab = s.provider === 'external' || (s.provider === 'zoom' && s.can_manage) ? window.open('about:blank', '_blank') : null;
     setJoining(s.id);
     const r = await joinLive(s.id);
     setJoining(null);
-    if (!r.ok) { showToast((JOIN_ERR[r.error || ''] || (() => t('تعذر دخول الحصة')))(), 'error'); void load(true); return; }
-    if (r.zoom) { setZoomJoin(r); return; }
-    if (r.external_url) { openExternal(r.external_url); void load(true); return; }
+    if (!r.ok) { tab?.close(); showToast((JOIN_ERR[r.error || ''] || (() => t('تعذر دخول الحصة')))(), 'error'); void load(true); return; }
+    if (r.zoom) { tab?.close(); setZoomJoin(r); return; }
+    if (r.external_url) { openExternal(r.external_url, tab); void load(true); return; }
+    tab?.close();
     setRoom(r);
   };
   const setStatus = async (s: LiveSession, status: 'cancelled' | 'scheduled' | 'ended') => {

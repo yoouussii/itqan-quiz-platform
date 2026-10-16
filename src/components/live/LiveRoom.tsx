@@ -129,7 +129,7 @@ export const LiveRoom: React.FC<{ join: LiveJoin; onClose: () => void }> = ({ jo
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [join, attempt]);
 
-  // نبضة الحضور كل 15 ثانية + متابعة انتهاء الحصة وقفل الشات
+  // نبضة الحضور كل 30 ثانية (حمل قاعدة البيانات مع مئات الطلاب في وقت واحد) + متابعة انتهاء الحصة وقفل الشات
   useEffect(() => {
     const tick = async () => {
       const r = await pingLive(session.id);
@@ -142,7 +142,7 @@ export const LiveRoom: React.FC<{ join: LiveJoin; onClose: () => void }> = ({ jo
       }
       if (!mod && (r.status === 'ended' || r.status === 'cancelled')) endNow();
     };
-    const iv = window.setInterval(() => void tick(), 15000);
+    const iv = window.setInterval(() => void tick(), 30000);
     return () => window.clearInterval(iv);
   }, [session.id, mod, applyChat, endNow]);
 
