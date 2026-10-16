@@ -104,6 +104,7 @@ on:
           - supabase/migrations/088_live_attendance_record.sql
           - supabase/migrations/089_live_timetable.sql
           - supabase/migrations/090_live_attendance_review.sql
+          - supabase/migrations/091_quiz_submission_counts.sql
           - supabase/migrations/003_rollback.sql
       db_secret:
         description: 'اسم سر قاعدة البيانات (اتركه كما هو للمدرسة الأساسية، أو اكتب سر مدرسة أخرى مثل DB_URL_SCHOOL2)'

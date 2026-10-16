@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { ArrowRightLeft, Eye, Edit3, BarChart2, Trash2, Copy as CopyIcon, PlusCircle, Search, Undo2, Link2, Share2 } from 'lucide-react';
 import { copyQuizLink, shareQuizOnWhatsApp } from '../../utils/router';
 import { useApp } from '../../context/AppContext';
@@ -10,6 +10,7 @@ import { getWindowState } from '../../utils/quizWindow';
 import { Button, Card, Chip, PageHeader, Tone } from '../common/ui';
 import { uiDir, t } from '../../i18n';
 import { EmptyMascot } from '../common/Mascot';
+import { supabase, isSupabaseConfigured } from '../../services/supabase';
 
 const statusOf = (q: QuizWithDetails): { label: string; tone: Tone } => {
   if (q.status === 'draft') return { label: t('مسودة'), tone: 'muted' };
@@ -29,6 +30,16 @@ export const AdminQuizBank: React.FC = () => {
   } = useApp();
   const [reassign, setReassign] = useState<QuizWithDetails | null>(null);
   const [term, setTerm] = useState('');
+  // عدد التسليمات الكامل من الخادم (091)؛ النسخة المحلية قد تكون ناقصة
+  const [counts, setCounts] = useState<Record<string, number> | null>(null);
+  useEffect(() => {
+    if (!isSupabaseConfigured()) return;
+    let alive = true;
+    void Promise.resolve(supabase.rpc('itqan_quiz_submission_counts')).then(({ data, error }: any) => {
+      if (alive && !error && data && typeof data === 'object') setCounts(data as Record<string, number>);
+    }).catch(() => undefined);
+    return () => { alive = false; };
+  }, [quizzes.length]);
 
   const list = useMemo(() => {
     const t = term.trim();
@@ -104,7 +115,7 @@ export const AdminQuizBank: React.FC = () => {
                     <td className="py-3 px-4 text-slate-600 dark:text-slate-400">{describeQuizTarget(quiz.assignments, classes)}</td>
                     <td className="py-3 px-4">
                       <button type="button" onClick={() => open(quiz.id, 'quiz_results')} className="font-semibold text-indigo-700 dark:text-indigo-400 hover:underline">
-                        {quiz.submissions_count || 0}{' '}{t('تسليم')}
+                        {counts?.[quiz.id] ?? quiz.submissions_count ?? 0}{' '}{t('تسليم')}
                       </button>
                     </td>
                     <td className="py-3 px-4">

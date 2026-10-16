@@ -574,8 +574,11 @@ export async function pullSubmissions(currentUser: User | null, opts: { full?: b
   const cursor = readCursor(currentUser.id);
   const pending = new Set(StorageService.getPendingSync('submission'));
 
+  // النسخة المحلية حُذفت لامتلاء ذاكرة المتصفح وبقي المؤشر: الفرق وحده يعيد تسليمات آخر فترة فقط
+  // (فيظهر عدد تسليمات الاختبار ناقصاً)، لذا تحميل كامل
+  const haveLocal = localStorage.getItem('itqan_submissions_v2') !== null;
   // ---- بالفرق ----
-  if (!opts.full && deltaSupported !== false && cursor && Date.now() - cursor.full < FULL_SYNC_EVERY_MS) {
+  if (!opts.full && haveLocal && deltaSupported !== false && cursor && Date.now() - cursor.full < FULL_SYNC_EVERY_MS) {
     const since = new Date(Date.parse(cursor.at) - DELTA_OVERLAP_MS).toISOString();
     const { data, error } = await scoped(supabase.from('submissions').select('*').gt('updated_at', since), currentUser)
       .order('updated_at', { ascending: true }).limit(DELTA_MAX);
