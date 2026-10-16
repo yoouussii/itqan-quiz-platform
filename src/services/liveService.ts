@@ -28,6 +28,8 @@ export interface LiveJoin {
 }
 export interface LiveAttendee {
   user_id: string; name: string; class_id: string; first_join: string | null; last_seen: string | null; seconds: number; joins: number;
+  /** بعد انتهاء الحصة (088) */
+  status?: 'present' | 'late' | 'absent' | null;
 }
 export interface LiveDraft {
   id?: string; title: string; notes: string; class_ids: string[]; subject_id: string | null;

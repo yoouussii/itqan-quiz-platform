@@ -24,6 +24,7 @@ const KINDS: Array<{ k: AttKind; label: string; color: string; tone: 'bad' | 'wa
   { k: 'excused', label: 'استئذان', color: '#2a78d6', tone: 'info' },
 ];
 const KIND_LABEL: Record<AttKind, string> = { absent: 'غياب', late: 'تأخر', excused: 'استئذان' };
+const SOURCE_LABEL: Record<string, string> = { sheet: 'من سجل الغياب', manual: 'سُجّل من المنصة', live: 'من الحصص المباشرة' };
 type Period = 'day' | 'week' | 'month' | 'semester' | 'custom';
 const PREF = 'itqan_attendance_filter_v1';
 const readPref = (): { period?: Period; day?: string } => { try { return JSON.parse(localStorage.getItem(PREF) || '{}'); } catch { return {}; } };
@@ -648,7 +649,7 @@ const KpiDetails: React.FC<{
   const lowest = students.filter((s) => (per.get(s.id)?.absent || 0) > 0).sort((a, b) => rate(a.id) - rate(b.id)).slice(0, 30);
 
   const exportRows = (): string[][] => {
-    if (isKind && view === 'all') return [['التاريخ', 'الطالب', 'الفصل', 'المصدر', 'ملاحظة'], ...kindRecs.map((r) => [r.day, nm(r.student_id), cls(r.student_id), r.source === 'sheet' ? 'سجل الغياب' : 'المنصة', r.note])];
+    if (isKind && view === 'all') return [['التاريخ', 'الطالب', 'الفصل', 'المصدر', 'ملاحظة'], ...kindRecs.map((r) => [r.day, nm(r.student_id), cls(r.student_id), r.source === 'sheet' ? 'سجل الغياب' : r.source === 'live' ? 'الحصص المباشرة' : 'المنصة', r.note])];
     if (isKind) return [['الطالب', 'الفصل', 'العدد', 'الأيام'], ...byStudent.map((x) => [nm(x.id), cls(x.id), String(x.days.length), x.days.join(' ')])];
     if (kind === 'flagged') return [['الطالب', 'الفصل', 'غياب', 'تأخر', 'استئذان', 'نسبة الحضور'], ...flagged.map((s) => { const p = per.get(s.id) || zero; return [s.name, cls(s.id), String(p.absent), String(p.late), String(p.excused), pct(rate(s.id))]; })];
     return [['الفصل', 'الطلاب', 'غياب', 'نسبة الحضور'], ...byClass.map((c) => [c.name, String(c.students), String(c.absent), pct(c.rate)])];
@@ -711,7 +712,7 @@ const KpiDetails: React.FC<{
             <Row key={r.id} id={r.student_id}>
               <div className="text-end">
                 <div className="text-sm font-semibold text-slate-800 dark:text-slate-100">{fmtDay(r.day)}</div>
-                <div className="text-xs text-slate-500">{r.source === 'sheet' ? t('من سجل الغياب') : t('سُجّل من المنصة')}{r.note ? ` · ${r.note}` : ''}</div>
+                <div className="text-xs text-slate-500">{t(SOURCE_LABEL[r.source] || 'سُجّل من المنصة')}{r.note ? ` · ${r.note}` : ''}</div>
               </div>
             </Row>
           )))}
@@ -790,7 +791,7 @@ const StudentDrawer: React.FC<{ student: User; className: string; canManage: boo
   };
   const del = async (id: number) => { if (!window.confirm(t('حذف هذه الحركة؟'))) return; await deleteAttendance(id); load(); onChanged(); };
   const printReport = async () => {
-    const rows = (list || []).map((r, i) => `<tr><td>${i + 1}</td><td>${escH(fmtDay(r.day))}</td><td>${escH(t(KIND_LABEL[r.kind]))}</td><td>${escH(r.source === 'sheet' ? t('من سجل الغياب') : t('سُجّل من المنصة'))}</td><td>${escH(r.note)}</td></tr>`).join('');
+    const rows = (list || []).map((r, i) => `<tr><td>${i + 1}</td><td>${escH(fmtDay(r.day))}</td><td>${escH(t(KIND_LABEL[r.kind]))}</td><td>${escH(t(SOURCE_LABEL[r.source] || 'سُجّل من المنصة'))}</td><td>${escH(r.note)}</td></tr>`).join('');
     const bodyHtml = `
       <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:14px">${pdfBox(t('الطالب'), student.name)}${pdfBox(t('الفصل'), className || '—')}</div>
       <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:14px">${KINDS.map((k) => pdfBox(t(k.label), String(counts[k.k]), k.color)).join('')}${pdfBox(t('المجموع'), String(counts.absent + counts.late + counts.excused))}</div>
@@ -849,10 +850,10 @@ const StudentDrawer: React.FC<{ student: User; className: string; canManage: boo
                   <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ background: k.color }} />
                   <div className="flex-1 min-w-0">
                     <div className="text-sm font-semibold text-slate-900 dark:text-white">{t(k.label)} · {fmtDay(r.day)}</div>
-                    <div className="text-xs text-slate-500">{r.source === 'sheet' ? t('من سجل الغياب') : t('سُجّل من المنصة')}{r.note ? ` · ${r.note}` : ''}</div>
+                    <div className="text-xs text-slate-500">{t(SOURCE_LABEL[r.source] || 'سُجّل من المنصة')}{r.note ? ` · ${r.note}` : ''}</div>
                   </div>
                   {canNote && !isEdit && <button type="button" onClick={() => setEditing({ key, day: r.day, kind: r.kind, text: n?.note || '', visible: n?.visible_to_parent || false })} aria-label={n ? t('تعديل الملاحظة') : t('إضافة ملاحظة')} title={n ? t('تعديل الملاحظة') : t('إضافة ملاحظة')} className="w-8 h-8 rounded-lg text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 dark:hover:bg-indigo-950/40 flex items-center justify-center">{n ? <Pencil className="w-4 h-4" /> : <StickyNote className="w-4 h-4" />}</button>}
-                  {canManage && r.source === 'manual' && <button type="button" onClick={() => void del(r.id)} aria-label={t('حذف')} className="w-8 h-8 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 flex items-center justify-center"><Trash2 className="w-4 h-4" /></button>}
+                  {canManage && r.source !== 'sheet' && <button type="button" onClick={() => void del(r.id)} aria-label={t('حذف')} className="w-8 h-8 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 flex items-center justify-center"><Trash2 className="w-4 h-4" /></button>}
                 </div>
                 {n && !isEdit && (
                   <div className="mt-1.5 ms-5 rounded-lg bg-amber-50 dark:bg-amber-950/30 px-2.5 py-1.5 text-sm text-slate-800 dark:text-slate-100" data-testid="att-note">

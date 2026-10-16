@@ -66,13 +66,16 @@ export async function parseAttendanceWorkbook(file: File): Promise<SheetPayload>
   return { sheets };
 }
 
-/** كود Google Apps Script يُلصق في الشيت: يرسل السجل كاملاً للمنصة عند كل تعديل وكل 10 دقائق */
+/** كود Google Apps Script يُلصق في الشيت: يرسل السجل كاملاً للمنصة عند كل تعديل وكل 10 دقائق،
+ *  ويكتب في الشيت غياب وتأخر الحصص المباشرة القادم من المنصة (088) */
 export function appsScriptCode(url: string, anonKey: string, token: string): string {
   return `// ===== ربط سجل الغياب بمنصة إتقان =====
 // 1) من قائمة الشيت: الإضافات ← Apps Script، احذف أي كود والصق هذا الكود كاملاً واحفظ.
 // 2) اختر الدالة setup من الأعلى واضغط «تشغيل» مرة واحدة، ووافق على الأذونات.
-// بعدها أي علامة تضعها في الشيت تصل للمنصة خلال ثوانٍ (ومزامنة احتياطية كل 10 دقائق).
+// بعدها أي علامة تضعها في الشيت تصل للمنصة خلال ثوانٍ (ومزامنة احتياطية كل 10 دقائق)،
+// وغياب وتأخر الحصص المباشرة يُكتب في الشيت تلقائياً كل 10 دقائق.
 var ITQAN_URL = ${JSON.stringify(url.replace(/\/$/, '') + '/rest/v1/rpc/itqan_attendance_import')};
+var ITQAN_WB = ${JSON.stringify(url.replace(/\/$/, '') + '/rest/v1/rpc/itqan_attendance_writeback')};
 var ITQAN_KEY = ${JSON.stringify(anonKey)};
 var ITQAN_TOKEN = ${JSON.stringify(token)};
 
@@ -90,7 +93,10 @@ function onSheetEdit(e) {
   try { Utilities.sleep(1500); syncSheets([e.range.getSheet()]); } finally { lock.releaseLock(); }
 }
 
-function syncAll() { syncSheets(SpreadsheetApp.getActive().getSheets()); }
+function syncAll() {
+  try { pullMarks(); } catch (err) { console.log('إتقان: ' + err); }
+  syncSheets(SpreadsheetApp.getActive().getSheets());
+}
 
 var DAYS = { 'الاحد': 0, 'الأحد': 0, 'الاثنين': 1, 'الإثنين': 1, 'الثلاثاء': 2, 'الاربعاء': 3, 'الأربعاء': 3, 'الخميس': 4 };
 function n(v) { return String(v == null ? '' : v).replace(/\\s+/g, ' ').trim(); }
@@ -126,6 +132,56 @@ function parseGrid(g) {
     for (var i = 0; i < cols.length; i++) if (row[cols[i][0]] === true) cur.marks.push([cols[i][1], cols[i][2], k]);
   }
   return out;
+}
+
+// خانة (طالب، نوع، أسبوع، يوم) في شبكة الشيت ← [صف، عمود] أو null
+function findCell(g, m) {
+  var h = -1;
+  for (var r = 0; r < g.length && h < 0; r++) for (var c = 0; c < g[r].length; c++) if (isWeek(g[r][c])) { h = r; break; }
+  if (h < 0 || !g[h + 1]) return null;
+  var head = g[h], days = g[h + 1], nameCol = -1, kindCol = -1, col = -1, week = 0;
+  for (var c2 = 0; c2 < head.length; c2++) { if (n(head[c2]) === 'الاسم') nameCol = c2; if (n(head[c2]).indexOf('نوع') >= 0) kindCol = c2; }
+  for (var c3 = 0; c3 < head.length && col < 0; c3++) {
+    var mm = n(head[c3]).match(/(\\d+)/);
+    if (isWeek(head[c3]) && mm) week = Number(mm[1]);
+    if (week === m.week && DAYS[n(days[c3])] === m.dow) col = c3;
+  }
+  if (nameCol < 0 || kindCol < 0 || col < 0) return null;
+  for (var r2 = h + 2; r2 < g.length; r2++) {
+    if (n(g[r2][nameCol]) !== n(m.name)) continue;
+    for (var r3 = r2; r3 < g.length && r3 < r2 + 6; r3++) {
+      if (r3 > r2 && n(g[r3][nameCol])) break;
+      if (kindOf(g[r3][kindCol]) === m.kind) return [r3, col];
+    }
+    return null;
+  }
+  return null;
+}
+
+// غياب وتأخر الحصص المباشرة: يُسحب من المنصة ويُعلَّم في خانته
+function pullMarks() {
+  var ss = SpreadsheetApp.getActive(), done = null;
+  for (var round = 0; round < 10; round++) {
+    var res = UrlFetchApp.fetch(ITQAN_WB, {
+      method: 'post', contentType: 'application/json', muteHttpExceptions: true,
+      headers: { apikey: ITQAN_KEY, Authorization: 'Bearer ' + ITQAN_KEY },
+      payload: JSON.stringify({ p_token: ITQAN_TOKEN, p_done: done })
+    });
+    if (res.getResponseCode() >= 300) return;
+    var list = JSON.parse(res.getContentText()) || [];
+    if (!list.length) return;
+    done = [];
+    var grids = {};
+    list.forEach(function (m) {
+      var sh = ss.getSheetByName(m.sheet);
+      if (sh) {
+        var g = grids[m.sheet] || (grids[m.sheet] = sh.getDataRange().getValues());
+        var cell = findCell(g, m);
+        if (cell) { sh.getRange(cell[0] + 1, cell[1] + 1).setValue(true); g[cell[0]][cell[1]] = true; }
+      }
+      done.push(m.id);
+    });
+  }
 }
 
 function syncSheets(list) {
