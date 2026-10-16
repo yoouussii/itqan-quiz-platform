@@ -3859,4 +3859,6 @@ export const EN: Record<string, string> = {
   'جارٍ الدخول إلى Zoom…': 'Joining Zoom…',
   'تعذّر الدخول إلى اجتماع Zoom': 'Couldn\'t join the Zoom meeting',
   'لم يبدأ المعلم الاجتماع في Zoom بعد. حاول بعد قليل.': 'The teacher hasn\'t started the Zoom meeting yet. Try again shortly.',
+  'إنهاء الحصة الآن؟ لن يتمكن الطلاب من دخولها بعد ذلك.': 'End the class now? Students won\'t be able to join after that.',
+  'إنهاء الحصة': 'End class',
 };

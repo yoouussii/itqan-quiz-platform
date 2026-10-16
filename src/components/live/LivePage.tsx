@@ -97,11 +97,12 @@ export const LivePage: React.FC = () => {
     if (s) void enter(s);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pending, loading]);
-  // تحديث كل دقيقة (حالة «بدأت الحصة» للطلاب)
+  // تحديث دوري: كل 20 ثانية إن كانت هناك حصة مباشرة (حتى تختفي عند إنهائها)، وإلا كل دقيقة
+  const anyLive = rows.some((s) => s.status === 'live');
   useEffect(() => {
-    const iv = window.setInterval(() => { setNow(Date.now()); void load(true); }, 60000);
+    const iv = window.setInterval(() => { setNow(Date.now()); void load(true); }, anyLive ? 20000 : 60000);
     return () => window.clearInterval(iv);
-  }, [load]);
+  }, [load, anyLive]);
 
   const visible = rows.filter((s) => (!classFilter || s.class_ids.includes(classFilter)) && (!mineOnly || s.teacher_id === me.id));
   const happening = visible.filter((s) => s.status === 'live' || isSoon(s, now));
@@ -126,6 +127,7 @@ export const LivePage: React.FC = () => {
   };
   const setStatus = async (s: LiveSession, status: 'cancelled' | 'scheduled' | 'ended') => {
     if (status === 'cancelled' && !window.confirm(t('إلغاء هذه الحصة؟ سيظهر للطلاب أنها ملغاة.'))) return;
+    if (status === 'ended' && !window.confirm(t('إنهاء الحصة الآن؟ لن يتمكن الطلاب من دخولها بعد ذلك.'))) return;
     const r = await setLive(s.id, { status });
     if (r.ok) { showToast(t('تم الحفظ')); void load(true); } else showToast(t('تعذر الحفظ'), 'error');
   };
@@ -178,6 +180,9 @@ export const LivePage: React.FC = () => {
                   {s.status === 'live' ? t('بدأت الحصة الآن') : t('تبدأ {time}', { time: fmtTime(s.starts_at) })} · {s.teacher_name} · {s.class_ids.map(className).join('، ')}
                 </p>
               </div>
+              {s.can_manage && s.status === 'live' && (
+                <Button variant="secondary" onClick={() => void setStatus(s, 'ended')} data-testid="live-end-card">{t('إنهاء الحصة')}</Button>
+              )}
               {(s.can_manage || s.status === 'live') ? (
                 <Button icon={Video} onClick={() => void enter(s)} disabled={joining === s.id} className={s.status === 'live' ? '!bg-rose-600 hover:!bg-rose-700' : ''} data-testid="live-join">
                   {s.can_manage ? (s.status === 'live' ? t('العودة للحصة') : t('ابدأ الحصة')) : t('ادخل الحصة')}
