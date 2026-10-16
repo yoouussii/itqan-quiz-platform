@@ -120,12 +120,16 @@ export const LivePage: React.FC = () => {
   const thisWeek = weekStart(new Date()).getTime() === week.getTime();
 
   const enter = async (s: LiveSession) => {
+    // اجتماع في تطبيق آخر (المعلم في Zoom، أو رابط خارجي): نفتح التاب لحظة الضغط قبل انتظار الخادم،
+    // وإلا منعه المتصفح وفتح الاجتماع مكان المنصة
+    const tab = s.provider === 'external' || (s.provider === 'zoom' && s.can_manage) ? window.open('about:blank', '_blank') : null;
     setJoining(s.id);
     const r = await joinLive(s.id);
     setJoining(null);
-    if (!r.ok) { showToast((JOIN_ERR[r.error || ''] || (() => t('تعذر دخول الحصة')))(), 'error'); void load(true); return; }
-    if (r.zoom) { setZoomJoin(r); return; }
-    if (r.external_url) { openExternal(r.external_url); void load(true); return; }
+    if (!r.ok) { tab?.close(); showToast((JOIN_ERR[r.error || ''] || (() => t('تعذر دخول الحصة')))(), 'error'); void load(true); return; }
+    if (r.zoom) { tab?.close(); setZoomJoin(r); return; }
+    if (r.external_url) { openExternal(r.external_url, tab); void load(true); return; }
+    tab?.close();
     setRoom(r);
   };
   const setStatus = async (s: LiveSession, status: 'cancelled' | 'scheduled' | 'ended') => {

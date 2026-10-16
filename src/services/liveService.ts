@@ -127,9 +127,13 @@ export async function copyLiveLink(id: string): Promise<boolean> {
 }
 
 /** فتح اجتماع خارجي: نافذة جديدة، وإن منعها المتصفح فالصفحة نفسها */
-export function openExternal(url: string) {
-  const w = window.open(url, '_blank', 'noopener');
-  if (!w) window.location.href = url;
+export function openExternal(url: string, tab?: Window | null) {
+  // تاب مفتوح مسبقاً لحظة الضغط (المتصفح يمنع فتحه بعد انتظار الخادم) فتبقى المنصة مفتوحة.
+  // ملاحظة: window.open مع 'noopener' يعيد null دائماً، فكان يُحوّل الصفحة نفسها إلى Zoom.
+  const w = tab && !tab.closed ? tab : window.open(url, '_blank');
+  if (!w) { window.location.href = url; return; }
+  try { w.opener = null; } catch { /* ignore */ }
+  if (w === tab) w.location.href = url;
 }
 /** نوع الاجتماع الخارجي من الرابط (للعرض) */
 export const externalKind = (url?: string | null) =>
