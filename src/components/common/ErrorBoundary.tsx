@@ -5,6 +5,22 @@ interface State {
   error: Error | null;
 }
 
+/** خطأ تحميل جزء من الموقع بعد نشر إصدار جديد (ملف الإصدار القديم لم يعد موجوداً) */
+const isStaleChunk = (e: unknown) =>
+  /dynamically imported module|Importing a module script failed|error loading dynamically|not a valid JavaScript MIME type|Unable to preload CSS/i
+    .test(String((e as Error)?.message || e));
+
+/** إعادة تحميل مرة واحدة كل دقيقة على الأكثر (حتى لا تتكرر بلا نهاية إن كان الخلل في الشبكة) */
+export function reloadForNewVersion(): boolean {
+  try {
+    const last = Number(sessionStorage.getItem('itqan_chunk_reload') || 0);
+    if (Date.now() - last < 60_000) return false;
+    sessionStorage.setItem('itqan_chunk_reload', String(Date.now()));
+  } catch { /* ignore */ }
+  window.location.reload();
+  return true;
+}
+
 /** يمنع الشاشة البيضاء: يعرض رسالة واضحة + تفاصيل الخطأ بدل صفحة فارغة */
 export class ErrorBoundary extends React.Component<{ children: React.ReactNode }, State> {
   state: State = { error: null };
@@ -14,6 +30,7 @@ export class ErrorBoundary extends React.Component<{ children: React.ReactNode }
   }
 
   componentDidCatch(error: Error, info: React.ErrorInfo) {
+    if (isStaleChunk(error) && reloadForNewVersion()) return;
     console.error('[ErrorBoundary]', error, info.componentStack);
   }
 

@@ -4,7 +4,7 @@
  * - لا يحفظ أي بيانات من الخادم (Supabase).
  * - يعرض إشعارات الجوال (Web Push) ويفتح الصفحة المرتبطة عند الضغط عليها.
  */
-const CACHE = 'itqan-v1';
+const CACHE = 'itqan-v2'; // v2: يمسح ملفات حُفظت خطأً كصفحة HTML
 
 self.addEventListener('install', () => self.skipWaiting());
 
@@ -29,7 +29,8 @@ self.addEventListener('fetch', (event) => {
       const hit = await cache.match(req);
       if (hit) return hit;
       const res = await fetch(req);
-      if (res.ok) cache.put(req, res.clone());
+      // لا يُحفظ إلا الملف الحقيقي: بعد نشر إصدار جديد قد يعود ملف قديم كصفحة HTML
+      if (res.ok && !(res.headers.get('content-type') || '').includes('text/html')) cache.put(req, res.clone());
       return res;
     })());
     return;
