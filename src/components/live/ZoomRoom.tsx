@@ -84,12 +84,12 @@ const ZoomRoom: React.FC<{ join: LiveJoin; onClose: () => void }> = ({ join, onC
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [attempt]);
 
-  // نبضة الحضور كل 15 ثانية + إنهاء الحصة من المنصة
+  // نبضة الحضور كل دقيقة + إنهاء الحصة من المنصة (انتهاء الاجتماع من Zoom يصل فوراً عبر onMeetingStatus)
   useEffect(() => {
     const iv = window.setInterval(async () => {
       const r = await pingLive(session.id);
       if (r.ok && (r.status === 'ended' || r.status === 'cancelled')) endNow();
-    }, 15000);
+    }, 60000);
     return () => window.clearInterval(iv);
   }, [session.id, endNow]);
 

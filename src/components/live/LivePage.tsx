@@ -98,11 +98,14 @@ export const LivePage: React.FC = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pending, loading]);
   // تحديث دوري: كل 20 ثانية إن كانت هناك حصة مباشرة (حتى تختفي عند إنهائها)، وإلا كل دقيقة
+  // لا تحديث أثناء وجود المستخدم داخل الحصة (يخفّف الحمل مع مئات الطلاب في وقت واحد)
   const anyLive = rows.some((s) => s.status === 'live');
+  const inRoom = !!room || !!zoomJoin;
   useEffect(() => {
+    if (inRoom) return undefined;
     const iv = window.setInterval(() => { setNow(Date.now()); void load(true); }, anyLive ? 20000 : 60000);
     return () => window.clearInterval(iv);
-  }, [load, anyLive]);
+  }, [load, anyLive, inRoom]);
 
   const visible = rows.filter((s) => (!classFilter || s.class_ids.includes(classFilter)) && (!mineOnly || s.teacher_id === me.id));
   const happening = visible.filter((s) => s.status === 'live' || isSoon(s, now));
