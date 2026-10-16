@@ -787,8 +787,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         try {
           const { data, error } = await supabase.rpc('itqan_session_user');
           if (!error && !data) {
-            // داخل حصة مباشرة: لا نُخرج المستخدم منها؛ يُطلب تسجيل الدخول بعد خروجه من الحصة
-            if (isLiveRoomOpen()) return;
+            // داخل حصة مباشرة أو أثناء اختبار أو تحرير اختبار: لا نُخرج المستخدم ولا نمسح شاشته؛
+            // يُطلب تسجيل الدخول بعد انتهائه (إجابات الاختبار محفوظة على الجهاز وتُرسل بعد الدخول)
+            if (isLiveRoomOpen() || ['take_quiz', 'create_quiz'].includes(currentViewRef.current)) {
+              if (!sessionWarnedRef.current) {
+                sessionWarnedRef.current = true;
+                showToast(t('انتهت جلستك. أكمل ما تعمل عليه، ثم سجّل الدخول من جديد للحفظ.'), 'error');
+              }
+              return;
+            }
             logoutRef.current('انتهت الجلسة، يرجى تسجيل الدخول من جديد');
             return;
           }
@@ -887,6 +894,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   refreshDataRef.current = refreshData;
 
   const logoutRef = useRef<(message?: string) => void>(() => undefined);
+  const sessionWarnedRef = useRef(false);
 
   // تحديث فوري عند تسجيل الدخول أو تغيّر المستخدم
   useEffect(() => {
@@ -936,7 +944,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const tick = () => {
       lastTick = Date.now();
       // لا نقاطع الطالب أثناء الاختبار، ولا أي مستخدم داخل حصة مباشرة
-      const busy = currentViewRef.current === 'take_quiz' || isLiveRoomOpen();
+      const busy = ['take_quiz', 'create_quiz'].includes(currentViewRef.current) || isLiveRoomOpen();
       if (isSessionExpired() && !busy) {
         logout(t('انتهت الجلسة، يرجى تسجيل الدخول من جديد'));
         return;

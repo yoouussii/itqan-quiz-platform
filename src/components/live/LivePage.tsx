@@ -12,12 +12,13 @@ import {
 } from '../../services/liveService';
 import { saveSettings } from '../../services/settingsService';
 import { LiveRoom } from './LiveRoom';
-const ZoomRoom = React.lazy(() => import('./ZoomRoom'));
-const TimetableImport = React.lazy(() => import('./TimetableImport'));
+const ZoomRoom = React.lazy(() => retryImport(() => import('./ZoomRoom')));
+const TimetableImport = React.lazy(() => retryImport(() => import('./TimetableImport')));
 import DeviceCheck, { checkedToday } from './DeviceCheck';
 import { setLiveRoomOpen } from '../../utils/liveRoomFlag';
 import { t, uiDir, dateLocale } from '../../i18n';
 import type { User } from '../../types';
+import { retryImport } from '../../utils/retryImport';
 
 const inp = 'h-10 px-3 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm';
 const pad = (n: number) => String(n).padStart(2, '0');

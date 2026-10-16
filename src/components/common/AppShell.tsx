@@ -34,8 +34,8 @@ import { GlobalSearch } from './GlobalSearch';
 import { LazyStudentProfileHost } from './StudentProfileLazy';
 
 // نوافذ لا تلزم عند أول فتح: تُحمَّل عند الحاجة
-const ProfileModal = React.lazy(() => import('./ProfileModal').then((m) => ({ default: m.ProfileModal })));
-const OnboardingTour = React.lazy(() => import('./OnboardingTour').then((m) => ({ default: m.OnboardingTour })));
+const ProfileModal = React.lazy(() => retryImport(() => import('./ProfileModal')).then((m) => ({ default: m.ProfileModal })));
+const OnboardingTour = React.lazy(() => retryImport(() => import('./OnboardingTour')).then((m) => ({ default: m.OnboardingTour })));
 
 /** رابط حقيقي للصفحة: الضغط العادي يتنقل داخل الموقع، وCtrl/الزر الأوسط يفتحها في تبويب جديد */
 const linkClick = (go: () => void) => (e: React.MouseEvent) => {
@@ -47,6 +47,7 @@ import { hasPerm, pageAllowed } from '../../utils/permissions';
 import { shortName, parentLabel } from '../../utils/names';
 import { User } from '../../types';
 import { t, isEn } from '../../i18n';
+import { retryImport } from '../../utils/retryImport';
 
 type NavItem = { id: string; label: string; icon: LucideIcon; href?: string; badge?: number };
 type NavGroup = { title?: string; items: NavItem[] };

@@ -18,53 +18,54 @@ import { Lang, applyLang, loadEnglish, loadLangPref, saveLangPref, t, uiDir } fr
 import { LangContext } from './i18n/LangContext';
 import { PageLoader, NavProgress } from './components/common/Mascot';
 import { prefetchPages } from './utils/prefetch';
+import { retryImport } from './utils/retryImport';
 
 // الصفحات تُحمَّل عند فتحها فقط: كل مستخدم ينزّل كود صفحاته (أسرع على الجوال)
-const AdminDashboard = React.lazy(() => import('./components/admin/AdminDashboard').then((m) => ({ default: m.AdminDashboard })));
-const AdminQuizBank = React.lazy(() => import('./components/admin/AdminQuizBank').then((m) => ({ default: m.AdminQuizBank })));
-const UsersManagement = React.lazy(() => import('./components/admin/UsersManagement').then((m) => ({ default: m.UsersManagement })));
-const SubjectsClassesManagement = React.lazy(() => import('./components/admin/SubjectsClassesManagement').then((m) => ({ default: m.SubjectsClassesManagement })));
-const TeacherDashboard = React.lazy(() => import('./components/teacher/TeacherDashboard').then((m) => ({ default: m.TeacherDashboard })));
-const QuizEditor = React.lazy(() => import('./components/teacher/QuizEditor').then((m) => ({ default: m.QuizEditor })));
-const StudentDashboard = React.lazy(() => import('./components/student/StudentDashboard').then((m) => ({ default: m.StudentDashboard })));
-const QuizTaker = React.lazy(() => import('./components/student/QuizTaker').then((m) => ({ default: m.QuizTaker })));
-const QuizReview = React.lazy(() => import('./components/student/QuizReview').then((m) => ({ default: m.QuizReview })));
-const QuizResults = React.lazy(() => import('./components/analytics/QuizResults').then((m) => ({ default: m.QuizResults })));
-const AnalyticsView = React.lazy(() => import('./components/analytics/AnalyticsView').then((m) => ({ default: m.AnalyticsView })));
-const SupervisorDashboard = React.lazy(() => import('./components/supervisor/SupervisorDashboard').then((m) => ({ default: m.SupervisorDashboard })));
-const ParentDashboard = React.lazy(() => import('./components/parent/ParentDashboard').then((m) => ({ default: m.ParentDashboard })));
-const MyPoints = React.lazy(() => import('./components/student/MyPoints').then((m) => ({ default: m.MyPoints })));
-const Leaderboard = React.lazy(() => import('./components/staff/Leaderboard').then((m) => ({ default: m.Leaderboard })));
-const ApprovalsPage = React.lazy(() => import('./components/staff/ApprovalsPage').then((m) => ({ default: m.ApprovalsPage })));
-const ActivityLogPage = React.lazy(() => import('./components/staff/ActivityLogPage').then((m) => ({ default: m.ActivityLogPage })));
-const SettingsPage = React.lazy(() => import('./components/staff/SettingsPage').then((m) => ({ default: m.SettingsPage })));
-const QuizPreview = React.lazy(() => import('./components/common/QuizPreview').then((m) => ({ default: m.QuizPreview })));
-const BannersPage = React.lazy(() => import('./components/staff/BannersPage').then((m) => ({ default: m.BannersPage })));
-const LegalPage = React.lazy(() => import('./components/legal/LegalPage').then((m) => ({ default: m.LegalPage })));
-const OutcomesPage = React.lazy(() => import('./components/analytics/OutcomesPage').then((m) => ({ default: m.OutcomesPage })));
-const SkillsCard = React.lazy(() => import('./components/analytics/OutcomesPage').then((m) => ({ default: m.SkillsCard })));
-const QuestionBankPage = React.lazy(() => import('./components/teacher/QuestionBank').then((m) => ({ default: m.QuestionBankPage })));
-const GradingPage = React.lazy(() => import('./components/teacher/GradingPage').then((m) => ({ default: m.GradingPage })));
-const IndicatorsPage = React.lazy(() => import('./components/staff/IndicatorsPage').then((m) => ({ default: m.IndicatorsPage })));
-const PointsStorePage = React.lazy(() => import('./components/staff/PointsStorePage').then((m) => ({ default: m.PointsStorePage })));
-const ClassRecordsPage = React.lazy(() => import('./components/staff/ClassRecordsPage').then((m) => ({ default: m.ClassRecordsPage })));
-const NafesPage = React.lazy(() => import('./components/staff/NafesPage').then((m) => ({ default: m.NafesPage })));
-const AcademicSupportPage = React.lazy(() => import('./components/staff/AcademicSupportPage').then((m) => ({ default: m.AcademicSupportPage })));
-const HomeworkPage = React.lazy(() => import('./components/staff/HomeworkPage').then((m) => ({ default: m.HomeworkPage })));
-const HomeworkStudentPage = React.lazy(() => import('./components/student/HomeworkStudentPage').then((m) => ({ default: m.HomeworkStudentPage })));
-const LivePage = React.lazy(() => import('./components/live/LivePage').then((m) => ({ default: m.LivePage })));
-const PortfolioPage = React.lazy(() => import('./components/staff/PortfolioPage').then((m) => ({ default: m.PortfolioPage })));
-const VisitsPage = React.lazy(() => import('./components/staff/VisitsPage').then((m) => ({ default: m.VisitsPage })));
-const SurveysPage = React.lazy(() => import('./components/staff/SurveysPage').then((m) => ({ default: m.SurveysPage })));
-const GradebookPage = React.lazy(() => import('./components/staff/GradebookPage').then((m) => ({ default: m.GradebookPage })));
-const SchoolYearPage = React.lazy(() => import('./components/admin/SchoolYearPage').then((m) => ({ default: m.SchoolYearPage })));
-const BehaviorPage = React.lazy(() => import('./components/staff/BehaviorPage').then((m) => ({ default: m.BehaviorPage })));
-const ExamCalendar = React.lazy(() => import('./components/common/ExamCalendar').then((m) => ({ default: m.ExamCalendar })));
-const AttendancePage = React.lazy(() => import('./components/staff/AttendancePage').then((m) => ({ default: m.AttendancePage })));
-const CertificatesPage = React.lazy(() => import('./components/staff/CertificatesPage').then((m) => ({ default: m.CertificatesPage })));
-const OwnerPage = React.lazy(() => import('./components/owner/OwnerPage').then((m) => ({ default: m.OwnerPage })));
-const VerifyPage = React.lazy(() => import('./components/legal/VerifyPage').then((m) => ({ default: m.VerifyPage })));
-const NotificationsPage = React.lazy(() => import('./components/common/NotificationsPage').then((m) => ({ default: m.NotificationsPage })));
+const AdminDashboard = React.lazy(() => retryImport(() => import('./components/admin/AdminDashboard')).then((m) => ({ default: m.AdminDashboard })));
+const AdminQuizBank = React.lazy(() => retryImport(() => import('./components/admin/AdminQuizBank')).then((m) => ({ default: m.AdminQuizBank })));
+const UsersManagement = React.lazy(() => retryImport(() => import('./components/admin/UsersManagement')).then((m) => ({ default: m.UsersManagement })));
+const SubjectsClassesManagement = React.lazy(() => retryImport(() => import('./components/admin/SubjectsClassesManagement')).then((m) => ({ default: m.SubjectsClassesManagement })));
+const TeacherDashboard = React.lazy(() => retryImport(() => import('./components/teacher/TeacherDashboard')).then((m) => ({ default: m.TeacherDashboard })));
+const QuizEditor = React.lazy(() => retryImport(() => import('./components/teacher/QuizEditor')).then((m) => ({ default: m.QuizEditor })));
+const StudentDashboard = React.lazy(() => retryImport(() => import('./components/student/StudentDashboard')).then((m) => ({ default: m.StudentDashboard })));
+const QuizTaker = React.lazy(() => retryImport(() => import('./components/student/QuizTaker')).then((m) => ({ default: m.QuizTaker })));
+const QuizReview = React.lazy(() => retryImport(() => import('./components/student/QuizReview')).then((m) => ({ default: m.QuizReview })));
+const QuizResults = React.lazy(() => retryImport(() => import('./components/analytics/QuizResults')).then((m) => ({ default: m.QuizResults })));
+const AnalyticsView = React.lazy(() => retryImport(() => import('./components/analytics/AnalyticsView')).then((m) => ({ default: m.AnalyticsView })));
+const SupervisorDashboard = React.lazy(() => retryImport(() => import('./components/supervisor/SupervisorDashboard')).then((m) => ({ default: m.SupervisorDashboard })));
+const ParentDashboard = React.lazy(() => retryImport(() => import('./components/parent/ParentDashboard')).then((m) => ({ default: m.ParentDashboard })));
+const MyPoints = React.lazy(() => retryImport(() => import('./components/student/MyPoints')).then((m) => ({ default: m.MyPoints })));
+const Leaderboard = React.lazy(() => retryImport(() => import('./components/staff/Leaderboard')).then((m) => ({ default: m.Leaderboard })));
+const ApprovalsPage = React.lazy(() => retryImport(() => import('./components/staff/ApprovalsPage')).then((m) => ({ default: m.ApprovalsPage })));
+const ActivityLogPage = React.lazy(() => retryImport(() => import('./components/staff/ActivityLogPage')).then((m) => ({ default: m.ActivityLogPage })));
+const SettingsPage = React.lazy(() => retryImport(() => import('./components/staff/SettingsPage')).then((m) => ({ default: m.SettingsPage })));
+const QuizPreview = React.lazy(() => retryImport(() => import('./components/common/QuizPreview')).then((m) => ({ default: m.QuizPreview })));
+const BannersPage = React.lazy(() => retryImport(() => import('./components/staff/BannersPage')).then((m) => ({ default: m.BannersPage })));
+const LegalPage = React.lazy(() => retryImport(() => import('./components/legal/LegalPage')).then((m) => ({ default: m.LegalPage })));
+const OutcomesPage = React.lazy(() => retryImport(() => import('./components/analytics/OutcomesPage')).then((m) => ({ default: m.OutcomesPage })));
+const SkillsCard = React.lazy(() => retryImport(() => import('./components/analytics/OutcomesPage')).then((m) => ({ default: m.SkillsCard })));
+const QuestionBankPage = React.lazy(() => retryImport(() => import('./components/teacher/QuestionBank')).then((m) => ({ default: m.QuestionBankPage })));
+const GradingPage = React.lazy(() => retryImport(() => import('./components/teacher/GradingPage')).then((m) => ({ default: m.GradingPage })));
+const IndicatorsPage = React.lazy(() => retryImport(() => import('./components/staff/IndicatorsPage')).then((m) => ({ default: m.IndicatorsPage })));
+const PointsStorePage = React.lazy(() => retryImport(() => import('./components/staff/PointsStorePage')).then((m) => ({ default: m.PointsStorePage })));
+const ClassRecordsPage = React.lazy(() => retryImport(() => import('./components/staff/ClassRecordsPage')).then((m) => ({ default: m.ClassRecordsPage })));
+const NafesPage = React.lazy(() => retryImport(() => import('./components/staff/NafesPage')).then((m) => ({ default: m.NafesPage })));
+const AcademicSupportPage = React.lazy(() => retryImport(() => import('./components/staff/AcademicSupportPage')).then((m) => ({ default: m.AcademicSupportPage })));
+const HomeworkPage = React.lazy(() => retryImport(() => import('./components/staff/HomeworkPage')).then((m) => ({ default: m.HomeworkPage })));
+const HomeworkStudentPage = React.lazy(() => retryImport(() => import('./components/student/HomeworkStudentPage')).then((m) => ({ default: m.HomeworkStudentPage })));
+const LivePage = React.lazy(() => retryImport(() => import('./components/live/LivePage')).then((m) => ({ default: m.LivePage })));
+const PortfolioPage = React.lazy(() => retryImport(() => import('./components/staff/PortfolioPage')).then((m) => ({ default: m.PortfolioPage })));
+const VisitsPage = React.lazy(() => retryImport(() => import('./components/staff/VisitsPage')).then((m) => ({ default: m.VisitsPage })));
+const SurveysPage = React.lazy(() => retryImport(() => import('./components/staff/SurveysPage')).then((m) => ({ default: m.SurveysPage })));
+const GradebookPage = React.lazy(() => retryImport(() => import('./components/staff/GradebookPage')).then((m) => ({ default: m.GradebookPage })));
+const SchoolYearPage = React.lazy(() => retryImport(() => import('./components/admin/SchoolYearPage')).then((m) => ({ default: m.SchoolYearPage })));
+const BehaviorPage = React.lazy(() => retryImport(() => import('./components/staff/BehaviorPage')).then((m) => ({ default: m.BehaviorPage })));
+const ExamCalendar = React.lazy(() => retryImport(() => import('./components/common/ExamCalendar')).then((m) => ({ default: m.ExamCalendar })));
+const AttendancePage = React.lazy(() => retryImport(() => import('./components/staff/AttendancePage')).then((m) => ({ default: m.AttendancePage })));
+const CertificatesPage = React.lazy(() => retryImport(() => import('./components/staff/CertificatesPage')).then((m) => ({ default: m.CertificatesPage })));
+const OwnerPage = React.lazy(() => retryImport(() => import('./components/owner/OwnerPage')).then((m) => ({ default: m.OwnerPage })));
+const VerifyPage = React.lazy(() => retryImport(() => import('./components/legal/VerifyPage')).then((m) => ({ default: m.VerifyPage })));
+const NotificationsPage = React.lazy(() => retryImport(() => import('./components/common/NotificationsPage')).then((m) => ({ default: m.NotificationsPage })));
 
 const KNOWN_VIEWS = [
   'take_quiz', 'quiz_review', 'create_quiz', 'users', 'users_management',
@@ -383,7 +384,7 @@ const OwnerRoot: React.FC = () => {
   return <React.Suspense fallback={<Spinner />}><OwnerPage /></React.Suspense>;
 };
 
-const InstallPage = React.lazy(() => import('./components/legal/InstallPage').then((m) => ({ default: m.InstallPage })));
+const InstallPage = React.lazy(() => retryImport(() => import('./components/legal/InstallPage')).then((m) => ({ default: m.InstallPage })));
 /** صفحة «نزّل المنصة على جوالك»: عامة، تُرسل رابطها للطلاب وأولياء الأمور */
 const InstallRoot: React.FC = () => {
   applyLang(loadLangPref());
