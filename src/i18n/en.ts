@@ -3909,7 +3909,7 @@ export const EN: Record<string, string> = {
   'ادخل marketplace.zoom.us بحسابك في Zoom ← Develop ← Build App.': 'Go to marketplace.zoom.us with your Zoom account → Develop → Build App.',
   'اختر General App، ثم من Features فعّل Embed ← Meeting SDK.': 'Choose General App, then under Features enable Embed → Meeting SDK.',
   'من App Credentials انسخ Client ID و Client Secret والصقهما هنا.': 'Under App Credentials copy the Client ID and Client Secret and paste them here.',
-  'أنشئ في Zoom اجتماعاً متكرراً لكل فصل، وضع رقمه في الحصة.': 'Create a recurring meeting in Zoom for each class and put its ID in the class.',
+  'أنشئ في Zoom اجتماعاً متكرراً واحداً (No Fixed Time)، وضع رقمه ورمزه في «اجتماعي الثابت» أدناه.': 'Create one recurring meeting in Zoom (No Fixed Time) and put its number and passcode in “My fixed Zoom meeting” below.',
   'ربط حسابي في Zoom (مرة واحدة)': 'Link my Zoom account (one time)',
   'مربوط ✓': 'Linked ✓',
   'Client Secret (اتركه فارغاً للإبقاء على الحالي)': 'Client Secret (leave empty to keep the current one)',
