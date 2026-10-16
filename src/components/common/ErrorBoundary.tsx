@@ -11,6 +11,17 @@ const isStaleChunk = (e: unknown) =>
   /dynamically imported module|Importing a module script failed|error loading dynamically|not a valid JavaScript MIME type|Unable to preload CSS/i
     .test(String((e as Error)?.message || e));
 
+/** إعادة تحميل نظيفة: تحذف ملفات الموقع المحفوظة في عامل الخدمة أولاً حتى تُجلب أحدث نسخة من الخادم */
+export async function hardReload(): Promise<void> {
+  try {
+    if ('caches' in window) {
+      const keys = await caches.keys();
+      await Promise.all(keys.map((k) => caches.delete(k)));
+    }
+  } catch { /* ignore */ }
+  window.location.reload();
+}
+
 /** إعادة تحميل مرة واحدة كل دقيقة على الأكثر (حتى لا تتكرر بلا نهاية إن كان الخلل في الشبكة) */
 export function reloadForNewVersion(): boolean {
   try {
@@ -18,7 +29,7 @@ export function reloadForNewVersion(): boolean {
     if (Date.now() - last < 60_000) return false;
     sessionStorage.setItem('itqan_chunk_reload', String(Date.now()));
   } catch { /* ignore */ }
-  window.location.reload();
+  void hardReload();
   return true;
 }
 
@@ -67,7 +78,7 @@ export class ErrorBoundary extends React.Component<{ children: React.ReactNode }
           {String(this.state.error?.stack || this.state.error?.message || this.state.error)}
         </pre>
         <div style={{ display: 'flex', gap: 8, marginTop: 16 }}>
-          <button onClick={() => window.location.reload()} style={{ padding: '8px 16px', borderRadius: 12, background: '#4f46e5', color: '#fff', fontWeight: 700, fontSize: 12 }}>
+          <button onClick={() => void hardReload()} style={{ padding: '8px 16px', borderRadius: 12, background: '#4f46e5', color: '#fff', fontWeight: 700, fontSize: 12 }}>
             {t('إعادة التحميل')}
           </button>
           <button onClick={this.resetSession} style={{ padding: '8px 16px', borderRadius: 12, background: '#e2e8f0', color: '#0f172a', fontWeight: 700, fontSize: 12 }}>

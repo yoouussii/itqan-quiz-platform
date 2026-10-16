@@ -136,6 +136,13 @@ export const liveLink = (id: string) => `${window.location.origin}/live?s=${enco
 export async function copyLiveLink(id: string): Promise<boolean> {
   try { await navigator.clipboard.writeText(liveLink(id)); return true; } catch { window.prompt('', liveLink(id)); return false; }
 }
+/** دعوة Zoom للحصة (للمعلم): رابط الاجتماع ورمز المرور، لمشاركتها مع من يدخل من تطبيق Zoom */
+export async function copyZoomInvite(s: LiveSession): Promise<boolean> {
+  if (!s.zoom_meeting) return false;
+  const text = [s.title, `https://zoom.us/j/${s.zoom_meeting}`, `Meeting ID: ${s.zoom_meeting.replace(/(\d{3})(\d{3,4})(\d+)/, '$1 $2 $3')}`,
+    s.zoom_passcode ? `Passcode: ${s.zoom_passcode}` : ''].filter(Boolean).join('\n');
+  try { await navigator.clipboard.writeText(text); return true; } catch { window.prompt('', text); return false; }
+}
 
 /** فتح اجتماع خارجي: نافذة جديدة، وإن منعها المتصفح فالصفحة نفسها */
 export function openExternal(url: string, tab?: Window | null) {

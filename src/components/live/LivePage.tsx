@@ -1,23 +1,24 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
-  Video, Plus, ChevronRight, ChevronLeft, Pencil, Trash2, Users, X, Save, Ban, RotateCcw, Settings2, Copy, Download, KeyRound, Radio, Clock, Link2, FileSpreadsheet, Send, ClipboardCheck, Mic,
+  Video, Plus, ChevronRight, ChevronLeft, Pencil, Trash2, Users, X, Save, Ban, RotateCcw, Settings2, Copy, Download, Radio, Clock, Link2, FileSpreadsheet, Send, ClipboardCheck, Mic, CalendarDays,
 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 import { PageHeader, Card, Button, Chip, Tone, ListSkeleton } from '../common/ui';
 import { DateTimeField } from '../common/DateTimeField';
 import {
-  LiveAttendee, LiveDraft, LiveJoin, LivePeriod, LiveSession, deleteLive, periodEnd, isSoon, joinLive, listLive, liveAttendance, liveConfigStatus, liveEnd,
-  randomSecret, saveLive, setLive, setLiveConfig, takePendingJoin, copyLiveLink, openExternal, externalKind,
+  LiveAttendee, LiveDraft, LiveJoin, LivePeriod, LiveSession, deleteLive, periodEnd, isSoon, joinLive, listLive, liveAttendance, liveEnd,
+  saveLive, setLive, takePendingJoin, copyLiveLink, copyZoomInvite, getTimetable, TimetableRow, openExternal, externalKind,
   zoomKeysStatus, setZoomKeys, parseZoomMeeting, setZoomMeeting, setLiveAttendance,
 } from '../../services/liveService';
 import { saveSettings } from '../../services/settingsService';
 import { LiveRoom } from './LiveRoom';
-const ZoomRoom = React.lazy(() => import('./ZoomRoom'));
-const TimetableImport = React.lazy(() => import('./TimetableImport'));
+const ZoomRoom = React.lazy(() => retryImport(() => import('./ZoomRoom')));
+const TimetableImport = React.lazy(() => retryImport(() => import('./TimetableImport')));
 import DeviceCheck, { checkedToday } from './DeviceCheck';
 import { setLiveRoomOpen } from '../../utils/liveRoomFlag';
 import { t, uiDir, dateLocale } from '../../i18n';
 import type { User } from '../../types';
+import { retryImport } from '../../utils/retryImport';
 
 const inp = 'h-10 px-3 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm';
 const pad = (n: number) => String(n).padStart(2, '0');
@@ -42,7 +43,7 @@ const JOIN_ERR: Record<string, () => string> = {
   not_started: () => t('لم يحن موعد الحصة بعد. تفتح تلقائياً في وقتها.'),
   ended: () => t('انتهت هذه الحصة.'),
   cancelled: () => t('أُلغيت هذه الحصة.'),
-  not_configured: () => t('لم يُضبط خادم الحصص بعد. تواصل مع إدارة المدرسة.'),
+  not_configured: () => t('لم يُضف المعلم اجتماع Zoom لهذه الحصة بعد. تواصل مع معلمك.'),
   forbidden: () => t('لا تملك صلاحية دخول هذه الحصة.'),
   not_found: () => t('الحصة غير موجودة.'),
 };
@@ -60,7 +61,6 @@ export const LivePage: React.FC = () => {
   }, [isTeacher, fresh, classes]);
   const className = useCallback((id: string) => classes.find((c: any) => c.id === id)?.name || id, [classes]);
   const subjectName = useCallback((id: string | null) => (id ? subjects.find((s: any) => s.id === id)?.name || '' : ''), [subjects]);
-  const domain: string = settings.live_classes?.domain || '';
   const periods: LivePeriod[] = settings.live_classes?.periods || [];
 
   const [week, setWeek] = useState(() => weekStart(new Date()));
@@ -75,6 +75,7 @@ export const LivePage: React.FC = () => {
   const [joining, setJoining] = useState<string | null>(null);
   const [showCfg, setShowCfg] = useState(false);
   const [showZoom, setShowZoom] = useState(false);
+  const [showMine, setShowMine] = useState(false);
   const [showTt, setShowTt] = useState(false);
   const [devCheck, setDevCheck] = useState<LiveSession | 'test' | null>(null);
   const [zoomJoin, setZoomJoin] = useState<LiveJoin | null>(null);
@@ -165,28 +166,23 @@ export const LivePage: React.FC = () => {
           {!isStaff && <Button variant="secondary" icon={Mic} onClick={() => setDevCheck('test')} data-testid="device-check-btn">{t('تجربة المايك والكاميرا')}</Button>}
           {isStaff && <Button variant="secondary" icon={Video} onClick={() => setShowZoom((v) => !v)} data-testid="zoom-keys-btn">{t('حسابي في Zoom')}</Button>}
           {me.role === 'admin' && <Button variant="secondary" icon={FileSpreadsheet} onClick={() => setShowTt(true)} data-testid="tt-btn">{t('استيراد الجدول')}</Button>}
-          {me.role === 'admin' && <Button variant="secondary" icon={Settings2} onClick={() => setShowCfg((v) => !v)}>{t('إعدادات الخادم')}</Button>}
+          {isTeacher && <Button variant="secondary" icon={CalendarDays} onClick={() => setShowMine((v) => !v)} data-testid="my-tt-btn">{t('جدولي')}</Button>}
+          {me.role === 'admin' && <Button variant="secondary" icon={Settings2} onClick={() => setShowCfg((v) => !v)}>{t('مواعيد الحصص')}</Button>}
         </>}
       />
 
-      {!domain && (
-        <Card className="p-4 text-sm bg-amber-50 dark:bg-amber-950/40 border-amber-200 dark:border-amber-900 text-amber-900 dark:text-amber-200">
-          {me.role === 'admin' ? t('اضبط عنوان خادم الحصص من «إعدادات الخادم»، أو أضف رابط Zoom/Teams لكل حصة.') : isStaff ? t('خادم الحصص غير مضبوط: أضف رابط اجتماع Zoom أو Teams للحصة.') : t('لم تُفعَّل الحصص المباشرة بعد. تواصل مع إدارة المدرسة.')}
-        </Card>
-      )}
-      {me.role === 'admin' && (showCfg || !domain) && (
-        <ServerSettings domain={domain} onSaveDomain={async (d) => {
-          const v = { ...(settings.live_classes || {}), domain: d };
-          if (updateSettings) await updateSettings({ live_classes: v }); else await saveSettings({ live_classes: v } as any);
-          showToast(t('تم الحفظ'));
-        }} periods={periods} onSavePeriods={async (ps) => {
-          const v = { ...(settings.live_classes || {}), periods: ps };
+      {me.role === 'admin' && (showCfg || !periods.length) && (
+        <PeriodsSettings periods={periods} onSavePeriods={async (ps) => {
+          // eslint-disable-next-line @typescript-eslint/no-unused-vars
+          const { domain: _old, ...rest } = settings.live_classes || {};
+          const v = { ...rest, periods: ps };
           if (updateSettings) await updateSettings({ live_classes: v }); else await saveSettings({ live_classes: v } as any);
           showToast(t('تم الحفظ'));
         }} />
       )}
 
       {isStaff && showZoom && <ZoomKeysCard />}
+      {isTeacher && showMine && <MyTimetable meId={me.id} periods={periods} className={className} subjectName={subjectName} />}
       {devCheck && (
         <DeviceCheck onClose={() => setDevCheck(null)}
           onContinue={devCheck !== 'test' ? () => { const x = devCheck; setDevCheck(null); void enter(x, true); } : undefined} />
@@ -278,6 +274,7 @@ export const LivePage: React.FC = () => {
                     {list.map((s) => (
                       <SessionRow key={s.id} s={s} className={className} subjectName={subjectName} isStaff={isStaff} joining={joining === s.id}
                         onCopy={() => void copyLiveLink(s.id).then((ok) => ok && showToast(t('نُسخ رابط الحصة')))}
+                        onCopyZoom={() => void copyZoomInvite(s).then((ok) => ok && showToast(t('نُسخ رابط Zoom ورمز المرور')))}
                         onJoin={() => void enter(s)} onEdit={() => setEditing(s)} onDelete={() => setDel(s)} onAtt={() => setAtt(s)}
                         onCancel={() => void setStatus(s, 'cancelled')} onRestore={() => void setStatus(s, 'scheduled')} />
                     ))}
@@ -290,7 +287,7 @@ export const LivePage: React.FC = () => {
       )}
 
       {editing && (
-        <LiveEditor session={editing === 'new' ? null : editing} classes={myClasses} subjects={subjects} periods={periods} needExternal={!domain}
+        <LiveEditor session={editing === 'new' ? null : editing} classes={myClasses} subjects={subjects} periods={periods} 
           teachers={me.role === 'teacher' ? [] : (users as User[]).filter((u) => u.role === 'teacher').sort((a, b) => a.name.localeCompare(b.name, 'ar'))}
           me={fresh} onClose={() => setEditing(null)} onSaved={(n) => { setEditing(null); showToast(n > 1 ? t('تمت جدولة {n} حصة', { n }) : t('تم الحفظ')); void load(true); }} />
       )}
@@ -302,8 +299,8 @@ export const LivePage: React.FC = () => {
 
 const SessionRow: React.FC<{
   s: LiveSession; className: (id: string) => string; subjectName: (id: string | null) => string; isStaff: boolean; joining: boolean;
-  onJoin: () => void; onEdit: () => void; onDelete: () => void; onAtt: () => void; onCancel: () => void; onRestore: () => void; onCopy: () => void;
-}> = ({ s, className, subjectName, isStaff, joining, onJoin, onEdit, onDelete, onAtt, onCancel, onRestore, onCopy }) => {
+  onJoin: () => void; onEdit: () => void; onDelete: () => void; onAtt: () => void; onCancel: () => void; onRestore: () => void; onCopy: () => void; onCopyZoom: () => void;
+}> = ({ s, className, subjectName, isStaff, joining, onJoin, onEdit, onDelete, onAtt, onCancel, onRestore, onCopy, onCopyZoom }) => {
   const st = statusOf(s);
   const meta = STATUS[st] || STATUS.scheduled;
   const subj = subjectName(s.subject_id);
@@ -330,6 +327,9 @@ const SessionRow: React.FC<{
         )}
         {isStaff && s.status !== 'ended' && s.status !== 'cancelled' && s.status !== 'missed' && (
           <button type="button" onClick={onCopy} className={ib} title={t('نسخ رابط الحصة')} aria-label={t('نسخ رابط الحصة')}><Link2 className="w-4 h-4" /></button>
+        )}
+        {s.can_manage && s.zoom_meeting && s.status !== 'ended' && s.status !== 'cancelled' && s.status !== 'missed' && (
+          <button type="button" onClick={onCopyZoom} className={ib} title={t('نسخ رابط Zoom')} aria-label={t('نسخ رابط Zoom')} data-testid="copy-zoom"><Copy className="w-4 h-4" /></button>
         )}
         {isStaff && <button type="button" onClick={onAtt} className={ib} title={t('الحضور')} aria-label={t('الحضور')}><Users className="w-4 h-4" /></button>}
         {s.can_manage && s.status !== 'live' && (
@@ -360,8 +360,8 @@ const Modal: React.FC<{ title: string; onClose: () => void; children: React.Reac
 );
 
 const LiveEditor: React.FC<{
-  session: LiveSession | null; classes: any[]; subjects: any[]; periods: LivePeriod[]; needExternal: boolean; teachers: User[]; me: User; onClose: () => void; onSaved: (n: number) => void;
-}> = ({ session, classes, subjects, periods, needExternal, teachers, me, onClose, onSaved }) => {
+  session: LiveSession | null; classes: any[]; subjects: any[]; periods: LivePeriod[]; teachers: User[]; me: User; onClose: () => void; onSaved: (n: number) => void;
+}> = ({ session, classes, subjects, periods, teachers, me, onClose, onSaved }) => {
   const next = () => { const d = new Date(); d.setMinutes(Math.ceil((d.getMinutes() + 5) / 5) * 5, 0, 0); return toLocalInput(d); };
   const [title, setTitle] = useState(session?.title || '');
   const [notes, setNotes] = useState(session?.notes || '');
@@ -400,12 +400,20 @@ const LiveEditor: React.FC<{
   const [weekdays, setWeekdays] = useState<number[]>([]);
   const [until, setUntil] = useState(() => { const d = new Date(); d.setMonth(d.getMonth() + 1); return dayKey(d); });
   const [ext, setExt] = useState(session?.external_url || '');
-  type Prov = 'jitsi' | 'zoom' | 'external';
-  const [prov, setProv] = useState<Prov>((session?.provider as Prov) || (needExternal ? 'zoom' : 'jitsi'));
+  type Prov = 'zoom' | 'external';
+  const [prov, setProv] = useState<Prov>(session?.provider === 'external' ? 'external' : 'zoom');
   const [zm, setZm] = useState(session?.zoom_meeting || '');
   const [zp, setZp] = useState(session?.zoom_passcode || '');
   const [zoomOk, setZoomOk] = useState<boolean | null>(null);
-  useEffect(() => { if (prov === 'zoom' && zoomOk === null) void zoomKeysStatus().then((s) => setZoomOk(s.configured)); }, [prov, zoomOk]);
+  const [fixed, setFixed] = useState(false);
+  // اجتماع المعلم الثابت يُملأ تلقائياً
+  useEffect(() => {
+    void zoomKeysStatus().then((st) => {
+      setZoomOk(st.configured);
+      if (st.meeting) { setFixed(true); if (!session?.zoom_meeting) { setZm((x) => x || st.meeting || ''); setZp((x) => x || st.passcode || ''); } }
+    });
+  }, [session]);
+  const forOther = !!teacherId && teacherId !== me.id;
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
   const startDow = effStart ? new Date(effStart).getDay() : -1;
@@ -420,10 +428,10 @@ const LiveEditor: React.FC<{
     const extUrl = prov === 'external' ? ext.trim() : '';
     if (prov === 'external' && !/^https:\/\/\S+$/i.test(extUrl)) return setErr(t('الرابط يجب أن يبدأ بـ https://'));
     const zMeeting = prov === 'zoom' ? parseZoomMeeting(zm) : '';
-    if (prov === 'zoom' && !zMeeting) return setErr(t('اكتب رقم اجتماع Zoom (9 إلى 12 رقماً) أو الصق رابط الدعوة'));
+    if (prov === 'zoom' && !zMeeting && !forOther) return setErr(t('اكتب رقم اجتماع Zoom (9 إلى 12 رقماً) أو الصق رابط الدعوة'));
     setBusy(true);
     const d: LiveDraft = { id: session?.id, title: title.trim(), notes, class_ids: classIds, subject_id: subjectId || null, starts_at: new Date(effStart).toISOString(), duration_min: effDur, period: per ? period : null, teacher_id: teacherId || undefined, external_url: extUrl || null,
-      zoom_meeting: zMeeting || null, zoom_passcode: prov === 'zoom' ? zp.trim() || null : null };
+      zoom_meeting: forOther && !zm.trim() ? null : zMeeting || null, zoom_passcode: prov === 'zoom' && zMeeting ? zp.trim() || null : null };
     const r = await saveLive(d, !session && repeat ? until : null, !session && repeat ? weekdays.filter((w) => w !== startDow) : undefined);
     setBusy(false);
     if (!r.ok) {
@@ -532,9 +540,8 @@ const LiveEditor: React.FC<{
         )}
         <div className="space-y-2">
           <span className="text-sm font-bold text-slate-700 dark:text-slate-200">{t('أين تُعقد الحصة؟')}</span>
-          <div className="grid grid-cols-3 gap-1.5" role="radiogroup">
-            {([['jitsi', t('خادم المدرسة')], ['zoom', t('Zoom داخل المنصة')], ['external', t('رابط خارجي')]] as Array<[Prov, string]>)
-              .filter(([k]) => k !== 'jitsi' || !needExternal)
+          <div className="grid grid-cols-2 gap-1.5" role="radiogroup">
+            {([['zoom', t('Zoom داخل المنصة')], ['external', t('رابط خارجي')]] as Array<[Prov, string]>)
               .map(([k, label]) => (
                 <button key={k} type="button" role="radio" aria-checked={prov === k} onClick={() => setProv(k)} data-testid={`live-prov-${k}`}
                   className={`h-10 px-2 rounded-xl text-sm font-semibold border ${prov === k ? 'bg-indigo-600 border-indigo-600 text-white' : 'border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-200'}`}>
@@ -551,7 +558,11 @@ const LiveEditor: React.FC<{
                 <input value={zm} onChange={(e) => setZm(e.target.value)} dir="ltr" placeholder={t('رقم الاجتماع أو رابط الدعوة')} className={`${inp} w-full`} data-testid="live-zoom-meeting" />
                 <input value={zp} onChange={(e) => setZp(e.target.value)} dir="ltr" placeholder={t('رمز المرور (Passcode)')} className={`${inp} w-full`} data-testid="live-zoom-pass" />
               </div>
-              <p className="text-xs text-slate-500 dark:text-slate-400">{t('أنشئ اجتماعاً متكرراً في Zoom (نفس الرقم لكل الحصص) وابدأه من تطبيق Zoom في موعده، والطلاب يرونه داخل المنصة. لا يظهر الرقم ولا الرمز للطلاب.')}</p>
+              <p className="text-xs text-slate-500 dark:text-slate-400">
+                {forOther ? t('اتركهما فارغين لاستخدام اجتماع المعلم الثابت من «حسابي في Zoom».')
+                  : fixed ? t('هذا اجتماعك الثابت من «حسابي في Zoom»، ويمكنك تغييره لهذه الحصة فقط.')
+                  : t('أنشئ اجتماعاً متكرراً في Zoom (نفس الرقم لكل الحصص) وابدأه من تطبيق Zoom في موعده، والطلاب يرونه داخل المنصة. لا يظهر الرقم ولا الرمز للطلاب.')}
+              </p>
             </div>
           )}
           {prov === 'external' && (
@@ -698,35 +709,15 @@ const DeleteModal: React.FC<{ s: LiveSession; onClose: () => void; onDone: (n: n
   );
 };
 
-/** إعدادات خادم الحصص (للمدير): العنوان، وسرّ رموز الدخول */
-const ServerSettings: React.FC<{ domain: string; onSaveDomain: (d: string) => Promise<void>; periods: LivePeriod[]; onSavePeriods: (p: LivePeriod[]) => Promise<void> }> = ({ domain, onSaveDomain, periods, onSavePeriods }) => {
-  const { showToast } = useApp();
+/** مواعيد الحصص الثابتة (للمدير) */
+const PeriodsSettings: React.FC<{ periods: LivePeriod[]; onSavePeriods: (p: LivePeriod[]) => Promise<void> }> = ({ periods, onSavePeriods }) => {
   const [ps, setPs] = useState<LivePeriod[]>(periods);
   const addPeriod = () => setPs((x) => [...x, { start: x.length ? periodEnd(x[x.length - 1]) : '07:00', minutes: x.length ? x[x.length - 1].minutes : 35 }]);
   const setP = (i: number, patch: Partial<LivePeriod>) => setPs((x) => x.map((p, j) => (j === i ? { ...p, ...patch } : p)));
   const psValid = ps.every((p) => /^\d{2}:\d{2}$/.test(p.start) && p.minutes >= 5);
-  const [d, setD] = useState(domain);
-  const [cfg, setCfg] = useState<{ configured: boolean; app_id?: string } | null>(null);
-  const [secret, setSecret] = useState('');
-  useEffect(() => { void liveConfigStatus().then(setCfg); }, []);
-  const clean = d.trim().replace(/^https?:\/\//, '').replace(/\/.*$/, '');
-  const gen = async () => {
-    if (cfg?.configured && !window.confirm(t('توليد سرّ جديد يوقف الدخول حتى تضعه على خادم Jitsi. متابعة؟'))) return;
-    const s = randomSecret();
-    const r = await setLiveConfig(cfg?.app_id || 'itqan', s);
-    if (r.ok) { setSecret(s); setCfg(r.data); } else showToast(t('تعذر الحفظ'), 'error');
-  };
-  const cmd = secret ? `sudo bash itqan-jwt.sh ${clean || 'DOMAIN'} ${cfg?.app_id || 'itqan'} ${secret}` : '';
   return (
     <Card className="p-4 sm:p-5 space-y-4" data-testid="live-server">
-      <div className="space-y-1">
-        <p className="font-black text-slate-900 dark:text-white">{t('عنوان خادم الحصص (Jitsi)')}</p>
-        <div className="flex flex-wrap gap-2">
-          <input value={d} onChange={(e) => setD(e.target.value)} dir="ltr" placeholder="meet.school.sa" className={`${inp} flex-1 min-w-[14rem]`} data-testid="live-domain" />
-          <Button icon={Save} onClick={() => void onSaveDomain(clean)} disabled={!clean || clean === domain}>{t('حفظ')}</Button>
-        </div>
-      </div>
-      <div className="space-y-2 border-t border-slate-100 dark:border-slate-800 pt-4" data-testid="live-periods">
+      <div className="space-y-2" data-testid="live-periods">
         <p className="font-black text-slate-900 dark:text-white">{t('مواعيد الحصص الثابتة')}</p>
         <p className="text-sm text-slate-600 dark:text-slate-300">{t('يختار المعلم رقم الحصة فقط، فتفتح الحصة تلقائياً في موعدها وتُغلق للجميع عند نهايته.')}</p>
         <div className="space-y-2">
@@ -747,20 +738,62 @@ const ServerSettings: React.FC<{ domain: string; onSaveDomain: (d: string) => Pr
           <Button size="sm" icon={Save} onClick={() => void onSavePeriods(ps)} disabled={!psValid || JSON.stringify(ps) === JSON.stringify(periods)}>{t('حفظ المواعيد')}</Button>
         </div>
       </div>
-      <div className="space-y-2 border-t border-slate-100 dark:border-slate-800 pt-4">
-        <p className="font-black text-slate-900 dark:text-white flex items-center gap-2"><KeyRound className="w-4 h-4" />{t('الدخول الآمن (المعلم مشرف تلقائياً)')}</p>
-        <p className="text-sm text-slate-600 dark:text-slate-300">
-          {cfg?.configured ? t('مفعّل: لا يدخل الحصة إلا من يفتحها من المنصة، والمعلم هو المتحكّم.') : t('غير مفعّل بعد: أي شخص لديه الرابط يمكنه الدخول. ولّد سرّاً وضعه على الخادم.')}
-        </p>
-        <Button size="sm" variant="secondary" icon={KeyRound} onClick={() => void gen()}>{cfg?.configured ? t('توليد سرّ جديد') : t('توليد السرّ')}</Button>
-        {secret && (
-          <div className="rounded-xl bg-slate-900 text-slate-100 p-3 space-y-2">
-            <p className="text-xs text-amber-300">{t('انسخ هذا الأمر الآن ونفّذه على الخادم؛ لن يظهر السرّ مرة أخرى.')}</p>
-            <code dir="ltr" className="block text-xs break-all">{cmd}</code>
-            <Button size="sm" variant="secondary" icon={Copy} onClick={() => { void navigator.clipboard?.writeText(cmd); showToast(t('تم النسخ')); }}>{t('نسخ')}</Button>
+    </Card>
+  );
+};
+
+/** جدول المعلم الأسبوعي من الجدول المستورد */
+const MyTimetable: React.FC<{ meId: string; periods: LivePeriod[]; className: (id: string) => string; subjectName: (id: string | null) => string }> = ({ meId, periods, className, subjectName }) => {
+  const [rows, setRows] = useState<TimetableRow[] | null>(null);
+  useEffect(() => { void getTimetable().then((r) => setRows(r.filter((x) => x.teacher_id === meId))); }, [meId]);
+  if (!rows) return <ListSkeleton rows={2} />;
+  const days = [0, 1, 2, 3, 4].concat(rows.some((r) => r.dow > 4) ? [5, 6].filter((d) => rows.some((r) => r.dow === d)) : []);
+  const maxP = Math.max(periods.length, ...rows.map((r) => r.period), 0);
+  const cell = (d: number, p: number) => rows.filter((r) => r.dow === d && r.period === p);
+  return (
+    <Card className="p-4 sm:p-5 space-y-3" data-testid="my-timetable">
+      <p className="font-black text-slate-900 dark:text-white flex items-center gap-2"><CalendarDays className="w-5 h-5" />{t('جدولي الأسبوعي')}</p>
+      {rows.length === 0 ? (
+        <p className="text-sm text-slate-500 dark:text-slate-400">{t('لم يُسند لك جدول بعد. تواصل مع إدارة المدرسة.')}</p>
+      ) : (
+        <>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm border-separate border-spacing-1">
+              <thead>
+                <tr>
+                  <th className="text-xs text-slate-500 font-bold w-20" />
+                  {Array.from({ length: maxP }, (_, i) => (
+                    <th key={i} className="text-xs text-slate-500 font-bold whitespace-nowrap">
+                      {t('الحصة {n}', { n: i + 1 })}{periods[i] && <span className="block font-normal tabular-nums">{`\u2066${periods[i].start}\u2069`}</span>}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {days.map((d) => (
+                  <tr key={d}>
+                    <th className="text-xs font-black text-slate-700 dark:text-slate-200 text-start">{WEEKDAYS()[d]}</th>
+                    {Array.from({ length: maxP }, (_, i) => {
+                      const c = cell(d, i + 1);
+                      return (
+                        <td key={i} className={`rounded-lg p-1.5 text-center align-top min-w-[5.5rem] ${c.length ? 'bg-indigo-50 dark:bg-indigo-950/50' : 'bg-slate-50 dark:bg-slate-800/40'}`}>
+                          {c.map((x) => (
+                            <div key={x.class_id} className="leading-tight">
+                              <p className="font-bold text-slate-900 dark:text-white text-xs">{className(x.class_id)}</p>
+                              <p className="text-[11px] text-slate-500 dark:text-slate-400">{subjectName(x.subject_id) || x.title}</p>
+                            </div>
+                          ))}
+                        </td>
+                      );
+                    })}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
-        )}
-      </div>
+          <p className="text-xs text-slate-500 dark:text-slate-400">{t('حصصك مجدولة تلقائياً من هذا الجدول. اضغط ✏️ على أي حصة لتكتب عنوان الدرس فقط.')}</p>
+        </>
+      )}
     </Card>
   );
 };

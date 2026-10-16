@@ -1,7 +1,8 @@
 import React, { Suspense, useEffect, useState } from 'react';
 import { STUDENT_EVENT } from './studentProfileEvents';
+import { retryImport } from '../../utils/retryImport';
 
-const Host = React.lazy(() => import('./StudentProfile').then((m) => ({ default: m.StudentProfileHost })));
+const Host = React.lazy(() => retryImport(() => import('./StudentProfile')).then((m) => ({ default: m.StudentProfileHost })));
 
 /** نافذة ملف الطالب تُحمَّل عند أول فتح فقط، ثم تتولى هي استقبال الطلبات التالية */
 export const LazyStudentProfileHost: React.FC = () => {
