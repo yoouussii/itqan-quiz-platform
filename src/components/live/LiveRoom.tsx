@@ -22,13 +22,22 @@ export const LiveRoom: React.FC<{ join: LiveJoin; onClose: () => void }> = ({ jo
   const closed = useRef(false);
   const logo = settings.school_logo || '/itqan-logo.png';
 
+  // onClose يتغيّر مع كل رسم للصفحة الأم؛ نحفظه في مرجع حتى لا يُعاد إنشاء الاجتماع (كان يُخرج الجميع ويعيدهم)
+  const onCloseRef = useRef(onClose);
+  onCloseRef.current = onClose;
   const close = useCallback(() => {
     if (closed.current) return;
     closed.current = true;
     try { api.current?.dispose(); } catch { /* ignore */ }
     api.current = null;
-    onClose();
-  }, [onClose]);
+    onCloseRef.current();
+  }, []);
+  // انتهاء الحصة (بالإنهاء للجميع أو انتهاء الوقت): تُغلق فوراً مع رسالة
+  const endNow = useCallback(() => {
+    try { api.current?.dispose(); } catch { /* ignore */ }
+    api.current = null;
+    setState('ended');
+  }, []);
 
   // الطالب: إخفاء الشات أو إظهاره حسب قفل المعلم
   const applyChat = useCallback((locked: boolean) => {
@@ -79,13 +88,14 @@ export const LiveRoom: React.FC<{ join: LiveJoin; onClose: () => void }> = ({ jo
       api.current = a;
       a.addListener('videoConferenceJoined', () => setState('ready'));
       a.addListener('readyToClose', close);
+      // الطالب: أنهى المعلم الحصة للجميع أو أُخرج منها ← رسالة الانتهاء فوراً
+      if (!mod) a.addListener('videoConferenceLeft', endNow);
       a.addListener('chatUpdated', (e: any) => { chatOpen.current = !!e?.isOpen; });
-      // الطالب: شاشة المعلم المشتركة تملأ العرض
+      // الطالب: عند مشاركة الشاشة نخرج من عرض الشبكة، وJitsi يثبّت الشاشة المشتركة في المنتصف
       if (!mod) {
         a.addListener('contentSharingParticipantsChanged', (e: any) => {
-          const id = Array.isArray(e?.data) ? e.data[0] : null;
-          if (!id) return;
-          try { a.executeCommand('setTileView', false); a.executeCommand('setLargeVideoParticipant', id); } catch { /* ignore */ }
+          if (!Array.isArray(e?.data) || !e.data.length) return;
+          try { a.executeCommand('setTileView', false); } catch { /* ignore */ }
         });
       }
       setTimeout(() => alive && setState((s) => (s === 'loading' ? 'ready' : s)), 8000);
@@ -95,9 +105,10 @@ export const LiveRoom: React.FC<{ join: LiveJoin; onClose: () => void }> = ({ jo
       try { api.current?.dispose(); } catch { /* ignore */ }
       api.current = null;
     };
-  }, [join, session.title, session.chat_locked, mod, close, attempt]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [join, attempt]);
 
-  // نبضة الحضور كل 30 ثانية + متابعة انتهاء الحصة وقفل الشات
+  // نبضة الحضور كل 15 ثانية + متابعة انتهاء الحصة وقفل الشات
   useEffect(() => {
     const tick = async () => {
       const r = await pingLive(session.id);
@@ -107,15 +118,11 @@ export const LiveRoom: React.FC<{ join: LiveJoin; onClose: () => void }> = ({ jo
         setChatLocked(r.chat_locked);
         applyChat(r.chat_locked);
       }
-      if (!mod && (r.status === 'ended' || r.status === 'cancelled')) {
-        try { api.current?.dispose(); } catch { /* ignore */ }
-        api.current = null;
-        setState('ended');
-      }
+      if (!mod && (r.status === 'ended' || r.status === 'cancelled')) endNow();
     };
-    const iv = window.setInterval(() => void tick(), 30000);
+    const iv = window.setInterval(() => void tick(), 15000);
     return () => window.clearInterval(iv);
-  }, [session.id, mod, applyChat]);
+  }, [session.id, mod, applyChat, endNow]);
 
   // الإغلاق التلقائي بانتهاء وقت الحصة: تنبيه قبل دقيقتين، ثم إنهاء للجميع
   const endAt = liveEnd(session).getTime();
