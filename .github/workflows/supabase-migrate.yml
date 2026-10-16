@@ -99,6 +99,7 @@ on:
           - supabase/migrations/083_live_classes.sql
           - supabase/migrations/084_live_periods.sql
           - supabase/migrations/085_live_title_external.sql
+          - supabase/migrations/086_live_zoom.sql
           - supabase/migrations/003_rollback.sql
       db_secret:
         description: 'اسم سر قاعدة البيانات (اتركه كما هو للمدرسة الأساسية، أو اكتب سر مدرسة أخرى مثل DB_URL_SCHOOL2)'
