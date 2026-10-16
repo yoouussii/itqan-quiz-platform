@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { X, MicOff, MessageSquareOff, MessageSquare, PhoneOff, Loader2, RefreshCw } from 'lucide-react';
+import { X, MicOff, Mic, MessageSquareOff, MessageSquare, PhoneOff, Loader2, RefreshCw, Pencil, Link2, Smartphone, Maximize } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
-import { LiveJoin, LiveSession, liveEnd, loadJitsiApi, pingLive, setLive } from '../../services/liveService';
+import { LiveJoin, LiveSession, copyLiveLink, liveEnd, loadJitsiApi, pingLive, setLive } from '../../services/liveService';
 import { t, uiDir } from '../../i18n';
 
 const STUDENT_TOOLS = ['microphone', 'camera', 'raisehand', 'tileview', 'fullscreen', 'hangup'];
@@ -17,6 +17,13 @@ export const LiveRoom: React.FC<{ join: LiveJoin; onClose: () => void }> = ({ jo
   const chatOpen = useRef(false);
   const [chatLocked, setChatLocked] = useState(session.chat_locked);
   const lockRef = useRef(session.chat_locked);
+  const [title, setTitle] = useState(session.title);
+  const [micLocked, setMicLocked] = useState(false);
+  // الطالب: الشاشة المشتركة (لإخفاء الشريط الجانبي وإظهار تلميح «لف الجوال»)
+  const [sharing, setSharing] = useState(false);
+  const filmVisible = useRef(true);
+  const hidFilm = useRef(false);
+  const stage = useRef<HTMLDivElement>(null);
   const [state, setState] = useState<'loading' | 'ready' | 'error' | 'ended'>('loading');
   const [attempt, setAttempt] = useState(0);
   const closed = useRef(false);
@@ -44,8 +51,9 @@ export const LiveRoom: React.FC<{ join: LiveJoin; onClose: () => void }> = ({ jo
     const a = api.current;
     if (!a || mod) return;
     try {
-      a.executeCommand('overwriteConfig', { toolbarButtons: studentTools(locked) });
+      // نغلق نافذة الشات المفتوحة أولاً ثم نخفي الزر
       if (locked && chatOpen.current) a.executeCommand('toggleChat');
+      a.executeCommand('overwriteConfig', { toolbarButtons: studentTools(locked) });
     } catch { /* ignore */ }
   }, [mod]);
 
@@ -90,12 +98,25 @@ export const LiveRoom: React.FC<{ join: LiveJoin; onClose: () => void }> = ({ jo
       a.addListener('readyToClose', close);
       // الطالب: أنهى المعلم الحصة للجميع أو أُخرج منها ← رسالة الانتهاء فوراً
       if (!mod) a.addListener('videoConferenceLeft', endNow);
-      a.addListener('chatUpdated', (e: any) => { chatOpen.current = !!e?.isOpen; });
-      // الطالب: عند مشاركة الشاشة نخرج من عرض الشبكة، وJitsi يثبّت الشاشة المشتركة في المنتصف
+      a.addListener('chatUpdated', (e: any) => {
+        chatOpen.current = !!e?.isOpen;
+        // الشات مقفول: أي محاولة لفتحه عند الطالب تُغلق فوراً
+        if (!mod && chatOpen.current && lockRef.current) { try { a.executeCommand('toggleChat'); } catch { /* ignore */ } }
+      });
+      a.addListener('filmstripDisplayChanged', (e: any) => { filmVisible.current = !!e?.visible; });
+      // الطالب: عند مشاركة الشاشة نخرج من عرض الشبكة ونخفي الشريط الجانبي لتأخذ الشاشة المساحة كلها
       if (!mod) {
         a.addListener('contentSharingParticipantsChanged', (e: any) => {
-          if (!Array.isArray(e?.data) || !e.data.length) return;
-          try { a.executeCommand('setTileView', false); } catch { /* ignore */ }
+          const on = Array.isArray(e?.data) && e.data.length > 0;
+          setSharing(on);
+          try {
+            if (on) {
+              a.executeCommand('setTileView', false);
+              if (filmVisible.current) { a.executeCommand('toggleFilmStrip'); hidFilm.current = true; }
+            } else if (hidFilm.current) {
+              a.executeCommand('toggleFilmStrip'); hidFilm.current = false;
+            }
+          } catch { /* ignore */ }
         });
       }
       setTimeout(() => alive && setState((s) => (s === 'loading' ? 'ready' : s)), 8000);
@@ -113,6 +134,7 @@ export const LiveRoom: React.FC<{ join: LiveJoin; onClose: () => void }> = ({ jo
     const tick = async () => {
       const r = await pingLive(session.id);
       if (!r.ok) return;
+      if (r.title) setTitle(r.title);
       if (typeof r.chat_locked === 'boolean' && r.chat_locked !== lockRef.current) {
         lockRef.current = r.chat_locked;
         setChatLocked(r.chat_locked);
@@ -146,6 +168,33 @@ export const LiveRoom: React.FC<{ join: LiveJoin; onClose: () => void }> = ({ jo
   const leftMin = Math.max(0, Math.ceil(left / 60000));
 
   const muteAll = () => { try { api.current?.executeCommand('muteEveryone', 'audio'); showToast(t('تم كتم صوت جميع الطلاب')); } catch { /* ignore */ } };
+  // قفل المايكات (إشراف الصوت في Jitsi): لا يفتح الطالب المايك إلا بإذن المعلم، فيقل الصدى والضوضاء
+  const toggleMics = () => {
+    const next = !micLocked;
+    try {
+      api.current?.executeCommand('toggleModeration', next, 'audio');
+      if (next) api.current?.executeCommand('muteEveryone', 'audio');
+      setMicLocked(next);
+      showToast(next ? t('قُفلت المايكات: يرفع الطالب يده لتسمح له بالكلام') : t('فُتحت المايكات للطلاب'));
+    } catch { showToast(t('تعذر الحفظ'), 'error'); }
+  };
+  const rename = async () => {
+    const v = window.prompt(t('عنوان الحصة'), title)?.trim();
+    if (!v || v === title) return;
+    const r = await setLive(session.id, { title: v });
+    if (!r.ok) { showToast(t('تعذر الحفظ'), 'error'); return; }
+    setTitle(v);
+    try { api.current?.executeCommand('subject', v); } catch { /* ignore */ }
+    showToast(t('تم الحفظ'));
+  };
+  const copyLink = async () => { if (await copyLiveLink(session.id)) showToast(t('نُسخ رابط الحصة')); };
+  const fullScreen = () => {
+    const el: any = stage.current;
+    try {
+      const p = el?.requestFullscreen?.() || el?.webkitRequestFullscreen?.();
+      Promise.resolve(p).then(() => (screen.orientation as any)?.lock?.('landscape')).catch(() => {});
+    } catch { /* ignore */ }
+  };
   const toggleChat = async () => {
     const r = await setLive(session.id, { chat_locked: !chatLocked });
     if (r.ok && r.row) { lockRef.current = r.row.chat_locked; setChatLocked(r.row.chat_locked); showToast(r.row.chat_locked ? t('أُغلق الشات على الطلاب (خلال ثوانٍ)') : t('فُتح الشات للطلاب')); }
@@ -160,11 +209,11 @@ export const LiveRoom: React.FC<{ join: LiveJoin; onClose: () => void }> = ({ jo
 
   const btn = 'h-9 px-2.5 sm:px-3 rounded-xl text-sm font-bold inline-flex items-center gap-1.5 whitespace-nowrap';
   return (
-    <div className="fixed inset-0 z-[90] bg-slate-950 flex flex-col" dir={uiDir()} role="dialog" aria-modal="true" aria-label={session.title} data-testid="live-room">
+    <div ref={stage} className="fixed inset-0 z-[90] bg-slate-950 flex flex-col" dir={uiDir()} role="dialog" aria-modal="true" aria-label={title} data-testid="live-room">
       <header className="h-14 shrink-0 px-2 sm:px-4 flex items-center gap-2 bg-slate-900 border-b border-slate-800 text-white">
         <img src={logo} alt="" className="w-9 h-9 rounded-lg object-contain bg-white p-0.5 shrink-0" />
         <div className="min-w-0 flex-1">
-          <p className="font-black truncate text-sm sm:text-base">{session.title}</p>
+          <p className="font-black truncate text-sm sm:text-base">{title}</p>
           <p className="text-xs text-slate-400 truncate flex items-center gap-1.5">
             <span className="w-2 h-2 rounded-full bg-rose-500 animate-pulse" />{t('مباشر')} · {session.teacher_name}
             <span className={`ms-1 px-1.5 rounded-md tabular-nums ${leftMin <= 2 ? 'bg-amber-500 text-slate-950 font-bold' : 'bg-slate-800 text-slate-300'}`} data-testid="live-left">
@@ -174,6 +223,18 @@ export const LiveRoom: React.FC<{ join: LiveJoin; onClose: () => void }> = ({ jo
         </div>
         {mod && (
           <>
+            <button type="button" onClick={() => void rename()} className={`${btn} bg-slate-800 hover:bg-slate-700 hidden sm:inline-flex`} title={t('تغيير عنوان الحصة')} aria-label={t('تغيير عنوان الحصة')} data-testid="live-rename">
+              <Pencil className="w-4 h-4" />
+            </button>
+            <button type="button" onClick={() => void copyLink()} className={`${btn} bg-slate-800 hover:bg-slate-700`} title={t('نسخ رابط الحصة')} aria-label={t('نسخ رابط الحصة')} data-testid="live-copy">
+              <Link2 className="w-4 h-4" />
+            </button>
+            <button type="button" onClick={toggleMics} aria-pressed={micLocked} data-testid="live-mic-lock"
+              className={`${btn} ${micLocked ? 'bg-amber-500 text-slate-950 hover:bg-amber-400' : 'bg-slate-800 hover:bg-slate-700'}`}
+              title={micLocked ? t('فتح المايكات للطلاب') : t('قفل المايكات')}>
+              {micLocked ? <MicOff className="w-4 h-4" /> : <Mic className="w-4 h-4" />}
+              <span className="hidden lg:inline">{micLocked ? t('المايكات مقفولة') : t('قفل المايكات')}</span>
+            </button>
             <button type="button" onClick={muteAll} className={`${btn} bg-slate-800 hover:bg-slate-700`} title={t('كتم الجميع')} data-testid="live-mute-all">
               <MicOff className="w-4 h-4" /><span className="hidden md:inline">{t('كتم الجميع')}</span>
             </button>
@@ -199,6 +260,15 @@ export const LiveRoom: React.FC<{ join: LiveJoin; onClose: () => void }> = ({ jo
         {state === 'ready' && (
           <img src={logo} alt="" aria-hidden="true" data-testid="live-logo"
             className="pointer-events-none absolute top-3 start-3 w-12 h-12 sm:w-16 sm:h-16 object-contain opacity-80 drop-shadow-lg" />
+        )}
+        {/* الطالب على الجوال بالطول أثناء مشاركة الشاشة: تلميح لتدوير الجوال وزر ملء الشاشة */}
+        {!mod && sharing && state === 'ready' && (
+          <div className="portrait:flex hidden absolute bottom-24 inset-x-3 justify-center pointer-events-none" data-testid="live-rotate">
+            <div className="pointer-events-auto flex items-center gap-2 rounded-2xl bg-slate-900/90 text-white text-sm font-bold px-3 py-2 shadow-lg">
+              <Smartphone className="w-4 h-4 rotate-90" />{t('لف الجوال بالعرض لترى الشرح أوضح')}
+              <button type="button" onClick={fullScreen} className="ms-1 h-8 px-2 rounded-lg bg-indigo-600 inline-flex items-center gap-1"><Maximize className="w-4 h-4" />{t('ملء الشاشة')}</button>
+            </div>
+          </div>
         )}
         {state === 'loading' && (
           <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 text-slate-300">

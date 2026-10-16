@@ -15,18 +15,20 @@ export interface LiveSession {
   teacher_id: string; teacher_name: string; title: string; notes: string;
   starts_at: string; duration_min: number; period: number | null; status: LiveStatus;
   started_at: string | null; ended_at: string | null; chat_locked: boolean; can_manage: boolean;
+  /** اجتماع خارجي (Zoom/Teams/Meet) بدل Jitsi؛ الرابط يظهر لمدير الحصة فقط (085) */
+  external?: boolean; external_url?: string | null;
   attended: { seconds: number; first_join: string } | null;
 }
 export interface LiveJoin {
   ok: boolean; error?: string; domain?: string; room?: string; jwt?: string | null;
-  moderator?: boolean; name?: string; session?: LiveSession;
+  moderator?: boolean; name?: string; session?: LiveSession; external_url?: string;
 }
 export interface LiveAttendee {
   user_id: string; name: string; class_id: string; first_join: string | null; last_seen: string | null; seconds: number; joins: number;
 }
 export interface LiveDraft {
   id?: string; title: string; notes: string; class_ids: string[]; subject_id: string | null;
-  starts_at: string; duration_min: number; teacher_id?: string; period?: number | null;
+  starts_at: string; duration_min: number; teacher_id?: string; period?: number | null; external_url?: string | null;
 }
 
 const norm = (s: any): LiveSession => ({ ...s, class_ids: Array.isArray(s.class_ids) ? s.class_ids : [], duration_min: Number(s.duration_min) || 35 });
@@ -44,8 +46,10 @@ export async function deleteLive(ids: string[], seriesFrom = false) {
   return safe<number>(() => supabase.rpc('itqan_live_delete', { p_ids: ids, p_series_from: seriesFrom }) as any);
 }
 
-export async function setLive(id: string, patch: { status?: 'scheduled' | 'ended' | 'cancelled'; chat_locked?: boolean }) {
-  const r = await safe<any>(() => supabase.rpc('itqan_live_set', { p_id: id, p_status: patch.status ?? null, p_chat_locked: patch.chat_locked ?? null }) as any);
+export async function setLive(id: string, patch: { status?: 'scheduled' | 'ended' | 'cancelled'; chat_locked?: boolean; title?: string }) {
+  const args: Record<string, unknown> = { p_id: id, p_status: patch.status ?? null, p_chat_locked: patch.chat_locked ?? null };
+  if (patch.title) args.p_title = patch.title; // 085
+  const r = await safe<any>(() => supabase.rpc('itqan_live_set', args) as any);
   return { ok: r.ok, row: r.data ? norm(r.data) : null, error: r.error };
 }
 
@@ -55,7 +59,7 @@ export async function joinLive(id: string): Promise<LiveJoin> {
   return { ...r.data, session: r.data.session ? norm(r.data.session) : undefined };
 }
 
-export async function pingLive(id: string): Promise<{ ok: boolean; status?: LiveStatus; chat_locked?: boolean }> {
+export async function pingLive(id: string): Promise<{ ok: boolean; status?: LiveStatus; chat_locked?: boolean; title?: string }> {
   const r = await safe<any>(() => supabase.rpc('itqan_live_ping', { p_id: id }) as any);
   return r.data || { ok: false };
 }
@@ -111,3 +115,18 @@ export function loadJitsiApi(domain: string): Promise<any> {
 let pendingJoin: string | null = null;
 export const setPendingJoin = (id: string | null) => { pendingJoin = id; };
 export const takePendingJoin = () => { const v = pendingJoin; pendingJoin = null; return v; };
+
+/** رابط الحصة داخل المنصة (يفتح صفحة الحصص ويدخل الحصة بعد تسجيل الدخول) */
+export const liveLink = (id: string) => `${window.location.origin}/live?s=${encodeURIComponent(id)}`;
+export async function copyLiveLink(id: string): Promise<boolean> {
+  try { await navigator.clipboard.writeText(liveLink(id)); return true; } catch { window.prompt('', liveLink(id)); return false; }
+}
+
+/** فتح اجتماع خارجي: نافذة جديدة، وإن منعها المتصفح فالصفحة نفسها */
+export function openExternal(url: string) {
+  const w = window.open(url, '_blank', 'noopener');
+  if (!w) window.location.href = url;
+}
+/** نوع الاجتماع الخارجي من الرابط (للعرض) */
+export const externalKind = (url?: string | null) =>
+  !url ? '' : /zoom\./i.test(url) ? 'Zoom' : /teams\.(microsoft|live)\./i.test(url) ? 'Teams' : /meet\.google\./i.test(url) ? 'Google Meet' : '';
