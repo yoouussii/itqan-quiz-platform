@@ -219,6 +219,8 @@ export const EN: Record<string, string> = {
   'التالي': 'Next',
   'البانر {n}': 'Banner {n}',
   'حدث خطأ غير متوقع': 'Something went wrong',
+  'رقم الهوية مسجل مسبقاً لمستخدم آخر في المدرسة. تواصل مع الإدارة.': 'This ID is already used by another user in the school. Contact the administration.',
+  'رقم الهوية {id} مسجل باسم «{name}» ({role}). هل تريد عرض حسابه؟': 'ID {id} is already registered to “{name}” ({role}). Show their account?',
   'هذا المتصفح لا يدعم المايك والكاميرا. استخدم Chrome أو Safari حديثاً.': 'This browser doesn’t support the microphone and camera. Use a recent Chrome or Safari.',
   'المتصفح منع المايك والكاميرا. اضغط رمز القفل بجوار عنوان الموقع واسمح بهما، ثم أعد المحاولة.': 'The browser blocked the microphone and camera. Tap the lock icon next to the site address, allow both, then try again.',
   'لم يُعثر على مايك أو كاميرا في هذا الجهاز.': 'No microphone or camera was found on this device.',
