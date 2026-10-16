@@ -257,7 +257,7 @@ export const LivePage: React.FC = () => {
       {editing && (
         <LiveEditor session={editing === 'new' ? null : editing} classes={myClasses} subjects={subjects} periods={periods} needExternal={!domain}
           teachers={me.role === 'teacher' ? [] : (users as User[]).filter((u) => u.role === 'teacher').sort((a, b) => a.name.localeCompare(b.name, 'ar'))}
-          me={me} onClose={() => setEditing(null)} onSaved={(n) => { setEditing(null); showToast(n > 1 ? t('تمت جدولة {n} حصة', { n }) : t('تم الحفظ')); void load(true); }} />
+          me={fresh} onClose={() => setEditing(null)} onSaved={(n) => { setEditing(null); showToast(n > 1 ? t('تمت جدولة {n} حصة', { n }) : t('تم الحفظ')); void load(true); }} />
       )}
       {att && <AttendanceModal s={att} className={className} onClose={() => setAtt(null)} />}
       {del && <DeleteModal s={del} onClose={() => setDel(null)} onDone={(n) => { setDel(null); showToast(t('تم حذف {n} حصة', { n })); void load(true); }} />}
@@ -346,6 +346,21 @@ const LiveEditor: React.FC<{
   const effStart = per ? `${date}T${per.start}` : start;
   const effDur = per ? Number(per.minutes) || 35 : dur;
   const [teacherId, setTeacherId] = useState('');
+  // المواد: مواد معلم الحصة فقط (المسندة له أو تخصصه)، وكل المواد إن لم تُسند له مادة
+  const owner = useMemo(() => {
+    const id = teacherId || session?.teacher_id || me.id;
+    return teachers.find((u) => u.id === id) || (id === me.id ? me : null);
+  }, [teacherId, session, teachers, me]);
+  const subjectOptions = useMemo(() => {
+    const ids = owner?.assigned_subject_ids?.length ? owner.assigned_subject_ids : owner?.specialty_id ? [owner.specialty_id] : [];
+    const list = ids.length ? subjects.filter((s: any) => ids.includes(s.id) || s.id === session?.subject_id) : subjects;
+    return list.length ? list : subjects;
+  }, [owner, subjects, session]);
+  useEffect(() => {
+    if (subjectOptions.length === 1 && subjectOptions !== subjects) setSubjectId(subjectOptions[0].id);
+    else if (subjectId && !subjectOptions.some((s: any) => s.id === subjectId)) setSubjectId('');
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [subjectOptions]);
   const [repeat, setRepeat] = useState(false);
   const [weekdays, setWeekdays] = useState<number[]>([]);
   const [until, setUntil] = useState(() => { const d = new Date(); d.setMonth(d.getMonth() + 1); return dayKey(d); });
@@ -408,7 +423,7 @@ const LiveEditor: React.FC<{
           <span className="text-sm font-bold text-slate-700 dark:text-slate-200">{t('المادة (اختياري)')}</span>
           <select value={subjectId} onChange={(e) => setSubjectId(e.target.value)} className={`${inp} w-full`}>
             <option value="">—</option>
-            {subjects.map((s: any) => <option key={s.id} value={s.id}>{s.name}</option>)}
+            {subjectOptions.map((s: any) => <option key={s.id} value={s.id}>{s.name}</option>)}
           </select>
         </label>
         {periods.length > 0 && (
