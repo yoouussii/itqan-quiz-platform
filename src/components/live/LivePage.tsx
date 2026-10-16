@@ -8,9 +8,11 @@ import { DateTimeField } from '../common/DateTimeField';
 import {
   LiveAttendee, LiveDraft, LiveJoin, LivePeriod, LiveSession, deleteLive, periodEnd, isSoon, joinLive, listLive, liveAttendance, liveConfigStatus, liveEnd,
   randomSecret, saveLive, setLive, setLiveConfig, takePendingJoin, copyLiveLink, openExternal, externalKind,
+  zoomKeysStatus, setZoomKeys, parseZoomMeeting,
 } from '../../services/liveService';
 import { saveSettings } from '../../services/settingsService';
 import { LiveRoom } from './LiveRoom';
+const ZoomRoom = React.lazy(() => import('./ZoomRoom'));
 import { t, uiDir, dateLocale } from '../../i18n';
 import type { User } from '../../types';
 
@@ -69,6 +71,8 @@ export const LivePage: React.FC = () => {
   const [room, setRoom] = useState<LiveJoin | null>(null);
   const [joining, setJoining] = useState<string | null>(null);
   const [showCfg, setShowCfg] = useState(false);
+  const [showZoom, setShowZoom] = useState(false);
+  const [zoomJoin, setZoomJoin] = useState<LiveJoin | null>(null);
   const [now, setNow] = useState(Date.now());
 
   const load = useCallback(async (quiet = false) => {
@@ -116,6 +120,7 @@ export const LivePage: React.FC = () => {
     const r = await joinLive(s.id);
     setJoining(null);
     if (!r.ok) { showToast((JOIN_ERR[r.error || ''] || (() => t('تعذر دخول الحصة')))(), 'error'); void load(true); return; }
+    if (r.zoom) { setZoomJoin(r); return; }
     if (r.external_url) { openExternal(r.external_url); void load(true); return; }
     setRoom(r);
   };
@@ -126,6 +131,7 @@ export const LivePage: React.FC = () => {
   };
 
   if (room) return <LiveRoom join={room} onClose={() => { setRoom(null); void load(true); }} />;
+  if (zoomJoin) return <React.Suspense fallback={null}><ZoomRoom join={zoomJoin} onClose={() => { setZoomJoin(null); void load(true); }} /></React.Suspense>;
 
   const canCreate = isStaff && (!isTeacher || myClasses.length > 0);
   return (
@@ -135,6 +141,7 @@ export const LivePage: React.FC = () => {
         subtitle={isStaff ? t('جدول الحصص عن بُعد: جدولة، وتذكير تلقائي للطلاب، ودخول بضغطة، وحضور يُسجَّل وحده') : t('ادخل حصتك من هنا عندما يبدأها المعلم')}
         actions={<>
           {canCreate && <Button icon={Plus} onClick={() => setEditing('new')} data-testid="live-new">{t('حصة جديدة')}</Button>}
+          {isStaff && <Button variant="secondary" icon={Video} onClick={() => setShowZoom((v) => !v)} data-testid="zoom-keys-btn">{t('حسابي في Zoom')}</Button>}
           {me.role === 'admin' && <Button variant="secondary" icon={Settings2} onClick={() => setShowCfg((v) => !v)}>{t('إعدادات الخادم')}</Button>}
         </>}
       />
@@ -155,6 +162,8 @@ export const LivePage: React.FC = () => {
           showToast(t('تم الحفظ'));
         }} />
       )}
+
+      {isStaff && showZoom && <ZoomKeysCard />}
 
       {happening.length > 0 && (
         <div className="space-y-3">
@@ -329,6 +338,12 @@ const LiveEditor: React.FC<{
   const [weekdays, setWeekdays] = useState<number[]>([]);
   const [until, setUntil] = useState(() => { const d = new Date(); d.setMonth(d.getMonth() + 1); return dayKey(d); });
   const [ext, setExt] = useState(session?.external_url || '');
+  type Prov = 'jitsi' | 'zoom' | 'external';
+  const [prov, setProv] = useState<Prov>((session?.provider as Prov) || (needExternal ? 'zoom' : 'jitsi'));
+  const [zm, setZm] = useState(session?.zoom_meeting || '');
+  const [zp, setZp] = useState(session?.zoom_passcode || '');
+  const [zoomOk, setZoomOk] = useState<boolean | null>(null);
+  useEffect(() => { if (prov === 'zoom' && zoomOk === null) void zoomKeysStatus().then((s) => setZoomOk(s.configured)); }, [prov, zoomOk]);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
   const startDow = effStart ? new Date(effStart).getDay() : -1;
@@ -340,16 +355,20 @@ const LiveEditor: React.FC<{
     if (!title.trim()) return setErr(t('اكتب عنوان الحصة'));
     if (!classIds.length) return setErr(t('اختر فصلاً واحداً على الأقل'));
     if (!effStart || (per && !date)) return setErr(t('حدد موعد الحصة'));
-    const extUrl = ext.trim();
-    if (extUrl && !/^https:\/\/\S+$/i.test(extUrl)) return setErr(t('الرابط يجب أن يبدأ بـ https://'));
-    if (!extUrl && needExternal) return setErr(t('أضف رابط اجتماع Zoom أو Teams (خادم الحصص غير مضبوط)'));
+    const extUrl = prov === 'external' ? ext.trim() : '';
+    if (prov === 'external' && !/^https:\/\/\S+$/i.test(extUrl)) return setErr(t('الرابط يجب أن يبدأ بـ https://'));
+    const zMeeting = prov === 'zoom' ? parseZoomMeeting(zm) : '';
+    if (prov === 'zoom' && !zMeeting) return setErr(t('اكتب رقم اجتماع Zoom (9 إلى 12 رقماً) أو الصق رابط الدعوة'));
     setBusy(true);
-    const d: LiveDraft = { id: session?.id, title: title.trim(), notes, class_ids: classIds, subject_id: subjectId || null, starts_at: new Date(effStart).toISOString(), duration_min: effDur, period: per ? period : null, teacher_id: teacherId || undefined, external_url: extUrl || null };
+    const d: LiveDraft = { id: session?.id, title: title.trim(), notes, class_ids: classIds, subject_id: subjectId || null, starts_at: new Date(effStart).toISOString(), duration_min: effDur, period: per ? period : null, teacher_id: teacherId || undefined, external_url: extUrl || null,
+      zoom_meeting: zMeeting || null, zoom_passcode: prov === 'zoom' ? zp.trim() || null : null };
     const r = await saveLive(d, !session && repeat ? until : null, !session && repeat ? weekdays.filter((w) => w !== startDow) : undefined);
     setBusy(false);
     if (!r.ok) {
       const m = r.error || '';
       if (m.includes('bad_url')) return setErr(t('الرابط يجب أن يبدأ بـ https://'));
+      if (m.includes('zoom_keys_missing')) return setErr(t('اربط حسابك في Zoom أولاً من زر «حسابي في Zoom» أعلى الصفحة.'));
+      if (m.includes('bad_zoom')) return setErr(t('رقم الاجتماع أو رمز المرور غير صحيح'));
       return setErr(m.includes('class_forbidden') ? t('أحد الفصول ليس ضمن إسنادك') : m.includes('repeat_too_long') ? t('مدة التكرار طويلة جداً (الحد ستة أشهر)') : t('تعذر الحفظ'));
     }
     onSaved(session ? 1 : Number(r.data?.created) || 1);
@@ -449,11 +468,37 @@ const LiveEditor: React.FC<{
             )}
           </div>
         )}
-        <label className="block space-y-1">
-          <span className="text-sm font-bold text-slate-700 dark:text-slate-200">{needExternal ? t('رابط الاجتماع (Zoom / Teams / Meet)') : t('رابط اجتماع خارجي (اختياري)')}</span>
-          <input value={ext} onChange={(e) => setExt(e.target.value)} dir="ltr" inputMode="url" placeholder="https://zoom.us/j/…" className={`${inp} w-full`} data-testid="live-ext" />
-          <span className="block text-xs text-slate-500 dark:text-slate-400">{t('اتركه فارغاً لاستخدام خادم المدرسة. مع الرابط: يدخل الطالب من المنصة فيُسجَّل حضوره ثم يُفتح الاجتماع في تطبيقه.')}</span>
-        </label>
+        <div className="space-y-2">
+          <span className="text-sm font-bold text-slate-700 dark:text-slate-200">{t('أين تُعقد الحصة؟')}</span>
+          <div className="grid grid-cols-3 gap-1.5" role="radiogroup">
+            {([['jitsi', t('خادم المدرسة')], ['zoom', t('Zoom داخل المنصة')], ['external', t('رابط خارجي')]] as Array<[Prov, string]>)
+              .filter(([k]) => k !== 'jitsi' || !needExternal)
+              .map(([k, label]) => (
+                <button key={k} type="button" role="radio" aria-checked={prov === k} onClick={() => setProv(k)} data-testid={`live-prov-${k}`}
+                  className={`h-10 px-2 rounded-xl text-sm font-semibold border ${prov === k ? 'bg-indigo-600 border-indigo-600 text-white' : 'border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-200'}`}>
+                  {label}
+                </button>
+              ))}
+          </div>
+          {prov === 'zoom' && (
+            <div className="space-y-2 rounded-2xl border border-slate-200 dark:border-slate-800 p-3">
+              {zoomOk === false && (
+                <p className="text-xs font-bold text-amber-700 dark:text-amber-300">{t('لم تربط حسابك في Zoom بعد: احفظ الحصة بعد ربطه من زر «حسابي في Zoom».')}</p>
+              )}
+              <div className="grid sm:grid-cols-2 gap-2">
+                <input value={zm} onChange={(e) => setZm(e.target.value)} dir="ltr" placeholder={t('رقم الاجتماع أو رابط الدعوة')} className={`${inp} w-full`} data-testid="live-zoom-meeting" />
+                <input value={zp} onChange={(e) => setZp(e.target.value)} dir="ltr" placeholder={t('رمز المرور (Passcode)')} className={`${inp} w-full`} data-testid="live-zoom-pass" />
+              </div>
+              <p className="text-xs text-slate-500 dark:text-slate-400">{t('أنشئ اجتماعاً متكرراً في Zoom (نفس الرقم لكل الحصص) وابدأه من تطبيق Zoom في موعده، والطلاب يرونه داخل المنصة. لا يظهر الرقم ولا الرمز للطلاب.')}</p>
+            </div>
+          )}
+          {prov === 'external' && (
+            <div className="space-y-1">
+              <input value={ext} onChange={(e) => setExt(e.target.value)} dir="ltr" inputMode="url" placeholder="https://teams.microsoft.com/…" className={`${inp} w-full`} data-testid="live-ext" />
+              <span className="block text-xs text-slate-500 dark:text-slate-400">{t('Teams أو Google Meet أو غيرها: يدخل الطالب من المنصة فيُسجَّل حضوره ثم يُفتح الاجتماع في تطبيقه.')}</span>
+            </div>
+          )}
+        </div>
         <label className="block space-y-1">
           <span className="text-sm font-bold text-slate-700 dark:text-slate-200">{t('ملاحظات للطلاب (اختياري)')}</span>
           <textarea value={notes} onChange={(e) => setNotes(e.target.value)} maxLength={2000} rows={2} className="w-full px-3 py-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm" />
@@ -594,6 +639,48 @@ const ServerSettings: React.FC<{ domain: string; onSaveDomain: (d: string) => Pr
             <Button size="sm" variant="secondary" icon={Copy} onClick={() => { void navigator.clipboard?.writeText(cmd); showToast(t('تم النسخ')); }}>{t('نسخ')}</Button>
           </div>
         )}
+      </div>
+    </Card>
+  );
+};
+
+/** ربط حساب المعلم في Zoom: مفاتيح تطبيق Meeting SDK من حسابه (السرّ يُحفظ على الخادم ولا يُعرض) */
+const ZoomKeysCard: React.FC = () => {
+  const { showToast } = useApp();
+  const [st, setSt] = useState<{ configured: boolean; client_id?: string | null } | null>(null);
+  const [cid, setCid] = useState('');
+  const [sec, setSec] = useState('');
+  const [busy, setBusy] = useState(false);
+  useEffect(() => { void zoomKeysStatus().then((s) => { setSt(s); setCid(s.client_id || ''); }); }, []);
+  const save = async (remove = false) => {
+    setBusy(true);
+    const r = await setZoomKeys(remove ? '' : cid.trim(), remove ? '' : sec.trim() || null);
+    setBusy(false);
+    if (!r.ok) { showToast(t('تعذر الحفظ'), 'error'); return; }
+    setSt(r.data); setSec(''); if (remove) setCid('');
+    showToast(remove ? t('أُلغي ربط Zoom') : t('تم ربط حسابك في Zoom'));
+  };
+  const steps = [
+    t('ادخل marketplace.zoom.us بحسابك في Zoom ← Develop ← Build App.'),
+    t('اختر General App، ثم من Features فعّل Embed ← Meeting SDK.'),
+    t('من App Credentials انسخ Client ID و Client Secret والصقهما هنا.'),
+    t('أنشئ في Zoom اجتماعاً متكرراً لكل فصل، وضع رقمه في الحصة.'),
+  ];
+  return (
+    <Card className="p-4 sm:p-5 space-y-3" data-testid="zoom-keys">
+      <div className="flex items-center justify-between gap-2">
+        <p className="font-black text-slate-900 dark:text-white">{t('ربط حسابي في Zoom (مرة واحدة)')}</p>
+        {st?.configured && <Chip tone="ok">{t('مربوط ✓')}</Chip>}
+      </div>
+      <ol className="list-decimal ps-5 text-sm text-slate-600 dark:text-slate-300 space-y-1">{steps.map((s, i) => <li key={i}>{s}</li>)}</ol>
+      <div className="grid sm:grid-cols-2 gap-2">
+        <input value={cid} onChange={(e) => setCid(e.target.value)} dir="ltr" placeholder="Client ID" className={`${inp} w-full`} data-testid="zoom-client-id" />
+        <input value={sec} onChange={(e) => setSec(e.target.value)} dir="ltr" type="password" autoComplete="off"
+          placeholder={st?.configured ? t('Client Secret (اتركه فارغاً للإبقاء على الحالي)') : 'Client Secret'} className={`${inp} w-full`} data-testid="zoom-secret" />
+      </div>
+      <div className="flex flex-wrap gap-2">
+        <Button size="sm" icon={Save} onClick={() => void save()} disabled={busy || !cid.trim() || (!st?.configured && !sec.trim())} data-testid="zoom-save">{t('حفظ')}</Button>
+        {st?.configured && <Button size="sm" variant="secondary" icon={Trash2} onClick={() => void save(true)} disabled={busy}>{t('إلغاء الربط')}</Button>}
       </div>
     </Card>
   );

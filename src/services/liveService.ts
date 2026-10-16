@@ -17,11 +17,14 @@ export interface LiveSession {
   started_at: string | null; ended_at: string | null; chat_locked: boolean; can_manage: boolean;
   /** اجتماع خارجي (Zoom/Teams/Meet) بدل Jitsi؛ الرابط يظهر لمدير الحصة فقط (085) */
   external?: boolean; external_url?: string | null;
+  /** مزوّد الحصة (086): خادم المدرسة، أو Zoom داخل المنصة، أو رابط خارجي */
+  provider?: 'jitsi' | 'zoom' | 'external'; zoom_meeting?: string | null; zoom_passcode?: string | null;
   attended: { seconds: number; first_join: string } | null;
 }
 export interface LiveJoin {
   ok: boolean; error?: string; domain?: string; room?: string; jwt?: string | null;
   moderator?: boolean; name?: string; session?: LiveSession; external_url?: string;
+  zoom?: { meetingNumber: string; password: string; userName: string; signature: string };
 }
 export interface LiveAttendee {
   user_id: string; name: string; class_id: string; first_join: string | null; last_seen: string | null; seconds: number; joins: number;
@@ -29,6 +32,7 @@ export interface LiveAttendee {
 export interface LiveDraft {
   id?: string; title: string; notes: string; class_ids: string[]; subject_id: string | null;
   starts_at: string; duration_min: number; teacher_id?: string; period?: number | null; external_url?: string | null;
+  zoom_meeting?: string | null; zoom_passcode?: string | null;
 }
 
 const norm = (s: any): LiveSession => ({ ...s, class_ids: Array.isArray(s.class_ids) ? s.class_ids : [], duration_min: Number(s.duration_min) || 35 });
@@ -130,3 +134,19 @@ export function openExternal(url: string) {
 /** نوع الاجتماع الخارجي من الرابط (للعرض) */
 export const externalKind = (url?: string | null) =>
   !url ? '' : /zoom\./i.test(url) ? 'Zoom' : /teams\.(microsoft|live)\./i.test(url) ? 'Teams' : /meet\.google\./i.test(url) ? 'Google Meet' : '';
+
+/** مفاتيح تطبيق Zoom Meeting SDK للمعلم الحالي (086): السرّ لا يُعاد أبداً */
+export async function zoomKeysStatus(): Promise<{ configured: boolean; client_id?: string | null }> {
+  const r = await safe<any>(() => supabase.rpc('itqan_zoom_keys_status') as any);
+  return r.data || { configured: false };
+}
+export async function setZoomKeys(clientId: string, secret: string | null) {
+  return safe<any>(() => supabase.rpc('itqan_zoom_keys_set', { p_client_id: clientId, p_secret: secret }) as any);
+}
+/** رقم الاجتماع من رابط دعوة Zoom أو من الرقم نفسه (بمسافات أو شرطات) */
+export function parseZoomMeeting(v: string): string {
+  const m = v.match(/\/j\/(\d{9,12})/) || v.match(/\/wc\/(\d{9,12})/);
+  if (m) return m[1];
+  const d = v.replace(/[^0-9]/g, '');
+  return d.length >= 9 && d.length <= 12 ? d : '';
+}
