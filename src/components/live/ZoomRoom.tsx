@@ -11,6 +11,7 @@ const ZoomRoom: React.FC<{ join: LiveJoin; onClose: () => void }> = ({ join, onC
   const z = join.zoom!;
   const root = useRef<HTMLDivElement>(null);
   const client = useRef<any>(null);
+  const sdk = useRef<any>(null);
   const [state, setState] = useState<'loading' | 'ready' | 'error' | 'ended'>('loading');
   const [err, setErr] = useState('');
   const [attempt, setAttempt] = useState(0);
@@ -19,8 +20,14 @@ const ZoomRoom: React.FC<{ join: LiveJoin; onClose: () => void }> = ({ join, onC
   onCloseRef.current = onClose;
   const logo = settings.school_logo || '/itqan-logo.png';
 
+  // الخروج ثم هدم عميل Zoom: العميل واحد في الصفحة، وإن بقي يُرسم في عنصر قديم فتظهر شاشة سوداء عند الدخول التالي
   const leave = useCallback(() => {
-    try { client.current?.leaveMeeting(); } catch { /* ignore */ }
+    const c = client.current;
+    client.current = null;
+    if (!c) return;
+    Promise.resolve().then(() => c.leaveMeeting?.()).catch(() => {}).finally(() => {
+      try { sdk.current?.destroyClient?.(); } catch { /* ignore */ }
+    });
   }, []);
   const close = useCallback(() => { leave(); onCloseRef.current(); }, [leave]);
   const endNow = useCallback(() => { leave(); setState('ended'); }, [leave]);
@@ -33,8 +40,11 @@ const ZoomRoom: React.FC<{ join: LiveJoin; onClose: () => void }> = ({ join, onC
       try {
         const mod: any = await import('@zoom/meetingsdk/embedded');
         const ZoomMtgEmbedded = mod.default || mod;
+        sdk.current = ZoomMtgEmbedded;
         if (!alive || !root.current) return;
-        const c = client.current || ZoomMtgEmbedded.createClient();
+        try { ZoomMtgEmbedded.destroyClient?.(); } catch { /* ignore */ }
+        root.current.innerHTML = '';
+        const c = ZoomMtgEmbedded.createClient();
         client.current = c;
         const box = root.current.getBoundingClientRect();
         await c.init({
@@ -42,7 +52,8 @@ const ZoomRoom: React.FC<{ join: LiveJoin; onClose: () => void }> = ({ join, onC
           language: 'en-US',
           patchJsMedia: true,
           leaveOnPageUnload: true,
-          customize: { video: { isResizable: false, viewSizes: { default: { width: Math.floor(box.width), height: Math.floor(box.height - 60) } } } },
+          // «active»: المتحدث أو الشاشة المشتركة تملأ العرض بدل المربعات الصغيرة
+          customize: { video: { isResizable: false, defaultViewType: 'active' as any, viewSizes: { default: { width: Math.floor(box.width), height: Math.floor(box.height - 60) } } } },
         });
         c.on('connection-change', (p: any) => { if (p?.state === 'Closed') endNow(); });
         await c.join({ signature: z.signature, meetingNumber: z.meetingNumber, password: z.password, userName: z.userName });
