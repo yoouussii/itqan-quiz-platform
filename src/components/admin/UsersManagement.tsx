@@ -345,9 +345,16 @@ export const UsersManagement: React.FC = () => {
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    const exists = users.some((u) => u.national_id === nationalId.trim());
-    if (exists) {
-      alert(t('رقم الهوية مسجل مسبقاً لمستخدم آخر'));
+    // الحساب صاحب الرقم قد يكون مخفياً بالتصفية الحالية (تبويب الدور أو الفرع أو الفصل): نذكر صاحبه ونعرضه
+    const dup = users.find((u) => (u.national_id || '').trim() === nationalId.trim());
+    if (dup) {
+      if (isTeacher) { alert(t('رقم الهوية مسجل مسبقاً لمستخدم آخر في المدرسة. تواصل مع الإدارة.')); return; }
+      const roleName = ({ admin: t('مدير نظام'), teacher: t('معلم'), supervisor: t('مشرف'), student: t('طالب'), parent: t('ولي أمر') } as Record<string, string>)[dup.role] || dup.role;
+      if (window.confirm(t('رقم الهوية {id} مسجل باسم «{name}» ({role}). هل تريد عرض حسابه؟', { id: dup.national_id, name: dup.name, role: roleName }))) {
+        setShowAddModal(false);
+        setRoleFilter('all'); setClassFilter('all'); setBranchFilter('all'); setGenderFilter('all');
+        setSearchTerm(dup.national_id);
+      }
       return;
     }
 
